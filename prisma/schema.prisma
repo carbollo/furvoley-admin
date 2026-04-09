@@ -7,17 +7,75 @@ datasource db {
   provider = "postgresql"
 }
 
+// --- AUTHENTICATION MODELS ---
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String    @default("PLAYER") // ADMIN, COACH, PLAYER
+  accounts      Account[]
+  sessions      Session[]
+
+  // Link to the club member profile
+  memberId      String?   @unique
+  member        Member?   @relation(fields: [memberId], references: [id])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- CLUB MANAGEMENT MODELS ---
+
 model Member {
   id        String    @id @default(cuid())
   name      String
-  email     String?
+  email     String?   @unique
   phone     String?
   status    String    @default("ACTIVE") // ACTIVE, INACTIVE
   joinedAt  DateTime  @default(now())
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  user      User?
   payments  Payment[]
+  teamRoles TeamMember[]
+  attendances Attendance[]
 }
 
 model Payment {
@@ -44,4 +102,64 @@ model Transaction {
   date        DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// --- TEAMS AND PLANNING MODELS ---
+
+model Team {
+  id          String       @id @default(cuid())
+  name        String
+  category    String?      // e.g., "U12", "Senior"
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  members     TeamMember[]
+  events      Event[]
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  role      String   @default("PLAYER") // PLAYER, COACH
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, memberId])
+}
+
+model Event {
+  id          String       @id @default(cuid())
+  title       String
+  type        String       // TRAINING, MATCH, TOURNAMENT
+  date        DateTime
+  location    String?
+  description String?      @db.Text
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  teamId      String
+  team        Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  attendances Attendance[]
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  status    String   // PRESENT, ABSENT, INJURED, PENDING
+  reason    String?  // Reason for absence
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, memberId])
 }
