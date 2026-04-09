@@ -6,9 +6,10 @@ import { AttendanceButtons } from './AttendanceButtons'
 
 export const dynamic = 'force-dynamic'
 
-export default async function EventDetailsPage({ params }: { params: { id: string } }) {
+export default async function EventDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const event = await prisma.event.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       team: true,
       attendances: {
