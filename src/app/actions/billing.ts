@@ -44,6 +44,46 @@ export async function createMembershipPlan(data: {
   return plan
 }
 
+export async function updateMembershipPlan(
+  id: string,
+  data: {
+    name?: string
+    description?: string
+    amount?: number
+    billingPeriod?: string
+    enrollmentFee?: number
+    isActive?: boolean
+  },
+) {
+  const plan = await prisma.membershipPlan.update({
+    where: { id },
+    data,
+  })
+  revalidatePath('/billing')
+  return plan
+}
+
+export async function deleteMembershipPlan(id: string) {
+  // Si tiene suscripciones activas, no permitir borrado duro
+  const hasSubscriptions = await prisma.subscription.count({
+    where: { planId: id },
+  })
+
+  if (hasSubscriptions > 0) {
+    // Soft delete
+    await prisma.membershipPlan.update({
+      where: { id },
+      data: { isActive: false },
+    })
+  } else {
+    await prisma.membershipPlan.delete({
+      where: { id },
+    })
+  }
+
+  revalidatePath('/billing')
+}
+
 export async function createSubscription(data: {
   memberId: string
   planId: string

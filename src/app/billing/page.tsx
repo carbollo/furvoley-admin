@@ -3,9 +3,8 @@ import { prisma } from '@/lib/prisma'
 import {
   createMembershipPlan,
   createSubscription,
-  generateDueInvoices,
-  runReminderJob,
-  updateInvoiceStatuses,
+  deleteMembershipPlan,
+  updateMembershipPlan,
 } from '@/app/actions/billing'
 
 export const dynamic = 'force-dynamic'
@@ -38,9 +37,49 @@ export default async function BillingPage() {
 
   async function createSubAction(formData: FormData) {
     'use server'
-    const memberId = String(formData.get('memberId'))
+    let memberId = String(formData.get('memberId') || '')
     const planId = String(formData.get('planId'))
+
+    const createNewMember = String(formData.get('createNewMember') || '') === 'on'
+    if (createNewMember) {
+      const name = String(formData.get('newMemberName') || '').trim()
+      const email = String(formData.get('newMemberEmail') || '').trim() || null
+      const phone = String(formData.get('newMemberPhone') || '').trim() || null
+
+      if (!name) throw new Error('El nombre del nuevo socio es obligatorio')
+
+      const member = await prisma.member.create({
+        data: {
+          name,
+          email,
+          phone,
+          status: 'ACTIVE',
+        },
+      })
+      memberId = member.id
+    }
+
+    if (!memberId) throw new Error('Selecciona un socio existente o crea uno nuevo')
     await createSubscription({ memberId, planId })
+  }
+
+  async function updatePlanAction(formData: FormData) {
+    'use server'
+    const id = String(formData.get('id'))
+    await updateMembershipPlan(id, {
+      name: String(formData.get('name')),
+      amount: Number(formData.get('amount')),
+      billingPeriod: String(formData.get('billingPeriod')),
+      enrollmentFee: Number(formData.get('enrollmentFee') || 0),
+      description: String(formData.get('description') || ''),
+      isActive: String(formData.get('isActive')) === 'on',
+    })
+  }
+
+  async function deletePlanAction(formData: FormData) {
+    'use server'
+    const id = String(formData.get('id'))
+    await deleteMembershipPlan(id)
   }
 
   async function createPlanAction(formData: FormData) {
@@ -54,39 +93,10 @@ export default async function BillingPage() {
     })
   }
 
-  async function generateAction() {
-    'use server'
-    await generateDueInvoices()
-  }
-
-  async function remindersAction() {
-    'use server'
-    await runReminderJob()
-  }
-
-  async function overdueAction() {
-    'use server'
-    await updateInvoiceStatuses()
-  }
-
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Billing</h1>
-        <div className="flex gap-3">
-          <form action={generateAction}>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">Generar facturas vencidas</button>
-          </form>
-          <form action={overdueAction}>
-            <button className="px-4 py-2 bg-amber-600 text-white rounded-lg font-medium">Actualizar mora</button>
-          </form>
-          <form action={remindersAction}>
-            <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium">Enviar recordatorios</button>
-          </form>
-          <Link href="/api/billing/reports/invoices-csv" className="px-4 py-2 bg-slate-200 rounded-lg font-medium">
-            Exportar CSV
-          </Link>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -126,25 +136,120 @@ export default async function BillingPage() {
         </form>
 
         <h2 className="text-lg font-bold mb-4">Nueva inscripción (socio + plan)</h2>
-        <form action={createSubAction} className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <select name="memberId" className="border rounded-lg px-3 py-2 text-slate-900" required>
-            <option value="">Selecciona socio</option>
-            {members.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-          <select name="planId" className="border rounded-lg px-3 py-2 text-slate-900" required>
-            <option value="">Selecciona plan</option>
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} - €{p.amount}/{p.billingPeriod.toLowerCase()}
-              </option>
-            ))}
-          </select>
-          <button className="bg-blue-600 text-white rounded-lg px-3 py-2 font-medium">Crear suscripción</button>
+        <form action={createSubAction} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <select name="memberId" className="border rounded-lg px-3 py-2 text-slate-900">
+              <option value="">Selecciona socio</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <select name="planId" className="border rounded-lg px-3 py-2 text-slate-900" required>
+              <option value="">Selecciona plan</option>
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} - €{p.amount}/{p.billingPeriod.toLowerCase()}
+                </option>
+              ))}
+            </select>
+            <button className="bg-blue-600 text-white rounded-lg px-3 py-2 font-medium">Crear suscripción</button>
+          </div>
+
+          <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+            <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 mb-3">
+              <input type="checkbox" name="createNewMember" />
+              Crear nuevo socio en esta inscripción
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input
+                name="newMemberName"
+                placeholder="Nombre del nuevo socio"
+                className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
+              />
+              <input
+                name="newMemberEmail"
+                type="email"
+                placeholder="Email (opcional)"
+                className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
+              />
+              <input
+                name="newMemberPhone"
+                placeholder="Teléfono (opcional)"
+                className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
+              />
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              Si activas esta opción, se crea el socio y se inscribe al plan en un solo paso.
+            </p>
+          </div>
         </form>
+      </div>
+
+      <div className="bg-white p-6 rounded-lg border">
+        <h2 className="text-lg font-bold mb-4">Planes de membresía creados</h2>
+        <div className="space-y-4">
+          {plans.map((plan) => (
+            <form key={plan.id} action={updatePlanAction} className="border rounded-lg p-4 space-y-3">
+              <input type="hidden" name="id" value={plan.id} />
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                <input
+                  name="name"
+                  defaultValue={plan.name}
+                  required
+                  className="border rounded-lg px-3 py-2 text-slate-900"
+                />
+                <input
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  defaultValue={plan.amount}
+                  required
+                  className="border rounded-lg px-3 py-2 text-slate-900"
+                />
+                <select
+                  name="billingPeriod"
+                  defaultValue={plan.billingPeriod}
+                  className="border rounded-lg px-3 py-2 text-slate-900"
+                >
+                  <option value="MONTHLY">Mensual</option>
+                  <option value="QUARTERLY">Trimestral</option>
+                  <option value="YEARLY">Anual</option>
+                </select>
+                <input
+                  name="enrollmentFee"
+                  type="number"
+                  step="0.01"
+                  defaultValue={plan.enrollmentFee}
+                  className="border rounded-lg px-3 py-2 text-slate-900"
+                />
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <input type="checkbox" name="isActive" defaultChecked={plan.isActive} />
+                  Activo
+                </label>
+              </div>
+              <input
+                name="description"
+                defaultValue={plan.description ?? ''}
+                placeholder="Descripción"
+                className="border rounded-lg px-3 py-2 text-slate-900 w-full"
+              />
+              <div className="flex gap-3">
+                <button className="bg-blue-600 text-white rounded-lg px-3 py-2 font-medium">Guardar cambios</button>
+                <button
+                  formAction={deletePlanAction}
+                  className="bg-rose-600 text-white rounded-lg px-3 py-2 font-medium"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </form>
+          ))}
+          {plans.length === 0 && (
+            <p className="text-slate-500 text-sm">Aún no has creado planes de membresía.</p>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-lg border overflow-hidden">
