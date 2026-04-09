@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { Users, CreditCard, TrendingUp, TrendingDown } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 export default async function Dashboard() {
   const membersCount = await prisma.member.count({ where: { status: 'ACTIVE' } })
   const pendingPayments = await prisma.payment.count({ where: { status: 'PENDING' } })

@@ -3,6 +3,8 @@ import { PaymentForm } from './PaymentForm'
 import { CheckCircle2, Clock } from 'lucide-react'
 import { updatePaymentStatus } from '@/app/actions'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PaymentsPage() {
   const payments = await prisma.payment.findMany({
     include: { member: true },

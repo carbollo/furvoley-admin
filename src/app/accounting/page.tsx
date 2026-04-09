@@ -3,6 +3,8 @@ import { TransactionForm } from './TransactionForm'
 import { ArrowDownRight, ArrowUpRight, Trash2 } from 'lucide-react'
 import { deleteTransaction } from '@/app/actions'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AccountingPage() {
   const transactions = await prisma.transaction.findMany({
     orderBy: { date: 'desc' }
