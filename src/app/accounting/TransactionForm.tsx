@@ -42,7 +42,7 @@ export function TransactionForm() {
             <form action={action} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
-                <select name="type" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white">
+                <select name="type" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white text-slate-900">
                   <option value="INCOME">Ingreso</option>
                   <option value="EXPENSE">Egreso</option>
                 </select>
@@ -50,17 +50,17 @@ export function TransactionForm() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
-                <input required type="text" name="description" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="Ej. Compra de balones" />
+                <input required type="text" name="description" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="Ej. Compra de balones" />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Monto ($)</label>
-                <input required type="number" step="0.01" name="amount" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="100.00" />
+                <input required type="number" step="0.01" name="amount" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="100.00" />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
-                <input type="date" name="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
+                <input type="date" name="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" />
               </div>
 
               <div className="pt-4 flex justify-end space-x-3">

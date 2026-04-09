@@ -44,7 +44,7 @@ export function PaymentForm({ members }: { members: { id: string, name: string }
             <form action={action} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Socio</label>
-                <select required name="memberId" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white">
+                <select required name="memberId" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white text-slate-900">
                   <option value="">Selecciona un socio...</option>
                   {members.map(m => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -54,23 +54,23 @@ export function PaymentForm({ members }: { members: { id: string, name: string }
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Monto ($)</label>
-                <input required type="number" step="0.01" name="amount" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="25.00" />
+                <input required type="number" step="0.01" name="amount" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="25.00" />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Mes</label>
-                  <input required type="number" min="1" max="12" name="month" defaultValue={currentMonth} className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
+                  <input required type="number" min="1" max="12" name="month" defaultValue={currentMonth} className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Año</label>
-                  <input required type="number" min="2000" name="year" defaultValue={currentYear} className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" />
+                  <input required type="number" min="2000" name="year" defaultValue={currentYear} className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
-                <select name="status" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white">
+                <select name="status" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white text-slate-900">
                   <option value="PENDING">Pendiente</option>
                   <option value="PAID">Pagado</option>
                 </select>
