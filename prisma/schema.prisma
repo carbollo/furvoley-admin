@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Member {
+  id        String    @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  status    String    @default("ACTIVE") // ACTIVE, INACTIVE
+  joinedAt  DateTime  @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  payments  Payment[]
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  amount    Float
+  month     Int      // 1-12
+  year      Int
+  status    String   @default("PENDING") // PENDING, PAID
+  paidAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  type        String   // INCOME, EXPENSE
+  amount      Float
+  description String
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
