@@ -65,7 +65,7 @@ model VerificationToken {
 model Member {
   id        String    @id @default(cuid())
   name      String
-  email     String?   @unique
+  email     String?
   phone     String?
   status    String    @default("ACTIVE") // ACTIVE, INACTIVE
   joinedAt  DateTime  @default(now())
