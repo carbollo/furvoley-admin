@@ -29,7 +29,7 @@ export async function createPayment(data: { memberId: string; amount: number; mo
 }
 
 export async function updatePaymentStatus(id: string, status: string) {
-  const payment = await prisma.payment.update({
+  await prisma.payment.update({
     where: { id },
     data: { 
       status,
@@ -37,7 +37,6 @@ export async function updatePaymentStatus(id: string, status: string) {
     }
   })
   revalidatePath('/payments')
-  return payment
 }
 
 // TRANSACTIONS
