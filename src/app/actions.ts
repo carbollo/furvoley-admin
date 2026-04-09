@@ -37,7 +37,8 @@ export async function generateStripeLink(paymentId: string) {
   if (!payment) throw new Error("Payment not found")
   if (payment.stripeUrl) return payment.stripeUrl
 
-  const { stripe } = await import('@/lib/stripe')
+  const { getStripe } = await import('@/lib/stripe')
+  const stripe = getStripe()
   
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 

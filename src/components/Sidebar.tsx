@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Users, CreditCard, Calculator, Home, Calendar, LogOut } from 'lucide-react'
+import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 
@@ -34,6 +34,12 @@ export function Sidebar() {
           <Calendar size={20} />
           <span>Calendario</span>
         </Link>
+        {!isAdmin && (
+          <Link href="/my-billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <CreditCard size={20} />
+            <span>Mis Pagos</span>
+          </Link>
+        )}
         
         {isAdmin && (
           <>
@@ -51,6 +57,10 @@ export function Sidebar() {
             <Link href="/payments" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <CreditCard size={20} />
               <span>Cobros</span>
+            </Link>
+            <Link href="/billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+              <Receipt size={20} />
+              <span>Billing</span>
             </Link>
             <Link href="/accounting" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Calculator size={20} />

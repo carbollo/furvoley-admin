@@ -76,6 +76,9 @@ model Member {
   payments  Payment[]
   teamRoles TeamMember[]
   attendances Attendance[]
+  subscriptions Subscription[]
+  invoices Invoice[]
+  reminders ReminderLog[]
 }
 
 model Payment {
@@ -92,6 +95,111 @@ model Payment {
 
   memberId        String
   member          Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+model MembershipPlan {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  description     String?
+  amount          Float
+  currency        String   @default("EUR")
+  billingPeriod   String   @default("MONTHLY") // MONTHLY, QUARTERLY, YEARLY
+  enrollmentFee   Float    @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscriptions   Subscription[]
+}
+
+model Subscription {
+  id                    String   @id @default(cuid())
+  status                String   @default("ACTIVE") // ACTIVE, PAUSED, CANCELED
+  startDate             DateTime @default(now())
+  endDate               DateTime?
+  nextInvoiceDate       DateTime
+  autoPay               Boolean  @default(false)
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  memberId              String
+  member                Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  planId                String
+  plan                  MembershipPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices              Invoice[]
+}
+
+model Invoice {
+  id                  String   @id @default(cuid())
+  invoiceNumber       String   @unique
+  issueDate           DateTime @default(now())
+  dueDate             DateTime
+  subtotal            Float
+  taxAmount           Float    @default(0)
+  totalAmount         Float
+  paidAmount          Float    @default(0)
+  currency            String   @default("EUR")
+  status              String   @default("PENDING") // PENDING, OVERDUE, PARTIAL, PAID, VOID
+  stripeCheckoutUrl   String?
+  stripeSessionId     String?
+  paidAt              DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  memberId            String
+  member              Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  subscriptionId      String?
+  subscription        Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  items               InvoiceItem[]
+  paymentAttempts     PaymentAttempt[]
+  reminders           ReminderLog[]
+}
+
+model InvoiceItem {
+  id            String   @id @default(cuid())
+  description   String
+  quantity      Int      @default(1)
+  unitAmount    Float
+  totalAmount   Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  invoiceId     String
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model PaymentAttempt {
+  id                  String   @id @default(cuid())
+  method              String   @default("STRIPE") // STRIPE, CASH, BANK_TRANSFER
+  status              String   @default("PENDING") // PENDING, SUCCEEDED, FAILED
+  amount              Float
+  stripePaymentIntent String?
+  stripeSessionId     String?
+  errorMessage        String?
+  attemptedAt         DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  invoiceId           String
+  invoice             Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model ReminderLog {
+  id                String   @id @default(cuid())
+  reminderType      String   // D_MINUS_7, D_MINUS_2, D_PLUS_1, D_PLUS_7
+  channel           String   @default("EMAIL") // EMAIL
+  status            String   @default("SENT") // SENT, FAILED
+  message           String?
+  sentAt            DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  memberId          String
+  member            Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  invoiceId         String
+  invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }
 
 model Transaction {
