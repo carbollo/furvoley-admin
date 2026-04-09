@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { PaymentForm } from './PaymentForm'
+import { StripeButton } from './StripeButton'
 import { CheckCircle2, Clock } from 'lucide-react'
 import { updatePaymentStatus } from '@/app/actions'
 
@@ -48,13 +49,16 @@ export default async function PaymentsPage() {
                     <span>{payment.status === 'PAID' ? 'Pagado' : 'Pendiente'}</span>
                   </span>
                 </td>
-                <td className="p-4 text-right">
+                <td className="p-4 text-right flex items-center justify-end space-x-2">
                   {payment.status === 'PENDING' && (
-                    <form action={updatePaymentStatus.bind(null, payment.id, 'PAID')} className="inline">
-                      <button type="submit" className="text-sm font-medium text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1 rounded-lg transition">
-                        Marcar Pagado
-                      </button>
-                    </form>
+                    <>
+                      <StripeButton paymentId={payment.id} stripeUrl={payment.stripeUrl} />
+                      <form action={updatePaymentStatus.bind(null, payment.id, 'PAID')} className="inline">
+                        <button type="submit" className="text-sm font-medium text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1 rounded-lg transition">
+                          Marcar Pagado
+                        </button>
+                      </form>
+                    </>
                   )}
                   {payment.status === 'PAID' && (
                     <span className="text-sm text-slate-400">
