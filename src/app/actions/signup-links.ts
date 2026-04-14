@@ -3,10 +3,21 @@
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 
-function buildSignupUrl(token: string) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  return `${appUrl}/join/${token}`
+async function buildSignupUrl(token: string) {
+  const h = await headers()
+  const host = h.get('x-forwarded-host') || h.get('host')
+  const proto = h.get('x-forwarded-proto') || 'https'
+  const requestOrigin = host ? `${proto}://${host}` : null
+
+  const envOrigin =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null)
+
+  const baseUrl = requestOrigin || envOrigin || 'http://localhost:3000'
+  return `${baseUrl}/join/${token}`
 }
 
 export async function createSignupLink(expiresInDays = 30) {
@@ -25,7 +36,7 @@ export async function createSignupLink(expiresInDays = 30) {
   revalidatePath('/members')
   return {
     token: link.token,
-    url: buildSignupUrl(link.token),
+    url: await buildSignupUrl(link.token),
     expiresAt: link.expiresAt,
   }
 }
