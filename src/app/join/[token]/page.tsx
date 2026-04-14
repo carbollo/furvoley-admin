@@ -1,14 +1,37 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import { submitSignupFromLink } from '@/app/actions/signup-links'
+import { AutoCloseNotice } from './AutoCloseNotice'
 
 export const dynamic = 'force-dynamic'
 
-export default async function JoinPage({ params }: { params: Promise<{ token: string }> }) {
+export default async function JoinPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>
+  searchParams: Promise<{ success?: string }>
+}) {
   const { token } = await params
+  const { success } = await searchParams
 
   const link = await prisma.signupLink.findUnique({ where: { token } })
   if (!link) notFound()
+
+  if (success === '1') {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-xl bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
+          <h1 className="text-2xl font-bold text-emerald-700 mb-2">Gracias por unirte al club</h1>
+          <p className="text-slate-600">
+            Tu inscripción se ha enviado correctamente. En breve revisaremos tus datos.
+          </p>
+          <AutoCloseNotice />
+        </div>
+      </div>
+    )
+  }
 
   const expired = !!(link.expiresAt && link.expiresAt < new Date())
   const unavailable = !link.isActive || expired || link.usesCount >= link.maxUses
@@ -30,6 +53,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       email,
       address,
     })
+    redirect(`/join/${tokenValue}?success=1`)
   }
 
   return (
