@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { MemberForm } from './MemberForm'
 import { InviteLinkButton } from './InviteLinkButton'
+import { PaymentReminderButton } from './PaymentReminderButton'
 import { Trash2, Edit2 } from 'lucide-react'
 import { deleteMember } from '@/app/actions'
 
@@ -16,6 +17,7 @@ export default async function MembersPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Socios</h1>
         <div className="flex items-center gap-3">
+          <PaymentReminderButton />
           <InviteLinkButton />
           <MemberForm />
         </div>

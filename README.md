@@ -21,6 +21,8 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
    - `NEXTAUTH_URL`: La URL pública de tu aplicación en Railway (ej. `https://furvoley-admin-production.up.railway.app`).
    - `STRIPE_SECRET_KEY`: Tu clave secreta de Stripe.
    - `STRIPE_WEBHOOK_SECRET`: El secreto del endpoint webhook de Stripe.
+   - `APIWASS_TOKEN`: Token API para envío de WhatsApp.
+   - `APIWASS_API_URL` (opcional): Endpoint de envío, por defecto `https://api.wassenger.com/v1/messages`.
    - `NEXT_PUBLIC_APP_URL`: La misma URL pública de tu aplicación en Railway.
    - `CRON_SECRET`: Token para ejecutar tareas automáticas en `/api/jobs/billing`.
    - `ADMIN_EMAIL` (opcional): email del admin bootstrap.

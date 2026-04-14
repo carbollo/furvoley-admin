@@ -21,6 +21,104 @@ export async function deleteMember(id: string) {
   revalidatePath('/members')
 }
 
+export async function sendWhatsAppPaymentReminders() {
+  const apiUrl = process.env.APIWASS_API_URL || 'https://api.wassenger.com/v1/messages'
+  const apiToken = process.env.APIWASS_TOKEN
+
+  if (!apiToken) {
+    throw new Error('Falta APIWASS_TOKEN en variables de entorno')
+  }
+
+  const overdueInvoices = await prisma.invoice.findMany({
+    where: {
+      OR: [
+        { status: 'OVERDUE' },
+        {
+          status: 'PARTIAL',
+          dueDate: { lt: new Date() },
+        },
+      ],
+    },
+    include: { member: true },
+  })
+
+  // Agrupar deuda por socio
+  const byMember = new Map<
+    string,
+    {
+      memberId: string
+      memberName: string
+      phone: string | null
+      pendingTotal: number
+      oldestDueDate: Date
+    }
+  >()
+
+  for (const invoice of overdueInvoices) {
+    const pending = Math.max(0, invoice.totalAmount - invoice.paidAmount)
+    if (pending <= 0) continue
+
+    const existing = byMember.get(invoice.memberId)
+    if (!existing) {
+      byMember.set(invoice.memberId, {
+        memberId: invoice.memberId,
+        memberName: invoice.member.name,
+        phone: invoice.member.phone || null,
+        pendingTotal: pending,
+        oldestDueDate: invoice.dueDate,
+      })
+      continue
+    }
+
+    existing.pendingTotal += pending
+    if (invoice.dueDate < existing.oldestDueDate) {
+      existing.oldestDueDate = invoice.dueDate
+    }
+  }
+
+  let sent = 0
+  let failed = 0
+  let skippedNoPhone = 0
+
+  for (const member of byMember.values()) {
+    if (!member.phone) {
+      skippedNoPhone++
+      continue
+    }
+
+    const message =
+      `Hola ${member.memberName}, te recordamos que tienes cuotas pendientes en Furvoley.\n` +
+      `Importe pendiente: ${member.pendingTotal.toFixed(2)} EUR.\n` +
+      `Vencimiento más antiguo: ${member.oldestDueDate.toLocaleDateString('es-ES')}.\n` +
+      `Por favor, regulariza el pago lo antes posible. Gracias.`
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Token: apiToken,
+        },
+        body: JSON.stringify({
+          phone: member.phone,
+          message,
+        }),
+      })
+
+      if (!response.ok) {
+        failed++
+        continue
+      }
+      sent++
+    } catch {
+      failed++
+    }
+  }
+
+  revalidatePath('/members')
+  return { sent, failed, skippedNoPhone, totalMembersInDebt: byMember.size }
+}
+
 // PAYMENTS
 export async function createPayment(data: { memberId: string; amount: number; month: number; year: number; status?: string }) {
   const payment = await prisma.payment.create({ data })
