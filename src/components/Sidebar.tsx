@@ -9,7 +9,8 @@ export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
 
-  if (pathname === '/login') return null
+  const isJoinRoute = pathname === '/join' || pathname.startsWith('/join/')
+  if (pathname === '/login' || isJoinRoute) return null
 
   const isAdmin = session?.user?.role === 'ADMIN'
 
