@@ -9,11 +9,13 @@ export function MemberForm() {
 
   async function action(formData: FormData) {
     const name = formData.get('name') as string
+    const dni = formData.get('dni') as string
     const email = formData.get('email') as string
     const phone = formData.get('phone') as string
+    const address = formData.get('address') as string
     const status = formData.get('status') as string
 
-    await createMember({ name, email, phone, status })
+    await createMember({ name, dni, email, phone, address, status })
     setIsOpen(false)
   }
 
@@ -39,8 +41,13 @@ export function MemberForm() {
             
             <form action={action} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
-                <input required type="text" name="name" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="Ej. Juan Pérez" />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre y Apellidos</label>
+                <input required type="text" name="name" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="Ej. Juan Pérez Gómez" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">DNI</label>
+                <input required type="text" name="dni" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="Ej. 12345678A" />
               </div>
               
               <div>
@@ -51,6 +58,11 @@ export function MemberForm() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
                 <input type="tel" name="phone" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="+34 600 000 000" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Domicilio</label>
+                <input type="text" name="address" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="Calle, número, ciudad" />
               </div>
 
               <div>

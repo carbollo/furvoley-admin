@@ -4,13 +4,13 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 
 // MEMBERS
-export async function createMember(data: { name: string; email?: string; phone?: string; status?: string }) {
+export async function createMember(data: { name: string; dni?: string; email?: string; phone?: string; address?: string; status?: string }) {
   const member = await prisma.member.create({ data })
   revalidatePath('/members')
   return member
 }
 
-export async function updateMember(id: string, data: { name?: string; email?: string; phone?: string; status?: string }) {
+export async function updateMember(id: string, data: { name?: string; dni?: string; email?: string; phone?: string; address?: string; status?: string }) {
   const member = await prisma.member.update({ where: { id }, data })
   revalidatePath('/members')
   return member

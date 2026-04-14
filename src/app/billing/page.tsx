@@ -43,16 +43,21 @@ export default async function BillingPage() {
     const createNewMember = String(formData.get('createNewMember') || '') === 'on'
     if (createNewMember) {
       const name = String(formData.get('newMemberName') || '').trim()
+      const dni = String(formData.get('newMemberDni') || '').trim()
+      const address = String(formData.get('newMemberAddress') || '').trim() || null
       const email = String(formData.get('newMemberEmail') || '').trim() || null
       const phone = String(formData.get('newMemberPhone') || '').trim() || null
 
       if (!name) throw new Error('El nombre del nuevo socio es obligatorio')
+      if (!dni) throw new Error('El DNI del nuevo socio es obligatorio')
 
       const member = await prisma.member.create({
         data: {
           name,
+          dni,
           email,
           phone,
+          address,
           status: 'ACTIVE',
         },
       })
@@ -162,10 +167,15 @@ export default async function BillingPage() {
               <input type="checkbox" name="createNewMember" />
               Crear nuevo socio en esta inscripción
             </label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input
                 name="newMemberName"
-                placeholder="Nombre del nuevo socio"
+                placeholder="Nombre y apellidos"
+                className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
+              />
+              <input
+                name="newMemberDni"
+                placeholder="DNI"
                 className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
               />
               <input
@@ -177,6 +187,11 @@ export default async function BillingPage() {
               <input
                 name="newMemberPhone"
                 placeholder="Teléfono (opcional)"
+                className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
+              />
+              <input
+                name="newMemberAddress"
+                placeholder="Domicilio"
                 className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
               />
             </div>
