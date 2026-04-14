@@ -81,6 +81,21 @@ model Member {
   subscriptions Subscription[]
   invoices Invoice[]
   reminders ReminderLog[]
+  signupSubmissions SignupLink[] @relation("SignupLinkCreatedMember")
+}
+
+model SignupLink {
+  id              String   @id @default(cuid())
+  token           String   @unique
+  isActive        Boolean  @default(true)
+  maxUses         Int      @default(1)
+  usesCount       Int      @default(0)
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdMemberId String?
+  createdMember   Member?  @relation("SignupLinkCreatedMember", fields: [createdMemberId], references: [id], onDelete: SetNull)
 }
 
 model Payment {
