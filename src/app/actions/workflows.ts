@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 
 type WorkflowStepInput = {
@@ -31,14 +32,14 @@ export async function createWorkflow(input: {
       name: input.name.trim(),
       description: input.description?.trim() || null,
       triggerType: input.triggerType,
-      triggerConfig: input.triggerConfig || null,
+      triggerConfig: input.triggerConfig ?? Prisma.JsonNull,
       isActive: input.isActive ?? true,
       steps: {
         create: input.steps.map((step) => ({
           position: step.position,
           stepType: step.stepType,
           actionType: step.actionType,
-          config: step.config || null,
+          config: step.config ?? Prisma.JsonNull,
         })),
       },
     },
