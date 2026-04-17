@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState, type MouseEvent } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Zap, Settings, UserPlus, CreditCard, Mail, MessageSquare } from 'lucide-react'
 import { createWorkflow } from '@/app/actions/workflows'
 
 type NodeKind = 'TRIGGER' | 'STEP'
@@ -16,6 +16,10 @@ type NodeDraft = {
   minAge: string
   maxAge: string
   teamId: string
+  targetStatus: string
+  paymentAmount: string
+  monthOffset: string
+  paymentStatus: string
   x: number
   y: number
 }
@@ -28,12 +32,31 @@ const triggerOptions = [
 ]
 
 const actionOptions = [
-  { value: 'NOTIFY_WHATSAPP', label: 'Enviar WhatsApp' },
-  { value: 'SEND_EMAIL', label: 'Enviar email' },
-  { value: 'CREATE_INVOICE', label: 'Crear factura' },
-  { value: 'TAG_MEMBER', label: 'Etiquetar socio' },
+  { value: 'ASSIGN_TEAM', label: 'Asignar equipo directo' },
   { value: 'ASSIGN_TEAM_BY_AGE', label: 'Asignar equipo por edad' },
+  { value: 'SET_MEMBER_STATUS', label: 'Cambiar estado del socio' },
+  { value: 'CREATE_PAYMENT', label: 'Crear cobro automático' },
+  { value: 'SEND_EMAIL', label: 'Enviar email' },
+  { value: 'NOTIFY_WHATSAPP', label: 'Enviar WhatsApp' },
 ]
+
+function getNodeIcon(kind: NodeKind, actionType: string) {
+  if (kind === 'TRIGGER') return <Zap size={20} />
+  if (actionType.includes('TEAM')) return <UserPlus size={20} />
+  if (actionType.includes('PAYMENT')) return <CreditCard size={20} />
+  if (actionType === 'SEND_EMAIL') return <Mail size={20} />
+  if (actionType === 'NOTIFY_WHATSAPP') return <MessageSquare size={20} />
+  return <Settings size={20} />
+}
+
+function getNodeColor(kind: NodeKind, actionType: string) {
+  if (kind === 'TRIGGER') return 'bg-emerald-500'
+  if (actionType.includes('TEAM')) return 'bg-indigo-500'
+  if (actionType.includes('PAYMENT')) return 'bg-amber-500'
+  if (actionType === 'SEND_EMAIL') return 'bg-rose-500'
+  if (actionType === 'NOTIFY_WHATSAPP') return 'bg-green-500'
+  return 'bg-blue-500'
+}
 
 function createTriggerNode(): NodeDraft {
   return {
@@ -46,6 +69,10 @@ function createTriggerNode(): NodeDraft {
     minAge: '',
     maxAge: '',
     teamId: '',
+    targetStatus: 'ACTIVE',
+    paymentAmount: '',
+    monthOffset: '0',
+    paymentStatus: 'PENDING',
     x: 80,
     y: 90,
   }
@@ -85,6 +112,10 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
             minAge: node.minAge.trim(),
             maxAge: node.maxAge.trim(),
             teamId: node.teamId.trim(),
+            targetStatus: node.targetStatus.trim(),
+            amount: node.paymentAmount.trim(),
+            monthOffset: node.monthOffset.trim(),
+            paymentStatus: node.paymentStatus.trim(),
             x: String(Math.round(node.x)),
             y: String(Math.round(node.y)),
             label: node.label.trim() || `Paso ${index + 1}`,
@@ -120,13 +151,30 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
     }
 
     for (const node of stepNodes) {
-      if (node.actionType !== 'ASSIGN_TEAM_BY_AGE') continue
       const config = node.config || {}
-      if (!config.teamId) {
-        throw new Error('Los nodos de asignación por edad requieren seleccionar un equipo')
+      if (node.actionType === 'ASSIGN_TEAM_BY_AGE') {
+        if (!config.teamId) {
+          throw new Error('Los nodos de asignación por edad requieren seleccionar un equipo')
+        }
+        if (!config.maxAge && !config.minAge) {
+          throw new Error('Los nodos de asignación por edad requieren una edad mínima o máxima')
+        }
       }
-      if (!config.maxAge && !config.minAge) {
-        throw new Error('Los nodos de asignación por edad requieren una edad mínima o máxima')
+      if (node.actionType === 'ASSIGN_TEAM') {
+        if (!config.teamId) {
+          throw new Error('Los nodos de asignación directa requieren seleccionar un equipo')
+        }
+      }
+      if (node.actionType === 'SET_MEMBER_STATUS') {
+        if (!config.targetStatus) {
+          throw new Error('Los nodos de cambio de estado requieren estado destino')
+        }
+      }
+      if (node.actionType === 'CREATE_PAYMENT') {
+        const amount = Number(config.amount || 0)
+        if (!Number.isFinite(amount) || amount <= 0) {
+          throw new Error('Los nodos de cobro automático requieren un importe válido')
+        }
       }
     }
 
@@ -151,7 +199,7 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
 
   function addNode() {
     const last = orderedNodes[orderedNodes.length - 1]
-    const nextX = last ? Math.min(last.x + 220, 980) : 120
+    const nextX = last ? Math.min(last.x + 280, 800) : 120
     const nextY = last ? last.y : 120
 
     const newNode: NodeDraft = {
@@ -159,11 +207,15 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
       kind: 'STEP',
       label: `Paso ${nodes.length + 1}`,
       stepType: 'ACTION',
-      actionType: 'SEND_EMAIL',
+      actionType: 'ASSIGN_TEAM',
       config: '',
       minAge: '',
       maxAge: '',
       teamId: '',
+      targetStatus: 'ACTIVE',
+      paymentAmount: '',
+      monthOffset: '0',
+      paymentStatus: 'PENDING',
       x: nextX,
       y: nextY,
     }
@@ -207,8 +259,8 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
     if (!dragRef.current) return
 
     const canvas = event.currentTarget.getBoundingClientRect()
-    const nodeWidth = 176
-    const nodeHeight = 104
+    const nodeWidth = 224 // w-56 = 14rem = 224px
+    const nodeHeight = 64 // h-16 = 4rem = 64px
 
     const rawX = event.clientX - canvas.left - dragRef.current.offsetX
     const rawY = event.clientY - canvas.top - dragRef.current.offsetY
@@ -265,10 +317,10 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
           <div
-            className="relative h-[420px] overflow-hidden rounded-xl border border-slate-300 bg-slate-900/95"
+            className="relative h-[600px] overflow-hidden rounded-xl border border-slate-200 bg-[#fafafa]"
             style={{
               backgroundImage:
-                'radial-gradient(circle at 1px 1px, rgba(148,163,184,.32) 1px, transparent 0)',
+                'radial-gradient(circle at 1px 1px, #e5e7eb 1px, transparent 0)',
               backgroundSize: '20px 20px',
             }}
             onMouseMove={onCanvasMouseMove}
@@ -278,16 +330,21 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
             <svg className="absolute inset-0 h-full w-full pointer-events-none">
               {orderedNodes.slice(0, -1).map((node, index) => {
                 const next = orderedNodes[index + 1]
+                const startX = node.x + 224
+                const startY = node.y + 32
+                const endX = next.x
+                const endY = next.y + 32
+                const cp1x = startX + 50
+                const cp1y = startY
+                const cp2x = endX - 50
+                const cp2y = endY
                 return (
-                  <line
+                  <path
                     key={`${node.id}-${next.id}`}
-                    x1={node.x + 176}
-                    y1={node.y + 52}
-                    x2={next.x}
-                    y2={next.y + 52}
-                    stroke="#38bdf8"
+                    d={`M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`}
+                    stroke="#cbd5e1"
                     strokeWidth={2}
-                    strokeDasharray="6 6"
+                    fill="none"
                   />
                 )
               })}
@@ -298,23 +355,28 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
               return (
                 <div
                   key={node.id}
-                  className={`absolute w-44 rounded-xl border cursor-move select-none ${
+                  className={`absolute w-56 h-16 rounded-xl border cursor-move select-none flex items-center shadow-sm bg-white transition-shadow ${
                     isSelected
-                      ? 'border-blue-400 bg-blue-50 shadow-[0_0_0_2px_rgba(59,130,246,.35)]'
-                      : 'border-slate-300 bg-white'
+                      ? 'border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,.2)]'
+                      : 'border-slate-200 hover:border-slate-300'
                   }`}
                   style={{ left: node.x, top: node.y }}
                   onMouseDown={(event) => onNodeMouseDown(event, node.id)}
                   onClick={() => setSelectedNodeId(node.id)}
                 >
-                  <div className="px-3 py-2 border-b border-slate-200 text-xs font-semibold text-slate-500 flex items-center justify-between">
-                    <span>Nodo {index + 1}</span>
-                    <span>{node.kind === 'TRIGGER' ? 'TRIGGER' : node.stepType}</span>
+                  {node.kind !== 'TRIGGER' && (
+                    <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-slate-300 rounded-full border-2 border-white" />
+                  )}
+                  <div className={`w-12 h-full flex items-center justify-center rounded-l-xl text-white ${getNodeColor(node.kind, node.actionType)}`}>
+                    {getNodeIcon(node.kind, node.actionType)}
                   </div>
-                  <div className="px-3 py-2">
-                    <p className="font-medium text-sm truncate">{node.label || 'Sin título'}</p>
-                    <p className="text-xs text-slate-500 truncate">{node.actionType}</p>
+                  <div className="px-3 py-2 flex-1 overflow-hidden">
+                    <p className="font-bold text-xs text-slate-700 truncate">{node.label || 'Sin título'}</p>
+                    <p className="text-[10px] text-slate-500 truncate mt-0.5">{node.actionType}</p>
                   </div>
+                  {index < nodes.length - 1 && (
+                    <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-slate-300 rounded-full border-2 border-white" />
+                  )}
                 </div>
               )
             })}
@@ -376,10 +438,36 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
                       ? 'Config trigger (ej: 0 9 * * 1)'
                       : selectedNode.actionType === 'ASSIGN_TEAM_BY_AGE'
                         ? 'Config opcional de regla'
+                        : selectedNode.actionType === 'ASSIGN_TEAM'
+                          ? 'Config opcional de asignación'
+                          : selectedNode.actionType === 'SET_MEMBER_STATUS'
+                            ? 'Motivo opcional del cambio'
+                            : selectedNode.actionType === 'CREATE_PAYMENT'
+                              ? 'Descripción opcional del cobro'
                         : 'Config del nodo'
                   }
                   className="border rounded-lg px-3 py-2 text-slate-900 w-full"
                 />
+                {selectedNode.kind === 'STEP' && selectedNode.actionType === 'ASSIGN_TEAM' && (
+                  <>
+                    <select
+                      value={selectedNode.teamId}
+                      onChange={(event) => updateNode(selectedNode.id, { teamId: event.target.value })}
+                      className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
+                    >
+                      <option value="">Selecciona equipo destino</option>
+                      {teams.map((team) => (
+                        <option key={team.id} value={team.id}>
+                          {team.name}
+                          {team.category ? ` (${team.category})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500">
+                      Añade el socio al equipo elegido al dispararse el workflow.
+                    </p>
+                  </>
+                )}
                 {selectedNode.kind === 'STEP' && selectedNode.actionType === 'ASSIGN_TEAM_BY_AGE' && (
                   <>
                     <div className="grid grid-cols-2 gap-2">
@@ -415,6 +503,55 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
                     </select>
                     <p className="text-xs text-slate-500">
                       Regla: si la edad del socio está en el rango, se añade automáticamente al equipo elegido.
+                    </p>
+                  </>
+                )}
+                {selectedNode.kind === 'STEP' && selectedNode.actionType === 'SET_MEMBER_STATUS' && (
+                  <>
+                    <select
+                      value={selectedNode.targetStatus}
+                      onChange={(event) => updateNode(selectedNode.id, { targetStatus: event.target.value })}
+                      className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
+                    >
+                      <option value="ACTIVE">Activo</option>
+                      <option value="INACTIVE">Inactivo</option>
+                    </select>
+                    <p className="text-xs text-slate-500">
+                      Cambia automáticamente el estado administrativo del socio.
+                    </p>
+                  </>
+                )}
+                {selectedNode.kind === 'STEP' && selectedNode.actionType === 'CREATE_PAYMENT' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={selectedNode.paymentAmount}
+                        onChange={(event) => updateNode(selectedNode.id, { paymentAmount: event.target.value })}
+                        placeholder="Importe (€)"
+                        className="border rounded-lg px-3 py-2 text-slate-900 w-full"
+                      />
+                      <input
+                        type="number"
+                        step="1"
+                        value={selectedNode.monthOffset}
+                        onChange={(event) => updateNode(selectedNode.id, { monthOffset: event.target.value })}
+                        placeholder="Offset meses"
+                        className="border rounded-lg px-3 py-2 text-slate-900 w-full"
+                      />
+                    </div>
+                    <select
+                      value={selectedNode.paymentStatus}
+                      onChange={(event) => updateNode(selectedNode.id, { paymentStatus: event.target.value })}
+                      className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
+                    >
+                      <option value="PENDING">Pendiente</option>
+                      <option value="PAID">Pagado</option>
+                    </select>
+                    <p className="text-xs text-slate-500">
+                      Crea un cobro al socio. Offset 0 = mes actual, 1 = próximo mes.
                     </p>
                   </>
                 )}

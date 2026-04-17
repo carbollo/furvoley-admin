@@ -6,8 +6,11 @@ export const dynamic = 'force-dynamic'
 
 function formatJsonConfig(value: unknown) {
   if (!value || typeof value !== 'object') return '-'
-  const maybeValue = (value as { value?: string }).value
-  return maybeValue?.trim() || '-'
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, item]) => typeof item === 'string' && item.trim() !== '')
+    .map(([key, item]) => `${key}: ${String(item)}`)
+
+  return entries.length ? entries.join(' | ') : '-'
 }
 
 export default async function WorkflowsPage() {
