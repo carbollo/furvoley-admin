@@ -394,28 +394,17 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
                   className="border rounded-lg px-3 py-2 text-slate-900 w-full"
                 />
                 {selectedNode.kind === 'STEP' && (
-                  <>
-                    <select
-                      value={selectedNode.stepType}
-                      onChange={(event) => updateNode(selectedNode.id, { stepType: event.target.value })}
-                      className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
-                    >
-                      <option value="ACTION">Acción</option>
-                      <option value="CONDITION">Condición</option>
-                      <option value="DELAY">Espera</option>
-                    </select>
-                    <select
-                      value={selectedNode.actionType}
-                      onChange={(event) => updateNode(selectedNode.id, { actionType: event.target.value })}
-                      className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
-                    >
-                      {actionOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </>
+                  <select
+                    value={selectedNode.actionType}
+                    onChange={(event) => updateNode(selectedNode.id, { actionType: event.target.value })}
+                    className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
+                  >
+                    {actionOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 )}
                 {selectedNode.kind === 'TRIGGER' && (
                   <select
@@ -430,24 +419,24 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
                     ))}
                   </select>
                 )}
-                <input
-                  value={selectedNode.config}
-                  onChange={(event) => updateNode(selectedNode.id, { config: event.target.value })}
-                  placeholder={
-                    selectedNode.kind === 'TRIGGER'
-                      ? 'Config trigger (ej: 0 9 * * 1)'
-                      : selectedNode.actionType === 'ASSIGN_TEAM_BY_AGE'
-                        ? 'Config opcional de regla'
-                        : selectedNode.actionType === 'ASSIGN_TEAM'
-                          ? 'Config opcional de asignación'
+                {(selectedNode.kind === 'TRIGGER' || selectedNode.actionType !== 'ASSIGN_TEAM') && (
+                  <input
+                    value={selectedNode.config}
+                    onChange={(event) => updateNode(selectedNode.id, { config: event.target.value })}
+                    placeholder={
+                      selectedNode.kind === 'TRIGGER'
+                        ? 'Config trigger (ej: 0 9 * * 1)'
+                        : selectedNode.actionType === 'ASSIGN_TEAM_BY_AGE'
+                          ? 'Config opcional de regla'
                           : selectedNode.actionType === 'SET_MEMBER_STATUS'
                             ? 'Motivo opcional del cambio'
                             : selectedNode.actionType === 'CREATE_PAYMENT'
                               ? 'Descripción opcional del cobro'
-                        : 'Config del nodo'
-                  }
-                  className="border rounded-lg px-3 py-2 text-slate-900 w-full"
-                />
+                              : 'Config del nodo'
+                    }
+                    className="border rounded-lg px-3 py-2 text-slate-900 w-full"
+                  />
+                )}
                 {selectedNode.kind === 'STEP' && selectedNode.actionType === 'ASSIGN_TEAM' && (
                   <>
                     <select
