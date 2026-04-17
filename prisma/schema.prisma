@@ -219,6 +219,34 @@ model ReminderLog {
   invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }
 
+model Workflow {
+  id            String         @id @default(cuid())
+  name          String
+  description   String?
+  triggerType   String
+  triggerConfig Json?
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  steps         WorkflowStep[]
+}
+
+model WorkflowStep {
+  id          String    @id @default(cuid())
+  position    Int
+  stepType    String
+  actionType  String
+  config      Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workflowId  String
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, position])
+}
+
 model Transaction {
   id          String   @id @default(cuid())
   type        String   // INCOME, EXPENSE

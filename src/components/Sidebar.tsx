@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText } from 'lucide-react'
+import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 
@@ -70,6 +70,10 @@ export function Sidebar() {
             <Link href="/reports" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <FileText size={20} />
               <span>Informes</span>
+            </Link>
+            <Link href="/workflows" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+              <GitBranch size={20} />
+              <span>Workflows</span>
             </Link>
           </>
         )}
