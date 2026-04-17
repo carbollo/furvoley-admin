@@ -419,24 +419,6 @@ export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
                     ))}
                   </select>
                 )}
-                {(selectedNode.kind === 'TRIGGER' || selectedNode.actionType !== 'ASSIGN_TEAM') && (
-                  <input
-                    value={selectedNode.config}
-                    onChange={(event) => updateNode(selectedNode.id, { config: event.target.value })}
-                    placeholder={
-                      selectedNode.kind === 'TRIGGER'
-                        ? 'Config trigger (ej: 0 9 * * 1)'
-                        : selectedNode.actionType === 'ASSIGN_TEAM_BY_AGE'
-                          ? 'Config opcional de regla'
-                          : selectedNode.actionType === 'SET_MEMBER_STATUS'
-                            ? 'Motivo opcional del cambio'
-                            : selectedNode.actionType === 'CREATE_PAYMENT'
-                              ? 'Descripción opcional del cobro'
-                              : 'Config del nodo'
-                    }
-                    className="border rounded-lg px-3 py-2 text-slate-900 w-full"
-                  />
-                )}
                 {selectedNode.kind === 'STEP' && selectedNode.actionType === 'ASSIGN_TEAM' && (
                   <>
                     <select
