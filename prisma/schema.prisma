@@ -66,6 +66,7 @@ model Member {
   id        String    @id @default(cuid())
   name      String
   dni       String?
+  birthDate DateTime?
   email     String?
   phone     String?
   address   String?

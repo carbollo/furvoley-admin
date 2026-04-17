@@ -41,6 +41,7 @@ export default async function JoinPage({
     const tokenValue = String(formData.get('token'))
     const name = String(formData.get('name') || '').trim()
     const dni = String(formData.get('dni') || '').trim()
+    const birthDate = String(formData.get('birthDate') || '').trim()
     const phone = String(formData.get('phone') || '').trim()
     const email = String(formData.get('email') || '').trim()
     const address = String(formData.get('address') || '').trim()
@@ -49,6 +50,7 @@ export default async function JoinPage({
       token: tokenValue,
       name,
       dni,
+      birthDate,
       phone,
       email,
       address,
@@ -76,6 +78,10 @@ export default async function JoinPage({
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">DNI</label>
               <input name="dni" required className="w-full border rounded-lg px-3 py-2 text-slate-900" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de nacimiento</label>
+              <input type="date" name="birthDate" required className="w-full border rounded-lg px-3 py-2 text-slate-900" />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>

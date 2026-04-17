@@ -6,6 +6,7 @@ import {
   deleteMembershipPlan,
   updateMembershipPlan,
 } from '@/app/actions/billing'
+import { runMemberCreatedWorkflows } from '@/lib/workflow-engine'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,6 +45,7 @@ export default async function BillingPage() {
     if (createNewMember) {
       const name = String(formData.get('newMemberName') || '').trim()
       const dni = String(formData.get('newMemberDni') || '').trim()
+      const birthDate = String(formData.get('newMemberBirthDate') || '').trim()
       const address = String(formData.get('newMemberAddress') || '').trim() || null
       const email = String(formData.get('newMemberEmail') || '').trim() || null
       const phone = String(formData.get('newMemberPhone') || '').trim() || null
@@ -55,12 +57,14 @@ export default async function BillingPage() {
         data: {
           name,
           dni,
+          birthDate: birthDate ? new Date(birthDate) : null,
           email,
           phone,
           address,
           status: 'ACTIVE',
         },
       })
+      await runMemberCreatedWorkflows(member.id)
       memberId = member.id
     }
 
@@ -176,6 +180,12 @@ export default async function BillingPage() {
               <input
                 name="newMemberDni"
                 placeholder="DNI"
+                className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
+              />
+              <input
+                name="newMemberBirthDate"
+                type="date"
+                placeholder="Fecha de nacimiento"
                 className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
               />
               <input

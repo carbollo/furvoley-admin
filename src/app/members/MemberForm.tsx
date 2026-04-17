@@ -10,12 +10,21 @@ export function MemberForm() {
   async function action(formData: FormData) {
     const name = formData.get('name') as string
     const dni = formData.get('dni') as string
+    const birthDateRaw = formData.get('birthDate') as string
     const email = formData.get('email') as string
     const phone = formData.get('phone') as string
     const address = formData.get('address') as string
     const status = formData.get('status') as string
 
-    await createMember({ name, dni, email, phone, address, status })
+    await createMember({
+      name,
+      dni,
+      birthDate: birthDateRaw ? new Date(birthDateRaw) : null,
+      email,
+      phone,
+      address,
+      status,
+    })
     setIsOpen(false)
   }
 
@@ -48,6 +57,11 @@ export function MemberForm() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">DNI</label>
                 <input required type="text" name="dni" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="Ej. 12345678A" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de nacimiento</label>
+                <input required type="date" name="birthDate" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" />
               </div>
               
               <div>

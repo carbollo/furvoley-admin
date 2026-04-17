@@ -11,14 +11,24 @@ function formatJsonConfig(value: unknown) {
 }
 
 export default async function WorkflowsPage() {
-  const workflows = await prisma.workflow.findMany({
-    include: {
-      steps: {
-        orderBy: { position: 'asc' },
+  const [workflows, teams] = await Promise.all([
+    prisma.workflow.findMany({
+      include: {
+        steps: {
+          orderBy: { position: 'asc' },
+        },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-  })
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.team.findMany({
+      select: {
+        id: true,
+        name: true,
+        category: true,
+      },
+      orderBy: { name: 'asc' },
+    }),
+  ])
 
   const activeCount = workflows.filter((workflow) => workflow.isActive).length
 
@@ -43,7 +53,7 @@ export default async function WorkflowsPage() {
         </div>
       </div>
 
-      <WorkflowBuilderForm />
+      <WorkflowBuilderForm teams={teams} />
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="p-4 border-b bg-slate-50 font-semibold">Flujos configurados</div>

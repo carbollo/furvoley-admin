@@ -4,12 +4,18 @@ import { useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { createWorkflow } from '@/app/actions/workflows'
 
+type NodeKind = 'TRIGGER' | 'STEP'
+
 type NodeDraft = {
   id: string
+  kind: NodeKind
   label: string
   stepType: string
   actionType: string
   config: string
+  minAge: string
+  maxAge: string
+  teamId: string
   x: number
   y: number
 }
@@ -26,22 +32,33 @@ const actionOptions = [
   { value: 'SEND_EMAIL', label: 'Enviar email' },
   { value: 'CREATE_INVOICE', label: 'Crear factura' },
   { value: 'TAG_MEMBER', label: 'Etiquetar socio' },
+  { value: 'ASSIGN_TEAM_BY_AGE', label: 'Asignar equipo por edad' },
 ]
 
-export function WorkflowBuilderForm() {
-  const [nodes, setNodes] = useState<NodeDraft[]>([
-    {
-      id: crypto.randomUUID(),
-      label: 'Inicio',
-      stepType: 'ACTION',
-      actionType: 'NOTIFY_WHATSAPP',
-      config: '',
-      x: 80,
-      y: 90,
-    },
-  ])
-  const [triggerType, setTriggerType] = useState('MEMBER_CREATED')
-  const [triggerConfig, setTriggerConfig] = useState('')
+function createTriggerNode(): NodeDraft {
+  return {
+    id: crypto.randomUUID(),
+    kind: 'TRIGGER',
+    label: 'Trigger',
+    stepType: 'TRIGGER',
+    actionType: 'MEMBER_CREATED',
+    config: '',
+    minAge: '',
+    maxAge: '',
+    teamId: '',
+    x: 80,
+    y: 90,
+  }
+}
+
+type TeamOption = {
+  id: string
+  name: string
+  category: string | null
+}
+
+export function WorkflowBuilderForm({ teams }: { teams: TeamOption[] }) {
+  const [nodes, setNodes] = useState<NodeDraft[]>([createTriggerNode()])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(nodes[0]?.id ?? null)
 
   const dragRef = useRef<{
@@ -55,15 +72,19 @@ export function WorkflowBuilderForm() {
     [nodes],
   )
 
-  const stepsPayload = useMemo(
+  const nodesPayload = useMemo(
     () =>
       JSON.stringify(
         orderedNodes.map((node, index) => ({
+          kind: node.kind,
           position: index + 1,
           stepType: node.stepType,
           actionType: node.actionType,
           config: {
             value: node.config.trim(),
+            minAge: node.minAge.trim(),
+            maxAge: node.maxAge.trim(),
+            teamId: node.teamId.trim(),
             x: String(Math.round(node.x)),
             y: String(Math.round(node.y)),
             label: node.label.trim() || `Paso ${index + 1}`,
@@ -73,52 +94,59 @@ export function WorkflowBuilderForm() {
     [orderedNodes],
   )
 
-  const triggerPayload = useMemo(
-    () => JSON.stringify(triggerConfig.trim() ? { value: triggerConfig.trim() } : {}),
-    [triggerConfig],
-  )
-
   async function action(formData: FormData) {
     const name = String(formData.get('name') || '')
     const description = String(formData.get('description') || '')
-    const triggerTypeValue = String(formData.get('triggerType') || 'MEMBER_CREATED')
     const isActive = String(formData.get('isActive') || '') === 'on'
 
-    const rawSteps = String(formData.get('stepsPayload') || '[]')
-    const rawTriggerConfig = String(formData.get('triggerPayload') || '{}')
+    const rawNodes = String(formData.get('nodesPayload') || '[]')
 
-    const parsedSteps = JSON.parse(rawSteps) as Array<{
+    const parsedNodes = JSON.parse(rawNodes) as Array<{
+      kind: NodeKind
       position: number
       stepType: string
       actionType: string
       config?: Record<string, string> | null
     }>
-    const parsedTriggerConfig = JSON.parse(rawTriggerConfig) as Record<string, string>
+
+    const triggerNode = parsedNodes.find((node) => node.kind === 'TRIGGER')
+    if (!triggerNode) {
+      throw new Error('Debes tener un nodo trigger en el tablero')
+    }
+
+    const stepNodes = parsedNodes.filter((node) => node.kind === 'STEP')
+    if (!stepNodes.length) {
+      throw new Error('Añade al menos un nodo de acción al workflow')
+    }
+
+    for (const node of stepNodes) {
+      if (node.actionType !== 'ASSIGN_TEAM_BY_AGE') continue
+      const config = node.config || {}
+      if (!config.teamId) {
+        throw new Error('Los nodos de asignación por edad requieren seleccionar un equipo')
+      }
+      if (!config.maxAge && !config.minAge) {
+        throw new Error('Los nodos de asignación por edad requieren una edad mínima o máxima')
+      }
+    }
 
     await createWorkflow({
       name,
       description,
-      triggerType: triggerTypeValue,
-      triggerConfig: Object.keys(parsedTriggerConfig).length ? parsedTriggerConfig : null,
+      triggerType: triggerNode.actionType,
+      triggerConfig: triggerNode.config && Object.keys(triggerNode.config).length ? triggerNode.config : null,
       isActive,
-      steps: parsedSteps,
+      steps: stepNodes.map((node, index) => ({
+        position: index + 1,
+        stepType: node.stepType,
+        actionType: node.actionType,
+        config: node.config || null,
+      })),
     })
 
-    const firstId = crypto.randomUUID()
-    setNodes([
-      {
-        id: firstId,
-        label: 'Inicio',
-        stepType: 'ACTION',
-        actionType: 'NOTIFY_WHATSAPP',
-        config: '',
-        x: 80,
-        y: 90,
-      },
-    ])
-    setSelectedNodeId(firstId)
-    setTriggerType('MEMBER_CREATED')
-    setTriggerConfig('')
+    const triggerNodeAfterSave = createTriggerNode()
+    setNodes([triggerNodeAfterSave])
+    setSelectedNodeId(triggerNodeAfterSave.id)
   }
 
   function addNode() {
@@ -128,10 +156,14 @@ export function WorkflowBuilderForm() {
 
     const newNode: NodeDraft = {
       id: crypto.randomUUID(),
+      kind: 'STEP',
       label: `Paso ${nodes.length + 1}`,
       stepType: 'ACTION',
       actionType: 'SEND_EMAIL',
       config: '',
+      minAge: '',
+      maxAge: '',
+      teamId: '',
       x: nextX,
       y: nextY,
     }
@@ -146,6 +178,8 @@ export function WorkflowBuilderForm() {
   function removeNode(id: string) {
     setNodes((current) => {
       if (current.length <= 1) return current
+      const nodeToRemove = current.find((node) => node.id === id)
+      if (nodeToRemove?.kind === 'TRIGGER') return current
       const next = current.filter((node) => node.id !== id)
       if (selectedNodeId === id) {
         setSelectedNodeId(next[0]?.id ?? null)
@@ -201,37 +235,18 @@ export function WorkflowBuilderForm() {
         </label>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <input
           name="name"
           required
           placeholder="Nombre del workflow"
           className="border rounded-lg px-3 py-2 text-slate-900"
         />
-        <select
-          name="triggerType"
-          value={triggerType}
-          onChange={(event) => setTriggerType(event.target.value)}
-          className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
-        >
-          {triggerOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              Trigger: {option.label}
-            </option>
-          ))}
-        </select>
       </div>
 
       <input
         name="description"
         placeholder="Descripción (opcional)"
-        className="border rounded-lg px-3 py-2 text-slate-900 w-full"
-      />
-
-      <input
-        value={triggerConfig}
-        onChange={(event) => setTriggerConfig(event.target.value)}
-        placeholder="Config trigger (ej: 0 9 * * 1 para cron semanal)"
         className="border rounded-lg px-3 py-2 text-slate-900 w-full"
       />
 
@@ -294,7 +309,7 @@ export function WorkflowBuilderForm() {
                 >
                   <div className="px-3 py-2 border-b border-slate-200 text-xs font-semibold text-slate-500 flex items-center justify-between">
                     <span>Nodo {index + 1}</span>
-                    <span>{node.stepType}</span>
+                    <span>{node.kind === 'TRIGGER' ? 'TRIGGER' : node.stepType}</span>
                   </div>
                   <div className="px-3 py-2">
                     <p className="font-medium text-sm truncate">{node.label || 'Sin título'}</p>
@@ -316,43 +331,104 @@ export function WorkflowBuilderForm() {
                   placeholder="Nombre del nodo"
                   className="border rounded-lg px-3 py-2 text-slate-900 w-full"
                 />
-                <select
-                  value={selectedNode.stepType}
-                  onChange={(event) => updateNode(selectedNode.id, { stepType: event.target.value })}
-                  className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
-                >
-                  <option value="ACTION">Acción</option>
-                  <option value="CONDITION">Condición</option>
-                  <option value="DELAY">Espera</option>
-                </select>
-                <select
-                  value={selectedNode.actionType}
-                  onChange={(event) => updateNode(selectedNode.id, { actionType: event.target.value })}
-                  className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
-                >
-                  {actionOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                {selectedNode.kind === 'STEP' && (
+                  <>
+                    <select
+                      value={selectedNode.stepType}
+                      onChange={(event) => updateNode(selectedNode.id, { stepType: event.target.value })}
+                      className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
+                    >
+                      <option value="ACTION">Acción</option>
+                      <option value="CONDITION">Condición</option>
+                      <option value="DELAY">Espera</option>
+                    </select>
+                    <select
+                      value={selectedNode.actionType}
+                      onChange={(event) => updateNode(selectedNode.id, { actionType: event.target.value })}
+                      className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
+                    >
+                      {actionOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
+                {selectedNode.kind === 'TRIGGER' && (
+                  <select
+                    value={selectedNode.actionType}
+                    onChange={(event) => updateNode(selectedNode.id, { actionType: event.target.value })}
+                    className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
+                  >
+                    {triggerOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        Trigger: {option.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <input
                   value={selectedNode.config}
                   onChange={(event) => updateNode(selectedNode.id, { config: event.target.value })}
-                  placeholder="Config del nodo"
+                  placeholder={
+                    selectedNode.kind === 'TRIGGER'
+                      ? 'Config trigger (ej: 0 9 * * 1)'
+                      : selectedNode.actionType === 'ASSIGN_TEAM_BY_AGE'
+                        ? 'Config opcional de regla'
+                        : 'Config del nodo'
+                  }
                   className="border rounded-lg px-3 py-2 text-slate-900 w-full"
                 />
+                {selectedNode.kind === 'STEP' && selectedNode.actionType === 'ASSIGN_TEAM_BY_AGE' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={selectedNode.minAge}
+                        onChange={(event) => updateNode(selectedNode.id, { minAge: event.target.value })}
+                        placeholder="Edad mínima"
+                        className="border rounded-lg px-3 py-2 text-slate-900 w-full"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        value={selectedNode.maxAge}
+                        onChange={(event) => updateNode(selectedNode.id, { maxAge: event.target.value })}
+                        placeholder="Edad máxima"
+                        className="border rounded-lg px-3 py-2 text-slate-900 w-full"
+                      />
+                    </div>
+                    <select
+                      value={selectedNode.teamId}
+                      onChange={(event) => updateNode(selectedNode.id, { teamId: event.target.value })}
+                      className="border rounded-lg px-3 py-2 text-slate-900 bg-white w-full"
+                    >
+                      <option value="">Selecciona equipo destino</option>
+                      {teams.map((team) => (
+                        <option key={team.id} value={team.id}>
+                          {team.name}
+                          {team.category ? ` (${team.category})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500">
+                      Regla: si la edad del socio está en el rango, se añade automáticamente al equipo elegido.
+                    </p>
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => removeNode(selectedNode.id)}
                   className="inline-flex items-center gap-2 text-rose-600 hover:text-rose-700 text-sm"
-                  disabled={nodes.length <= 1}
+                  disabled={nodes.length <= 1 || selectedNode.kind === 'TRIGGER'}
                 >
                   <Trash2 size={16} />
-                  Eliminar nodo
+                  {selectedNode.kind === 'TRIGGER' ? 'El trigger no se puede eliminar' : 'Eliminar nodo'}
                 </button>
                 <p className="text-xs text-slate-500">
-                  Arrastra los nodos en el tablero. Las conexiones se muestran de izquierda a derecha.
+                  Arrastra los nodos en el tablero. El trigger también es un nodo y define el disparador del workflow.
                 </p>
               </>
             )}
@@ -360,8 +436,7 @@ export function WorkflowBuilderForm() {
         </div>
       </div>
 
-      <input type="hidden" name="stepsPayload" value={stepsPayload} readOnly />
-      <input type="hidden" name="triggerPayload" value={triggerPayload} readOnly />
+      <input type="hidden" name="nodesPayload" value={nodesPayload} readOnly />
 
       <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium">
         Guardar workflow

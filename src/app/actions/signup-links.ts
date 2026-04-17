@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
+import { runMemberCreatedWorkflows } from '@/lib/workflow-engine'
 
 async function buildSignupUrl(token: string) {
   const h = await headers()
@@ -45,6 +46,7 @@ export async function submitSignupFromLink(data: {
   token: string
   name: string
   dni: string
+  birthDate?: string
   phone?: string
   email?: string
   address?: string
@@ -58,12 +60,14 @@ export async function submitSignupFromLink(data: {
     data: {
       name: data.name,
       dni: data.dni,
+      birthDate: data.birthDate ? new Date(data.birthDate) : null,
       phone: data.phone || null,
       email: data.email || null,
       address: data.address || null,
       status: 'ACTIVE',
     },
   })
+  await runMemberCreatedWorkflows(member.id)
 
   await prisma.signupLink.update({
     where: { id: link.id },
