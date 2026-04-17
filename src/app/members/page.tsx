@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { MemberForm } from './MemberForm'
 import { InviteLinkButton } from './InviteLinkButton'
 import { PaymentReminderButton } from './PaymentReminderButton'
-import { Trash2, Edit2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { deleteMember } from '@/app/actions'
 
 export const dynamic = 'force-dynamic'
@@ -28,8 +28,11 @@ export default async function MembersPage() {
           <thead>
             <tr className="bg-slate-50 border-b border-slate-100">
               <th className="p-4 font-medium text-slate-600">Nombre</th>
+              <th className="p-4 font-medium text-slate-600">DNI</th>
               <th className="p-4 font-medium text-slate-600">Email</th>
               <th className="p-4 font-medium text-slate-600">Teléfono</th>
+              <th className="p-4 font-medium text-slate-600">Domicilio</th>
+              <th className="p-4 font-medium text-slate-600">Fecha alta</th>
               <th className="p-4 font-medium text-slate-600">Estado</th>
               <th className="p-4 font-medium text-slate-600 text-right">Acciones</th>
             </tr>
@@ -38,8 +41,17 @@ export default async function MembersPage() {
             {members.map(member => (
               <tr key={member.id} className="border-b border-slate-50 hover:bg-slate-50">
                 <td className="p-4 font-medium">{member.name}</td>
+                <td className="p-4 text-slate-600">{member.dni || '-'}</td>
                 <td className="p-4 text-slate-600">{member.email || '-'}</td>
                 <td className="p-4 text-slate-600">{member.phone || '-'}</td>
+                <td className="p-4 text-slate-600">{member.address || '-'}</td>
+                <td className="p-4 text-slate-600">
+                  {new Intl.DateTimeFormat('es-ES', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                  }).format(member.joinedAt)}
+                </td>
                 <td className="p-4">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     member.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
@@ -58,7 +70,7 @@ export default async function MembersPage() {
             ))}
             {members.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-slate-500">
+                <td colSpan={8} className="p-8 text-center text-slate-500">
                   No hay socios registrados aún.
                 </td>
               </tr>
