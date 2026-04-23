@@ -2,10 +2,44 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createEvent } from "@/actions/events";
+import { createEvent, updateEvent } from "@/actions/events";
 import { Calendar, Clock, MapPin, Users, Euro, FileText, Globe, Lock } from "lucide-react";
 
-export default function EventForm({ teams }: { teams: any[] }) {
+function toDateInputValue(d: Date | string) {
+  const dt = new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function toTimeInputValue(d: Date | string) {
+  const dt = new Date(d);
+  return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+}
+
+type InitialEvent = {
+  title: string;
+  type: string;
+  date: Date | string;
+  endDate: Date | string | null;
+  location: string | null;
+  description: string | null;
+  isPublic: boolean;
+  maxAttendees: number | null;
+  price: number | null;
+  teamId: string | null;
+};
+
+export default function EventForm({
+  teams,
+  eventId,
+  initialEvent,
+}: {
+  teams: { id: string; name: string }[];
+  eventId?: string;
+  initialEvent?: InitialEvent;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -16,7 +50,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
     setError("");
 
     const formData = new FormData(e.currentTarget);
-    
+
     const dateStr = formData.get("date") as string;
     const timeStr = formData.get("time") as string;
     const date = new Date(`${dateStr}T${timeStr}`);
@@ -30,23 +64,38 @@ export default function EventForm({ teams }: { teams: any[] }) {
       type: formData.get("type") as string,
       date,
       endDate,
-      location: formData.get("location") as string || null,
-      description: formData.get("description") as string || null,
+      location: (formData.get("location") as string) || null,
+      description: (formData.get("description") as string) || null,
       isPublic: formData.get("isPublic") === "true",
-      maxAttendees: formData.get("maxAttendees") ? parseInt(formData.get("maxAttendees") as string) : null,
+      maxAttendees: formData.get("maxAttendees")
+        ? parseInt(formData.get("maxAttendees") as string, 10)
+        : null,
       price: formData.get("price") ? parseFloat(formData.get("price") as string) : null,
-      teamId: formData.get("teamId") as string || null,
+      teamId: (formData.get("teamId") as string) || null,
     };
+
+    if (eventId) {
+      const res = await updateEvent(eventId, data);
+      if (res.success) {
+        router.push("/events");
+      } else {
+        setError(res.error || "Error al actualizar el evento");
+        setLoading(false);
+      }
+      return;
+    }
 
     const res = await createEvent(data);
 
     if (res.success) {
-      router.push("/admin/events");
+      router.push("/events");
     } else {
       setError(res.error || "Error al crear el evento");
       setLoading(false);
     }
   };
+
+  const i = initialEvent;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-xl shadow-sm border border-gray-200">
@@ -57,7 +106,6 @@ export default function EventForm({ teams }: { teams: any[] }) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Columna Izquierda: Info Básica */}
         <div className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Título del Evento *</label>
@@ -65,6 +113,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
               type="text"
               name="title"
               required
+              defaultValue={i?.title}
               className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Ej: Torneo de Verano 2026"
             />
@@ -76,6 +125,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
               <select
                 name="type"
                 required
+                defaultValue={i?.type}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="TRAINING">Entrenamiento</option>
@@ -89,6 +139,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Equipo (Opcional)</label>
               <select
                 name="teamId"
+                defaultValue={i?.teamId ?? ""}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todo el club</option>
@@ -112,6 +163,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
                   type="date"
                   name="date"
                   required
+                  defaultValue={i ? toDateInputValue(i.date) : undefined}
                   className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -126,6 +178,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
                   type="time"
                   name="time"
                   required
+                  defaultValue={i ? toTimeInputValue(i.date) : undefined}
                   className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -142,6 +195,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
                 <input
                   type="date"
                   name="endDate"
+                  defaultValue={i?.endDate ? toDateInputValue(i.endDate) : undefined}
                   className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -155,6 +209,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
                 <input
                   type="time"
                   name="endTime"
+                  defaultValue={i?.endDate ? toTimeInputValue(i.endDate) : undefined}
                   className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -170,6 +225,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
               <input
                 type="text"
                 name="location"
+                defaultValue={i?.location ?? undefined}
                 className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Ej: Polideportivo Municipal"
               />
@@ -177,22 +233,37 @@ export default function EventForm({ teams }: { teams: any[] }) {
           </div>
         </div>
 
-        {/* Columna Derecha: Configuración */}
         <div className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Visibilidad *</label>
             <div className="grid grid-cols-2 gap-4">
               <label className="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                <input type="radio" name="isPublic" value="false" defaultChecked className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300" />
+                <input
+                  type="radio"
+                  name="isPublic"
+                  value="false"
+                  defaultChecked={i ? !i.isPublic : true}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
                 <div className="ml-3 flex flex-col">
-                  <span className="block text-sm font-medium text-gray-900 flex items-center"><Lock className="w-4 h-4 mr-1"/> Privado</span>
+                  <span className="block text-sm font-medium text-gray-900 flex items-center">
+                    <Lock className="w-4 h-4 mr-1" /> Privado
+                  </span>
                   <span className="block text-xs text-gray-500">Solo miembros del club</span>
                 </div>
               </label>
               <label className="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                <input type="radio" name="isPublic" value="true" className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300" />
+                <input
+                  type="radio"
+                  name="isPublic"
+                  value="true"
+                  defaultChecked={i ? i.isPublic : false}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
                 <div className="ml-3 flex flex-col">
-                  <span className="block text-sm font-medium text-gray-900 flex items-center"><Globe className="w-4 h-4 mr-1"/> Público</span>
+                  <span className="block text-sm font-medium text-gray-900 flex items-center">
+                    <Globe className="w-4 h-4 mr-1" /> Público
+                  </span>
                   <span className="block text-xs text-gray-500">Cualquiera con el enlace</span>
                 </div>
               </label>
@@ -210,6 +281,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
                   type="number"
                   name="maxAttendees"
                   min="1"
+                  defaultValue={i?.maxAttendees ?? undefined}
                   className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Sin límite"
                 />
@@ -226,6 +298,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
                   name="price"
                   min="0"
                   step="0.01"
+                  defaultValue={i?.price ?? undefined}
                   className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="0.00 (Gratis)"
                 />
@@ -242,9 +315,10 @@ export default function EventForm({ teams }: { teams: any[] }) {
               <textarea
                 name="description"
                 rows={5}
+                defaultValue={i?.description ?? undefined}
                 className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Detalles sobre el evento..."
-              ></textarea>
+              />
             </div>
           </div>
         </div>
@@ -263,7 +337,7 @@ export default function EventForm({ teams }: { teams: any[] }) {
           disabled={loading}
           className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
-          {loading ? "Creando..." : "Crear Evento"}
+          {loading ? (eventId ? "Guardando..." : "Creando...") : eventId ? "Guardar cambios" : "Crear Evento"}
         </button>
       </div>
     </form>

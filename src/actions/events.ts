@@ -58,7 +58,6 @@ export async function createEvent(data: {
     const event = await prisma.event.create({
       data,
     });
-    revalidatePath("/admin/events");
     revalidatePath("/events");
     return { success: true, data: event };
   } catch (error) {
@@ -88,8 +87,7 @@ export async function updateEvent(
       where: { id },
       data,
     });
-    revalidatePath("/admin/events");
-    revalidatePath(`/admin/events/${id}`);
+    revalidatePath("/events");
     revalidatePath(`/events/${id}`);
     return { success: true, data: event };
   } catch (error) {
@@ -103,7 +101,7 @@ export async function deleteEvent(id: string) {
     await prisma.event.delete({
       where: { id },
     });
-    revalidatePath("/admin/events");
+    revalidatePath("/events");
     return { success: true };
   } catch (error) {
     console.error("Error deleting event:", error);

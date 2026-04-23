@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch, Landmark } from 'lucide-react'
+import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch, Landmark, Ticket } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 
@@ -10,7 +10,10 @@ export function Sidebar() {
   const { data: session } = useSession()
 
   const isJoinRoute = pathname === '/join' || pathname.startsWith('/join/')
+  const isPublicEventShare =
+    /^\/events\/[^/]+$/.test(pathname) && pathname !== '/events/new'
   if (pathname === '/login' || isJoinRoute) return null
+  if (isPublicEventShare && !session) return null
 
   const isAdmin = session?.user?.role === 'ADMIN'
 
@@ -47,6 +50,10 @@ export function Sidebar() {
             <div className="pt-4 pb-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Administración
             </div>
+            <Link href="/events" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+              <Ticket size={20} />
+              <span>Eventos</span>
+            </Link>
             <Link href="/teams" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Users size={20} />
               <span>Equipos</span>

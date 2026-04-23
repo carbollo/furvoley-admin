@@ -7,9 +7,10 @@ export const dynamic = "force-dynamic";
 export default async function PublicEventPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const { data: event, success } = await getEventById(params.id);
+  const { id } = await params;
+  const { data: event, success } = await getEventById(id);
 
   if (!success || !event) {
     notFound();

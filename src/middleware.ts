@@ -14,10 +14,30 @@ export default withAuth(
         return NextResponse.redirect(new URL("/", req.url))
       }
     }
+
+    // Gestión de eventos: /events (lista), /events/new, /events/:id/edit
+    const isEventsAdmin =
+      path === "/events" ||
+      path.startsWith("/events/new") ||
+      /^\/events\/[^/]+\/edit/.test(path)
+
+    if (isEventsAdmin) {
+      if (token?.role !== "ADMIN") {
+        return NextResponse.redirect(new URL("/", req.url))
+      }
+    }
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token
+      authorized: ({ token, req }) => {
+        const path = req.nextUrl.pathname
+        // Ficha pública del evento: /events/:id (sin login), excepto /events/new
+        const m = /^\/events\/([^/]+)$/.exec(path)
+        if (m && m[1] !== "new") {
+          return true
+        }
+        return !!token
+      }
     }
   }
 )
