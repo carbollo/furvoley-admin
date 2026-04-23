@@ -58,7 +58,12 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ i
           <div>
             <h1 className="text-2xl font-bold text-slate-900 mb-2">{event.title}</h1>
             <div className="flex flex-wrap gap-4 text-sm text-slate-600">
-              <span className="bg-slate-100 px-2 py-1 rounded font-medium">{event.team.name}</span>
+              {event.team && (
+                <span className="bg-slate-100 px-2 py-1 rounded font-medium">{event.team.name}</span>
+              )}
+              {!event.team && (
+                <span className="bg-slate-100 px-2 py-1 rounded font-medium">Todo el club</span>
+              )}
               <span>{new Date(event.date).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
               <span>{new Date(event.date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
               {event.location && <span>📍 {event.location}</span>}

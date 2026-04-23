@@ -1,11 +1,18 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { PayInvoiceButton } from './PayInvoiceButton'
+import { AdminManualPaymentForm } from './AdminManualPaymentForm'
 
 export const dynamic = 'force-dynamic'
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions)
+  const role = (session?.user as { role?: string } | undefined)?.role
+  const isAdmin = role === 'ADMIN'
+
   const { id } = await params
   const invoice = await prisma.invoice.findUnique({
     where: { id },
@@ -27,15 +34,39 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
       <div className="bg-white rounded-lg border p-6 space-y-3">
         <h1 className="text-2xl font-bold">Factura {invoice.invoiceNumber}</h1>
+        <p className="text-slate-600">
+          Tipo:{' '}
+          {invoice.kind === 'OTHER' ? (
+            <span className="font-medium text-amber-800">Cobro adicional</span>
+          ) : (
+            <span className="font-medium">Cuota / membresía</span>
+          )}
+        </p>
         <p className="text-slate-600">Socio: {invoice.member.name}</p>
         <p className="text-slate-600">Estado: {invoice.status}</p>
         <p className="text-slate-600">Vencimiento: {new Date(invoice.dueDate).toLocaleDateString()}</p>
         <p className="text-slate-900 font-semibold">Pendiente: €{pending.toFixed(2)}</p>
+        <div className="flex flex-wrap gap-3 items-center">
+          <a
+            href={`/api/invoices/${invoice.id}/pdf`}
+            className="inline-flex text-sm font-medium text-slate-800 bg-slate-100 px-3 py-2 rounded-lg hover:bg-slate-200"
+          >
+            Descargar PDF (archivo)
+          </a>
+          {invoice.pdfStoredAt && (
+            <span className="text-xs text-slate-500">
+              Última generación PDF: {new Date(invoice.pdfStoredAt).toLocaleString('es-ES')}
+            </span>
+          )}
+        </div>
         {pending > 0 && <PayInvoiceButton invoiceId={invoice.id} />}
         {invoice.stripeCheckoutUrl && (
           <a href={invoice.stripeCheckoutUrl} target="_blank" className="text-indigo-600 hover:underline block">
             Abrir último link de pago
           </a>
+        )}
+        {isAdmin && pending > 0 && (
+          <AdminManualPaymentForm invoiceId={invoice.id} maxAmount={pending} />
         )}
       </div>
 

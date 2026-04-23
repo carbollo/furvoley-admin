@@ -206,8 +206,24 @@ export async function updatePaymentStatus(id: string, status: string) {
 }
 
 // TRANSACTIONS
-export async function createTransaction(data: { type: string; amount: number; description: string; date?: Date }) {
-  const transaction = await prisma.transaction.create({ data })
+export async function createTransaction(data: {
+  type: string
+  amount: number
+  description: string
+  date?: Date
+  bankReference?: string | null
+  source?: string
+}) {
+  const transaction = await prisma.transaction.create({
+    data: {
+      type: data.type,
+      amount: data.amount,
+      description: data.description,
+      date: data.date ?? new Date(),
+      bankReference: data.bankReference ?? null,
+      source: data.source ?? 'MANUAL',
+    },
+  })
   revalidatePath('/accounting')
   return transaction
 }

@@ -125,6 +125,7 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
   const invoice = await prisma.invoice.create({
     data: {
       invoiceNumber: await nextInvoiceNumber(),
+      kind: 'MEMBERSHIP',
       issueDate: new Date(),
       dueDate,
       subtotal,
@@ -171,6 +172,58 @@ export async function generateDueInvoices() {
   return { createdCount: created.length }
 }
 
+export async function createManualInvoice(data: {
+  memberId: string
+  dueDate: Date
+  items: { description: string; quantity: number; unitAmount: number }[]
+  taxAmount?: number
+}) {
+  if (!data.items.length) throw new Error('Añade al menos un concepto')
+
+  const subtotal = data.items.reduce((s, i) => s + i.quantity * i.unitAmount, 0)
+  const taxAmount = data.taxAmount ?? 0
+  const total = subtotal + taxAmount
+
+  const invoice = await prisma.invoice.create({
+    data: {
+      invoiceNumber: await nextInvoiceNumber(),
+      kind: 'OTHER',
+      issueDate: new Date(),
+      dueDate: data.dueDate,
+      subtotal,
+      taxAmount,
+      totalAmount: total,
+      memberId: data.memberId,
+      items: {
+        create: data.items.map((i) => ({
+          description: i.description,
+          quantity: i.quantity,
+          unitAmount: i.unitAmount,
+          totalAmount: i.quantity * i.unitAmount,
+        })),
+      },
+    },
+  })
+
+  revalidatePath('/billing')
+  revalidatePath('/billing/extra-invoice')
+  revalidatePath('/billing/impagos')
+  return invoice
+}
+
+export async function runBillingAutomation() {
+  const generated = await generateDueInvoices()
+  await updateInvoiceStatuses()
+  const reminders = await runReminderJob()
+  revalidatePath('/billing')
+  revalidatePath('/billing/impagos')
+  revalidatePath('/')
+  return {
+    generatedInvoices: generated.createdCount,
+    remindersSent: reminders.sent,
+  }
+}
+
 export async function updateInvoiceStatuses() {
   const today = startOfDay(new Date())
   const invoices = await prisma.invoice.findMany({
@@ -188,6 +241,7 @@ export async function updateInvoiceStatuses() {
     }
   }
   revalidatePath('/billing')
+  revalidatePath('/billing/impagos')
 }
 
 export async function recordInvoicePayment(data: {
@@ -198,6 +252,7 @@ export async function recordInvoicePayment(data: {
   stripePaymentIntent?: string
   stripeSessionId?: string
   errorMessage?: string
+  bankReference?: string | null
 }) {
   const invoice = await prisma.invoice.findUnique({ where: { id: data.invoiceId } })
   if (!invoice) throw new Error('Invoice not found')
@@ -225,10 +280,46 @@ export async function recordInvoicePayment(data: {
         paidAt: isPaid ? new Date() : null,
       },
     })
+
+    const method = data.method ?? 'STRIPE'
+    let source = 'INVOICE_PAYMENT'
+    if (method === 'STRIPE') source = 'STRIPE'
+    else if (method === 'BANK_TRANSFER') source = 'BANK_TRANSFER'
+    else if (method === 'CASH') source = 'CASH'
+
+    await prisma.transaction.create({
+      data: {
+        type: 'INCOME',
+        amount: data.amount,
+        description: `Cobro factura ${invoice.invoiceNumber} (${method})`,
+        date: new Date(),
+        invoiceId: invoice.id,
+        source,
+        bankReference: data.bankReference ?? null,
+      },
+    })
   }
 
   revalidatePath('/billing')
+  revalidatePath('/billing/impagos')
+  revalidatePath('/accounting')
+  revalidatePath(`/billing/invoices/${data.invoiceId}`)
   revalidatePath('/')
+}
+
+export async function recordManualInvoicePayment(data: {
+  invoiceId: string
+  amount: number
+  method: 'BANK_TRANSFER' | 'CASH'
+  bankReference?: string | null
+}) {
+  await recordInvoicePayment({
+    invoiceId: data.invoiceId,
+    amount: data.amount,
+    method: data.method,
+    status: 'SUCCEEDED',
+    bankReference: data.bankReference ?? null,
+  })
 }
 
 export async function createInvoiceStripeLink(invoiceId: string) {

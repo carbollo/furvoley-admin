@@ -63,6 +63,10 @@ export function Sidebar() {
               <Receipt size={20} />
               <span>Billing</span>
             </Link>
+            <Link href="/billing/impagos" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition pl-6 text-slate-300 text-sm">
+              <Receipt size={16} />
+              <span>Impagos</span>
+            </Link>
             <Link href="/accounting" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Calculator size={20} />
               <span>Contabilidad</span>

@@ -7,7 +7,10 @@ export const dynamic = 'force-dynamic'
 
 export default async function AccountingPage() {
   const transactions = await prisma.transaction.findMany({
-    orderBy: { date: 'desc' }
+    orderBy: { date: 'desc' },
+    include: {
+      invoice: { select: { id: true, invoiceNumber: true } },
+    },
   })
 
   const income = transactions.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + t.amount, 0)
@@ -24,16 +27,16 @@ export default async function AccountingPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <p className="text-sm text-slate-500 font-medium mb-1">Ingresos Totales</p>
-          <p className="text-2xl font-bold text-emerald-600">${income.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-emerald-600">€{income.toFixed(2)}</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <p className="text-sm text-slate-500 font-medium mb-1">Egresos Totales</p>
-          <p className="text-2xl font-bold text-rose-600">${expense.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-rose-600">€{expense.toFixed(2)}</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
           <p className="text-sm text-slate-500 font-medium mb-1">Balance</p>
           <p className={`text-2xl font-bold ${balance >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
-            ${balance.toFixed(2)}
+            €{balance.toFixed(2)}
           </p>
         </div>
       </div>
@@ -45,7 +48,9 @@ export default async function AccountingPage() {
               <th className="p-4 font-medium text-slate-600">Fecha</th>
               <th className="p-4 font-medium text-slate-600">Descripción</th>
               <th className="p-4 font-medium text-slate-600">Tipo</th>
-              <th className="p-4 font-medium text-slate-600">Monto</th>
+              <th className="p-4 font-medium text-slate-600">Importe</th>
+              <th className="p-4 font-medium text-slate-600">Origen / banco</th>
+              <th className="p-4 font-medium text-slate-600">Factura</th>
               <th className="p-4 font-medium text-slate-600 text-right">Acciones</th>
             </tr>
           </thead>
@@ -63,7 +68,25 @@ export default async function AccountingPage() {
                   </span>
                 </td>
                 <td className={`p-4 font-bold ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {t.type === 'INCOME' ? '+' : '-'}${t.amount.toFixed(2)}
+                  {t.type === 'INCOME' ? '+' : '-'}€{t.amount.toFixed(2)}
+                </td>
+                <td className="p-4 text-sm text-slate-600">
+                  <span className="block">{t.source}</span>
+                  {t.bankReference && (
+                    <span className="text-xs text-slate-500">{t.bankReference}</span>
+                  )}
+                </td>
+                <td className="p-4 text-sm">
+                  {t.invoice ? (
+                    <a
+                      href={`/billing/invoices/${t.invoice.id}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {t.invoice.invoiceNumber}
+                    </a>
+                  ) : (
+                    <span className="text-slate-400">—</span>
+                  )}
                 </td>
                 <td className="p-4 text-right">
                   <form action={deleteTransaction.bind(null, t.id)} className="inline">
@@ -76,7 +99,7 @@ export default async function AccountingPage() {
             ))}
             {transactions.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-slate-500">
+                <td colSpan={7} className="p-8 text-center text-slate-500">
                   No hay transacciones registradas.
                 </td>
               </tr>

@@ -83,6 +83,7 @@ model Member {
   invoices Invoice[]
   reminders ReminderLog[]
   signupSubmissions SignupLink[] @relation("SignupLinkCreatedMember")
+  orders    Order[]
 }
 
 model SignupLink {
@@ -152,6 +153,7 @@ model Subscription {
 model Invoice {
   id                  String   @id @default(cuid())
   invoiceNumber       String   @unique
+  kind                String   @default("MEMBERSHIP") // MEMBERSHIP, OTHER
   issueDate           DateTime @default(now())
   dueDate             DateTime
   subtotal            Float
@@ -163,6 +165,7 @@ model Invoice {
   stripeCheckoutUrl   String?
   stripeSessionId     String?
   paidAt              DateTime?
+  pdfStoredAt         DateTime? // última generación / descarga persistida (opcional)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -173,6 +176,8 @@ model Invoice {
   items               InvoiceItem[]
   paymentAttempts     PaymentAttempt[]
   reminders           ReminderLog[]
+  order               Order?
+  ledgerEntries       Transaction[]
 }
 
 model InvoiceItem {
@@ -249,13 +254,17 @@ model WorkflowStep {
 }
 
 model Transaction {
-  id          String   @id @default(cuid())
-  type        String   // INCOME, EXPENSE
-  amount      Float
-  description String
-  date        DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  type          String   // INCOME, EXPENSE
+  amount        Float
+  description   String
+  date          DateTime @default(now())
+  bankReference String?  // referencia bancaria / concepto del extracto
+  source        String   @default("MANUAL") // MANUAL, STRIPE, BANK_TRANSFER, CASH, INVOICE_PAYMENT
+  invoiceId     String?
+  invoice       Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // --- TEAMS AND PLANNING MODELS ---
@@ -287,19 +296,24 @@ model TeamMember {
 }
 
 model Event {
-  id          String       @id @default(cuid())
-  title       String
-  type        String       // TRAINING, MATCH, TOURNAMENT
-  date        DateTime
-  location    String?
-  description String?      @db.Text
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            String       @id @default(cuid())
+  title         String
+  type          String       // TRAINING, MATCH, TOURNAMENT, SOCIAL, OTHER
+  date          DateTime
+  endDate       DateTime?    // Optional end date for multi-day tournaments or events
+  location      String?
+  description   String?      @db.Text
+  isPublic      Boolean      @default(false) // If true, anyone can see it
+  maxAttendees  Int?         // Capacity limit
+  price         Float?       // Cost to attend, if any
+  status        String       @default("SCHEDULED") // SCHEDULED, CANCELLED, COMPLETED
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
-  teamId      String
-  team        Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId        String?      // Optional: if null, it's a club-wide event
+  team          Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
-  attendances Attendance[]
+  attendances   Attendance[]
 }
 
 model Attendance {
@@ -316,4 +330,89 @@ model Attendance {
   member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, memberId])
+}
+
+// --- STORE & PRODUCTS MODELS ---
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  price       Float
+  stock       Int      @default(0)
+  image       String?
+  category    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  orderNumber     String   @unique
+  status          String   @default("PENDING") // PENDING, PAID, PROCESSING, SHIPPED, DELIVERED, CANCELLED
+  totalAmount     Float
+  customerName    String
+  customerEmail   String?
+  customerPhone   String?
+  shippingAddress String?  @db.Text
+  shippingNotes   String?  @db.Text
+  trackingNumber  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  memberId        String?
+  member          Member?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  items           OrderItem[]
+  invoiceId       String?  @unique
+  invoice         Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  quantity    Int
+  unitPrice   Float
+  totalPrice  Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+}
+
+// --- META ADS INTEGRATION MODELS ---
+
+model MetaConfig {
+  id            String   @id @default(cuid())
+  accessToken   String   @db.Text
+  adAccountId   String
+  pageId        String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model MetaCampaign {
+  id              String   @id @default(cuid())
+  campaignId      String   @unique // ID from Meta Graph API
+  name            String
+  status          String   // ACTIVE, PAUSED, DELETED, ARCHIVED
+  objective       String?
+  dailyBudget     Float?
+  lifetimeBudget  Float?
+  
+  // Metrics (cached from Insights API)
+  spend           Float    @default(0)
+  impressions     Int      @default(0)
+  clicks          Int      @default(0)
+  reach           Int      @default(0)
+  
+  lastSyncedAt    DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

@@ -12,10 +12,11 @@ export function TransactionForm() {
     const amount = parseFloat(formData.get('amount') as string)
     const description = formData.get('description') as string
     const dateStr = formData.get('date') as string
-    
+    const bankReference = (formData.get('bankReference') as string)?.trim() || null
+
     const date = dateStr ? new Date(dateStr) : new Date()
 
-    await createTransaction({ type, amount, description, date })
+    await createTransaction({ type, amount, description, date, bankReference, source: 'MANUAL' })
     setIsOpen(false)
   }
 
@@ -54,8 +55,13 @@ export function TransactionForm() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Monto ($)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Importe (€)</label>
                 <input required type="number" step="0.01" name="amount" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="100.00" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Referencia banco / extracto (opc.)</label>
+                <input type="text" name="bankReference" className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" placeholder="Ej. Transferencia TPV1234" />
               </div>
               
               <div>

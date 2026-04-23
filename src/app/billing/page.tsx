@@ -7,6 +7,7 @@ import {
   updateMembershipPlan,
 } from '@/app/actions/billing'
 import { runMemberCreatedWorkflows } from '@/lib/workflow-engine'
+import { BillingAutomationButton } from './BillingAutomationButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,8 +105,27 @@ export default async function BillingPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-start gap-4">
         <h1 className="text-3xl font-bold">Billing</h1>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/billing/impagos"
+            className="text-sm font-medium text-rose-700 bg-rose-50 border border-rose-200 px-3 py-2 rounded-lg hover:bg-rose-100"
+          >
+            Lista de impagos
+          </Link>
+          <Link
+            href="/billing/extra-invoice"
+            className="text-sm font-medium text-slate-800 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50"
+          >
+            Cobro adicional
+          </Link>
+        </div>
+      </div>
+
+      <div className="bg-white border rounded-lg p-4">
+        <h2 className="text-sm font-semibold text-slate-800 mb-2">Automatización</h2>
+        <BillingAutomationButton />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
