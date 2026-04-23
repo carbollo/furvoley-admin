@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch } from 'lucide-react'
+import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch, Landmark } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 
@@ -70,6 +70,10 @@ export function Sidebar() {
             <Link href="/accounting" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Calculator size={20} />
               <span>Contabilidad</span>
+            </Link>
+            <Link href="/accounting/bank-import" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition pl-6 text-slate-300 text-sm">
+              <Landmark size={16} />
+              <span>Extracto bancario</span>
             </Link>
             <Link href="/reports" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <FileText size={20} />
