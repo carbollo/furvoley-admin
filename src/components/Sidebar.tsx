@@ -1,13 +1,29 @@
 'use client'
 
 import Link from 'next/link'
-import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch, Landmark, Ticket } from 'lucide-react'
+import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch, Landmark, Ticket, ChevronDown } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
+import { useEffect, useState } from 'react'
+
+function isAccountingSectionPath(path: string) {
+  return (
+    path === '/accounting' ||
+    path.startsWith('/accounting/') ||
+    path.startsWith('/billing/impagos')
+  )
+}
 
 export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const [accountingOpen, setAccountingOpen] = useState(() => isAccountingSectionPath(pathname))
+
+  useEffect(() => {
+    if (isAccountingSectionPath(pathname)) {
+      setAccountingOpen(true)
+    }
+  }, [pathname])
 
   const isJoinRoute = pathname === '/join' || pathname.startsWith('/join/')
   const isPublicEventShare =
@@ -70,18 +86,60 @@ export function Sidebar() {
               <Receipt size={20} />
               <span>Billing</span>
             </Link>
-            <Link href="/billing/impagos" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition pl-6 text-slate-300 text-sm">
-              <Receipt size={16} />
-              <span>Impagos</span>
-            </Link>
-            <Link href="/accounting" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
-              <Calculator size={20} />
-              <span>Contabilidad</span>
-            </Link>
-            <Link href="/accounting/bank-import" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition pl-6 text-slate-300 text-sm">
-              <Landmark size={16} />
-              <span>Extracto bancario</span>
-            </Link>
+            <div className="rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setAccountingOpen((o) => !o)}
+                className={`flex w-full items-center space-x-3 p-3 rounded-lg text-left transition-colors ${
+                  isAccountingSectionPath(pathname) ? 'bg-slate-800/80' : 'hover:bg-slate-800'
+                }`}
+                aria-expanded={accountingOpen}
+              >
+                <Calculator size={20} className="shrink-0" />
+                <span className="flex-1 font-medium truncate">Contabilidad</span>
+                <ChevronDown
+                  size={18}
+                  className={`shrink-0 text-slate-400 transition-transform duration-200 ${accountingOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {accountingOpen && (
+                <div className="mt-1 ml-2 pl-3 border-l border-slate-700 space-y-1 py-1">
+                  <Link
+                    href="/accounting"
+                    className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
+                      pathname === '/accounting'
+                        ? 'bg-slate-800 text-white'
+                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                    }`}
+                  >
+                    <Calculator size={16} className="shrink-0 opacity-90" />
+                    <span>Resumen</span>
+                  </Link>
+                  <Link
+                    href="/billing/impagos"
+                    className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
+                      pathname.startsWith('/billing/impagos')
+                        ? 'bg-slate-800 text-white'
+                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                    }`}
+                  >
+                    <Receipt size={16} className="shrink-0 opacity-90" />
+                    <span>Impagos</span>
+                  </Link>
+                  <Link
+                    href="/accounting/bank-import"
+                    className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
+                      pathname.startsWith('/accounting/bank-import')
+                        ? 'bg-slate-800 text-white'
+                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+                    }`}
+                  >
+                    <Landmark size={16} className="shrink-0 opacity-90" />
+                    <span>Extracto bancario</span>
+                  </Link>
+                </div>
+              )}
+            </div>
             <Link href="/reports" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <FileText size={20} />
               <span>Informes</span>
