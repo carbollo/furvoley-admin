@@ -2,6 +2,95 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+
+export type RegisterForEventResult =
+  | { success: true; code: "REGISTERED" | "ALREADY" }
+  | {
+      success: false;
+      code:
+        | "LOGIN"
+        | "NO_MEMBER"
+        | "NOT_FOUND"
+        | "CANCELLED"
+        | "NOT_IN_TEAM"
+        | "FULL";
+    };
+
+export async function registerForEvent(eventId: string): Promise<RegisterForEventResult> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return { success: false, code: "LOGIN" };
+  }
+
+  const memberId = (session.user as { memberId?: string | null }).memberId;
+  if (!memberId) {
+    return { success: false, code: "NO_MEMBER" };
+  }
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, status: true, teamId: true, maxAttendees: true },
+  });
+
+  if (!event) {
+    return { success: false, code: "NOT_FOUND" };
+  }
+  if (event.status === "CANCELLED") {
+    return { success: false, code: "CANCELLED" };
+  }
+
+  if (event.teamId) {
+    const inTeam = await prisma.teamMember.findUnique({
+      where: {
+        teamId_memberId: { teamId: event.teamId, memberId },
+      },
+    });
+    if (!inTeam) {
+      return { success: false, code: "NOT_IN_TEAM" };
+    }
+  }
+
+  const registrationCount = await prisma.attendance.count({
+    where: {
+      eventId,
+      status: { in: ["PENDING", "PRESENT"] },
+    },
+  });
+
+  const existing = await prisma.attendance.findUnique({
+    where: {
+      eventId_memberId: { eventId, memberId },
+    },
+  });
+
+  if (existing?.status === "PENDING" || existing?.status === "PRESENT") {
+    return { success: true, code: "ALREADY" };
+  }
+
+  if (event.maxAttendees != null && registrationCount >= event.maxAttendees) {
+    return { success: false, code: "FULL" };
+  }
+
+  if (existing) {
+    await prisma.attendance.update({
+      where: { id: existing.id },
+      data: { status: "PENDING", reason: null },
+    });
+  } else {
+    await prisma.attendance.create({
+      data: { eventId, memberId, status: "PENDING" },
+    });
+  }
+
+  revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
+  revalidatePath(`/calendar/${eventId}`);
+  revalidatePath("/calendar");
+
+  return { success: true, code: "REGISTERED" };
+}
 
 export async function getEvents() {
   try {

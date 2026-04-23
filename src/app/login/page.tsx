@@ -23,7 +23,11 @@ export default function LoginPage() {
     if (res?.error) {
       setError('Credenciales inválidas')
     } else {
-      router.push('/')
+      const params = new URLSearchParams(window.location.search)
+      const next = params.get('callbackUrl')
+      const safe =
+        next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
+      router.push(safe)
       router.refresh()
     }
   }

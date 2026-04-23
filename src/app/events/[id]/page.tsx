@@ -1,6 +1,10 @@
 import { getEventById } from "@/actions/events";
 import { notFound } from "next/navigation";
-import { Calendar, MapPin, Users, Euro, Clock } from "lucide-react";
+import { Calendar, MapPin, Users, Clock } from "lucide-react";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { EventRegisterButton } from "@/components/events/EventRegisterButton";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +19,46 @@ export default async function PublicEventPage({
   if (!success || !event) {
     notFound();
   }
+
+  const session = await getServerSession(authOptions);
+  const memberId = (session?.user as { memberId?: string | null } | undefined)?.memberId ?? null;
+  const isLoggedIn = !!session?.user;
+  const hasMemberProfile = !!memberId;
+
+  const registrationCount = await prisma.attendance.count({
+    where: {
+      eventId: id,
+      status: { in: ["PENDING", "PRESENT"] },
+    },
+  });
+
+  let alreadyRegistered = false;
+  let notInTeam = false;
+
+  if (memberId) {
+    const att = await prisma.attendance.findUnique({
+      where: {
+        eventId_memberId: { eventId: id, memberId },
+      },
+    });
+    alreadyRegistered = att?.status === "PENDING" || att?.status === "PRESENT";
+
+    if (event.teamId) {
+      const inTeam = await prisma.teamMember.findUnique({
+        where: {
+          teamId_memberId: { teamId: event.teamId, memberId },
+        },
+      });
+      notInTeam = !inTeam;
+    }
+  }
+
+  const isFull =
+    event.maxAttendees != null &&
+    registrationCount >= event.maxAttendees &&
+    !alreadyRegistered;
+  const isCancelled = event.status === "CANCELLED";
+  const hasPrice = !!(event.price && event.price > 0);
 
   // Si el evento no es público, podríamos restringir el acceso,
   // pero como el admin comparte el enlace, asumimos que si tienen el enlace pueden verlo.
@@ -124,10 +168,17 @@ export default async function PublicEventPage({
             </div>
           )}
 
-          <div className="border-t border-gray-200 pt-8 flex justify-center">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:-translate-y-1 text-lg w-full md:w-auto">
-              Inscribirse al Evento
-            </button>
+          <div className="border-t border-gray-200 pt-8 flex flex-col items-center">
+            <EventRegisterButton
+              eventId={id}
+              isLoggedIn={isLoggedIn}
+              hasMemberProfile={hasMemberProfile}
+              alreadyRegistered={alreadyRegistered}
+              isFull={isFull}
+              notInTeam={notInTeam}
+              isCancelled={isCancelled}
+              hasPrice={hasPrice}
+            />
           </div>
         </div>
       </div>
