@@ -4,7 +4,7 @@ import { Calendar, MapPin, Users, Clock } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { EventRegisterButton } from "@/components/events/EventRegisterButton";
+import { EventRegistrationPanel } from "@/components/events/EventRegistrationPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +25,18 @@ export default async function PublicEventPage({
   const isLoggedIn = !!session?.user;
   const hasMemberProfile = !!memberId;
 
-  const registrationCount = await prisma.attendance.count({
+  const memberSlots = await prisma.attendance.count({
     where: {
       eventId: id,
       status: { in: ["PENDING", "PRESENT"] },
     },
   });
+  const guestSlots = await prisma.eventGuestAttendee.count({
+    where: { eventId: id },
+  });
+  const totalTaken = memberSlots + guestSlots;
+  const spotsLeft =
+    event.maxAttendees == null ? null : Math.max(0, event.maxAttendees - totalTaken);
 
   let alreadyRegistered = false;
   let notInTeam = false;
@@ -53,10 +59,6 @@ export default async function PublicEventPage({
     }
   }
 
-  const isFull =
-    event.maxAttendees != null &&
-    registrationCount >= event.maxAttendees &&
-    !alreadyRegistered;
   const isCancelled = event.status === "CANCELLED";
   const hasPrice = !!(event.price && event.price > 0);
 
@@ -169,15 +171,15 @@ export default async function PublicEventPage({
           )}
 
           <div className="border-t border-gray-200 pt-8 flex flex-col items-center">
-            <EventRegisterButton
+            <EventRegistrationPanel
               eventId={id}
               isLoggedIn={isLoggedIn}
               hasMemberProfile={hasMemberProfile}
               alreadyRegistered={alreadyRegistered}
-              isFull={isFull}
               notInTeam={notInTeam}
               isCancelled={isCancelled}
               hasPrice={hasPrice}
+              spotsLeft={alreadyRegistered ? null : spotsLeft}
             />
           </div>
         </div>

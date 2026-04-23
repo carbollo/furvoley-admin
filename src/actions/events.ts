@@ -5,6 +5,111 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+function normalizeDni(dni: string): string {
+  return dni.trim().toUpperCase().replace(/\s+/g, "");
+}
+
+function digitsOnly(s: string): string {
+  return s.replace(/\D/g, "");
+}
+
+export async function registerGuestAttendees(
+  eventId: string,
+  attendees: { firstName: string; lastName: string; dni: string }[],
+  contactPhone: string
+): Promise<{ success: true; count: number } | { success: false; error: string }> {
+  try {
+    if (!attendees?.length || attendees.length > 20) {
+      return { success: false, error: "Indica entre 1 y 20 entradas." };
+    }
+    const phoneDigits = digitsOnly(contactPhone);
+    if (phoneDigits.length < 9) {
+      return {
+        success: false,
+        error: "Introduce un teléfono de contacto válido (mín. 9 dígitos).",
+      };
+    }
+
+    const normalized = attendees.map((a) => ({
+      firstName: a.firstName.trim(),
+      lastName: a.lastName.trim(),
+      dni: normalizeDni(a.dni),
+    }));
+
+    for (const a of normalized) {
+      if (a.firstName.length < 2 || a.lastName.length < 2) {
+        return { success: false, error: "Nombre y apellidos demasiado cortos." };
+      }
+      if (a.dni.length < 5) {
+        return { success: false, error: "Revisa el DNI/NIE de cada participante." };
+      }
+    }
+
+    const dnis = normalized.map((a) => a.dni);
+    if (new Set(dnis).size !== dnis.length) {
+      return { success: false, error: "Hay DNI repetidos en el formulario." };
+    }
+
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, status: true, maxAttendees: true },
+    });
+    if (!event) {
+      return { success: false, error: "Evento no encontrado." };
+    }
+    if (event.status === "CANCELLED") {
+      return { success: false, error: "Este evento está cancelado." };
+    }
+
+    const memberSlots = await prisma.attendance.count({
+      where: { eventId, status: { in: ["PENDING", "PRESENT"] } },
+    });
+    const guestSlots = await prisma.eventGuestAttendee.count({ where: { eventId } });
+    const taken = memberSlots + guestSlots;
+    if (event.maxAttendees != null && taken + normalized.length > event.maxAttendees) {
+      return { success: false, error: "No hay plazas suficientes para todas las entradas." };
+    }
+
+    const conflict = await prisma.eventGuestAttendee.findFirst({
+      where: {
+        eventId,
+        dni: { in: dnis },
+      },
+    });
+    if (conflict) {
+      return { success: false, error: "Algún DNI ya está inscrito en este evento." };
+    }
+
+    await prisma.eventGuestAttendee.createMany({
+      data: normalized.map((a, i) => ({
+        eventId,
+        firstName: a.firstName,
+        lastName: a.lastName,
+        dni: a.dni,
+        phone: i === 0 ? phoneDigits : null,
+      })),
+    });
+
+    revalidatePath(`/events/${eventId}`);
+    revalidatePath("/events");
+    revalidatePath(`/calendar/${eventId}`);
+    revalidatePath("/calendar");
+
+    return { success: true, count: normalized.length };
+  } catch (e: unknown) {
+    console.error("registerGuestAttendees", e);
+    if (
+      e &&
+      typeof e === "object" &&
+      "code" in e &&
+      (e as { code: string }).code === "P2002"
+    ) {
+      return { success: false, error: "Algún DNI ya está inscrito en este evento." };
+    }
+    return { success: false, error: "No se pudo completar la inscripción." };
+  }
+}
+
 export type RegisterForEventResult =
   | { success: true; code: "REGISTERED" | "ALREADY" }
   | {
@@ -58,6 +163,8 @@ export async function registerForEvent(eventId: string): Promise<RegisterForEven
       status: { in: ["PENDING", "PRESENT"] },
     },
   });
+  const guestCount = await prisma.eventGuestAttendee.count({ where: { eventId } });
+  const totalTaken = registrationCount + guestCount;
 
   const existing = await prisma.attendance.findUnique({
     where: {
@@ -69,7 +176,7 @@ export async function registerForEvent(eventId: string): Promise<RegisterForEven
     return { success: true, code: "ALREADY" };
   }
 
-  if (event.maxAttendees != null && registrationCount >= event.maxAttendees) {
+  if (event.maxAttendees != null && totalTaken >= event.maxAttendees) {
     return { success: false, code: "FULL" };
   }
 
@@ -99,7 +206,7 @@ export async function getEvents() {
       include: {
         team: true,
         _count: {
-          select: { attendances: true },
+          select: { attendances: true, guestAttendees: true },
         },
       },
     });

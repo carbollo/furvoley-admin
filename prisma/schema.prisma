@@ -342,6 +342,23 @@ model Event {
   team          Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   attendances   Attendance[]
+  guestAttendees EventGuestAttendee[]
+}
+
+/// Inscripción de no socios desde la ficha pública del evento (una fila = una entrada)
+model EventGuestAttendee {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  dni       String
+  phone     String?  // obligatorio solo en el titular (primera entrada); acompañantes sin teléfono
+  createdAt DateTime @default(now())
+
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, dni])
+  @@index([eventId])
 }
 
 model Attendance {

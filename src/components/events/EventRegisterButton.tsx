@@ -32,12 +32,6 @@ export function EventRegisterButton({
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [localRegistered, setLocalRegistered] = useState(alreadyRegistered);
 
-  const callbackUrl = `/events/${eventId}`;
-
-  const goLogin = () => {
-    window.location.href = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
-  };
-
   const handleRegister = async () => {
     setMessage(null);
     setLoading(true);
@@ -68,7 +62,6 @@ export function EventRegisterButton({
                       ? "No quedan plazas disponibles."
                       : "No se pudo completar la inscripción.";
         setMessage({ type: "err", text });
-        if (res.code === "LOGIN") goLogin();
       }
     } finally {
       setLoading(false);
@@ -111,37 +104,8 @@ export function EventRegisterButton({
     );
   }
 
-  if (!isLoggedIn) {
-    return (
-      <div className="space-y-3 w-full max-w-md mx-auto">
-        <button
-          type="button"
-          onClick={goLogin}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition text-lg"
-        >
-          Iniciar sesión para inscribirse
-        </button>
-        <p className="text-sm text-gray-500 text-center">
-          Necesitas una cuenta con ficha de socio del club.
-        </p>
-      </div>
-    );
-  }
-
-  if (!hasMemberProfile) {
-    return (
-      <p className="text-center text-amber-800 bg-amber-50 border border-amber-200 rounded-lg py-3 px-4">
-        Tu cuenta no tiene una ficha de socio vinculada. Contacta con la administración del club.
-      </p>
-    );
-  }
-
-  if (notInTeam) {
-    return (
-      <p className="text-center text-amber-800 bg-amber-50 border border-amber-200 rounded-lg py-3 px-4">
-        Este evento es solo para miembros del equipo asignado.
-      </p>
-    );
+  if (!isLoggedIn || !hasMemberProfile || notInTeam) {
+    return null;
   }
 
   return (

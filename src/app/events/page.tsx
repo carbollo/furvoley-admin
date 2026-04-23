@@ -106,8 +106,13 @@ export default async function EventsAdminPage() {
                       <div className="flex flex-col text-sm text-gray-500 space-y-1">
                         <div className="flex items-center">
                           <Users className="w-4 h-4 mr-2 text-gray-400" />
-                          {event._count?.attendances || 0}
-                          {event.maxAttendees ? ` / ${event.maxAttendees}` : " apuntados"}
+                          {(event._count?.attendances || 0) + (event._count?.guestAttendees || 0)}
+                          {event.maxAttendees ? ` / ${event.maxAttendees}` : " inscritos"}
+                          {(event._count?.guestAttendees || 0) > 0 && (
+                            <span className="ml-1 text-xs text-gray-400">
+                              ({event._count?.guestAttendees} invit.)
+                            </span>
+                          )}
                         </div>
                         <div className="text-gray-900 font-medium">
                           {event.price ? `${event.price}€` : "Gratis"}
