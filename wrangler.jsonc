@@ -7,7 +7,7 @@
 // Postgres desde Workers: conviene pooler (Neon/Supabase) o Hyperdrive; ver documentación de Cloudflare.
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "furvoley",
+	"name": "furvoley-admin",
 	"main": ".open-next/worker.js",
 	"compatibility_date": "2026-04-24",
 	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
