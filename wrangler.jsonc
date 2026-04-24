@@ -1,0 +1,27 @@
+// Furvoley — Cloudflare Workers (Next.js via OpenNext).
+// Conectar GitHub: Cloudflare Dashboard → Workers & Pages → Create → Connect Git repository
+// → Build command: npm ci && npm run cf:build
+// → Deploy command: npm run cf:deploy
+// Variables de entorno (Build + Runtime): DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL,
+// NEXT_PUBLIC_APP_URL, STRIPE_* , CRON_SECRET, etc. (mismas que en .env local).
+// Postgres desde Workers: conviene pooler (Neon/Supabase) o Hyperdrive; ver documentación de Cloudflare.
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "furvoley",
+	"main": ".open-next/worker.js",
+	"compatibility_date": "2026-04-24",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"services": [
+		{
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "furvoley"
+		}
+	],
+	"observability": {
+		"enabled": true
+	}
+}

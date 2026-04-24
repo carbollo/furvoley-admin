@@ -1,0 +1,9 @@
+# Copia a .dev.vars (no se sube a git) para `npm run preview`
+# NEXTJS_ENV=development
+# DATABASE_URL=
+# NEXTAUTH_SECRET=
+# NEXTAUTH_URL=http://localhost:3000
+# NEXT_PUBLIC_APP_URL=http://localhost:3000
+# STRIPE_SECRET_KEY=
+# STRIPE_WEBHOOK_SECRET=
+# CRON_SECRET=
