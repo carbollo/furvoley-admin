@@ -9,10 +9,17 @@
     "bootstrap-admin": "npx tsx prisma/bootstrap-admin.ts",
     "seed": "prisma db seed",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "cf:prepare": "node scripts/patch-pg-cloudflare.cjs",
+    "cf:build": "npm run cf:prepare && opennextjs-cloudflare build",
+    "cf:deploy": "npm run cf:prepare && opennextjs-cloudflare deploy",
+    "preview": "npm run cf:build && opennextjs-cloudflare preview",
+    "deploy": "npm run cf:deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
+    "@opennextjs/cloudflare": "^1.19.4",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "bcryptjs": "^3.0.3",
@@ -40,6 +47,7 @@
     "eslint-config-next": "16.2.3",
     "prisma": "^7.7.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.85.0"
   }
 }

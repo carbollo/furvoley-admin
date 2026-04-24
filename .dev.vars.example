@@ -1,0 +1,6 @@
+# Variables para preview local de OpenNext + Workers
+NEXTJS_ENV=development
+# DATABASE_URL=
+# NEXTAUTH_SECRET=
+# NEXTAUTH_URL=http://localhost:3000
+# NEXT_PUBLIC_APP_URL=http://localhost:3000
