@@ -10,7 +10,7 @@
     "seed": "prisma db seed",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "cf:build": "opennextjs-cloudflare build",
+    "cf:build": "node scripts/ensure-pg-cloudflare.cjs && opennextjs-cloudflare build",
     "cf:deploy": "opennextjs-cloudflare deploy",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
