@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch, Landmark, Ticket, ChevronDown } from 'lucide-react'
+import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch, Landmark, ChevronDown } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
@@ -14,8 +14,30 @@ function isAccountingSectionPath(path: string) {
   )
 }
 
+/** Sección activa dentro de /crm.html (SPA), para resaltar el ítem del menú. */
+function useCrmSectionHash() {
+  const pathname = usePathname()
+  const [section, setSection] = useState<string>(() => {
+    if (typeof window === 'undefined' || pathname !== '/crm.html') return ''
+    return window.location.hash.replace(/^#\/?/, '').toLowerCase() || 'dashboard'
+  })
+  useEffect(() => {
+    if (pathname !== '/crm.html') {
+      setSection('')
+      return
+    }
+    const sync = () =>
+      setSection(window.location.hash.replace(/^#\/?/, '').toLowerCase() || 'dashboard')
+    sync()
+    window.addEventListener('hashchange', sync)
+    return () => window.removeEventListener('hashchange', sync)
+  }, [pathname])
+  return pathname === '/crm.html' ? section : ''
+}
+
 export function Sidebar() {
   const pathname = usePathname()
+  const crmSection = useCrmSectionHash()
   const { data: session } = useSession()
   const [accountingOpen, setAccountingOpen] = useState(() => isAccountingSectionPath(pathname))
 
@@ -33,6 +55,7 @@ export function Sidebar() {
 
   /** /crm.html es HTML estático: no monta este layout; no hay que ocultar nada aquí. */
   const isAdmin = session?.user?.role === 'ADMIN'
+  const crm = (s: string) => `/crm.html#${s}`
 
   return (
     <div className="w-64 bg-slate-900 text-white min-h-screen p-4 flex flex-col">
@@ -49,9 +72,12 @@ export function Sidebar() {
       <nav className="flex-1 space-y-2">
         {isAdmin ? (
           <Link
-            href="/crm.html"
+            href={crm('dashboard')}
             className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
-              pathname === '/crm.html' ? 'bg-slate-800' : ''
+              pathname === '/crm.html' &&
+              (crmSection === '' || crmSection === 'dashboard')
+                ? 'bg-slate-800'
+                : ''
             }`}
           >
             <Home size={20} />
@@ -63,10 +89,22 @@ export function Sidebar() {
             <span>Dashboard</span>
           </Link>
         )}
-        <Link href="/calendar" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
-          <Calendar size={20} />
-          <span>Calendario</span>
-        </Link>
+        {isAdmin ? (
+          <Link
+            href={crm('calendario')}
+            className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
+              pathname === '/crm.html' && crmSection === 'calendario' ? 'bg-slate-800' : ''
+            }`}
+          >
+            <Calendar size={20} />
+            <span>Calendario</span>
+          </Link>
+        ) : (
+          <Link href="/calendar" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Calendar size={20} />
+            <span>Calendario</span>
+          </Link>
+        )}
         {!isAdmin && (
           <Link href="/my-billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
             <CreditCard size={20} />
@@ -77,27 +115,34 @@ export function Sidebar() {
         {isAdmin && (
           <>
             <div className="pt-4 pb-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Administración
+              CRM (misma interfaz)
             </div>
-            <Link href="/events" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
-              <Ticket size={20} />
-              <span>Eventos</span>
-            </Link>
-            <Link href="/teams" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Link
+              href={crm('equipos')}
+              className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
+                pathname === '/crm.html' && crmSection === 'equipos' ? 'bg-slate-800' : ''
+              }`}
+            >
               <Users size={20} />
               <span>Equipos</span>
             </Link>
-            <Link href="/members" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Link
+              href={crm('socios')}
+              className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
+                pathname === '/crm.html' && crmSection === 'socios' ? 'bg-slate-800' : ''
+              }`}
+            >
               <Users size={20} />
               <span>Socios</span>
             </Link>
-            <Link href="/payments" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Link
+              href={crm('cobros')}
+              className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
+                pathname === '/crm.html' && crmSection === 'cobros' ? 'bg-slate-800' : ''
+              }`}
+            >
               <CreditCard size={20} />
-              <span>Cobros</span>
-            </Link>
-            <Link href="/billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
-              <Receipt size={20} />
-              <span>Billing</span>
+              <span>Cobros / facturas</span>
             </Link>
             <div className="rounded-lg overflow-hidden">
               <button
@@ -153,11 +198,21 @@ export function Sidebar() {
                 </div>
               )}
             </div>
-            <Link href="/reports" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Link
+              href={crm('informes')}
+              className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
+                pathname === '/crm.html' && crmSection === 'informes' ? 'bg-slate-800' : ''
+              }`}
+            >
               <FileText size={20} />
               <span>Informes</span>
             </Link>
-            <Link href="/workflows" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Link
+              href={crm('workflows')}
+              className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
+                pathname === '/crm.html' && crmSection === 'workflows' ? 'bg-slate-800' : ''
+              }`}
+            >
               <GitBranch size={20} />
               <span>Workflows</span>
             </Link>

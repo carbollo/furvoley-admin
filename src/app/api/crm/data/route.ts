@@ -256,7 +256,16 @@ export async function GET() {
   const totalIngresosAnuales = ingresosMensual.reduce((a, b) => a + b, 0)
   const totalEgresosAnuales = egresoMensual.reduce((a, b) => a + b, 0)
 
+  const u = session.user as { name?: string | null; email?: string | null; role?: string }
+  const displayName = u.name?.trim() || u.email || 'Administrador'
+
   return NextResponse.json({
+    user: {
+      name: displayName,
+      email: u.email ?? '',
+      role: u.role ?? 'ADMIN',
+      initials: initials(displayName),
+    },
     currency,
     kpis: {
       sociosActivos: socioActivosCount,

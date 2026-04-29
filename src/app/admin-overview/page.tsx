@@ -35,7 +35,7 @@ export default async function AdminOverviewPage() {
   return (
     <div>
       <p className="text-sm text-slate-500 mb-4">
-        <Link href="/crm.html" className="text-blue-600 hover:underline">
+        <Link href="/crm.html#dashboard" className="text-blue-600 hover:underline">
           ← Volver al CRM
         </Link>
       </p>

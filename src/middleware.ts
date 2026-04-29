@@ -8,7 +8,7 @@ export default withAuth(
 
     // Admin: la app “principal” es el CRM (HTML estático /crm.html), sin iframe.
     if (path === "/" && token?.role === "ADMIN") {
-      return NextResponse.redirect(new URL("/crm.html", req.url))
+      return NextResponse.redirect(new URL("/crm.html#dashboard", req.url))
     }
     if (path === "/crm.html" && token && token.role !== "ADMIN") {
       return NextResponse.redirect(new URL("/", req.url))
