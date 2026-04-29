@@ -1110,22 +1110,67 @@ function Equipos({ setActive }) {
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const [view, setView] = useState('grid');
   const [focusedId, setFocusedId] = useState(null);
+  const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
+  const [nuevoEquipoBusy, setNuevoEquipoBusy] = useState(false);
+  const [formNuevoEquipo, setFormNuevoEquipo] = useState({ name: '', category: '' });
 
-  async function nuevoEquipo() {
-    const nombre = window.prompt('Nombre del equipo');
-    if (!nombre || !String(nombre).trim()) return;
-    const categoria = window.prompt('Categoría (opcional)', '') || '';
-    const r = await fetch('/api/crm/teams', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: String(nombre).trim(), category: categoria.trim() || undefined }),
-    });
-    if (!r.ok) {
-      try { alert((await r.json()).error || 'Error'); } catch { alert('No se pudo crear el equipo'); }
-      return;
+  const teamInput = {
+    width: '100%',
+    padding: '11px 14px',
+    borderRadius: 12,
+    border: '1px solid rgba(0,0,0,0.09)',
+    background: '#fff',
+    fontFamily: 'inherit',
+    fontSize: 14,
+    color: '#111827',
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+  const teamLabel = {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#64748b',
+    marginBottom: 6,
+    display: 'block',
+    letterSpacing: 0.15,
+  };
+
+  function openNuevoEquipoModal() {
+    setFormNuevoEquipo({ name: '', category: '' });
+    setShowNuevoEquipoModal(true);
+  }
+
+  async function enviarNuevoEquipo(e) {
+    e.preventDefault();
+    const name = String(formNuevoEquipo.name || '').trim();
+    if (!name) return;
+    setNuevoEquipoBusy(true);
+    try {
+      const r = await fetch('/api/crm/teams', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          category: formNuevoEquipo.category.trim() || undefined,
+        }),
+      });
+      if (!r.ok) {
+        let msg = 'No se pudo crear el equipo';
+        try {
+          const j = await r.json();
+          msg = j.error || msg;
+        } catch {
+          //
+        }
+        alert(msg);
+        return;
+      }
+      setShowNuevoEquipoModal(false);
+      await reload();
+    } finally {
+      setNuevoEquipoBusy(false);
     }
-    await reload();
   }
 
   return (
@@ -1145,7 +1190,7 @@ function Equipos({ setActive }) {
               }}>{icon}</button>
             ))}
           </div>
-          <button type="button" onClick={nuevoEquipo} style={{
+          <button type="button" onClick={openNuevoEquipoModal} style={{
             display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
             borderRadius:12,border:'none',cursor:'pointer',
             background:'var(--accent)',color:'#fff',
@@ -1197,6 +1242,139 @@ function Equipos({ setActive }) {
           </div>
         ))}
       </div>
+      {showNuevoEquipoModal && (
+        <div
+          role="presentation"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 400,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+          onMouseDown={(e) => {
+            if (e.target !== e.currentTarget || nuevoEquipoBusy) return;
+            setShowNuevoEquipoModal(false);
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="nuevo-equipo-title"
+            onMouseDown={(e) => e.stopPropagation()}
+            onSubmit={enviarNuevoEquipo}
+            style={{
+              width: '100%',
+              maxWidth: 440,
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              background: '#fff',
+              borderRadius: 16,
+              border: '1px solid rgba(0,0,0,0.07)',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.28), 0 0 1px rgba(0,0,0,0.08)',
+              padding: 28,
+              fontFamily: 'inherit',
+            }}
+          >
+            <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div>
+                <h2 id="nuevo-equipo-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
+                  Nuevo equipo
+                </h2>
+                <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+                  Asigna un nombre y, si quieres, una categoría deportiva.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={nuevoEquipoBusy}
+                onClick={() => setShowNuevoEquipoModal(false)}
+                style={{
+                  border: 'none',
+                  background: '#f1f5f9',
+                  borderRadius: 10,
+                  width: 36,
+                  height: 36,
+                  cursor: nuevoEquipoBusy ? 'not-allowed' : 'pointer',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+                aria-label="Cerrar"
+              >
+                <Icon name="x" size={18} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={teamLabel}>Nombre del equipo *</label>
+                <input
+                  required
+                  autoFocus
+                  value={formNuevoEquipo.name}
+                  onChange={(e) => setFormNuevoEquipo((p) => ({ ...p, name: e.target.value }))}
+                  style={teamInput}
+                  placeholder="Ej. Juveniles A"
+                />
+              </div>
+              <div>
+                <label style={teamLabel}>Categoría (opcional)</label>
+                <input
+                  value={formNuevoEquipo.category}
+                  onChange={(e) => setFormNuevoEquipo((p) => ({ ...p, category: e.target.value }))}
+                  style={teamInput}
+                  placeholder="Ej. Sub-18, Primera regional…"
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 26 }}>
+              <button
+                type="button"
+                disabled={nuevoEquipoBusy}
+                onClick={() => setShowNuevoEquipoModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '11px 16px',
+                  borderRadius: 12,
+                  border: '1.5px solid rgba(0,0,0,0.09)',
+                  background: '#fff',
+                  cursor: nuevoEquipoBusy ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#374151',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={nuevoEquipoBusy}
+                style={{
+                  flex: 1,
+                  padding: '11px 16px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: 'var(--accent)',
+                  cursor: nuevoEquipoBusy ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#fff',
+                  opacity: nuevoEquipoBusy ? 0.75 : 1,
+                }}
+              >
+                {nuevoEquipoBusy ? 'Creando…' : 'Crear equipo'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
