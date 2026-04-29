@@ -213,17 +213,26 @@ export async function GET() {
   const socioActivosCount = membersRaw.filter((m) => m.status === 'ACTIVE').length
 
   const equipos = teamsRaw.map((t) => {
-    const coach = t.members.find((tm) => tm.role === 'COACH')?.member?.name
+    const coachTm = t.members.find((tm) => tm.role === 'COACH')
     return {
       id: t.id,
       nombre: t.name,
       deporte: t.name,
       categoria: t.category ?? '—',
-      jugadores: t.members.filter((m) => m.role === 'PLAYER').length || t.members.length,
-      entrenador: coach ?? '—',
+      categoriaDb: t.category ?? '',
+      jugadores:
+        t.members.filter((m) => m.role === 'PLAYER').length || t.members.length,
+      entrenador: coachTm?.member?.name ?? '—',
+      coachMemberId: coachTm?.memberId ?? null,
       horario: '—',
       color: '#3B82F6',
       logo: '🏐',
+      miembros: t.members.map((tm) => ({
+        teamMemberId: tm.id,
+        memberId: tm.memberId,
+        nombre: tm.member.name,
+        role: tm.role,
+      })),
     }
   })
 

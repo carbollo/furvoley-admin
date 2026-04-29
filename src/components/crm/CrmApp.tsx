@@ -1173,6 +1173,160 @@ function Equipos({ setActive }) {
     }
   }
 
+  const SOCIOS_ALL = bundle?.socios ?? [];
+  const [gestionarEquipo, setGestionarEquipo] = useState(null);
+  const [gestionarBusy, setGestionarBusy] = useState(false);
+  const [formGestionarTeam, setFormGestionarTeam] = useState({ nombre: '', categoria: '' });
+  const [coachSelectMemberId, setCoachSelectMemberId] = useState('');
+  const [addAlEquipoMemberId, setAddAlEquipoMemberId] = useState('');
+
+  function openGestionar(eq) {
+    setGestionarEquipo(eq);
+    setFormGestionarTeam({
+      nombre: eq.nombre || '',
+      categoria: eq.categoriaDb !== undefined ? eq.categoriaDb : '',
+    });
+    setCoachSelectMemberId(eq.coachMemberId || '');
+    setAddAlEquipoMemberId('');
+  }
+
+  function closeGestionar() {
+    if (gestionarBusy) return;
+    setGestionarEquipo(null);
+  }
+
+  async function guardarDatosEquipo(e) {
+    e.preventDefault();
+    if (!gestionarEquipo) return;
+    const nombre = formGestionarTeam.nombre.trim();
+    if (!nombre) return;
+    setGestionarBusy(true);
+    try {
+      const r = await fetch('/api/crm/teams/' + gestionarEquipo.id, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: nombre,
+          category: formGestionarTeam.categoria.trim() ? formGestionarTeam.categoria.trim() : null,
+        }),
+      });
+      if (!r.ok) {
+        let msg = 'No se pudieron guardar los datos';
+        try {
+          const j = await r.json();
+          msg = j.error || msg;
+        } catch {
+          //
+        }
+        alert(msg);
+        return;
+      }
+      const j = await reload();
+      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
+      if (next) {
+        setGestionarEquipo(next);
+        setFormGestionarTeam({
+          nombre: next.nombre,
+          categoria: next.categoriaDb !== undefined ? next.categoriaDb : '',
+        });
+        setCoachSelectMemberId(next.coachMemberId || '');
+      }
+    } finally {
+      setGestionarBusy(false);
+    }
+  }
+
+  async function aplicarEntrenador() {
+    if (!gestionarEquipo || !coachSelectMemberId) {
+      alert('Elige un socio como entrenador.');
+      return;
+    }
+    setGestionarBusy(true);
+    try {
+      const r = await fetch('/api/crm/teams/' + gestionarEquipo.id + '/coach', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId: coachSelectMemberId }),
+      });
+      if (!r.ok) {
+        try {
+          alert((await r.json()).error || 'Error');
+        } catch {
+          alert('Error');
+        }
+        return;
+      }
+      const j = await reload();
+      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
+      if (next) {
+        setGestionarEquipo(next);
+        setCoachSelectMemberId(next.coachMemberId || '');
+      }
+    } finally {
+      setGestionarBusy(false);
+    }
+  }
+
+  async function quitarDelEquipo(teamMemberId) {
+    if (!gestionarEquipo) return;
+    setGestionarBusy(true);
+    try {
+      const r = await fetch('/api/crm/team-members/' + teamMemberId, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!r.ok) {
+        alert('No se pudo quitar del equipo');
+        return;
+      }
+      const j = await reload();
+      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
+      if (next) {
+        setGestionarEquipo(next);
+        setCoachSelectMemberId(next.coachMemberId || '');
+      } else {
+        setGestionarEquipo(null);
+      }
+    } finally {
+      setGestionarBusy(false);
+    }
+  }
+
+  async function anadirSocioAlEquipo() {
+    if (!gestionarEquipo || !addAlEquipoMemberId) return;
+    setGestionarBusy(true);
+    try {
+      const r = await fetch('/api/crm/teams/' + gestionarEquipo.id + '/members', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId: addAlEquipoMemberId, role: 'PLAYER' }),
+      });
+      if (!r.ok) {
+        try {
+          alert((await r.json()).error || 'Error');
+        } catch {
+          alert('Error');
+        }
+        return;
+      }
+      setAddAlEquipoMemberId('');
+      const j = await reload();
+      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
+      if (next) setGestionarEquipo(next);
+    } finally {
+      setGestionarBusy(false);
+    }
+  }
+
+  const sociosDisponiblesParaEquipo = gestionarEquipo
+    ? SOCIOS_ALL.filter(
+        (s) => !(gestionarEquipo.miembros ?? []).some((m) => m.memberId === s.id),
+      )
+    : [];
+
   return (
     <div style={{flex:1,overflowY:'auto',padding:'24px',display:'flex',flexDirection:'column',gap:20}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -1235,9 +1389,10 @@ function Equipos({ setActive }) {
                 <span style={{fontSize:12,fontWeight:600,color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textAlign:'right'}}>{eq.horario}</span>
               </div>
             </div>
-            <div style={{marginTop:14,display:'flex',gap:8}}>
-              <button type="button" onClick={(e) => { e.stopPropagation(); setFocusedId(eq.id); }} style={{flex:1,padding:'8px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#374151'}}>Destacar</button>
-              <button type="button" onClick={(e) => { e.stopPropagation(); setActive('socios'); }} style={{flex:1,padding:'8px',borderRadius:10,border:'none',background:`${eq.color}15`,color:eq.color,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Ver socios</button>
+            <div style={{marginTop:14,display:'flex',flexWrap:'wrap',gap:8}}>
+              <button type="button" onClick={(e) => { e.stopPropagation(); setFocusedId(eq.id); }} style={{flex:1,minWidth:88,padding:'8px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#374151'}}>Destacar</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); openGestionar(eq); }} style={{flex:1,minWidth:88,padding:'8px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#374151'}}>Gestionar</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); setActive('socios'); }} style={{flex:1,minWidth:88,padding:'8px',borderRadius:10,border:'none',background:`${eq.color}15`,color:eq.color,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Ver socios</button>
             </div>
           </div>
         ))}
@@ -1373,6 +1528,244 @@ function Equipos({ setActive }) {
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {gestionarEquipo && (
+        <div
+          role="presentation"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 410,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+          onMouseDown={(e) => {
+            if (e.target !== e.currentTarget || gestionarBusy) return;
+            closeGestionar();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="gestionar-equipo-title"
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              background: '#fff',
+              borderRadius: 16,
+              border: '1px solid rgba(0,0,0,0.07)',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.28), 0 0 1px rgba(0,0,0,0.08)',
+              padding: 28,
+              fontFamily: 'inherit',
+            }}
+          >
+            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div>
+                <h2 id="gestionar-equipo-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
+                  Gestionar equipo
+                </h2>
+                <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+                  Nombre, categoría, entrenador y plantilla.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={gestionarBusy}
+                onClick={closeGestionar}
+                style={{
+                  border: 'none',
+                  background: '#f1f5f9',
+                  borderRadius: 10,
+                  width: 36,
+                  height: 36,
+                  cursor: gestionarBusy ? 'not-allowed' : 'pointer',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+                aria-label="Cerrar"
+              >
+                <Icon name="x" size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={guardarDatosEquipo} style={{ marginBottom: 22 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={teamLabel}>Nombre del equipo *</label>
+                  <input
+                    required
+                    value={formGestionarTeam.nombre}
+                    onChange={(e) => setFormGestionarTeam((p) => ({ ...p, nombre: e.target.value }))}
+                    style={teamInput}
+                  />
+                </div>
+                <div>
+                  <label style={teamLabel}>Categoría</label>
+                  <input
+                    value={formGestionarTeam.categoria}
+                    onChange={(e) => setFormGestionarTeam((p) => ({ ...p, categoria: e.target.value }))}
+                    style={teamInput}
+                    placeholder="Ej. Sub-18"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={gestionarBusy}
+                style={{
+                  marginTop: 16,
+                  width: '100%',
+                  padding: '11px 16px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: 'var(--accent)',
+                  cursor: gestionarBusy ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#fff',
+                  opacity: gestionarBusy ? 0.75 : 1,
+                }}
+              >
+                {gestionarBusy ? 'Guardando…' : 'Guardar datos del equipo'}
+              </button>
+            </form>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20, marginBottom: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Entrenador</div>
+              <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#6b7280' }}>
+                Debe ser un socio del club (si no está en el equipo, se añadirá automáticamente).
+              </p>
+              <select
+                value={coachSelectMemberId}
+                onChange={(e) => setCoachSelectMemberId(e.target.value)}
+                style={{ ...teamInput, cursor: 'pointer', marginBottom: 10 }}
+              >
+                <option value="">— Elige un socio —</option>
+                {SOCIOS_ALL.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                    {s.email ? ` (${s.email})` : ''}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={gestionarBusy || !coachSelectMemberId}
+                onClick={aplicarEntrenador}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  border: '1px solid var(--border)',
+                  background: '#f8fafc',
+                  cursor: gestionarBusy || !coachSelectMemberId ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#334155',
+                }}
+              >
+                Asignar como entrenador
+              </button>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Socios en el equipo</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                {(gestionarEquipo.miembros ?? []).length === 0 && (
+                  <div style={{ fontSize: 13, color: '#9ca3af', padding: '8px 0' }}>Nadie asignado todavía.</div>
+                )}
+                {(gestionarEquipo.miembros ?? []).map((m) => (
+                  <div
+                    key={m.teamMemberId}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: '1px solid var(--border)',
+                      background: '#fafafa',
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{m.nombre}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: m.role === 'COACH' ? 'var(--accent)' : '#64748b', marginTop: 2 }}>
+                        {m.role === 'COACH' ? 'Entrenador' : 'Jugador'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={gestionarBusy}
+                      onClick={() => quitarDelEquipo(m.teamMemberId)}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 8,
+                        border: '1px solid #fecaca',
+                        background: '#fff',
+                        color: '#b91c1c',
+                        cursor: gestionarBusy ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        flexShrink: 0,
+                      }}
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 8 }}>Añadir socio al equipo</div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
+                <select
+                  value={addAlEquipoMemberId}
+                  onChange={(e) => setAddAlEquipoMemberId(e.target.value)}
+                  style={{ ...teamInput, flex: 1, minWidth: 200, cursor: 'pointer' }}
+                >
+                  <option value="">— Elige socio para añadir —</option>
+                  {sociosDisponiblesParaEquipo.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={gestionarBusy || !addAlEquipoMemberId || sociosDisponiblesParaEquipo.length === 0}
+                  onClick={anadirSocioAlEquipo}
+                  style={{
+                    padding: '11px 18px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: sociosDisponiblesParaEquipo.length && addAlEquipoMemberId ? '#111827' : '#e5e7eb',
+                    color: sociosDisponiblesParaEquipo.length && addAlEquipoMemberId ? '#fff' : '#9ca3af',
+                    cursor: gestionarBusy || !addAlEquipoMemberId ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  Añadir
+                </button>
+              </div>
+              {sociosDisponiblesParaEquipo.length === 0 && (gestionarEquipo.miembros ?? []).length > 0 && (
+                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#9ca3af' }}>Todos los socios ya están en este equipo.</p>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
