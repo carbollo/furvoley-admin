@@ -190,6 +190,7 @@ export async function GET() {
       id: m.id,
       nombre: m.name,
       email: m.email || '',
+      telefono: m.phone ?? '',
       dni: m.dni ?? '',
       domicilio: m.address ?? '',
       deporteInscripcion: m.sportPreference ?? '',

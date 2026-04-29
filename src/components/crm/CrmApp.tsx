@@ -458,6 +458,16 @@ function Socios() {
   const [selected, setSelected] = useState(null);
   const [showInscripcion, setShowInscripcion] = useState(false);
   const [inscripcionBusy, setInscripcionBusy] = useState(false);
+  const [showEditSocioModal, setShowEditSocioModal] = useState(false);
+  const [editSocioBusy, setEditSocioBusy] = useState(false);
+  const [formEditSocio, setFormEditSocio] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    dni: '',
+    address: '',
+    sportPreference: '',
+  });
   const [formInscripcion, setFormInscripcion] = useState({
     nombre: '',
     apellidos: '',
@@ -467,6 +477,10 @@ function Socios() {
     deporte: '',
     fechaAlta: new Date().toISOString().slice(0, 10),
   });
+
+  useEffect(() => {
+    if (!selected) setShowEditSocioModal(false);
+  }, [selected]);
 
   const filtered = SOCIOS_UI.filter(s =>
     (s.nombre.toLowerCase().includes(search.toLowerCase()) || (s.email||'').toLowerCase().includes(search.toLowerCase())) &&
@@ -542,29 +556,80 @@ function Socios() {
     boxSizing: 'border-box',
   };
 
-  async function guardarEdicionSocio() {
+  function openEditSocioModal() {
     if (!selected) return;
-    const nombre = window.prompt('Nombre', selected.nombre);
-    if (!nombre || !String(nombre).trim()) return;
-    const email = window.prompt('Email', selected.email || '') || '';
-    const phone = window.prompt('Teléfono (opcional)', '') || '';
-    const r = await fetch('/api/crm/members/' + selected.id, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: String(nombre).trim(),
-        email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
-      }),
+    setFormEditSocio({
+      name: selected.nombre || '',
+      email: selected.email || '',
+      phone: selected.telefono || '',
+      dni: selected.dni || '',
+      address: selected.domicilio || '',
+      sportPreference: selected.deporteInscripcion || '',
     });
-    if (!r.ok) {
-      try { alert((await r.json()).error || 'Error'); } catch { alert('No se pudo guardar'); }
-      return;
-    }
-    setSelected(null);
-    await reload();
+    setShowEditSocioModal(true);
   }
+
+  async function enviarEdicionSocio(e) {
+    e.preventDefault();
+    if (!selected) return;
+    const savedId = selected.id;
+    const name = String(formEditSocio.name || '').trim();
+    if (!name) return;
+    setEditSocioBusy(true);
+    try {
+      const r = await fetch('/api/crm/members/' + savedId, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email: formEditSocio.email.trim() || undefined,
+          phone: formEditSocio.phone.trim() || undefined,
+          dni: formEditSocio.dni.trim() || undefined,
+          address: formEditSocio.address.trim() || undefined,
+          sportPreference: formEditSocio.sportPreference.trim() || undefined,
+        }),
+      });
+      if (!r.ok) {
+        let msg = 'No se pudo guardar';
+        try {
+          const j = await r.json();
+          msg = j.error || msg;
+        } catch {
+          //
+        }
+        alert(msg);
+        return;
+      }
+      setShowEditSocioModal(false);
+      const j = await reload();
+      const nextSoc = j?.socios?.find((x) => x.id === savedId);
+      if (nextSoc) setSelected(nextSoc);
+    } finally {
+      setEditSocioBusy(false);
+    }
+  }
+
+  const editInput = {
+    width: '100%',
+    padding: '11px 14px',
+    borderRadius: 12,
+    border: '1px solid rgba(0,0,0,0.09)',
+    background: '#fff',
+    fontFamily: 'inherit',
+    fontSize: 14,
+    color: '#111827',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+  };
+  const editLabel = {
+    fontSize: 12,
+    fontWeight: 600 as const,
+    color: '#64748b',
+    marginBottom: 6,
+    display: 'block' as const,
+    letterSpacing: 0.15,
+  };
 
   async function registrarPagoSocio() {
     if (!selected?.pendingInvoiceId) {
@@ -708,9 +773,179 @@ function Socios() {
             </div>
           ))}
           <div style={{display:'flex',gap:8,marginTop:8}}>
-            <button type="button" onClick={guardarEdicionSocio} style={{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#374151'}}>Editar datos</button>
+            <button type="button" onClick={openEditSocioModal} style={{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#374151'}}>Editar datos</button>
             <button type="button" onClick={registrarPagoSocio} style={{flex:1,padding:'10px',borderRadius:12,border:'none',background:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#fff'}}>Registrar Pago</button>
           </div>
+        </div>
+      )}
+      {showEditSocioModal && selected && (
+        <div
+          role="presentation"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 400,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+          onMouseDown={(e) => {
+            if (e.target !== e.currentTarget || editSocioBusy) return;
+            setShowEditSocioModal(false);
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-socio-title"
+            onMouseDown={(e) => e.stopPropagation()}
+            onSubmit={enviarEdicionSocio}
+            style={{
+              width: '100%',
+              maxWidth: 440,
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              background: '#fff',
+              borderRadius: 16,
+              border: '1px solid rgba(0,0,0,0.07)',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.28), 0 0 1px rgba(0,0,0,0.08)',
+              padding: 28,
+              fontFamily: 'inherit',
+            }}
+          >
+            <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div>
+                <h2 id="edit-socio-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
+                  Editar datos del socio
+                </h2>
+                <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+                  Los cambios se guardan en el perfil del club.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={editSocioBusy}
+                onClick={() => setShowEditSocioModal(false)}
+                style={{
+                  border: 'none',
+                  background: '#f1f5f9',
+                  borderRadius: 10,
+                  width: 36,
+                  height: 36,
+                  cursor: editSocioBusy ? 'not-allowed' : 'pointer',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+                aria-label="Cerrar"
+              >
+                <Icon name="x" size={18} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={editLabel}>Nombre completo *</label>
+                <input
+                  required
+                  value={formEditSocio.name}
+                  onChange={(e) => setFormEditSocio((p) => ({ ...p, name: e.target.value }))}
+                  style={editInput}
+                  autoComplete="name"
+                />
+              </div>
+              <div>
+                <label style={editLabel}>Email</label>
+                <input
+                  type="email"
+                  value={formEditSocio.email}
+                  onChange={(e) => setFormEditSocio((p) => ({ ...p, email: e.target.value }))}
+                  style={editInput}
+                  autoComplete="email"
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div className="min-w-0">
+                  <label style={editLabel}>Teléfono</label>
+                  <input
+                    value={formEditSocio.phone}
+                    onChange={(e) => setFormEditSocio((p) => ({ ...p, phone: e.target.value }))}
+                    style={editInput}
+                    autoComplete="tel"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <label style={editLabel}>DNI</label>
+                  <input
+                    value={formEditSocio.dni}
+                    onChange={(e) => setFormEditSocio((p) => ({ ...p, dni: e.target.value }))}
+                    style={editInput}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={editLabel}>Domicilio</label>
+                <input
+                  value={formEditSocio.address}
+                  onChange={(e) => setFormEditSocio((p) => ({ ...p, address: e.target.value }))}
+                  style={editInput}
+                  autoComplete="street-address"
+                />
+              </div>
+              <div>
+                <label style={editLabel}>Deporte (inscripción)</label>
+                <input
+                  value={formEditSocio.sportPreference}
+                  onChange={(e) => setFormEditSocio((p) => ({ ...p, sportPreference: e.target.value }))}
+                  style={editInput}
+                  placeholder="Ej. Voleibol playa"
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 26 }}>
+              <button
+                type="button"
+                disabled={editSocioBusy}
+                onClick={() => setShowEditSocioModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '11px 16px',
+                  borderRadius: 12,
+                  border: '1.5px solid rgba(0,0,0,0.09)',
+                  background: '#fff',
+                  cursor: editSocioBusy ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#374151',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={editSocioBusy}
+                style={{
+                  flex: 1,
+                  padding: '11px 16px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: 'var(--accent)',
+                  cursor: editSocioBusy ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#fff',
+                  opacity: editSocioBusy ? 0.75 : 1,
+                }}
+              >
+                {editSocioBusy ? 'Guardando…' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
       {showInscripcion && (
