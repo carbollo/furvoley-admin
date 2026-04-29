@@ -450,8 +450,19 @@ function Dashboard({ setActive }) {
 
 // ── SOCIOS ──────────────────────────────────────────────────────────────────
 function Socios() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { bundle, reload, fmtMoney } = useCrm();
   const SOCIOS_UI = bundle?.socios ?? [];
+  const EQUIPOS_UI = bundle?.equipos ?? [];
+  const teamFilterId = (searchParams.get('team') ?? '').trim();
+  const equipoFiltrado = teamFilterId
+    ? EQUIPOS_UI.find((t) => t.id === teamFilterId)
+    : null;
+  const idsInFilteredTeam =
+    equipoFiltrado && teamFilterId
+      ? new Set((equipoFiltrado.miembros ?? []).map((m) => m.memberId))
+      : null;
   const [search, setSearch] = useState('');
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterDeporte, setFilterDeporte] = useState('Todos');
@@ -482,11 +493,18 @@ function Socios() {
     if (!selected) setShowEditSocioModal(false);
   }, [selected]);
 
-  const filtered = SOCIOS_UI.filter(s =>
-    (s.nombre.toLowerCase().includes(search.toLowerCase()) || (s.email||'').toLowerCase().includes(search.toLowerCase())) &&
-    (filterEstado === 'Todos' || s.estado === filterEstado) &&
-    (filterDeporte === 'Todos' || s.deporte === filterDeporte)
-  );
+  const filtered = SOCIOS_UI.filter(s => {
+    if (teamFilterId) {
+      if (!idsInFilteredTeam) return false;
+      if (!idsInFilteredTeam.has(s.id)) return false;
+    }
+    return (
+      (s.nombre.toLowerCase().includes(search.toLowerCase()) ||
+        (s.email || '').toLowerCase().includes(search.toLowerCase())) &&
+      (filterEstado === 'Todos' || s.estado === filterEstado) &&
+      (filterDeporte === 'Todos' || s.deporte === filterDeporte)
+    );
+  });
 
   const deportes = ['Todos', ...new Set(SOCIOS_UI.map(s => s.deporte))];
   const estados = ['Todos', 'Activo', 'Moroso', 'Inactivo'];
@@ -647,7 +665,11 @@ function Socios() {
       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
         <div>
           <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Socios</h1>
-          <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>{SOCIOS_UI.length} socios registrados</p>
+          <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>
+            {teamFilterId && equipoFiltrado
+              ? `${filtered.length} de ${SOCIOS_UI.length} socios · equipo «${equipoFiltrado.nombre}»`
+              : `${SOCIOS_UI.length} socios registrados`}
+          </p>
         </div>
         <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',gap:12}}>
           <InviteLinkButton />
@@ -693,6 +715,46 @@ function Socios() {
           {deportes.map(d => <option key={d}>{d}</option>)}
         </select>
       </div>
+      {teamFilterId && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+            padding: '12px 16px',
+            borderRadius: 12,
+            background: equipoFiltrado ? 'var(--accent-light)' : '#fef3c7',
+            border: `1px solid ${equipoFiltrado ? 'var(--accent)' : '#fcd34d'}`,
+          }}
+        >
+          <span style={{ fontSize: 14, color: '#374151', fontWeight: 500 }}>
+            {equipoFiltrado
+              ? `Mostrando solo socios del equipo «${equipoFiltrado.nombre}».`
+              : 'El equipo indicado en la URL no existe; no se muestran socios.'}
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              router.replace('/?tab=socios', { scroll: false })
+            }
+            style={{
+              padding: '8px 14px',
+              borderRadius: 10,
+              border: 'none',
+              background: '#111827',
+              color: '#fff',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            Ver todos los socios
+          </button>
+        </div>
+      )}
       {/* Table */}
       <div style={{background:'#fff',borderRadius:16,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',overflow:'hidden'}}>
         <table style={{width:'100%',borderCollapse:'collapse'}}>
@@ -1105,11 +1167,11 @@ function Socios() {
 }
 
 // ── EQUIPOS ─────────────────────────────────────────────────────────────────
-function Equipos({ setActive }) {
+function Equipos() {
+  const router = useRouter()
   const { bundle, reload } = useCrm();
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const [view, setView] = useState('grid');
-  const [focusedId, setFocusedId] = useState(null);
   const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
   const [nuevoEquipoBusy, setNuevoEquipoBusy] = useState(false);
   const [formNuevoEquipo, setFormNuevoEquipo] = useState({ name: '', category: '' });
@@ -1356,10 +1418,10 @@ function Equipos({ setActive }) {
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:16,width:'100%'}}>
         {EQUIPOS_UI.map(eq => (
-          <div key={eq.id} onClick={() => setFocusedId(eq.id)} style={{
+          <div key={eq.id} style={{
             background:'#fff',borderRadius:16,padding:16,
-            boxShadow:'var(--card-shadow)',border:`1px solid ${focusedId===eq.id?'var(--accent)':'var(--border)'}`,
-            cursor:'pointer',transition:'transform 0.15s,box-shadow 0.15s'
+            boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
+            cursor:'default',transition:'transform 0.15s,box-shadow 0.15s'
           }}>
             <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16,gap:6}}>
               <div style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>
@@ -1390,9 +1452,8 @@ function Equipos({ setActive }) {
               </div>
             </div>
             <div style={{marginTop:14,display:'flex',flexWrap:'wrap',gap:8}}>
-              <button type="button" onClick={(e) => { e.stopPropagation(); setFocusedId(eq.id); }} style={{flex:1,minWidth:88,padding:'8px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#374151'}}>Destacar</button>
               <button type="button" onClick={(e) => { e.stopPropagation(); openGestionar(eq); }} style={{flex:1,minWidth:88,padding:'8px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#374151'}}>Gestionar</button>
-              <button type="button" onClick={(e) => { e.stopPropagation(); setActive('socios'); }} style={{flex:1,minWidth:88,padding:'8px',borderRadius:10,border:'none',background:`${eq.color}15`,color:eq.color,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Ver socios</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); router.replace(`/?tab=socios&team=${encodeURIComponent(eq.id)}`, { scroll: false }); }} style={{flex:1,minWidth:88,padding:'8px',borderRadius:10,border:'none',background:`${eq.color}15`,color:eq.color,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Ver socios</button>
             </div>
           </div>
         ))}
