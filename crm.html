@@ -503,9 +503,33 @@ function Socios() {
     await reload();
   }
 
+  async function guardarEdicionSocio() {
+    if (!selected) return;
+    const nombre = window.prompt('Nombre', selected.nombre);
+    if (!nombre || !String(nombre).trim()) return;
+    const email = window.prompt('Email', selected.email || '') || '';
+    const phone = window.prompt('Teléfono (opcional)', '') || '';
+    const r = await fetch('/api/crm/members/' + selected.id, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: String(nombre).trim(),
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+      }),
+    });
+    if (!r.ok) {
+      try { alert((await r.json()).error || 'Error'); } catch { alert('No se pudo guardar'); }
+      return;
+    }
+    setSelected(null);
+    await reload();
+  }
+
   async function registrarPagoSocio() {
     if (!selected?.pendingInvoiceId) {
-      alert('No hay factura pendiente para este socio. Usa Facturación en el panel.');
+      alert('No hay factura pendiente registrada para este socio.');
       return;
     }
     const r = await fetch('/api/crm/invoices/' + selected.pendingInvoiceId + '/mark-paid', { method: 'POST', credentials: 'include' });
@@ -597,7 +621,7 @@ function Socios() {
                 <td style={{padding:'14px 16px'}}><Badge status={s.estado}/></td>
                 <td style={{padding:'14px 16px'}}>
                   <div style={{display:'flex',gap:4}}>
-                    <button type="button" onClick={e=>{e.stopPropagation(); window.location.href='/members';}} style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}} title="Gestionar en panel"><Icon name="edit" size={14}/></button>
+                    <button type="button" onClick={e=>{e.stopPropagation(); setSelected(s);}} style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}} title="Ver y editar"><Icon name="edit" size={14}/></button>
                     <button onClick={e=>{e.stopPropagation();}} style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}}><Icon name="dots" size={14}/></button>
                   </div>
                 </td>
@@ -629,7 +653,7 @@ function Socios() {
             </div>
           ))}
           <div style={{display:'flex',gap:8,marginTop:8}}>
-            <button type="button" onClick={() => { window.location.href = '/members'; }} style={{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#374151'}}>Editar en panel</button>
+            <button type="button" onClick={guardarEdicionSocio} style={{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#374151'}}>Editar datos</button>
             <button type="button" onClick={registrarPagoSocio} style={{flex:1,padding:'10px',borderRadius:12,border:'none',background:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#fff'}}>Registrar Pago</button>
           </div>
         </div>
@@ -639,11 +663,28 @@ function Socios() {
 }
 
 // ── EQUIPOS ─────────────────────────────────────────────────────────────────
-function Equipos() {
-  const { bundle } = useCrm();
+function Equipos({ setActive }) {
+  const { bundle, reload } = useCrm();
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const [view, setView] = useState('grid');
-  return (
+  const [focusedId, setFocusedId] = useState(null);
+
+  async function nuevoEquipo() {
+    const nombre = window.prompt('Nombre del equipo');
+    if (!nombre || !String(nombre).trim()) return;
+    const categoria = window.prompt('Categoría (opcional)', '') || '';
+    const r = await fetch('/api/crm/teams', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: String(nombre).trim(), category: categoria.trim() || undefined }),
+    });
+    if (!r.ok) {
+      try { alert((await r.json()).error || 'Error'); } catch { alert('No se pudo crear el equipo'); }
+      return;
+    }
+    await reload();
+  }
     <div style={{flex:1,overflowY:'auto',padding:'24px',display:'flex',flexDirection:'column',gap:20}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
@@ -660,7 +701,7 @@ function Equipos() {
               }}>{icon}</button>
             ))}
           </div>
-          <button type="button" onClick={() => { window.location.href = '/teams'; }} style={{
+          <button type="button" onClick={nuevoEquipo} style={{
             display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
             borderRadius:12,border:'none',cursor:'pointer',
             background:'var(--accent)',color:'#fff',
@@ -672,9 +713,9 @@ function Equipos() {
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:16,width:'100%'}}>
         {EQUIPOS_UI.map(eq => (
-          <div key={eq.id} style={{
+          <div key={eq.id} onClick={() => setFocusedId(eq.id)} style={{
             background:'#fff',borderRadius:16,padding:16,
-            boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
+            boxShadow:'var(--card-shadow)',border:`1px solid ${focusedId===eq.id?'var(--accent)':'var(--border)'}`,
             cursor:'pointer',transition:'transform 0.15s,box-shadow 0.15s'
           }}>
             <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16,gap:6}}>
@@ -706,8 +747,8 @@ function Equipos() {
               </div>
             </div>
             <div style={{marginTop:14,display:'flex',gap:8}}>
-              <button type="button" onClick={() => { window.location.href = '/teams/' + eq.id; }} style={{flex:1,padding:'8px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#374151'}}>Ver plantel</button>
-              <button type="button" onClick={() => { window.location.href = '/teams/' + eq.id; }} style={{flex:1,padding:'8px',borderRadius:10,border:'none',background:`${eq.color}15`,color:eq.color,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Gestionar</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); setFocusedId(eq.id); }} style={{flex:1,padding:'8px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#374151'}}>Destacar</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); setActive('socios'); }} style={{flex:1,padding:'8px',borderRadius:10,border:'none',background:`${eq.color}15`,color:eq.color,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Ver socios</button>
             </div>
           </div>
         ))}
@@ -717,7 +758,7 @@ function Equipos() {
 }
 
 // ── COBROS ──────────────────────────────────────────────────────────────────
-function Cobros() {
+function Cobros({ setActive }) {
   const { bundle, reload, fmtMoney } = useCrm();
   const COBROS_UI = bundle?.cobros ?? [];
   const [tab, setTab] = useState('Todos');
@@ -747,7 +788,7 @@ function Cobros() {
           <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'#374151'}}>
             <Icon name="export" size={15}/>Exportar
           </button>
-          <button type="button" onClick={() => { window.location.href = '/billing'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
+          <button type="button" onClick={() => setActive('cobros')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
             <Icon name="plus" size={15}/>Nuevo Cobro
           </button>
         </div>
@@ -825,14 +866,15 @@ function Cobros() {
 }
 
 // ── CALENDARIO ──────────────────────────────────────────────────────────────
-function Calendario() {
-  const { bundle } = useCrm();
+function Calendario({ setActive }) {
+  const { bundle, reload } = useCrm();
   const EVENTOS_UI = bundle?.eventos ?? [];
   const todayRef = bundle?.meta?.today ? new Date(bundle.meta.today) : new Date();
   const [viewYm, setViewYm] = useState(() => ({
     year: todayRef.getFullYear(),
     month: todayRef.getMonth(),
   }));
+  const [selectedDay, setSelectedDay] = useState(null);
   const year = viewYm.year, month = viewYm.month;
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -854,6 +896,39 @@ function Calendario() {
     todayRef.getDate()===d && todayRef.getMonth()===month && todayRef.getFullYear()===year
   );
 
+  async function nuevoEventoCRM() {
+    const eq = bundle?.equipos ?? [];
+    if (!eq.length) {
+      alert('Crea antes un equipo (pestaña Equipos).');
+      setActive('equipos');
+      return;
+    }
+    let teamId = eq[0].id;
+    if (eq.length > 1) {
+      const choice = window.prompt('Número de equipo:\n' + eq.map((e, i) => (i + 1) + '. ' + e.nombre).join('\n'));
+      const ix = parseInt(choice, 10) - 1;
+      if (ix >= 0 && ix < eq.length) teamId = eq[ix].id;
+      else return;
+    }
+    const title = window.prompt('Título del evento');
+    if (!title || !String(title).trim()) return;
+    const tipo = window.prompt('Tipo (TRAINING, MATCH, TOURNAMENT, OTHER)', 'OTHER') || 'OTHER';
+    const fecha = window.prompt('Fecha ISO (ej. ' + new Date().toISOString().slice(0, 16) + ')', new Date().toISOString().slice(0, 16));
+    if (!fecha) return;
+    const loc = window.prompt('Lugar (opcional)', '') || '';
+    const r = await fetch('/api/crm/events', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title.trim(), teamId, type: tipo.trim(), date: fecha, location: loc.trim() || undefined }),
+    });
+    if (!r.ok) {
+      try { alert((await r.json()).error || 'Error'); } catch { alert('No se pudo crear el evento'); }
+      return;
+    }
+    await reload();
+  }
+
   return (
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
@@ -872,7 +947,7 @@ function Calendario() {
             if (m > 11) { m = 0; y++; }
             return { year:y, month:m };
           })} style={{padding:'8px 12px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit'}}>Mes →</button>
-          <button type="button" onClick={() => { window.location.href = '/events/new'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
+          <button type="button" onClick={nuevoEventoCRM} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
             <Icon name="plus" size={15}/>Nuevo Evento
           </button>
         </div>
@@ -962,7 +1037,7 @@ function Calendario() {
 }
 
 // ── INFORMES ────────────────────────────────────────────────────────────────
-function Informes() {
+function Informes({ setActive }) {
   const { bundle, fmtMoney } = useCrm();
   const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const ingresos = bundle?.ingresosMensual ?? Array(12).fill(0);
@@ -1050,7 +1125,7 @@ function Informes() {
                 <div style={{fontWeight:700,fontSize:14,color:'var(--red)'}}>{fmtMoney(s.cuota)}</div>
                 <Badge status="Moroso"/>
               </div>
-              <button type="button" onClick={() => { window.location.href = '/members'; }} style={{padding:'7px 14px',borderRadius:8,border:'none',background:'var(--red-light)',color:'var(--red)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Gestionar</button>
+              <button type="button" onClick={() => setActive('socios')} style={{padding:'7px 14px',borderRadius:8,border:'none',background:'var(--red-light)',color:'var(--red)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Ver en Socios</button>
             </div>
           ))}
         </div>
@@ -1080,8 +1155,8 @@ function Workflows() {
           <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Workflows</h1>
             <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>Automatizaciones activas: {wfs.filter(w=>w.activo).length}/{wfs.length || 1}</p>
         </div>
-        <button type="button" onClick={() => { window.location.href = '/workflows'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
-          <Icon name="plus" size={15}/>Nuevo Workflow
+        <button type="button" onClick={() => window.alert('Activa o pausa cada automatización con el interruptor. Un editor visual de flujos se añadirá más adelante.')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',color:'var(--accent)',fontFamily:'inherit',fontSize:14,fontWeight:600,cursor:'pointer'}}>
+          <Icon name="plus" size={15}/>Ayuda
         </button>
       </div>
       {/* Stats */}
@@ -1140,7 +1215,7 @@ function Workflows() {
                 </div>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-                <button type="button" onClick={() => { window.location.href = '/workflows'; }} style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280',fontFamily:'inherit',fontSize:12}}><Icon name="edit" size={14}/></button>
+                <button type="button" onClick={() => window.alert('Configura el disparador desde la base de datos o el panel avanzado si lo necesitas; aquí puedes activar o pausar cada flujo.')} style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280',fontFamily:'inherit',fontSize:12}} title="Información"><Icon name="edit" size={14}/></button>
                 {/* Toggle */}
                 <div onClick={() => toggle(w.id)} style={{
                   width:44,height:24,borderRadius:12,cursor:'pointer',
@@ -1201,7 +1276,6 @@ function CrmInner() {
           display:'flex',alignItems:'center',justifyContent:'flex-end',
           padding:'0 28px',gap:12,flexShrink:0
         }}>
-          <button type="button" onClick={() => { window.location.href = '/admin-overview'; }} style={{padding:8,borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280',fontFamily:'inherit',fontSize:12,marginRight:'auto'}}>Panel clásico</button>
           <button type="button" style={{padding:8,borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280',position:'relative'}}>
             <Icon name="bell" size={18}/>
             <span style={{position:'absolute',top:5,right:5,width:8,height:8,borderRadius:'50%',background:'var(--red)',border:'2px solid #fff'}}></span>

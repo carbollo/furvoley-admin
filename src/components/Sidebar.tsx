@@ -1,10 +1,39 @@
 'use client'
 
 import Link from 'next/link'
-import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch, Landmark, Ticket, ChevronDown, LayoutDashboard } from 'lucide-react'
+import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch, Landmark, Ticket, ChevronDown } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+
+/** En iframe (CRM en la home), enlaces internos deben navegar el documento padre para no cargar el panel viejo dentro del iframe. */
+function AdminFullPageLink({
+  href,
+  className,
+  children,
+}: {
+  href: string
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className={className}
+      onClick={(e) => {
+        if (typeof window === 'undefined') return
+        if (href === '/' || href === '') return
+        if (window.self !== window.top) {
+          e.preventDefault()
+          window.top!.location.assign(href)
+        }
+      }}
+    >
+      {children}
+    </Link>
+  )
+}
 
 function isAccountingSectionPath(path: string) {
   return (
@@ -48,12 +77,19 @@ export function Sidebar() {
       <nav className="flex-1 space-y-2">
         <Link href="/" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
           <Home size={20} />
-          <span>Dashboard</span>
+          <span>{isAdmin ? 'Inicio CRM' : 'Dashboard'}</span>
         </Link>
-        <Link href="/calendar" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
-          <Calendar size={20} />
-          <span>Calendario</span>
-        </Link>
+        {isAdmin ? (
+          <AdminFullPageLink href="/calendar" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Calendar size={20} />
+            <span>Calendario (avanzado)</span>
+          </AdminFullPageLink>
+        ) : (
+          <Link href="/calendar" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Calendar size={20} />
+            <span>Calendario</span>
+          </Link>
+        )}
         {!isAdmin && (
           <Link href="/my-billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
             <CreditCard size={20} />
@@ -64,32 +100,28 @@ export function Sidebar() {
         {isAdmin && (
           <>
             <div className="pt-4 pb-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Administración
+              Administración (pantalla completa)
             </div>
-            <Link href="/" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
-              <LayoutDashboard size={20} />
-              <span>CRM (inicio)</span>
-            </Link>
-            <Link href="/events" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <AdminFullPageLink href="/events" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Ticket size={20} />
               <span>Eventos</span>
-            </Link>
-            <Link href="/teams" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            </AdminFullPageLink>
+            <AdminFullPageLink href="/teams" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Users size={20} />
               <span>Equipos</span>
-            </Link>
-            <Link href="/members" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            </AdminFullPageLink>
+            <AdminFullPageLink href="/members" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Users size={20} />
               <span>Socios</span>
-            </Link>
-            <Link href="/payments" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            </AdminFullPageLink>
+            <AdminFullPageLink href="/payments" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <CreditCard size={20} />
               <span>Cobros</span>
-            </Link>
-            <Link href="/billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            </AdminFullPageLink>
+            <AdminFullPageLink href="/billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Receipt size={20} />
               <span>Billing</span>
-            </Link>
+            </AdminFullPageLink>
             <div className="rounded-lg overflow-hidden">
               <button
                 type="button"
@@ -108,7 +140,7 @@ export function Sidebar() {
               </button>
               {accountingOpen && (
                 <div className="mt-1 ml-2 pl-3 border-l border-slate-700 space-y-1 py-1">
-                  <Link
+                  <AdminFullPageLink
                     href="/accounting"
                     className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
                       pathname === '/accounting'
@@ -118,8 +150,8 @@ export function Sidebar() {
                   >
                     <Calculator size={16} className="shrink-0 opacity-90" />
                     <span>Resumen</span>
-                  </Link>
-                  <Link
+                  </AdminFullPageLink>
+                  <AdminFullPageLink
                     href="/billing/impagos"
                     className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
                       pathname.startsWith('/billing/impagos')
@@ -129,8 +161,8 @@ export function Sidebar() {
                   >
                     <Receipt size={16} className="shrink-0 opacity-90" />
                     <span>Impagos</span>
-                  </Link>
-                  <Link
+                  </AdminFullPageLink>
+                  <AdminFullPageLink
                     href="/accounting/bank-import"
                     className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
                       pathname.startsWith('/accounting/bank-import')
@@ -140,18 +172,18 @@ export function Sidebar() {
                   >
                     <Landmark size={16} className="shrink-0 opacity-90" />
                     <span>Extracto bancario</span>
-                  </Link>
+                  </AdminFullPageLink>
                 </div>
               )}
             </div>
-            <Link href="/reports" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <AdminFullPageLink href="/reports" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <FileText size={20} />
               <span>Informes</span>
-            </Link>
-            <Link href="/workflows" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            </AdminFullPageLink>
+            <AdminFullPageLink href="/workflows" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <GitBranch size={20} />
               <span>Workflows</span>
-            </Link>
+            </AdminFullPageLink>
           </>
         )}
       </nav>
