@@ -1487,16 +1487,118 @@ function Cobros({ setActive }) {
   );
 }
 
+function datetimeLocalValue(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+const CRM_EVENT_TYPES = [
+  { value: 'TRAINING', label: 'Entrenamiento' },
+  { value: 'MATCH', label: 'Partido' },
+  { value: 'TOURNAMENT', label: 'Torneo' },
+  { value: 'SOCIAL', label: 'Reunión / social' },
+  { value: 'OTHER', label: 'Otro' },
+]
+
 // ── CALENDARIO ──────────────────────────────────────────────────────────────
 function Calendario({ setActive }) {
   const { bundle, reload } = useCrm();
   const EVENTOS_UI = bundle?.eventos ?? [];
+  const EQUIPOS_UI = bundle?.equipos ?? [];
   const todayRef = bundle?.meta?.today ? new Date(bundle.meta.today) : new Date();
   const [viewYm, setViewYm] = useState(() => ({
     year: todayRef.getFullYear(),
     month: todayRef.getMonth(),
   }));
   const [selectedDay, setSelectedDay] = useState(null);
+  const [showNuevoEventoModal, setShowNuevoEventoModal] = useState(false);
+  const [nuevoEventoBusy, setNuevoEventoBusy] = useState(false);
+  const [formEvento, setFormEvento] = useState({
+    teamId: '',
+    title: '',
+    type: 'OTHER',
+    datetimeLocal: '',
+    location: '',
+  });
+
+  const evInput = {
+    width: '100%',
+    padding: '11px 14px',
+    borderRadius: 12,
+    border: '1px solid rgba(0,0,0,0.09)',
+    background: '#fff',
+    fontFamily: 'inherit',
+    fontSize: 14,
+    color: '#111827',
+    outline: 'none',
+    boxSizing: 'border-box',
+  }
+  const evLabel = {
+    fontSize: 12,
+    fontWeight: 600,
+    color: '#64748b',
+    marginBottom: 6,
+    display: 'block',
+    letterSpacing: 0.15,
+  }
+
+  function openNuevoEventoModal() {
+    if (!EQUIPOS_UI.length) {
+      alert('Crea antes un equipo (pestaña Equipos).')
+      setActive('equipos')
+      return
+    }
+    setFormEvento({
+      teamId: EQUIPOS_UI[0].id,
+      title: '',
+      type: 'OTHER',
+      datetimeLocal: datetimeLocalValue(),
+      location: '',
+    })
+    setShowNuevoEventoModal(true)
+  }
+
+  async function enviarNuevoEvento(e) {
+    e.preventDefault()
+    const title = String(formEvento.title || '').trim()
+    const teamId = String(formEvento.teamId || '').trim()
+    if (!title || !teamId) return
+    const d = new Date(formEvento.datetimeLocal)
+    if (Number.isNaN(d.getTime())) {
+      alert('Fecha u hora no válida.')
+      return
+    }
+    setNuevoEventoBusy(true)
+    try {
+      const r = await fetch('/api/crm/events', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          teamId,
+          type: formEvento.type,
+          date: d.toISOString(),
+          location: formEvento.location.trim() || undefined,
+        }),
+      })
+      if (!r.ok) {
+        let msg = 'No se pudo crear el evento'
+        try {
+          const j = await r.json()
+          msg = j.error || msg
+        } catch {
+          //
+        }
+        alert(msg)
+        return
+      }
+      setShowNuevoEventoModal(false)
+      await reload()
+    } finally {
+      setNuevoEventoBusy(false)
+    }
+  }
   const year = viewYm.year, month = viewYm.month;
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -1518,39 +1620,6 @@ function Calendario({ setActive }) {
     todayRef.getDate()===d && todayRef.getMonth()===month && todayRef.getFullYear()===year
   );
 
-  async function nuevoEventoCRM() {
-    const eq = bundle?.equipos ?? [];
-    if (!eq.length) {
-      alert('Crea antes un equipo (pestaña Equipos).');
-      setActive('equipos');
-      return;
-    }
-    let teamId = eq[0].id;
-    if (eq.length > 1) {
-      const choice = window.prompt('Número de equipo:\n' + eq.map((e, i) => (i + 1) + '. ' + e.nombre).join('\n'));
-      const ix = parseInt(choice, 10) - 1;
-      if (ix >= 0 && ix < eq.length) teamId = eq[ix].id;
-      else return;
-    }
-    const title = window.prompt('Título del evento');
-    if (!title || !String(title).trim()) return;
-    const tipo = window.prompt('Tipo (TRAINING, MATCH, TOURNAMENT, OTHER)', 'OTHER') || 'OTHER';
-    const fecha = window.prompt('Fecha ISO (ej. ' + new Date().toISOString().slice(0, 16) + ')', new Date().toISOString().slice(0, 16));
-    if (!fecha) return;
-    const loc = window.prompt('Lugar (opcional)', '') || '';
-    const r = await fetch('/api/crm/events', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: title.trim(), teamId, type: tipo.trim(), date: fecha, location: loc.trim() || undefined }),
-    });
-    if (!r.ok) {
-      try { alert((await r.json()).error || 'Error'); } catch { alert('No se pudo crear el evento'); }
-      return;
-    }
-    await reload();
-  }
-
   return (
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
@@ -1569,7 +1638,7 @@ function Calendario({ setActive }) {
             if (m > 11) { m = 0; y++; }
             return { year:y, month:m };
           })} style={{padding:'8px 12px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit'}}>Mes →</button>
-          <button type="button" onClick={nuevoEventoCRM} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
+          <button type="button" onClick={openNuevoEventoModal} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
             <Icon name="plus" size={15}/>Nuevo Evento
           </button>
         </div>
@@ -1654,6 +1723,179 @@ function Calendario({ setActive }) {
           </div>
         </div>
       </div>
+      {showNuevoEventoModal && (
+        <div
+          role="presentation"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 400,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+          onMouseDown={(e) => {
+            if (e.target !== e.currentTarget || nuevoEventoBusy) return;
+            setShowNuevoEventoModal(false);
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="nuevo-evento-title"
+            onMouseDown={(e) => e.stopPropagation()}
+            onSubmit={enviarNuevoEvento}
+            style={{
+              width: '100%',
+              maxWidth: 460,
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              background: '#fff',
+              borderRadius: 16,
+              border: '1px solid rgba(0,0,0,0.07)',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.28), 0 0 1px rgba(0,0,0,0.08)',
+              padding: 28,
+              fontFamily: 'inherit',
+            }}
+          >
+            <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div>
+                <h2 id="nuevo-evento-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
+                  Nuevo evento
+                </h2>
+                <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+                  Elige equipo, tipo y fecha. Aparecerá en el calendario del club.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={nuevoEventoBusy}
+                onClick={() => setShowNuevoEventoModal(false)}
+                style={{
+                  border: 'none',
+                  background: '#f1f5f9',
+                  borderRadius: 10,
+                  width: 36,
+                  height: 36,
+                  cursor: nuevoEventoBusy ? 'not-allowed' : 'pointer',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+                aria-label="Cerrar"
+              >
+                <Icon name="x" size={18} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={evLabel}>Equipo *</label>
+                <select
+                  required
+                  value={formEvento.teamId}
+                  onChange={(e) => setFormEvento((p) => ({ ...p, teamId: e.target.value }))}
+                  style={{ ...evInput, cursor: 'pointer' }}
+                >
+                  {EQUIPOS_UI.map((eq) => (
+                    <option key={eq.id} value={eq.id}>
+                      {eq.nombre}
+                      {eq.categoria && eq.categoria !== '—' ? ` (${eq.categoria})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={evLabel}>Título *</label>
+                <input
+                  required
+                  autoFocus
+                  value={formEvento.title}
+                  onChange={(e) => setFormEvento((p) => ({ ...p, title: e.target.value }))}
+                  style={evInput}
+                  placeholder="Ej. Entrenamiento conjunto"
+                />
+              </div>
+              <div>
+                <label style={evLabel}>Tipo</label>
+                <select
+                  value={formEvento.type}
+                  onChange={(e) => setFormEvento((p) => ({ ...p, type: e.target.value }))}
+                  style={{ ...evInput, cursor: 'pointer' }}
+                >
+                  {CRM_EVENT_TYPES.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={evLabel}>Fecha y hora *</label>
+                <input
+                  required
+                  type="datetime-local"
+                  value={formEvento.datetimeLocal}
+                  onChange={(e) => setFormEvento((p) => ({ ...p, datetimeLocal: e.target.value }))}
+                  style={evInput}
+                />
+              </div>
+              <div>
+                <label style={evLabel}>Lugar (opcional)</label>
+                <input
+                  value={formEvento.location}
+                  onChange={(e) => setFormEvento((p) => ({ ...p, location: e.target.value }))}
+                  style={evInput}
+                  placeholder="Pabellón, cancha…"
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 26 }}>
+              <button
+                type="button"
+                disabled={nuevoEventoBusy}
+                onClick={() => setShowNuevoEventoModal(false)}
+                style={{
+                  flex: 1,
+                  padding: '11px 16px',
+                  borderRadius: 12,
+                  border: '1.5px solid rgba(0,0,0,0.09)',
+                  background: '#fff',
+                  cursor: nuevoEventoBusy ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#374151',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={nuevoEventoBusy}
+                style={{
+                  flex: 1,
+                  padding: '11px 16px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: 'var(--accent)',
+                  cursor: nuevoEventoBusy ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: '#fff',
+                  opacity: nuevoEventoBusy ? 0.75 : 1,
+                }}
+              >
+                {nuevoEventoBusy ? 'Creando…' : 'Crear evento'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
