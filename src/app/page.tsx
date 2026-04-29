@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import CrmApp from '@/components/crm/CrmApp'
+import { AppShell } from '@/components/AppShell'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +48,8 @@ export default async function HomePage() {
     .reduce((acc, i) => acc + (i.totalAmount - i.paidAmount), 0)
 
   return (
-    <div>
+    <AppShell>
+      <div>
       <h1 className="text-3xl font-bold mb-8">Mi Panel</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -119,5 +121,6 @@ export default async function HomePage() {
         </div>
       </div>
     </div>
+    </AppShell>
   )
 }
