@@ -4,36 +4,7 @@ import Link from 'next/link'
 import { Users, CreditCard, Calculator, Home, Calendar, LogOut, Receipt, FileText, GitBranch, Landmark, Ticket, ChevronDown } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { useEffect, useState, type ReactNode } from 'react'
-
-/** En iframe (CRM en la home), enlaces internos deben navegar el documento padre para no cargar el panel viejo dentro del iframe. */
-function AdminFullPageLink({
-  href,
-  className,
-  children,
-}: {
-  href: string
-  className?: string
-  children: ReactNode
-}) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className={className}
-      onClick={(e) => {
-        if (typeof window === 'undefined') return
-        if (href === '/' || href === '') return
-        if (window.self !== window.top) {
-          e.preventDefault()
-          window.top!.location.assign(href)
-        }
-      }}
-    >
-      {children}
-    </Link>
-  )
-}
+import { useEffect, useState } from 'react'
 
 function isAccountingSectionPath(path: string) {
   return (
@@ -60,12 +31,13 @@ export function Sidebar() {
   if (pathname === '/login' || isJoinRoute) return null
   if (isPublicEventShare && !session) return null
 
+  /** /crm.html es HTML estático: no monta este layout; no hay que ocultar nada aquí. */
   const isAdmin = session?.user?.role === 'ADMIN'
 
   return (
     <div className="w-64 bg-slate-900 text-white min-h-screen p-4 flex flex-col">
       <div className="text-2xl font-bold mb-8 text-center text-blue-400">Furvoley Admin</div>
-      
+
       <div className="mb-6 px-3">
         <p className="text-sm text-slate-400">Hola,</p>
         <p className="font-medium truncate">{session?.user?.name || session?.user?.email}</p>
@@ -75,53 +47,58 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-2">
-        <Link href="/" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
-          <Home size={20} />
-          <span>{isAdmin ? 'Inicio CRM' : 'Dashboard'}</span>
-        </Link>
         {isAdmin ? (
-          <AdminFullPageLink href="/calendar" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
-            <Calendar size={20} />
-            <span>Calendario (avanzado)</span>
-          </AdminFullPageLink>
+          <Link
+            href="/crm.html"
+            className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
+              pathname === '/crm.html' ? 'bg-slate-800' : ''
+            }`}
+          >
+            <Home size={20} />
+            <span>Inicio (CRM)</span>
+          </Link>
         ) : (
-          <Link href="/calendar" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
-            <Calendar size={20} />
-            <span>Calendario</span>
+          <Link href="/" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Home size={20} />
+            <span>Dashboard</span>
           </Link>
         )}
+        <Link href="/calendar" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+          <Calendar size={20} />
+          <span>Calendario</span>
+        </Link>
         {!isAdmin && (
           <Link href="/my-billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
             <CreditCard size={20} />
             <span>Mis Pagos</span>
           </Link>
         )}
-        
+
         {isAdmin && (
           <>
             <div className="pt-4 pb-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Administración (pantalla completa)
+              Administración
             </div>
-            <AdminFullPageLink href="/events" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Link href="/events" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Ticket size={20} />
               <span>Eventos</span>
-            </AdminFullPageLink>
-            <AdminFullPageLink href="/teams" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            </Link>
+            <Link href="/teams" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Users size={20} />
               <span>Equipos</span>
-            </AdminFullPageLink>
-            <AdminFullPageLink href="/members" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            </Link>
+            <Link href="/members" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Users size={20} />
               <span>Socios</span>
-            </AdminFullPageLink>
-            <AdminFullPageLink href="/payments" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            </Link>
+            <Link href="/payments" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <CreditCard size={20} />
               <span>Cobros</span>
-            </AdminFullPageLink>
-            <AdminFullPageLink href="/billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            </Link>
+            <Link href="/billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Receipt size={20} />
               <span>Billing</span>
-            </AdminFullPageLink>
+            </Link>
             <div className="rounded-lg overflow-hidden">
               <button
                 type="button"
@@ -140,7 +117,7 @@ export function Sidebar() {
               </button>
               {accountingOpen && (
                 <div className="mt-1 ml-2 pl-3 border-l border-slate-700 space-y-1 py-1">
-                  <AdminFullPageLink
+                  <Link
                     href="/accounting"
                     className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
                       pathname === '/accounting'
@@ -150,8 +127,8 @@ export function Sidebar() {
                   >
                     <Calculator size={16} className="shrink-0 opacity-90" />
                     <span>Resumen</span>
-                  </AdminFullPageLink>
-                  <AdminFullPageLink
+                  </Link>
+                  <Link
                     href="/billing/impagos"
                     className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
                       pathname.startsWith('/billing/impagos')
@@ -161,8 +138,8 @@ export function Sidebar() {
                   >
                     <Receipt size={16} className="shrink-0 opacity-90" />
                     <span>Impagos</span>
-                  </AdminFullPageLink>
-                  <AdminFullPageLink
+                  </Link>
+                  <Link
                     href="/accounting/bank-import"
                     className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
                       pathname.startsWith('/accounting/bank-import')
@@ -172,25 +149,25 @@ export function Sidebar() {
                   >
                     <Landmark size={16} className="shrink-0 opacity-90" />
                     <span>Extracto bancario</span>
-                  </AdminFullPageLink>
+                  </Link>
                 </div>
               )}
             </div>
-            <AdminFullPageLink href="/reports" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Link href="/reports" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <FileText size={20} />
               <span>Informes</span>
-            </AdminFullPageLink>
-            <AdminFullPageLink href="/workflows" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            </Link>
+            <Link href="/workflows" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <GitBranch size={20} />
               <span>Workflows</span>
-            </AdminFullPageLink>
+            </Link>
           </>
         )}
       </nav>
-      
+
       <div className="mt-auto pt-4 border-t border-slate-800">
-        <button 
-          onClick={() => signOut()} 
+        <button
+          onClick={() => signOut()}
           className="flex items-center space-x-3 p-3 w-full rounded hover:bg-rose-900/50 text-rose-400 transition"
         >
           <LogOut size={20} />

@@ -6,6 +6,14 @@ export default withAuth(
     const token = req.nextauth.token
     const path = req.nextUrl.pathname
 
+    // Admin: la app “principal” es el CRM (HTML estático /crm.html), sin iframe.
+    if (path === "/" && token?.role === "ADMIN") {
+      return NextResponse.redirect(new URL("/crm.html", req.url))
+    }
+    if (path === "/crm.html" && token && token.role !== "ADMIN") {
+      return NextResponse.redirect(new URL("/", req.url))
+    }
+
     // Rutas solo para ADMIN
     const adminRoutes = [
       "/members",
@@ -16,6 +24,7 @@ export default withAuth(
       "/reports",
       "/workflows",
       "/crm",
+      "/crm.html",
       "/admin-overview",
     ]
     

@@ -14,19 +14,7 @@ export default async function Dashboard() {
     redirect('/login')
   }
 
-  const isAdmin = session.user.role === 'ADMIN'
-
-  /** Raíz del sitio: CRM como “index” para administradores (misma URL /). */
-  if (isAdmin) {
-    return (
-      <iframe
-        src="/crm.html"
-        title="Furvoley CRM"
-        className="fixed inset-0 z-0 border-0 w-full min-h-[100dvh]"
-      />
-    )
-  }
-
+  // Los ADMIN en "/" son redirigidos a /crm.html por middleware (HTML del CRM solo, sin React).
   // PLAYER / COACH DASHBOARD
   const userMember = await prisma.member.findUnique({
     where: { id: session.user?.memberId || '' },
