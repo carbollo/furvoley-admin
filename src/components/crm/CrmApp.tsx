@@ -454,6 +454,17 @@ function Socios() {
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterDeporte, setFilterDeporte] = useState('Todos');
   const [selected, setSelected] = useState(null);
+  const [showInscripcion, setShowInscripcion] = useState(false);
+  const [inscripcionBusy, setInscripcionBusy] = useState(false);
+  const [formInscripcion, setFormInscripcion] = useState({
+    nombre: '',
+    apellidos: '',
+    dni: '',
+    email: '',
+    domicilio: '',
+    deporte: '',
+    fechaAlta: new Date().toISOString().slice(0, 10),
+  });
 
   const filtered = SOCIOS_UI.filter(s =>
     (s.nombre.toLowerCase().includes(search.toLowerCase()) || (s.email||'').toLowerCase().includes(search.toLowerCase())) &&
@@ -464,22 +475,70 @@ function Socios() {
   const deportes = ['Todos', ...new Set(SOCIOS_UI.map(s => s.deporte))];
   const estados = ['Todos', 'Activo', 'Moroso', 'Inactivo'];
 
-  async function nuevoSocio() {
-    const name = window.prompt('Nombre del socio');
-    if (!name || !String(name).trim()) return;
-    const email = window.prompt('Email (opcional)', '') || '';
-    const r = await fetch('/api/crm/members', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: String(name).trim(), email: email.trim() || undefined }),
+  function abrirFormularioInscripcion() {
+    setFormInscripcion({
+      nombre: '',
+      apellidos: '',
+      dni: '',
+      email: '',
+      domicilio: '',
+      deporte: '',
+      fechaAlta: new Date().toISOString().slice(0, 10),
     });
-    if (!r.ok) {
-      try { alert((await r.json()).error || 'Error'); } catch { alert('No se pudo crear'); }
+    setShowInscripcion(true);
+  }
+
+  async function enviarInscripcion(e) {
+    e.preventDefault();
+    if (!formInscripcion.nombre.trim() || !formInscripcion.apellidos.trim()) {
+      alert('Nombre y apellidos son obligatorios.');
       return;
     }
-    await reload();
+    setInscripcionBusy(true);
+    try {
+      const r = await fetch('/api/crm/members', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: formInscripcion.nombre.trim(),
+          lastName: formInscripcion.apellidos.trim(),
+          dni: formInscripcion.dni.trim() || undefined,
+          email: formInscripcion.email.trim() || undefined,
+          address: formInscripcion.domicilio.trim() || undefined,
+          sportPreference: formInscripcion.deporte.trim() || undefined,
+          joinedAt: formInscripcion.fechaAlta || undefined,
+        }),
+      });
+      if (!r.ok) {
+        try {
+          const j = await r.json();
+          alert(j.error || 'Error al guardar');
+        } catch {
+          alert('No se pudo crear el socio');
+        }
+        return;
+      }
+      setShowInscripcion(false);
+      await reload();
+    } finally {
+      setInscripcionBusy(false);
+    }
   }
+
+  const insLabel = { fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 6, display: 'block', letterSpacing: 0.3 };
+  const insInput = {
+    width: '100%',
+    padding: '11px 14px',
+    borderRadius: 10,
+    border: '1px solid #334155',
+    background: '#1e293b',
+    color: '#f1f5f9',
+    fontFamily: 'inherit',
+    fontSize: 14,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
 
   async function guardarEdicionSocio() {
     if (!selected) return;
@@ -523,7 +582,7 @@ function Socios() {
           <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Socios</h1>
           <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>{SOCIOS_UI.length} socios registrados</p>
         </div>
-        <button type="button" onClick={nuevoSocio} style={{
+        <button type="button" onClick={abrirFormularioInscripcion} style={{
           display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
           borderRadius:12,border:'none',cursor:'pointer',
           background:'var(--accent)',color:'#fff',
@@ -568,7 +627,7 @@ function Socios() {
         <table style={{width:'100%',borderCollapse:'collapse'}}>
           <thead>
             <tr style={{borderBottom:'1px solid var(--border)'}}>
-              {['Socio','Deporte','Categoría','Cuota','Vencimiento','Estado',''].map(h => (
+              {['Socio','DNI','Deporte','Categoría','Cuota','Vencimiento','Estado',''].map(h => (
                 <th key={h} style={{
                   padding:'14px 16px',textAlign:'left',fontSize:12,
                   fontWeight:600,color:'#6b7280',textTransform:'uppercase',letterSpacing:0.5
@@ -592,6 +651,7 @@ function Socios() {
                     </div>
                   </div>
                 </td>
+                <td style={{padding:'14px 16px',fontSize:13,color:'#475569'}}>{s.dni || '—'}</td>
                 <td style={{padding:'14px 16px',fontSize:14,color:'#374151'}}>{s.deporte}</td>
                 <td style={{padding:'14px 16px',fontSize:14,color:'#374151'}}>{s.categoria}</td>
                 <td style={{padding:'14px 16px',fontSize:14,fontWeight:600,color:'#111827'}}>{fmtMoney(s.cuota)}</td>
@@ -624,8 +684,19 @@ function Socios() {
             <div style={{fontSize:13,color:'#6b7280'}}>{selected.email}</div>
             <Badge status={selected.estado}/>
           </div>
-          {[['Deporte',selected.deporte],['Categoría',selected.categoria],['Cuota mensual', fmtMoney(selected.cuota)],['Próximo vencimiento',new Date(selected.vencimiento).toLocaleDateString('es-AR')], ['Factura pendiente', selected.pendingInvoiceId ? fmtMoney(selected.pendingInvoiceAmount || 0) : 'Ninguna']].map(([k,v])=>(
-            <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
+          {[
+            ['DNI', selected.dni || '—'],
+            ['Domicilio', selected.domicilio || '—'],
+            ['Deporte (inscripción)', selected.deporteInscripcion || '—'],
+            ['Equipo asignado', selected.equipoNombre || '—'],
+            ['Fecha de alta', selected.fechaAlta ? new Date(selected.fechaAlta).toLocaleDateString('es-AR') : '—'],
+            ['Deporte', selected.deporte],
+            ['Categoría', selected.categoria],
+            ['Cuota mensual', fmtMoney(selected.cuota)],
+            ['Próximo vencimiento', new Date(selected.vencimiento).toLocaleDateString('es-AR')],
+            ['Factura pendiente', selected.pendingInvoiceId ? fmtMoney(selected.pendingInvoiceAmount || 0) : 'Ninguna'],
+          ].map(([k, v], idx) => (
+            <div key={idx + String(k)} style={{display:'flex',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
               <span style={{fontSize:13,color:'#6b7280'}}>{k}</span>
               <span style={{fontSize:13,fontWeight:600,color:'#111827'}}>{v}</span>
             </div>
@@ -634,6 +705,158 @@ function Socios() {
             <button type="button" onClick={guardarEdicionSocio} style={{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#374151'}}>Editar datos</button>
             <button type="button" onClick={registrarPagoSocio} style={{flex:1,padding:'10px',borderRadius:12,border:'none',background:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#fff'}}>Registrar Pago</button>
           </div>
+        </div>
+      )}
+      {showInscripcion && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 300,
+            background: 'rgba(15,23,42,0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+          onClick={() => !inscripcionBusy && setShowInscripcion(false)}
+        >
+          <form
+            onSubmit={enviarInscripcion}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              background: '#111827',
+              border: '1px solid #334155',
+              borderRadius: 16,
+              padding: 28,
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.45)',
+            }}
+          >
+            <div style={{ marginBottom: 22 }}>
+              <h2 style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#f8fafc', letterSpacing: -0.3 }}>
+                Inscripción de socio
+              </h2>
+              <p style={{ margin: 0, fontSize: 13, color: '#94a3b8', lineHeight: 1.5 }}>
+                Completa los datos aquí mismo (sin pop-ups del navegador).
+              </p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={insLabel}>Nombre *</label>
+                <input
+                  required
+                  value={formInscripcion.nombre}
+                  onChange={(e) => setFormInscripcion((p) => ({ ...p, nombre: e.target.value }))}
+                  placeholder="Ej. María"
+                  style={insInput}
+                  autoComplete="given-name"
+                />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={insLabel}>Apellidos *</label>
+                <input
+                  required
+                  value={formInscripcion.apellidos}
+                  onChange={(e) => setFormInscripcion((p) => ({ ...p, apellidos: e.target.value }))}
+                  placeholder="Ej. García López"
+                  style={insInput}
+                  autoComplete="family-name"
+                />
+              </div>
+              <div>
+                <label style={insLabel}>DNI</label>
+                <input
+                  value={formInscripcion.dni}
+                  onChange={(e) => setFormInscripcion((p) => ({ ...p, dni: e.target.value }))}
+                  placeholder="12345678A"
+                  style={insInput}
+                />
+              </div>
+              <div>
+                <label style={insLabel}>Fecha de alta</label>
+                <input
+                  type="date"
+                  value={formInscripcion.fechaAlta}
+                  onChange={(e) => setFormInscripcion((p) => ({ ...p, fechaAlta: e.target.value }))}
+                  style={insInput}
+                />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={insLabel}>Correo electrónico</label>
+                <input
+                  type="email"
+                  value={formInscripcion.email}
+                  onChange={(e) => setFormInscripcion((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="nombre@ejemplo.com"
+                  style={insInput}
+                  autoComplete="email"
+                />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={insLabel}>Domicilio</label>
+                <input
+                  value={formInscripcion.domicilio}
+                  onChange={(e) => setFormInscripcion((p) => ({ ...p, domicilio: e.target.value }))}
+                  placeholder="Calle, número, localidad…"
+                  style={insInput}
+                  autoComplete="street-address"
+                />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={insLabel}>Deporte a inscribirse</label>
+                <input
+                  value={formInscripcion.deporte}
+                  onChange={(e) => setFormInscripcion((p) => ({ ...p, deporte: e.target.value }))}
+                  placeholder="Ej. Voleibol, multideporte…"
+                  style={insInput}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+              <button
+                type="button"
+                disabled={inscripcionBusy}
+                onClick={() => setShowInscripcion(false)}
+                style={{
+                  padding: '11px 20px',
+                  borderRadius: 10,
+                  border: '1px solid #475569',
+                  background: 'transparent',
+                  color: '#cbd5e1',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontWeight: 600,
+                  fontSize: 14,
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={inscripcionBusy}
+                style={{
+                  padding: '11px 22px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: 'linear-gradient(135deg,#6366f1,#a78bfa)',
+                  color: '#fff',
+                  cursor: inscripcionBusy ? 'wait' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  opacity: inscripcionBusy ? 0.8 : 1,
+                }}
+              >
+                {inscripcionBusy ? 'Guardando…' : 'Guardar inscripción'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

@@ -12,9 +12,17 @@ export async function createMember(data: {
   email?: string
   phone?: string
   address?: string
+  sportPreference?: string
+  joinedAt?: Date
   status?: string
 }) {
-  const member = await prisma.member.create({ data })
+  const { joinedAt, ...rest } = data
+  const member = await prisma.member.create({
+    data: {
+      ...rest,
+      ...(joinedAt !== undefined ? { joinedAt } : {}),
+    },
+  })
   await runMemberCreatedWorkflows(member.id)
   revalidatePath('/members')
   return member
@@ -29,6 +37,7 @@ export async function updateMember(
     email?: string
     phone?: string
     address?: string
+    sportPreference?: string | null
     status?: string
   },
 ) {

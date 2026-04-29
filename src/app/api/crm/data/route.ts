@@ -183,11 +183,19 @@ export async function GET() {
       }
     }
 
+    const deporteMostrar =
+      m.sportPreference?.trim() || team?.name || 'Club'
+
     return {
       id: m.id,
       nombre: m.name,
       email: m.email || '',
-      deporte: team?.name ?? 'Club',
+      dni: m.dni ?? '',
+      domicilio: m.address ?? '',
+      deporteInscripcion: m.sportPreference ?? '',
+      equipoNombre: team?.name ?? '',
+      fechaAlta: m.joinedAt.toISOString().slice(0, 10),
+      deporte: deporteMostrar,
       categoria: team?.category ?? '—',
       estado: estadoUi,
       cuota: sub?.plan?.amount ?? 0,
