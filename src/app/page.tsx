@@ -4,17 +4,27 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
+import CrmApp from '@/components/crm/CrmApp'
 
 export const dynamic = 'force-dynamic'
 
-export default async function Dashboard() {
+export default async function HomePage() {
   const session = await getServerSession(authOptions)
 
   if (!session) {
     redirect('/login')
   }
 
-  // Socios/coach: admins abren el CRM en /crm desde el menú lateral.
+  const role = (session.user as { role?: string }).role
+  if (role === 'ADMIN') {
+    return (
+      <Suspense fallback={<div className="p-8 text-slate-600">Cargando CRM…</div>}>
+        <CrmApp />
+      </Suspense>
+    )
+  }
+
   const userMember = await prisma.member.findUnique({
     where: { id: session.user?.memberId || '' },
     include: {

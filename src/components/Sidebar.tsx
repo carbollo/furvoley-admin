@@ -34,9 +34,8 @@ export function Sidebar() {
 
   const isAdmin = session?.user?.role === 'ADMIN'
 
-  /** Rutas CRM: interfaz única en /crm (bundled en Next.js; sin crm.html en borde ni redirección extra). */
-  const crmTab = (s: string) => `/crm?tab=${encodeURIComponent(s)}`
-
+  /** CRM en la URL base (/), secciones con ?tab= */
+  const crmTab = (s: string) => `/?tab=${encodeURIComponent(s)}`
 
   return (
     <div className="w-64 bg-slate-900 text-white min-h-screen p-4 flex flex-col">

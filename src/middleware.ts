@@ -6,11 +6,13 @@ export default withAuth(
     const token = req.nextauth.token
     const path = req.nextUrl.pathname
 
-    if (path === "/crm" && token && token.role !== "ADMIN") {
-      return NextResponse.redirect(new URL("/", req.url))
+    if (path === "/crm" || path === "/crm.html") {
+      const dest = new URL(req.url)
+      dest.pathname = "/"
+      return NextResponse.redirect(dest)
     }
 
-    // Rutas solo para ADMIN
+    // Rutas solo para ADMIN (no incluye / ; admin + socios/comparten la raíz)
     const adminRoutes = [
       "/members",
       "/payments",
@@ -19,7 +21,6 @@ export default withAuth(
       "/billing",
       "/reports",
       "/workflows",
-      "/crm",
       "/admin-overview",
     ]
 
@@ -29,7 +30,6 @@ export default withAuth(
       }
     }
 
-    // Gestión de eventos: /events (lista), /events/new, /events/:id/edit
     const isEventsAdmin =
       path === "/events" ||
       path.startsWith("/events/new") ||

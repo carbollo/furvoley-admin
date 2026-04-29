@@ -1,6 +1,8 @@
 // @ts-nocheck
 'use client'
 
+import './crm-vars.css'
+import { Plus_Jakarta_Sans } from 'next/font/google'
 import React, {
   useState,
   useEffect,
@@ -33,7 +35,7 @@ function CrmProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(async () => {
     const r = await fetch('/api/crm/data', { credentials: 'include' });
     if (r.status === 401) {
-      window.location.href = '/login?callbackUrl=' + encodeURIComponent('/crm');
+      window.location.href = '/login?callbackUrl=' + encodeURIComponent('/');
       throw new Error('Unauthorized');
     }
     if (!r.ok) throw new Error('No se pudieron cargar los datos');
@@ -1233,14 +1235,14 @@ function CrmInner() {
   useEffect(() => {
     const t = searchParams.get('tab')
     if (!t || !CRM_SECTION_IDS.includes(t as SectionId)) {
-      router.replace('/crm?tab=dashboard', { scroll: false })
+      router.replace('/?tab=dashboard', { scroll: false })
     }
   }, [router, searchParams])
 
   const setActive = useCallback(
     (id: string) => {
       if (!CRM_SECTION_IDS.includes(id as SectionId)) return
-      router.replace(`/crm?tab=${encodeURIComponent(id)}`, { scroll: false })
+      router.replace(`/?tab=${encodeURIComponent(id)}`, { scroll: false })
     },
     [router]
   )
@@ -1301,10 +1303,19 @@ function CrmInner() {
   );
 }
 
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+})
+
 export default function CrmApp() {
   return (
-    <CrmProvider>
-      <CrmInner />
-    </CrmProvider>
+    <div
+      className={`${plusJakarta.className} min-h-screen w-full bg-[#F8F7F5] text-[#1a1a1a]`}
+    >
+      <CrmProvider>
+        <CrmInner />
+      </CrmProvider>
+    </div>
   )
 }
