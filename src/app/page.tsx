@@ -14,8 +14,7 @@ export default async function Dashboard() {
     redirect('/login')
   }
 
-  // Los ADMIN en "/" son redirigidos a /crm.html por middleware (HTML del CRM solo, sin React).
-  // PLAYER / COACH DASHBOARD
+  // Socios/coach: admins abren el CRM en /crm desde el menú lateral.
   const userMember = await prisma.member.findUnique({
     where: { id: session.user?.memberId || '' },
     include: {

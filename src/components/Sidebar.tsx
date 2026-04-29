@@ -14,32 +14,11 @@ function isAccountingSectionPath(path: string) {
   )
 }
 
-/** Sección activa dentro de /crm.html (SPA), para resaltar el ítem del menú. */
-function useCrmSectionHash() {
-  const pathname = usePathname()
-  const [section, setSection] = useState<string>(() => {
-    if (typeof window === 'undefined' || pathname !== '/crm.html') return ''
-    return window.location.hash.replace(/^#\/?/, '').toLowerCase() || 'dashboard'
-  })
-  useEffect(() => {
-    if (pathname !== '/crm.html') {
-      setSection('')
-      return
-    }
-    const sync = () =>
-      setSection(window.location.hash.replace(/^#\/?/, '').toLowerCase() || 'dashboard')
-    sync()
-    window.addEventListener('hashchange', sync)
-    return () => window.removeEventListener('hashchange', sync)
-  }, [pathname])
-  return pathname === '/crm.html' ? section : ''
-}
 
 export function Sidebar() {
   const pathname = usePathname()
-  const crmSection = useCrmSectionHash()
   const { data: session } = useSession()
-  const [accountingOpen, setAccountingOpen] = useState(() => isAccountingSectionPath(pathname))
+  const [accountingOpen, setAccountingOpen] = useState(() => isAccountingSectionPath(pathname ?? ''))
 
   useEffect(() => {
     if (isAccountingSectionPath(pathname)) {
@@ -53,9 +32,11 @@ export function Sidebar() {
   if (pathname === '/login' || isJoinRoute) return null
   if (isPublicEventShare && !session) return null
 
-  /** /crm.html es HTML estático: no monta este layout; no hay que ocultar nada aquí. */
   const isAdmin = session?.user?.role === 'ADMIN'
-  const crm = (s: string) => `/crm.html#${s}`
+
+  /** Rutas CRM: interfaz única en /crm (bundled en Next.js; sin crm.html en borde ni redirección extra). */
+  const crmTab = (s: string) => `/crm?tab=${encodeURIComponent(s)}`
+
 
   return (
     <div className="w-64 bg-slate-900 text-white min-h-screen p-4 flex flex-col">
@@ -72,13 +53,8 @@ export function Sidebar() {
       <nav className="flex-1 space-y-2">
         {isAdmin ? (
           <Link
-            href={crm('dashboard')}
-            className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
-              pathname === '/crm.html' &&
-              (crmSection === '' || crmSection === 'dashboard')
-                ? 'bg-slate-800'
-                : ''
-            }`}
+            href={crmTab('dashboard')}
+            className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition"
           >
             <Home size={20} />
             <span>Inicio (CRM)</span>
@@ -91,10 +67,8 @@ export function Sidebar() {
         )}
         {isAdmin ? (
           <Link
-            href={crm('calendario')}
-            className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
-              pathname === '/crm.html' && crmSection === 'calendario' ? 'bg-slate-800' : ''
-            }`}
+            href={crmTab('calendario')}
+            className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition"
           >
             <Calendar size={20} />
             <span>Calendario</span>
@@ -118,28 +92,22 @@ export function Sidebar() {
               CRM (misma interfaz)
             </div>
             <Link
-              href={crm('equipos')}
-              className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
-                pathname === '/crm.html' && crmSection === 'equipos' ? 'bg-slate-800' : ''
-              }`}
+              href={crmTab('equipos')}
+              className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition"
             >
               <Users size={20} />
               <span>Equipos</span>
             </Link>
             <Link
-              href={crm('socios')}
-              className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
-                pathname === '/crm.html' && crmSection === 'socios' ? 'bg-slate-800' : ''
-              }`}
+              href={crmTab('socios')}
+              className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition"
             >
               <Users size={20} />
               <span>Socios</span>
             </Link>
             <Link
-              href={crm('cobros')}
-              className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
-                pathname === '/crm.html' && crmSection === 'cobros' ? 'bg-slate-800' : ''
-              }`}
+              href={crmTab('cobros')}
+              className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition"
             >
               <CreditCard size={20} />
               <span>Cobros / facturas</span>
@@ -199,19 +167,15 @@ export function Sidebar() {
               )}
             </div>
             <Link
-              href={crm('informes')}
-              className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
-                pathname === '/crm.html' && crmSection === 'informes' ? 'bg-slate-800' : ''
-              }`}
+              href={crmTab('informes')}
+              className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition"
             >
               <FileText size={20} />
               <span>Informes</span>
             </Link>
             <Link
-              href={crm('workflows')}
-              className={`flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition ${
-                pathname === '/crm.html' && crmSection === 'workflows' ? 'bg-slate-800' : ''
-              }`}
+              href={crmTab('workflows')}
+              className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition"
             >
               <GitBranch size={20} />
               <span>Workflows</span>
