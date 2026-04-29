@@ -29,10 +29,10 @@ export async function POST(request: Request) {
 
   const first = String(body.firstName || '').trim()
   const last = String(body.lastName || '').trim()
-  const legacyName = String(body.name || '').trim()
+  const fullNameDirect = String(body.name || '').trim()
 
   const combined =
-    legacyName ||
+    fullNameDirect ||
     ([first, last].filter(Boolean).join(' ').trim() || '')
 
   if (!combined) {

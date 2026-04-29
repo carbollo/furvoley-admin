@@ -24,7 +24,7 @@ export async function createMember(data: {
     },
   })
   await runMemberCreatedWorkflows(member.id)
-  revalidatePath('/members')
+  revalidatePath('/')
   return member
 }
 
@@ -42,13 +42,8 @@ export async function updateMember(
   },
 ) {
   const member = await prisma.member.update({ where: { id }, data })
-  revalidatePath('/members')
+  revalidatePath('/')
   return member
-}
-
-export async function deleteMember(id: string) {
-  await prisma.member.delete({ where: { id } })
-  revalidatePath('/members')
 }
 
 export async function sendWhatsAppPaymentReminders() {
@@ -145,14 +140,14 @@ export async function sendWhatsAppPaymentReminders() {
     }
   }
 
-  revalidatePath('/members')
+  revalidatePath('/')
   return { sent, failed, skippedNoPhone, totalMembersInDebt: byMember.size }
 }
 
 // PAYMENTS
 export async function createPayment(data: { memberId: string; amount: number; month: number; year: number; status?: string }) {
   const payment = await prisma.payment.create({ data })
-  revalidatePath('/payments')
+  revalidatePath('/')
   return payment
 }
 
@@ -186,8 +181,8 @@ export async function generateStripeLink(paymentId: string) {
       },
     ],
     mode: 'payment',
-    success_url: `${appUrl}/payments?success=true`,
-    cancel_url: `${appUrl}/payments?canceled=true`,
+    success_url: `${appUrl}/?tab=cobros&stripeSuccess=1`,
+    cancel_url: `${appUrl}/?tab=cobros&stripeCanceled=1`,
     client_reference_id: payment.id,
   })
 
@@ -199,7 +194,7 @@ export async function generateStripeLink(paymentId: string) {
     }
   })
 
-  revalidatePath('/payments')
+  revalidatePath('/')
   return session.url
 }
 
@@ -211,7 +206,7 @@ export async function updatePaymentStatus(id: string, status: string) {
       paidAt: status === 'PAID' ? new Date() : null
     }
   })
-  revalidatePath('/payments')
+  revalidatePath('/')
 }
 
 // TRANSACTIONS

@@ -1,6 +1,8 @@
 // @ts-nocheck
 'use client'
 
+import { InviteLinkButton } from './InviteLinkButton'
+import { PaymentReminderButton } from './PaymentReminderButton'
 import './crm-vars.css'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import React, {
@@ -577,19 +579,23 @@ function Socios() {
 
   return (
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
         <div>
           <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Socios</h1>
           <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>{SOCIOS_UI.length} socios registrados</p>
         </div>
-        <button type="button" onClick={abrirFormularioInscripcion} style={{
+        <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',gap:12}}>
+          <InviteLinkButton />
+          <PaymentReminderButton />
+          <button type="button" onClick={abrirFormularioInscripcion} style={{
           display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
           borderRadius:12,border:'none',cursor:'pointer',
           background:'var(--accent)',color:'#fff',
           fontFamily:'inherit',fontSize:14,fontWeight:600
         }}>
           <Icon name="plus" size={15}/>Nuevo Socio
-        </button>
+          </button>
+        </div>
       </div>
       {/* Filters */}
       <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>

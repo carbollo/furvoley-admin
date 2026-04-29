@@ -22,6 +22,7 @@ export function InviteLinkButton() {
   return (
     <div className="flex items-center gap-2">
       <button
+        type="button"
         onClick={generate}
         disabled={pending}
         className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition disabled:opacity-60"
@@ -36,6 +37,7 @@ export function InviteLinkButton() {
       )}
       {lastLink && !copied && (
         <button
+          type="button"
           onClick={async () => {
             await navigator.clipboard.writeText(lastLink)
             setCopied(true)
@@ -49,4 +51,3 @@ export function InviteLinkButton() {
     </div>
   )
 }
-

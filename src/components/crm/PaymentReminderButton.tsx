@@ -12,6 +12,7 @@ export function PaymentReminderButton() {
   return (
     <div className="flex flex-col items-end gap-2">
       <button
+        type="button"
         onClick={() =>
           startTransition(async () => {
             setResultMessage(null)
@@ -37,4 +38,3 @@ export function PaymentReminderButton() {
     </div>
   )
 }
-

@@ -34,7 +34,7 @@ export async function createSignupLink(expiresInDays = 30) {
     },
   })
 
-  revalidatePath('/members')
+  revalidatePath('/')
   return {
     token: link.token,
     url: await buildSignupUrl(link.token),
