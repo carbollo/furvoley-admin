@@ -66,9 +66,9 @@ export function Sidebar() {
             <div className="pt-4 pb-2 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Administración
             </div>
-            <Link href="/crm.html" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Link href="/" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <LayoutDashboard size={20} />
-              <span>CRM (vista nueva)</span>
+              <span>CRM (inicio)</span>
             </Link>
             <Link href="/events" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
               <Ticket size={20} />

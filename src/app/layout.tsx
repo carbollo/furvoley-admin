@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Sidebar } from "@/components/Sidebar";
 import Providers from "./providers";
+import RootShell from "./RootShell";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,10 +20,7 @@ export default function RootLayout({
     <html lang="es">
       <body className={`${inter.className} bg-slate-50 text-slate-900 flex`}>
         <Providers>
-          <Sidebar />
-          <main className="flex-1 p-8 overflow-y-auto h-screen">
-            {children}
-          </main>
+          <RootShell>{children}</RootShell>
         </Providers>
       </body>
     </html>

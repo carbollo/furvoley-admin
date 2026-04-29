@@ -7,7 +7,17 @@ export default withAuth(
     const path = req.nextUrl.pathname
 
     // Rutas solo para ADMIN
-    const adminRoutes = ["/members", "/payments", "/accounting", "/teams", "/billing", "/reports", "/workflows", "/crm"]
+    const adminRoutes = [
+      "/members",
+      "/payments",
+      "/accounting",
+      "/teams",
+      "/billing",
+      "/reports",
+      "/workflows",
+      "/crm",
+      "/admin-overview",
+    ]
     
     if (adminRoutes.some(route => path.startsWith(route))) {
       if (token?.role !== "ADMIN") {
