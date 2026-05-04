@@ -27,7 +27,8 @@ import {
 } from '@/lib/crm-workflow-triggers'
 import {
   WORKFLOW_START_ID,
-  WORKFLOW_EDGE_UI,
+  WORKFLOW_EDGE_DEFAULTS,
+  WORKFLOW_EDGE_TYPE,
   emptyFlow,
   flowToPasos,
   newWorkflowNode,
@@ -35,6 +36,7 @@ import {
   stepsToFlowNodes,
   type WorkflowNodeData,
 } from './workflow-graph'
+import { WorkflowDeletableEdge } from './WorkflowDeletableEdge'
 
 const ACCIONES = [
   { value: 'ASSIGN_TEAM', label: 'Asignar a un equipo' },
@@ -223,6 +225,8 @@ const WorkflowStepNode = memo(function WorkflowStepNode({ id, data, selected }: 
 
 const nodeTypes = { workflowTrigger: WorkflowTriggerNode, workflowStep: WorkflowStepNode }
 
+const edgeTypes = { [WORKFLOW_EDGE_TYPE]: WorkflowDeletableEdge }
+
 type BundleEquip = { id: string; nombre: string }
 
 export type WorkflowEditorInitialPaso = {
@@ -395,7 +399,7 @@ function WorkflowFlowEditorInner({
   )
 
   const defaultEdgeOptions = useMemo(
-    () => ({ ...WORKFLOW_EDGE_UI }) satisfies Partial<Edge>,
+    () => ({ ...WORKFLOW_EDGE_DEFAULTS }) satisfies Partial<Edge>,
     [],
   )
 
@@ -405,7 +409,7 @@ function WorkflowFlowEditorInner({
         addEdge(
           {
             ...params,
-            ...WORKFLOW_EDGE_UI,
+            ...WORKFLOW_EDGE_DEFAULTS,
             style: { stroke: 'var(--accent, #6366f1)', strokeWidth: 2 },
             animated: true,
           },
@@ -587,9 +591,9 @@ function WorkflowFlowEditorInner({
               {editingId ? 'Editar flujo' : 'Nuevo flujo'}
             </h2>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
-              Arrastra pasos; el disparador no se mueve. Quitar una conexión: selecciona la línea (clic) y Supr o
-              Retroceso; doble clic en la línea; o Alt+clic. Clic en el disparador o en un paso para configurar a la
-              derecha.
+              Arrastra pasos; el disparador no se mueve. En cada conexión hay un botón × en el centro del cable para
+              quitarla. También: Supr/Retroceso con la línea seleccionada, doble clic o Alt+clic. Configuración: clic en
+              disparador o paso a la derecha.
             </p>
           </div>
           <button
@@ -624,6 +628,7 @@ function WorkflowFlowEditorInner({
               isValidConnection={isValidConnection}
               onSelectionChange={onSelectionChange}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
               defaultEdgeOptions={defaultEdgeOptions}
               elevateEdgesOnSelect
               zoomOnDoubleClick={false}

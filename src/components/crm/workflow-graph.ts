@@ -1,8 +1,11 @@
 import type { Edge, Node } from '@xyflow/react'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
 
-/** En cada Edge: sin `deletable: true`, React Flow no borra el «cable» con Supr. */
-export const WORKFLOW_EDGE_UI: Pick<Edge, 'selectable' | 'deletable' | 'focusable' | 'interactionWidth'> = {
+/** Props comunes a todas las aristas del editor (incluye tipo React Flow para el componente con botón ×). */
+export const WORKFLOW_EDGE_TYPE = 'workflowDeletable' as const
+
+export const WORKFLOW_EDGE_DEFAULTS: Partial<Edge> = {
+  type: WORKFLOW_EDGE_TYPE,
   selectable: true,
   deletable: true,
   focusable: true,
@@ -141,7 +144,7 @@ export function stepsToFlowNodes(
       target: firstKey,
       sourceHandle: 'out',
       targetHandle: 'in',
-      ...WORKFLOW_EDGE_UI,
+      ...WORKFLOW_EDGE_DEFAULTS,
     })
   }
 
@@ -159,7 +162,7 @@ export function stepsToFlowNodes(
           target: thenK,
           sourceHandle: 'then',
           targetHandle: 'in',
-          ...WORKFLOW_EDGE_UI,
+          ...WORKFLOW_EDGE_DEFAULTS,
         })
       }
       if (elseK) {
@@ -169,7 +172,7 @@ export function stepsToFlowNodes(
           target: elseK,
           sourceHandle: 'else',
           targetHandle: 'in',
-          ...WORKFLOW_EDGE_UI,
+          ...WORKFLOW_EDGE_DEFAULTS,
         })
       }
     } else if (i < sorted.length - 1) {
@@ -181,7 +184,7 @@ export function stepsToFlowNodes(
         target: nextId,
         sourceHandle: 'next',
         targetHandle: 'in',
-        ...WORKFLOW_EDGE_UI,
+        ...WORKFLOW_EDGE_DEFAULTS,
       })
     }
   })
