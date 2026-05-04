@@ -1,38 +1,8 @@
 'use client'
 
-import { useCallback, useState, type CSSProperties, type FormEvent } from 'react'
-import { Zap, Plus, X } from 'lucide-react'
-
-type PasoForm = {
-  stepType: string
-  actionType: string
-  config: Record<string, unknown>
-}
-
-function defaultStepConfig(actionType: string): Record<string, unknown> {
-  switch (actionType) {
-    case 'ASSIGN_TEAM':
-      return { teamId: '' }
-    case 'ASSIGN_TEAM_BY_AGE':
-      return { teamId: '', minAge: '', maxAge: '' }
-    case 'SET_MEMBER_STATUS':
-      return { targetStatus: 'ACTIVE' }
-    case 'CREATE_PAYMENT':
-      return { amount: '', monthOffset: '0', paymentStatus: 'PENDING' }
-    case 'HTTP_REQUEST':
-      return { httpUrl: '', httpMethod: 'POST', httpBody: '', httpHeaders: '' }
-    case 'BRANCH_IF':
-      return {
-        ifField: 'member.age',
-        ifOperator: 'gte',
-        ifValue: '',
-        thenTargetKey: '',
-        elseTargetKey: '',
-      }
-    default:
-      return {}
-  }
-}
+import { useCallback, useState } from 'react'
+import { Zap, Plus } from 'lucide-react'
+import { WorkflowFlowEditor, type WorkflowEditorInitialPaso } from './WorkflowFlowEditor'
 
 function etiquetaDisparador(t: string) {
   const m: Record<string, string> = { MEMBER_CREATED: 'Alta de socio' }
@@ -66,63 +36,6 @@ function resumenPrimerPaso(
   }
 }
 
-function prepararConfigParaApi(actionType: string, raw: Record<string, unknown>) {
-  const o = { ...raw }
-  if (actionType === 'CREATE_PAYMENT') {
-    if (o.amount !== '' && o.amount != null) {
-      const n = Number(o.amount)
-      if (!Number.isFinite(n) || n <= 0) delete o.amount
-      else o.amount = n
-    }
-    if (o.monthOffset !== '' && o.monthOffset != null) {
-      const n = Math.trunc(Number(o.monthOffset))
-      if (Number.isFinite(n)) o.monthOffset = String(n)
-    }
-  }
-  if (actionType === 'ASSIGN_TEAM_BY_AGE') {
-    if (o.minAge !== '' && o.minAge != null) {
-      const n = Number(o.minAge)
-      if (Number.isFinite(n)) o.minAge = String(n)
-    }
-    if (o.maxAge !== '' && o.maxAge != null) {
-      const n = Number(o.maxAge)
-      if (Number.isFinite(n)) o.maxAge = String(n)
-    }
-  }
-  Object.keys(o).forEach((k) => {
-    if (o[k] === '') delete o[k]
-  })
-  return o
-}
-
-const ACCIONES = [
-  { value: 'ASSIGN_TEAM', label: 'Asignar a un equipo' },
-  { value: 'ASSIGN_TEAM_BY_AGE', label: 'Asignar por rango de edad' },
-  { value: 'SET_MEMBER_STATUS', label: 'Cambiar estado del socio' },
-  { value: 'CREATE_PAYMENT', label: 'Registrar cobro (cuota)' },
-  { value: 'HTTP_REQUEST', label: 'Petición HTTP' },
-  { value: 'BRANCH_IF', label: 'Condición (ramificar)' },
-] as const
-
-const inputBase = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: 10,
-  border: '1px solid rgba(0,0,0,0.09)',
-  fontFamily: 'inherit',
-  fontSize: 14,
-  outline: 'none',
-  boxSizing: 'border-box' as const,
-}
-
-const labelBase = {
-  fontSize: 12,
-  fontWeight: 600 as const,
-  color: '#64748b',
-  marginBottom: 6,
-  display: 'block' as const,
-}
-
 type BundleEquip = { id: string; nombre: string }
 
 export function WorkflowsSection({
@@ -141,10 +54,11 @@ export function WorkflowsSection({
   )
 
   const [editorOpen, setEditorOpen] = useState(false)
+  const [editorSession, setEditorSession] = useState(0)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [nombre, setNombre] = useState('')
-  const [descripcion, setDescripcion] = useState('')
-  const [pasosForm, setPasosForm] = useState<PasoForm[]>([])
+  const [initialNombre, setInitialNombre] = useState('')
+  const [initialDescripcion, setInitialDescripcion] = useState('')
+  const [initialPasos, setInitialPasos] = useState<WorkflowEditorInitialPaso[]>([])
   const [saveBusy, setSaveBusy] = useState(false)
 
   const activos = wfs.filter((w) => w.activo).length
@@ -167,39 +81,27 @@ export function WorkflowsSection({
 
   const openNuevo = () => {
     setEditingId(null)
-    setNombre('')
-    setDescripcion('')
-    setPasosForm([
-      { stepType: 'ACTION', actionType: 'ASSIGN_TEAM', config: defaultStepConfig('ASSIGN_TEAM') },
-    ])
+    setInitialNombre('')
+    setInitialDescripcion('')
+    setInitialPasos([])
+    setEditorSession((s) => s + 1)
     setEditorOpen(true)
   }
 
   const openEditar = (w: Record<string, unknown>) => {
     setEditingId(String(w.id))
-    setNombre(String(w.nombre || ''))
-    setDescripcion(String(w.descripcion || ''))
+    setInitialNombre(String(w.nombre || ''))
+    setInitialDescripcion(String(w.descripcion || ''))
     const pasos = (w.pasos as Record<string, unknown>[]) || []
-    if (pasos.length) {
-      setPasosForm(
-        pasos.map((p) => ({
-          stepType: String(p.stepType || 'ACTION'),
-          actionType: String(p.actionType),
-          config:
-            p.config && typeof p.config === 'object' && !Array.isArray(p.config)
-              ? { ...(p.config as Record<string, unknown>) }
-              : defaultStepConfig(String(p.actionType)),
-        })),
-      )
-    } else {
-      setPasosForm([
-        {
-          stepType: 'ACTION',
-          actionType: 'ASSIGN_TEAM',
-          config: defaultStepConfig('ASSIGN_TEAM'),
-        },
-      ])
-    }
+    setInitialPasos(
+      pasos.map((p, i) => ({
+        position: typeof p.position === 'number' ? p.position : i,
+        stepType: String(p.stepType || 'ACTION'),
+        actionType: String(p.actionType),
+        config: p.config,
+      })),
+    )
+    setEditorSession((s) => s + 1)
     setEditorOpen(true)
   }
 
@@ -219,38 +121,26 @@ export function WorkflowsSection({
     await reload()
   }
 
-  const guardar = async (e: FormEvent) => {
-    e.preventDefault()
-    const n = nombre.trim()
-    if (!n) {
-      alert('El nombre del flujo es obligatorio.')
-      return
-    }
-    if (!pasosForm.length) {
-      alert('Añade al menos un paso.')
-      return
-    }
+  const handleSaveFromEditor = async (payload: {
+    name: string
+    description: string | null
+    steps: Array<{ position: number; stepType: string; actionType: string; config: Record<string, unknown> }>
+  }) => {
     setSaveBusy(true)
     try {
-      const steps = pasosForm.map((p, i) => ({
-        position: i,
-        stepType: p.stepType || 'ACTION',
-        actionType: p.actionType,
-        config: prepararConfigParaApi(p.actionType, p.config),
-      }))
-      const payload = {
-        name: n,
-        description: descripcion.trim() || null,
+      const body = {
+        name: payload.name,
+        description: payload.description,
         triggerType: 'MEMBER_CREATED',
         isActive: true,
-        steps,
+        steps: payload.steps,
       }
       const url = editingId ? `/api/crm/workflows/${editingId}` : '/api/crm/workflows'
       const r = await fetch(url, {
         method: editingId ? 'PATCH' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       })
       if (!r.ok) {
         let msg = 'No se pudo guardar'
@@ -267,49 +157,6 @@ export function WorkflowsSection({
     } finally {
       setSaveBusy(false)
     }
-  }
-
-  const setPasoAction = (idx: number, actionType: string) => {
-    setPasosForm((prev) => {
-      const next = [...prev]
-      const prevKey =
-        next[idx]?.config && typeof next[idx].config === 'object'
-          ? (next[idx].config as Record<string, unknown>).stepKey
-          : undefined
-      next[idx] = {
-        stepType: 'ACTION',
-        actionType,
-        config: {
-          ...defaultStepConfig(actionType),
-          ...(prevKey != null && String(prevKey).trim() !== ''
-            ? { stepKey: String(prevKey) }
-            : {}),
-        },
-      }
-      return next
-    })
-  }
-
-  const patchConfig = (idx: number, patch: Record<string, unknown>) => {
-    setPasosForm((prev) => {
-      const next = [...prev]
-      next[idx] = {
-        ...next[idx],
-        config: { ...next[idx].config, ...patch },
-      }
-      return next
-    })
-  }
-
-  const removePaso = (idx: number) => {
-    setPasosForm((prev) => prev.filter((_, i) => i !== idx))
-  }
-
-  const addPaso = () => {
-    setPasosForm((prev) => [
-      ...prev,
-      { stepType: 'ACTION', actionType: 'ASSIGN_TEAM', config: defaultStepConfig('ASSIGN_TEAM') },
-    ])
   }
 
   return (
@@ -337,7 +184,7 @@ export function WorkflowsSection({
             type="button"
             onClick={() =>
               window.alert(
-                'Cada flujo corre cuando se registra un nuevo socio. Añade pasos en orden: asignar equipo, cambiar estado, avisar por HTTP, etc. Las ramas (Condición) saltan a otros pasos usando la «Clave del paso».',
+                'Cada flujo corre cuando se registra un nuevo socio. Conecta nodos desde Inicio; las ramas salen de «Condición». Puedes arrastrar los pasos y borrar conexiones con la tecla Supr o el menú del lienzo.',
               )
             }
             style={{
@@ -590,412 +437,17 @@ export function WorkflowsSection({
       </div>
 
       {editorOpen && (
-        <div
-          role="presentation"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 400,
-            background: 'rgba(15,23,42,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 20,
-          }}
-          onMouseDown={(e) => {
-            if (e.target !== e.currentTarget || saveBusy) return
-            setEditorOpen(false)
-          }}
-        >
-          <form
-            role="dialog"
-            aria-modal="true"
-            onMouseDown={(e) => e.stopPropagation()}
-            onSubmit={guardar}
-            style={{
-              width: '100%',
-              maxWidth: 520,
-              maxHeight: '92vh',
-              overflowY: 'auto',
-              background: '#fff',
-              borderRadius: 16,
-              border: '1px solid rgba(0,0,0,0.07)',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.28)',
-              padding: 28,
-              fontFamily: 'inherit',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>
-                  {editingId ? 'Editar flujo' : 'Nuevo flujo'}
-                </h2>
-                <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>
-                  Disparador: alta de socio — los pasos se ejecutan en orden.
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={saveBusy}
-                onClick={() => setEditorOpen(false)}
-                style={{
-                  border: 'none',
-                  background: '#f1f5f9',
-                  borderRadius: 10,
-                  width: 36,
-                  height: 36,
-                  cursor: saveBusy ? 'not-allowed' : 'pointer',
-                  color: '#64748b',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelBase}>Nombre del flujo *</label>
-              <input
-                required
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                style={inputBase as CSSProperties}
-                placeholder="Ej. Asignación juveniles"
-              />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelBase}>Descripción (opcional)</label>
-              <textarea
-                value={descripcion}
-                onChange={(e) => setDescripcion(e.target.value)}
-                rows={2}
-                style={{ ...inputBase, minHeight: 64, resize: 'vertical' } as CSSProperties}
-                placeholder="Notas para el equipo administrativo…"
-              />
-            </div>
-
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Pasos</div>
-            {pasosForm.map((p, idx) => (
-              <div
-                key={idx}
-                style={{
-                  border: '1px solid var(--border)',
-                  borderRadius: 12,
-                  padding: 14,
-                  marginBottom: 12,
-                  background: '#fafafa',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>Paso {idx + 1}</span>
-                  {pasosForm.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removePaso(idx)}
-                      style={{
-                        border: 'none',
-                        background: 'none',
-                        color: '#b91c1c',
-                        cursor: 'pointer',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      Quitar paso
-                    </button>
-                  )}
-                </div>
-                <label style={labelBase}>Tipo de acción</label>
-                <select
-                  value={p.actionType}
-                  onChange={(e) => setPasoAction(idx, e.target.value)}
-                  style={{ ...inputBase, cursor: 'pointer' } as CSSProperties}
-                >
-                  {ACCIONES.map((a) => (
-                    <option key={a.value} value={a.value}>
-                      {a.label}
-                    </option>
-                  ))}
-                </select>
-                <label style={{ ...labelBase, marginTop: 12 }}>Clave del paso (opcional, para ramas)</label>
-                <input
-                  value={String(p.config.stepKey ?? '')}
-                  onChange={(e) => patchConfig(idx, { stepKey: e.target.value })}
-                  style={inputBase as CSSProperties}
-                  placeholder="ej. mayor_edad"
-                />
-
-                {p.actionType === 'ASSIGN_TEAM' && (
-                  <>
-                    <label style={{ ...labelBase, marginTop: 12 }}>Equipo</label>
-                    <select
-                      value={String(p.config.teamId ?? '')}
-                      onChange={(e) => patchConfig(idx, { teamId: e.target.value })}
-                      style={{ ...inputBase, cursor: 'pointer' } as CSSProperties}
-                    >
-                      <option value="">— Seleccionar —</option>
-                      {equipos.map((eq) => (
-                        <option key={eq.id} value={eq.id}>
-                          {eq.nombre}
-                        </option>
-                      ))}
-                    </select>
-                  </>
-                )}
-
-                {p.actionType === 'ASSIGN_TEAM_BY_AGE' && (
-                  <>
-                    <label style={{ ...labelBase, marginTop: 12 }}>Equipo</label>
-                    <select
-                      value={String(p.config.teamId ?? '')}
-                      onChange={(e) => patchConfig(idx, { teamId: e.target.value })}
-                      style={{ ...inputBase, cursor: 'pointer' } as CSSProperties}
-                    >
-                      <option value="">— Seleccionar —</option>
-                      {equipos.map((eq) => (
-                        <option key={eq.id} value={eq.id}>
-                          {eq.nombre}
-                        </option>
-                      ))}
-                    </select>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
-                      <div>
-                        <label style={labelBase}>Edad mínima</label>
-                        <input
-                          type="number"
-                          value={String(p.config.minAge ?? '')}
-                          onChange={(e) => patchConfig(idx, { minAge: e.target.value })}
-                          style={inputBase as CSSProperties}
-                          min={0}
-                        />
-                      </div>
-                      <div>
-                        <label style={labelBase}>Edad máxima</label>
-                        <input
-                          type="number"
-                          value={String(p.config.maxAge ?? '')}
-                          onChange={(e) => patchConfig(idx, { maxAge: e.target.value })}
-                          style={inputBase as CSSProperties}
-                          min={0}
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {p.actionType === 'SET_MEMBER_STATUS' && (
-                  <>
-                    <label style={{ ...labelBase, marginTop: 12 }}>Estado</label>
-                    <select
-                      value={String(p.config.targetStatus ?? 'ACTIVE')}
-                      onChange={(e) => patchConfig(idx, { targetStatus: e.target.value })}
-                      style={{ ...inputBase, cursor: 'pointer' } as CSSProperties}
-                    >
-                      <option value="ACTIVE">Activo</option>
-                      <option value="INACTIVE">Inactivo</option>
-                    </select>
-                  </>
-                )}
-
-                {p.actionType === 'CREATE_PAYMENT' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 12 }}>
-                    <div>
-                      <label style={labelBase}>Importe (€)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={String(p.config.amount ?? '')}
-                        onChange={(e) => patchConfig(idx, { amount: e.target.value })}
-                        style={inputBase as CSSProperties}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelBase}>Mes offset</label>
-                      <input
-                        type="number"
-                        value={String(p.config.monthOffset ?? '0')}
-                        onChange={(e) => patchConfig(idx, { monthOffset: e.target.value })}
-                        style={inputBase as CSSProperties}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelBase}>Estado cobro</label>
-                      <select
-                        value={String(p.config.paymentStatus ?? 'PENDING')}
-                        onChange={(e) => patchConfig(idx, { paymentStatus: e.target.value })}
-                        style={{ ...inputBase, cursor: 'pointer' } as CSSProperties}
-                      >
-                        <option value="PENDING">Pendiente</option>
-                        <option value="PAID">Pagado</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {p.actionType === 'HTTP_REQUEST' && (
-                  <>
-                    <label style={{ ...labelBase, marginTop: 12 }}>URL https</label>
-                    <input
-                      value={String(p.config.httpUrl ?? '')}
-                      onChange={(e) => patchConfig(idx, { httpUrl: e.target.value })}
-                      style={inputBase as CSSProperties}
-                      placeholder="https://…"
-                    />
-                    <label style={{ ...labelBase, marginTop: 10 }}>Método</label>
-                    <select
-                      value={String(p.config.httpMethod ?? 'POST')}
-                      onChange={(e) => patchConfig(idx, { httpMethod: e.target.value })}
-                      style={{ ...inputBase, cursor: 'pointer' } as CSSProperties}
-                    >
-                      <option value="GET">GET</option>
-                      <option value="POST">POST</option>
-                      <option value="PUT">PUT</option>
-                      <option value="PATCH">PATCH</option>
-                    </select>
-                    <label style={{ ...labelBase, marginTop: 10 }}>Cuerpo (opc., plantillas {'{memberName}'})</label>
-                    <textarea
-                      value={String(p.config.httpBody ?? '')}
-                      onChange={(e) => patchConfig(idx, { httpBody: e.target.value })}
-                      rows={3}
-                      style={{ ...inputBase, minHeight: 72, resize: 'vertical' } as CSSProperties}
-                    />
-                    <label style={{ ...labelBase, marginTop: 10 }}>Cabeceras JSON (opc.)</label>
-                    <input
-                      value={String(p.config.httpHeaders ?? '')}
-                      onChange={(e) => patchConfig(idx, { httpHeaders: e.target.value })}
-                      style={inputBase as CSSProperties}
-                      placeholder='{"Authorization":"Bearer …"}'
-                    />
-                  </>
-                )}
-
-                {p.actionType === 'BRANCH_IF' && (
-                  <>
-                    <label style={{ ...labelBase, marginTop: 12 }}>Campo</label>
-                    <select
-                      value={String(p.config.ifField ?? 'member.age')}
-                      onChange={(e) => patchConfig(idx, { ifField: e.target.value })}
-                      style={{ ...inputBase, cursor: 'pointer' } as CSSProperties}
-                    >
-                      <option value="member.age">Edad</option>
-                      <option value="member.status">Estado del socio</option>
-                      <option value="member.hasBirthDate">Tiene fecha de nacimiento</option>
-                      <option value="member.name">Nombre</option>
-                      <option value="member.email">Correo</option>
-                    </select>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginTop: 12 }}>
-                      <div>
-                        <label style={labelBase}>Operador</label>
-                        <select
-                          value={String(p.config.ifOperator ?? 'gte')}
-                          onChange={(e) => patchConfig(idx, { ifOperator: e.target.value })}
-                          style={{ ...inputBase, cursor: 'pointer' } as CSSProperties}
-                        >
-                          <option value="eq">igual</option>
-                          <option value="ne">distinto</option>
-                          <option value="lt">menor</option>
-                          <option value="lte">menor o igual</option>
-                          <option value="gt">mayor</option>
-                          <option value="gte">mayor o igual</option>
-                          <option value="contains">contiene</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label style={labelBase}>Valor</label>
-                        <input
-                          value={String(p.config.ifValue ?? '')}
-                          onChange={(e) => patchConfig(idx, { ifValue: e.target.value })}
-                          style={inputBase as CSSProperties}
-                        />
-                      </div>
-                    </div>
-                    <label style={{ ...labelBase, marginTop: 10 }}>Si cumple → clave de paso</label>
-                    <input
-                      value={String(p.config.thenTargetKey ?? '')}
-                      onChange={(e) => patchConfig(idx, { thenTargetKey: e.target.value })}
-                      style={inputBase as CSSProperties}
-                    />
-                    <label style={{ ...labelBase, marginTop: 8 }}>Si no cumple → clave de paso</label>
-                    <input
-                      value={String(p.config.elseTargetKey ?? '')}
-                      onChange={(e) => patchConfig(idx, { elseTargetKey: e.target.value })}
-                      style={inputBase as CSSProperties}
-                    />
-                  </>
-                )}
-              </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={addPaso}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                width: '100%',
-                padding: '10px',
-                borderRadius: 12,
-                border: '1px dashed var(--border)',
-                background: '#fff',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--accent)',
-                marginBottom: 22,
-              }}
-            >
-              <Plus size={16} />
-              Añadir paso
-            </button>
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                type="button"
-                disabled={saveBusy}
-                onClick={() => setEditorOpen(false)}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  borderRadius: 12,
-                  border: '1.5px solid rgba(0,0,0,0.09)',
-                  background: '#fff',
-                  cursor: saveBusy ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#374151',
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={saveBusy}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  borderRadius: 12,
-                  border: 'none',
-                  background: 'var(--accent)',
-                  cursor: saveBusy ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#fff',
-                  opacity: saveBusy ? 0.75 : 1,
-                }}
-              >
-                {saveBusy ? 'Guardando…' : 'Guardar flujo'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <WorkflowFlowEditor
+          key={editorSession}
+          equipos={equipos}
+          initialNombre={initialNombre}
+          initialDescripcion={initialDescripcion}
+          initialPasos={initialPasos}
+          editingId={editingId}
+          onClose={() => setEditorOpen(false)}
+          onSave={handleSaveFromEditor}
+          saveBusy={saveBusy}
+        />
       )}
     </div>
   )
