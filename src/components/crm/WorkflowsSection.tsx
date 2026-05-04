@@ -59,6 +59,7 @@ export function WorkflowsSection({
   const [initialNombre, setInitialNombre] = useState('')
   const [initialDescripcion, setInitialDescripcion] = useState('')
   const [initialPasos, setInitialPasos] = useState<WorkflowEditorInitialPaso[]>([])
+  const [initialTriggerType, setInitialTriggerType] = useState('MEMBER_CREATED')
   const [saveBusy, setSaveBusy] = useState(false)
 
   const activos = wfs.filter((w) => w.activo).length
@@ -84,6 +85,7 @@ export function WorkflowsSection({
     setInitialNombre('')
     setInitialDescripcion('')
     setInitialPasos([])
+    setInitialTriggerType('MEMBER_CREATED')
     setEditorSession((s) => s + 1)
     setEditorOpen(true)
   }
@@ -101,6 +103,7 @@ export function WorkflowsSection({
         config: p.config,
       })),
     )
+    setInitialTriggerType(String(w.trigger || 'MEMBER_CREATED'))
     setEditorSession((s) => s + 1)
     setEditorOpen(true)
   }
@@ -443,6 +446,7 @@ export function WorkflowsSection({
           initialNombre={initialNombre}
           initialDescripcion={initialDescripcion}
           initialPasos={initialPasos}
+          triggerType={initialTriggerType}
           editingId={editingId}
           onClose={() => setEditorOpen(false)}
           onSave={handleSaveFromEditor}

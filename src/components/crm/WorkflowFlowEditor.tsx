@@ -19,7 +19,7 @@ import {
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Zap } from 'lucide-react'
 import {
   WORKFLOW_START_ID,
   emptyFlow,
@@ -112,15 +112,16 @@ const labelBase: CSSProperties = {
   display: 'block',
 }
 
-const startBar: CSSProperties = {
-  padding: '12px 20px',
+const triggerCard: CSSProperties = {
+  padding: '12px 16px 12px 14px',
   borderRadius: 12,
-  background: '#111827',
-  color: '#fff',
-  fontSize: 13,
-  fontWeight: 700,
-  minWidth: 100,
-  textAlign: 'center',
+  background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+  border: '1px solid #6ee7b7',
+  borderLeftWidth: 4,
+  borderLeftColor: '#10b981',
+  color: '#064e3b',
+  minWidth: 148,
+  maxWidth: 220,
   boxShadow: 'var(--card-shadow, 0 1px 3px rgba(0,0,0,0.08))',
 }
 
@@ -135,15 +136,21 @@ const stepBox = (selected: boolean): CSSProperties => ({
   boxShadow: 'var(--card-shadow, 0 1px 3px rgba(0,0,0,0.06))',
 })
 
-const WorkflowStartNode = memo(function WorkflowStartNode() {
+const WorkflowTriggerNode = memo(function WorkflowTriggerNode({ data }: NodeProps<Node<WorkflowNodeData>>) {
   return (
-    <div style={startBar}>
-      Inicio
+    <div style={triggerCard}>
+      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: '#059669', marginBottom: 6 }}>
+        DISPARADOR
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Zap size={18} strokeWidth={2.5} style={{ color: '#10b981', flexShrink: 0 }} />
+        <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.25 }}>{data.label}</span>
+      </div>
       <Handle
         type="source"
         position={Position.Right}
         id="out"
-        style={{ background: '#64748b', width: 10, height: 10, border: '2px solid #fff' }}
+        style={{ background: '#059669', width: 10, height: 10, border: '2px solid #fff' }}
       />
     </div>
   )
@@ -209,7 +216,7 @@ const WorkflowStepNode = memo(function WorkflowStepNode({ id, data, selected }: 
   )
 })
 
-const nodeTypes = { workflowStart: WorkflowStartNode, workflowStep: WorkflowStepNode }
+const nodeTypes = { workflowTrigger: WorkflowTriggerNode, workflowStep: WorkflowStepNode }
 
 type BundleEquip = { id: string; nombre: string }
 
@@ -225,6 +232,8 @@ export function WorkflowFlowEditor(props: {
   initialNombre: string
   initialDescripcion: string
   initialPasos: WorkflowEditorInitialPaso[]
+  /** Tipo de disparador del flujo (p. ej. MEMBER_CREATED). Define la etiqueta del nodo trigger. */
+  triggerType: string
   editingId: string | null
   onClose: () => void
   onSave: (payload: {
@@ -246,6 +255,7 @@ function WorkflowFlowEditorInner({
   initialNombre,
   initialDescripcion,
   initialPasos,
+  triggerType,
   editingId,
   onClose,
   onSave,
@@ -255,6 +265,7 @@ function WorkflowFlowEditorInner({
   initialNombre: string
   initialDescripcion: string
   initialPasos: WorkflowEditorInitialPaso[]
+  triggerType: string
   editingId: string | null
   onClose: () => void
   onSave: (payload: {
@@ -268,8 +279,9 @@ function WorkflowFlowEditorInner({
   const [descripcion, setDescripcion] = useState(initialDescripcion)
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => (initialPasos.length ? stepsToFlowNodes(initialPasos) : emptyFlow()),
-    [initialPasos],
+    () =>
+      initialPasos.length ? stepsToFlowNodes(initialPasos, triggerType) : emptyFlow(triggerType),
+    [initialPasos, triggerType],
   )
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
@@ -279,11 +291,13 @@ function WorkflowFlowEditorInner({
   useEffect(() => {
     setNombre(initialNombre)
     setDescripcion(initialDescripcion)
-    const { nodes: n, edges: e } = initialPasos.length ? stepsToFlowNodes(initialPasos) : emptyFlow()
+    const { nodes: n, edges: e } = initialPasos.length
+      ? stepsToFlowNodes(initialPasos, triggerType)
+      : emptyFlow(triggerType)
     setNodes(n)
     setEdges(e)
     setSelectedId(null)
-  }, [initialPasos, initialNombre, initialDescripcion, setNodes, setEdges])
+  }, [initialPasos, initialNombre, initialDescripcion, triggerType, setNodes, setEdges])
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedId && n.type === 'workflowStep') as Node<WorkflowNodeData> | undefined,
@@ -470,7 +484,7 @@ function WorkflowFlowEditorInner({
               {editingId ? 'Editar flujo' : 'Nuevo flujo'}
             </h2>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
-              Arrastra nodos. Conecta desde Inicio y entre pasos. Clic en un paso para editar en el panel derecho.
+              Arrastra nodos. Conecta desde el disparador y entre pasos. Clic en un paso para editar en el panel derecho.
             </p>
           </div>
           <button

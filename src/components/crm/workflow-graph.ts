@@ -28,6 +28,12 @@ function getStepKeyFromPaso(p: {
   return typeof k === 'string' && k.trim() ? k.trim() : genStepKey()
 }
 
+/** Etiqueta humana del tipo de disparador (igual que en la lista de flujos). */
+export function workflowTriggerLabel(triggerType: string): string {
+  const m: Record<string, string> = { MEMBER_CREATED: 'Alta de socio' }
+  return m[triggerType] ?? triggerType
+}
+
 export function shortActionLabel(actionType: string, c: Record<string, unknown>) {
   switch (actionType) {
     case 'ASSIGN_TEAM':
@@ -47,19 +53,22 @@ export function shortActionLabel(actionType: string, c: Record<string, unknown>)
   }
 }
 
-/** Flujo vacío: solo nodo Inicio */
-export function emptyFlow(): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
+/** Flujo vacío: solo nodo disparador (trigger). */
+export function emptyFlow(
+  triggerType = 'MEMBER_CREATED',
+): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
+  const label = workflowTriggerLabel(triggerType)
   return {
     nodes: [
       {
         id: START_ID,
-        type: 'workflowStart',
+        type: 'workflowTrigger',
         position: { x: 0, y: 160 },
         data: {
-          label: 'Inicio',
-          actionType: '_START',
-          config: {},
-          stepKey: '_start',
+          label,
+          actionType: '_TRIGGER',
+          config: { triggerType },
+          stepKey: '_trigger',
         },
         draggable: false,
       },
@@ -76,16 +85,23 @@ export function stepsToFlowNodes(
     actionType: string
     config: unknown
   }>,
+  triggerType = 'MEMBER_CREATED',
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
-  if (!pasos.length) return emptyFlow()
+  if (!pasos.length) return emptyFlow(triggerType)
 
   const sorted = [...pasos].sort((a, b) => a.position - b.position)
+  const label = workflowTriggerLabel(triggerType)
   const nodes: Node<WorkflowNodeData>[] = [
     {
       id: START_ID,
-      type: 'workflowStart',
+      type: 'workflowTrigger',
       position: { x: 0, y: 140 },
-      data: { label: 'Inicio', actionType: '_START', config: {}, stepKey: '_start' },
+      data: {
+        label,
+        actionType: '_TRIGGER',
+        config: { triggerType },
+        stepKey: '_trigger',
+      },
       draggable: false,
     },
   ]
@@ -220,9 +236,12 @@ export function flowToPasos(
   nodes: Node<WorkflowNodeData>[],
   edges: Edge[],
 ): { ok: true; pasos: WorkflowPasoPayload[] } | { ok: false; error: string } {
-  const stepNodes = nodes.filter((n) => n.id !== START_ID && n.type !== 'workflowStart')
+  const stepNodes = nodes.filter((n) => n.id !== START_ID && n.type !== 'workflowTrigger')
   if (stepNodes.length === 0) {
-    return { ok: false, error: 'Añade al menos un paso al lienzo y conéctalo desde Inicio.' }
+    return {
+      ok: false,
+      error: 'Añade al menos un paso al lienzo y conéctalo desde el disparador.',
+    }
   }
 
   const ids = new Set(stepNodes.map((n) => n.id))
@@ -236,7 +255,7 @@ export function flowToPasos(
   if (outFromStart.length !== 1) {
     return {
       ok: false,
-      error: 'Debe haber exactamente una conexión desde Inicio al primer paso.',
+      error: 'Debe haber exactamente una conexión desde el disparador al primer paso.',
     }
   }
 
@@ -244,7 +263,7 @@ export function flowToPasos(
   if (reachable.size !== ids.size) {
     return {
       ok: false,
-      error: 'Todos los pasos deben ser alcanzables desde Inicio (sin nodos sueltos).',
+      error: 'Todos los pasos deben ser alcanzables desde el disparador (sin nodos sueltos).',
     }
   }
 
