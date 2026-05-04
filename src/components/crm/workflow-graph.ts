@@ -1,6 +1,14 @@
 import type { Edge, Node } from '@xyflow/react'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
 
+/** En cada Edge: sin `deletable: true`, React Flow no borra el «cable» con Supr. */
+export const WORKFLOW_EDGE_UI: Pick<Edge, 'selectable' | 'deletable' | 'focusable' | 'interactionWidth'> = {
+  selectable: true,
+  deletable: true,
+  focusable: true,
+  interactionWidth: 36,
+}
+
 export type WorkflowNodeData = {
   actionType: string
   config: Record<string, unknown>
@@ -133,6 +141,7 @@ export function stepsToFlowNodes(
       target: firstKey,
       sourceHandle: 'out',
       targetHandle: 'in',
+      ...WORKFLOW_EDGE_UI,
     })
   }
 
@@ -150,6 +159,7 @@ export function stepsToFlowNodes(
           target: thenK,
           sourceHandle: 'then',
           targetHandle: 'in',
+          ...WORKFLOW_EDGE_UI,
         })
       }
       if (elseK) {
@@ -159,6 +169,7 @@ export function stepsToFlowNodes(
           target: elseK,
           sourceHandle: 'else',
           targetHandle: 'in',
+          ...WORKFLOW_EDGE_UI,
         })
       }
     } else if (i < sorted.length - 1) {
@@ -170,6 +181,7 @@ export function stepsToFlowNodes(
         target: nextId,
         sourceHandle: 'next',
         targetHandle: 'in',
+        ...WORKFLOW_EDGE_UI,
       })
     }
   })

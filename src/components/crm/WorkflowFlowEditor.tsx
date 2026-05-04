@@ -27,6 +27,7 @@ import {
 } from '@/lib/crm-workflow-triggers'
 import {
   WORKFLOW_START_ID,
+  WORKFLOW_EDGE_UI,
   emptyFlow,
   flowToPasos,
   newWorkflowNode,
@@ -293,6 +294,7 @@ function WorkflowFlowEditorInner({
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([])
 
   useEffect(() => {
     setNombre(initialNombre)
@@ -303,6 +305,7 @@ function WorkflowFlowEditorInner({
     setNodes(n)
     setEdges(e)
     setSelectedId(null)
+    setSelectedEdgeIds([])
   }, [initialPasos, initialNombre, initialDescripcion, triggerType, setNodes, setEdges])
 
   const selectedNode = useMemo(
@@ -347,23 +350,52 @@ function WorkflowFlowEditorInner({
     [setNodes],
   )
 
-  const onEdgeDoubleClick = useCallback(
-    (event: MouseEvent, edge: Edge) => {
-      event.preventDefault()
-      event.stopPropagation()
-      setEdges((eds) => eds.filter((e) => e.id !== edge.id))
+  const removeEdgeById = useCallback(
+    (id: string) => {
+      setEdges((eds) => eds.filter((e) => e.id !== id))
+      setSelectedEdgeIds((ids) => ids.filter((x) => x !== id))
     },
     [setEdges],
   )
 
+  useEffect(() => {
+    const onWindowKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Backspace' && e.key !== 'Delete') return
+      const t = e.target as HTMLElement | null
+      if (t?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (selectedEdgeIds.length === 0) return
+      e.preventDefault()
+      e.stopPropagation()
+      setEdges((eds) => eds.filter((ed) => !selectedEdgeIds.includes(ed.id)))
+      setSelectedEdgeIds([])
+    }
+
+    window.addEventListener('keydown', onWindowKeyDown, true)
+    return () => window.removeEventListener('keydown', onWindowKeyDown, true)
+  }, [selectedEdgeIds, setEdges])
+
+  const handleEdgeClick = useCallback(
+    (e: MouseEvent, edge: Edge) => {
+      if (e.altKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        removeEdgeById(edge.id)
+      }
+    },
+    [removeEdgeById],
+  )
+
+  const handleEdgeDoubleClick = useCallback(
+    (e: MouseEvent, edge: Edge) => {
+      e.preventDefault()
+      e.stopPropagation()
+      removeEdgeById(edge.id)
+    },
+    [removeEdgeById],
+  )
+
   const defaultEdgeOptions = useMemo(
-    () =>
-      ({
-        selectable: true,
-        deletable: true,
-        focusable: true,
-        interactionWidth: 24,
-      }) satisfies Partial<Edge>,
+    () => ({ ...WORKFLOW_EDGE_UI }) satisfies Partial<Edge>,
     [],
   )
 
@@ -373,6 +405,7 @@ function WorkflowFlowEditorInner({
         addEdge(
           {
             ...params,
+            ...WORKFLOW_EDGE_UI,
             style: { stroke: 'var(--accent, #6366f1)', strokeWidth: 2 },
             animated: true,
           },
@@ -396,9 +429,10 @@ function WorkflowFlowEditorInner({
     [edges],
   )
 
-  const onSelectionChange = useCallback(({ nodes: sel }: { nodes: Node[] }) => {
-    const first = sel[0]
+  const onSelectionChange = useCallback(({ nodes: selNodes, edges: selEdges }: { nodes: Node[]; edges: Edge[] }) => {
+    const first = selNodes[0]
     setSelectedId(first?.id ?? null)
+    setSelectedEdgeIds(selEdges.map((e) => e.id))
   }, [])
 
   const updateSelectedData = useCallback(
@@ -553,8 +587,8 @@ function WorkflowFlowEditorInner({
               {editingId ? 'Editar flujo' : 'Nuevo flujo'}
             </h2>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
-              Arrastra pasos; el disparador no se mueve. Para quitar solo una conexión: doble clic en la línea, o
-              selecciónala (clic) y pulsa Supr / Retroceso. Clic en el disparador o en un paso para configurar a la
+              Arrastra pasos; el disparador no se mueve. Quitar una conexión: selecciona la línea (clic) y Supr o
+              Retroceso; doble clic en la línea; o Alt+clic. Clic en el disparador o en un paso para configurar a la
               derecha.
             </p>
           </div>
@@ -585,12 +619,16 @@ function WorkflowFlowEditorInner({
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
-              onEdgeDoubleClick={onEdgeDoubleClick}
+              onEdgeClick={handleEdgeClick}
+              onEdgeDoubleClick={handleEdgeDoubleClick}
               isValidConnection={isValidConnection}
               onSelectionChange={onSelectionChange}
               nodeTypes={nodeTypes}
               defaultEdgeOptions={defaultEdgeOptions}
               elevateEdgesOnSelect
+              zoomOnDoubleClick={false}
+              edgesReconnectable={false}
+              elementsSelectable
               fitView
               fitViewOptions={{ padding: 0.2 }}
               deleteKeyCode={['Backspace', 'Delete']}
