@@ -170,7 +170,6 @@ const WorkflowStepNode = memo(function WorkflowStepNode({ id, data, selected }: 
       <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', lineHeight: 1.3, wordBreak: 'break-word' }}>
         {ACCIONES.find((a) => a.value === data.actionType)?.label ?? data.actionType}
       </div>
-      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 6, fontFamily: 'monospace' }}>{data.stepKey}</div>
       {isBranch ? (
         <>
           <Handle
@@ -630,13 +629,6 @@ function WorkflowFlowEditorInner({
                         </option>
                       ))}
                     </select>
-                    <label style={{ ...labelBase, marginTop: 12 }}>Clave del paso (ramas)</label>
-                    <input
-                      value={String(selectedNode.data.config.stepKey ?? '')}
-                      onChange={(e) => patchConfig({ stepKey: e.target.value })}
-                      style={inputBase}
-                      placeholder="ej. juvenil"
-                    />
 
                     {selectedNode.data.actionType === 'ASSIGN_TEAM' && (
                       <>
@@ -808,7 +800,7 @@ function WorkflowFlowEditorInner({
                           />
                         </div>
                         <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, lineHeight: 1.4 }}>
-                          Conecta las salidas «Sí» / «No» a otros pasos. Las claves deben coincidir con la «Clave del paso» del destino.
+                          Conecta las salidas «Sí» / «No» en el lienzo al paso destino; el flujo se resuelve por esas conexiones.
                         </p>
                       </>
                     )}
