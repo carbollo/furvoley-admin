@@ -259,15 +259,24 @@ export async function GET() {
   }))
 
   const workflows = workflowsRaw.map((w) => {
-    const step = w.steps[0]
+    const sortedSteps = [...w.steps].sort((a, b) => a.position - b.position)
+    const step = sortedSteps[0]
     return {
       id: w.id,
       nombre: w.name,
+      descripcion: w.description ?? '',
       trigger: w.triggerType,
       accion: step ? `${step.stepType}: ${step.actionType}` : '—',
       activo: w.isActive,
       ejecuciones: 0,
       ultima: '—',
+      pasos: sortedSteps.map((s) => ({
+        id: s.id,
+        position: s.position,
+        stepType: s.stepType,
+        actionType: s.actionType,
+        config: s.config ?? {},
+      })),
     }
   })
 

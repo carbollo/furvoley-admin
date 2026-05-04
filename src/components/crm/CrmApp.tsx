@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client'
 
-import { InviteLinkButton } from './InviteLinkButton'
+import { WorkflowsSection } from './WorkflowsSection'
 import { PaymentReminderButton } from './PaymentReminderButton'
 import './crm-vars.css'
 import { Plus_Jakarta_Sans } from 'next/font/google'
@@ -243,7 +243,7 @@ const NAV = [
   { id: 'cobros', label: 'Cobros', icon: 'billing' },
   { id: 'calendario', label: 'Calendario', icon: 'calendar' },
   { id: 'informes', label: 'Informes', icon: 'reports' },
-  { id: 'workflows', label: 'Automatizaciones', icon: 'workflows' },
+  { id: 'workflows', label: 'Flujos', icon: 'workflows' },
 ];
 
 function Sidebar({ active, setActive }) {
@@ -2452,113 +2452,9 @@ function Informes({ setActive }) {
   );
 }
 
-// ── WORKFLOWS ───────────────────────────────────────────────────────────────
-function etiquetaDisparadorWorkflow(t) {
-  const m = { MEMBER_CREATED: 'Alta de socio' };
-  return m[t] ?? t;
-}
-
 function Workflows() {
   const { bundle, reload } = useCrm();
-  const wfs = bundle?.workflows ?? [];
-  const toggle = async (id) => {
-    const r = await fetch(`/api/crm/workflows/${id}/toggle`, { method: 'POST', credentials: 'include' });
-    if (!r.ok) { alert('Error al cambiar estado'); return; }
-    await reload();
-  };
-
-  const triggerColors = {
-    MEMBER_CREATED: '#10B981',
-  };
-  const colorTrig = (t) => triggerColors[t] || '#64748b';
-  return (
-    <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Automatizaciones</h1>
-            <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>Automatizaciones activas: {wfs.filter(w=>w.activo).length}/{wfs.length || 1}</p>
-        </div>
-        <button type="button" onClick={() => window.alert('Activa o pausa cada automatización con el interruptor. Un editor visual de flujos se añadirá más adelante.')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',color:'var(--accent)',fontFamily:'inherit',fontSize:14,fontWeight:600,cursor:'pointer'}}>
-          <Icon name="plus" size={15}/>Ayuda
-        </button>
-      </div>
-      {/* Stats */}
-      <div style={{display:'flex',gap:12}}>
-        {[
-          {label:'Ejecuciones hoy',value:'48',color:'var(--accent)'},
-          {label:'Esta semana',value:'312',color:'var(--green)'},
-          {label:'Total histórico',value:'623',color:'#8B5CF6'},
-        ].map(({label,value,color}) => (
-          <div key={label} style={{flex:1,background:'#fff',borderRadius:14,padding:'16px 20px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-            <div style={{fontSize:12,color:'#6b7280',marginBottom:4}}>{label}</div>
-            <div style={{fontSize:26,fontWeight:800,color,letterSpacing:'-1px'}}>{value}</div>
-          </div>
-        ))}
-      </div>
-      {/* Workflow cards */}
-      <div style={{display:'flex',flexDirection:'column',gap:12}}>
-        {wfs.map(w => (
-          <div key={w.id} style={{
-            background:'#fff',borderRadius:16,padding:'20px 24px',
-            boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
-            opacity:w.activo?1:0.6,transition:'opacity 0.2s'
-          }}>
-            <div style={{display:'flex',alignItems:'flex-start',gap:16}}>
-              <div style={{
-                width:44,height:44,borderRadius:12,
-                background:w.activo?'var(--accent-light)':'#F1F5F9',
-                color:w.activo?'var(--accent)':'#9ca3af',
-                display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0
-              }}>
-                <Icon name="zap" size={20}/>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
-                  <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>{w.nombre}</div>
-                  {w.activo ? (
-                    <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:999,background:'var(--green-light)',color:'var(--green)'}}>Activo</span>
-                  ) : (
-                    <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:999,background:'#F1F5F9',color:'#9ca3af'}}>Pausado</span>
-                  )}
-                </div>
-                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:6}}>
-                    <div style={{
-                      fontSize:11,fontWeight:600,padding:'4px 10px',borderRadius:999,
-                      background:`${colorTrig(w.trigger)}15`,
-                      color:colorTrig(w.trigger)
-                    }}>⚡ {etiquetaDisparadorWorkflow(w.trigger)}</div>
-                    <Icon name="arrow_right" size={14} style={{color:'#9ca3af'}}/>
-                    <div style={{fontSize:12,color:'#374151',fontWeight:500}}>→ {w.accion}</div>
-                  </div>
-                </div>
-                <div style={{display:'flex',gap:16,marginTop:10}}>
-                  <span style={{fontSize:12,color:'#9ca3af'}}>{w.ejecuciones} ejecuciones</span>
-                  <span style={{fontSize:12,color:'#9ca3af'}}>Última: {w.ultima}</span>
-                </div>
-              </div>
-              <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-                <button type="button" onClick={() => window.alert('Configura el disparador desde la base de datos o el panel avanzado si lo necesitas; aquí puedes activar o pausar cada flujo.')} style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280',fontFamily:'inherit',fontSize:12}} title="Información"><Icon name="edit" size={14}/></button>
-                {/* Toggle */}
-                <div onClick={() => toggle(w.id)} style={{
-                  width:44,height:24,borderRadius:12,cursor:'pointer',
-                  background:w.activo?'var(--green)':'#D1D5DB',
-                  position:'relative',transition:'background 0.2s',flexShrink:0
-                }}>
-                  <div style={{
-                    width:18,height:18,borderRadius:'50%',background:'#fff',
-                    position:'absolute',top:3,
-                    left:w.activo?23:3,transition:'left 0.2s',
-                    boxShadow:'0 1px 4px rgba(0,0,0,0.2)'
-                  }}/>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  return <WorkflowsSection bundle={bundle} reload={reload} />;
 }
 
 // ── APP ROOT ─────────────────────────────────────────────────────────────────
