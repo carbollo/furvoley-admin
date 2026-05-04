@@ -28,7 +28,7 @@ export function InviteLinkButton() {
         className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition disabled:opacity-60"
       >
         <Link2 size={18} />
-        <span>{pending ? 'Generando...' : 'Crear enlace inscripción'}</span>
+        <span>{pending ? 'Generando…' : 'Crear enlace inscripción'}</span>
       </button>
       {copied && (
         <span className="text-sm text-emerald-600 font-medium flex items-center gap-1">

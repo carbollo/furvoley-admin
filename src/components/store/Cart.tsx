@@ -84,7 +84,7 @@ export function CartDrawer({
           <div className="flex items-center justify-between px-4 py-6 border-b border-gray-200">
             <h2 className="text-lg font-medium text-gray-900 flex items-center">
               <ShoppingCart className="w-5 h-5 mr-2" />
-              Tu Carrito
+              Tu carrito
             </h2>
             <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-500">
               <X className="w-6 h-6" />

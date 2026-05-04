@@ -46,7 +46,7 @@ export default function MetaConfigForm({ initialData }: { initialData?: any }) {
         <div>
           <h4 className="text-sm font-bold text-blue-900">¿Cómo obtener estos datos?</h4>
           <p className="text-sm text-blue-800 mt-1">
-            Necesitas crear una App en <a href="https://developers.facebook.com" target="_blank" className="underline font-medium">Meta for Developers</a>, añadir el producto "Marketing API" y generar un Token de Acceso (Access Token). El ID de la cuenta publicitaria lo encontrarás en tu Business Manager.
+            Necesitas crear una aplicación en <a href="https://developers.facebook.com" target="_blank" className="underline font-medium">Meta for Developers</a>, añadir el producto «API de marketing» y generar un token de acceso. El identificador de la cuenta publicitaria lo encontrarás en el Administrador comercial (Business Manager).
           </p>
         </div>
       </div>
@@ -54,7 +54,7 @@ export default function MetaConfigForm({ initialData }: { initialData?: any }) {
       <div className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Token de Acceso (Access Token) *
+            Token de acceso *
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -76,7 +76,7 @@ export default function MetaConfigForm({ initialData }: { initialData?: any }) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            ID de la Cuenta Publicitaria (Ad Account ID) *
+            ID de la cuenta publicitaria *
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -98,7 +98,7 @@ export default function MetaConfigForm({ initialData }: { initialData?: any }) {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            ID de la Página de Facebook (Opcional)
+            ID de la página de Facebook (opcional)
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -128,7 +128,7 @@ export default function MetaConfigForm({ initialData }: { initialData?: any }) {
           disabled={loading}
           className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
-          {loading ? "Guardando..." : "Guardar Configuración"}
+          {loading ? 'Guardando…' : 'Guardar configuración'}
         </button>
       </div>
     </form>

@@ -38,7 +38,7 @@ function CrmProvider({ children }: { children: ReactNode }) {
     const r = await fetch('/api/crm/data', { credentials: 'include' });
     if (r.status === 401) {
       window.location.href = '/login?callbackUrl=' + encodeURIComponent('/');
-      throw new Error('Unauthorized');
+      throw new Error('No autorizado');
     }
     if (!r.ok) throw new Error('No se pudieron cargar los datos');
     const j = await r.json();
@@ -237,13 +237,13 @@ const KPICard = ({ label, value, sub, icon, color, trend, chart }) => (
 
 // ── SIDEBAR ─────────────────────────────────────────────────────────────────
 const NAV = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'dashboard', label: 'Inicio', icon: 'dashboard' },
   { id: 'socios', label: 'Socios', icon: 'users' },
   { id: 'equipos', label: 'Equipos', icon: 'teams' },
   { id: 'cobros', label: 'Cobros', icon: 'billing' },
   { id: 'calendario', label: 'Calendario', icon: 'calendar' },
   { id: 'informes', label: 'Informes', icon: 'reports' },
-  { id: 'workflows', label: 'Workflows', icon: 'workflows' },
+  { id: 'workflows', label: 'Automatizaciones', icon: 'workflows' },
 ];
 
 function Sidebar({ active, setActive }) {
@@ -284,7 +284,7 @@ function Sidebar({ active, setActive }) {
               display:'inline-block',background:'rgba(99,102,241,0.3)',
               color:'#a5b4fc',fontSize:9,fontWeight:700,padding:'1px 7px',
               borderRadius:999,letterSpacing:1
-            }}>{bundle?.user?.role || 'ADMIN'}</div>
+            }}>{({ ADMIN: 'Administrador', MEMBER: 'Socio' }[bundle?.user?.role] ?? bundle?.user?.role) || 'Administrador'}</div>
           </div>
         </div>
       </div>
@@ -342,7 +342,7 @@ function Dashboard({ setActive }) {
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Dashboard</h1>
+          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Inicio</h1>
           <p style={{color:'#6b7280',fontSize:14,marginTop:4,textTransform:'capitalize'}}>{dateStr}</p>
         </div>
         <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{
@@ -351,14 +351,14 @@ function Dashboard({ setActive }) {
           background:'var(--accent)',color:'#fff',
           fontFamily:'inherit',fontSize:14,fontWeight:600
         }}>
-          <Icon name="export" size={15}/>Exportar
+          <Icon name="export" size={15}/>Exportar datos
         </button>
       </div>
       <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
-        <KPICard label="Socios Activos" value={String(kp?.sociosActivos ?? 0)} sub="Miembros ACTIVE" icon="users" color="#3B82F6" trend={{up:true}} chart={ingresosMes.slice(-7).length ? ingresosMes.slice(-7) : [0,0,0]}/>
-        <KPICard label="Cobros Pendientes" value={String(kp?.cobrosPendientes ?? 0)} sub={kp ? fmtMoney(kp.cobrosPendientesMonto) + ' en espera' : '—'} icon="billing" color="#F59E0B" chart={[2,4,3,5,4,6, kp?.cobrosPendientes ?? 0]}/>
-        <KPICard label="Ingresos del Mes" value={kp ? fmtMoney(kp.ingresosMes) : '—'} sub="Transacciones INCOME" icon="reports" color="#10B981" trend={{up:true}} chart={ingresosMes.slice(-7)}/>
-        <KPICard label="Facturas Vencidas" value={String(kp?.facturasVencidas ?? 0)} sub="Requieren atención" icon="billing" color="#EF4444" chart={[1,2,1,3,2, kp?.facturasVencidas ?? 0, kp?.facturasVencidas ?? 0]}/>
+        <KPICard label="Socios activos" value={String(kp?.sociosActivos ?? 0)} sub="Altas activas en el club" icon="users" color="#3B82F6" trend={{up:true}} chart={ingresosMes.slice(-7).length ? ingresosMes.slice(-7) : [0,0,0]}/>
+        <KPICard label="Cobros pendientes" value={String(kp?.cobrosPendientes ?? 0)} sub={kp ? fmtMoney(kp.cobrosPendientesMonto) + ' en espera' : '—'} icon="billing" color="#F59E0B" chart={[2,4,3,5,4,6, kp?.cobrosPendientes ?? 0]}/>
+        <KPICard label="Ingresos del mes" value={kp ? fmtMoney(kp.ingresosMes) : '—'} sub="Ingresos registrados" icon="reports" color="#10B981" trend={{up:true}} chart={ingresosMes.slice(-7)}/>
+        <KPICard label="Facturas vencidas" value={String(kp?.facturasVencidas ?? 0)} sub="Requieren atención" icon="billing" color="#EF4444" chart={[1,2,1,3,2, kp?.facturasVencidas ?? 0, kp?.facturasVencidas ?? 0]}/>
       </div>
       <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
         <div style={{flex:2,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
@@ -391,7 +391,7 @@ function Dashboard({ setActive }) {
       <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
         <div style={{flex:1,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>Próximos Eventos</div>
+            <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>Próximos eventos</div>
             <button type="button" onClick={() => setActive('calendario')} style={{fontSize:12,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>Ver todos →</button>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
@@ -691,7 +691,7 @@ function Socios() {
             <Icon name="search" size={16}/>
           </span>
           <input value={search} onChange={e=>setSearch(e.target.value)}
-            placeholder="Buscar por nombre o email..."
+            placeholder="Buscar por nombre o correo electrónico…"
             style={{
               width:'100%',padding:'10px 12px 10px 38px',
               borderRadius:12,border:'1px solid var(--border)',
@@ -920,7 +920,7 @@ function Socios() {
                 />
               </div>
               <div>
-                <label style={editLabel}>Email</label>
+                <label style={editLabel}>Correo electrónico</label>
                 <input
                   type="email"
                   value={formEditSocio.email}
@@ -1862,17 +1862,17 @@ function Cobros({ setActive }) {
         </div>
         <div style={{display:'flex',gap:10}}>
           <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'#374151'}}>
-            <Icon name="export" size={15}/>Exportar
+            <Icon name="export" size={15}/>Exportar datos
           </button>
           <button type="button" onClick={() => setActive('cobros')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
-            <Icon name="plus" size={15}/>Nuevo Cobro
+            <Icon name="plus" size={15}/>Nuevo cobro
           </button>
         </div>
       </div>
       {/* Summary cards */}
       <div style={{display:'flex',gap:12}}>
         {[
-            {label:'Total Facturado',value: fmtMoney(totales.total),color:'#3B82F6',bg:'#EFF6FF'},
+            {label:'Total facturado',value: fmtMoney(totales.total),color:'#3B82F6',bg:'#EFF6FF'},
             {label:'Cobrado',value: fmtMoney(totales.pagado),color:'var(--green)',bg:'var(--green-light)'},
             {label:'Pendiente',value: fmtMoney(totales.pendiente),color:'var(--amber)',bg:'var(--amber-light)'},
             {label:'Deuda vencida',value: fmtMoney(totales.vencido),color:'var(--red)',bg:'var(--red-light)'},
@@ -2093,7 +2093,7 @@ function Calendario({ setActive }) {
             return { year:y, month:m };
           })} style={{padding:'8px 12px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit'}}>Mes →</button>
           <button type="button" onClick={openNuevoEventoModal} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
-            <Icon name="plus" size={15}/>Nuevo Evento
+            <Icon name="plus" size={15}/>Nuevo evento
           </button>
         </div>
       </div>
@@ -2373,16 +2373,16 @@ function Informes({ setActive }) {
         </div>
         <div style={{display:'flex',gap:10}}>
           <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'#374151'}}>
-            <Icon name="export" size={15}/>Exportar CSV
+            <Icon name="export" size={15}/>Exportar datos CSV
           </button>
         </div>
       </div>
       {/* Totales anuales */}
       <div style={{display:'flex',gap:16}}>
         {[
-          {label:'Ingresos Totales',value: fmtMoney(totIng),color:'var(--green)',bg:'var(--green-light)',trend:'—'},
-          {label:'Egresos Totales',value: fmtMoney(totEgr),color:'var(--red)',bg:'var(--red-light)',trend:'—'},
-          {label:'Resultado Neto',value: fmtMoney(totIng - totEgr),color:'var(--accent)',bg:'var(--accent-light)',trend:'—'},
+          {label:'Ingresos totales',value: fmtMoney(totIng),color:'var(--green)',bg:'var(--green-light)',trend:'—'},
+          {label:'Egresos totales',value: fmtMoney(totEgr),color:'var(--red)',bg:'var(--red-light)',trend:'—'},
+          {label:'Resultado neto',value: fmtMoney(totIng - totEgr),color:'var(--accent)',bg:'var(--accent-light)',trend:'—'},
         ].map(({label,value,color,bg,trend}) => (
           <div key={label} style={{flex:1,background:bg,borderRadius:16,padding:'20px 24px'}}>
             <div style={{fontSize:12,color,fontWeight:600,marginBottom:6}}>{label}</div>
@@ -2394,7 +2394,7 @@ function Informes({ setActive }) {
       {/* Charts */}
       <div style={{display:'flex',gap:16}}>
         <div style={{flex:2,background:'#fff',borderRadius:16,padding:24,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{fontWeight:700,fontSize:15,color:'#111827',marginBottom:4}}>Ingresos vs. Egresos</div>
+          <div style={{fontWeight:700,fontSize:15,color:'#111827',marginBottom:4}}>Ingresos y egresos</div>
           <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>Enero — Diciembre 2026</div>
           <div style={{position:'relative'}}>
             <BarChart data={ingresos} labels={meses} color="#3B82F6" height={130}/>
@@ -2409,7 +2409,7 @@ function Informes({ setActive }) {
           </div>
         </div>
         <div style={{flex:1,background:'#fff',borderRadius:16,padding:24,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{fontWeight:700,fontSize:15,color:'#111827',marginBottom:4}}>Ingresos por Concepto</div>
+          <div style={{fontWeight:700,fontSize:15,color:'#111827',marginBottom:4}}>Ingresos por concepto</div>
           <div style={{fontSize:13,color:'#6b7280',marginBottom:16}}>Año 2026</div>
           <DonutChart size={110} segments={[
             {label:'Cuotas',value:65,color:'#3B82F6'},
@@ -2453,6 +2453,11 @@ function Informes({ setActive }) {
 }
 
 // ── WORKFLOWS ───────────────────────────────────────────────────────────────
+function etiquetaDisparadorWorkflow(t) {
+  const m = { MEMBER_CREATED: 'Alta de socio' };
+  return m[t] ?? t;
+}
+
 function Workflows() {
   const { bundle, reload } = useCrm();
   const wfs = bundle?.workflows ?? [];
@@ -2470,7 +2475,7 @@ function Workflows() {
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Workflows</h1>
+          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Automatizaciones</h1>
             <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>Automatizaciones activas: {wfs.filter(w=>w.activo).length}/{wfs.length || 1}</p>
         </div>
         <button type="button" onClick={() => window.alert('Activa o pausa cada automatización con el interruptor. Un editor visual de flujos se añadirá más adelante.')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',color:'var(--accent)',fontFamily:'inherit',fontSize:14,fontWeight:600,cursor:'pointer'}}>
@@ -2511,9 +2516,9 @@ function Workflows() {
                 <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
                   <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>{w.nombre}</div>
                   {w.activo ? (
-                    <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:999,background:'var(--green-light)',color:'var(--green)'}}>ACTIVO</span>
+                    <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:999,background:'var(--green-light)',color:'var(--green)'}}>Activo</span>
                   ) : (
-                    <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:999,background:'#F1F5F9',color:'#9ca3af'}}>PAUSADO</span>
+                    <span style={{fontSize:11,fontWeight:700,padding:'2px 8px',borderRadius:999,background:'#F1F5F9',color:'#9ca3af'}}>Pausado</span>
                   )}
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
@@ -2522,7 +2527,7 @@ function Workflows() {
                       fontSize:11,fontWeight:600,padding:'4px 10px',borderRadius:999,
                       background:`${colorTrig(w.trigger)}15`,
                       color:colorTrig(w.trigger)
-                    }}>⚡ {w.trigger}</div>
+                    }}>⚡ {etiquetaDisparadorWorkflow(w.trigger)}</div>
                     <Icon name="arrow_right" size={14} style={{color:'#9ca3af'}}/>
                     <div style={{fontSize:12,color:'#374151',fontWeight:500}}>→ {w.accion}</div>
                   </div>
@@ -2619,7 +2624,7 @@ function CrmInner() {
           display:'flex',alignItems:'center',justifyContent:'flex-end',
           padding:'0 28px',gap:12,flexShrink:0
         }}>
-          <button type="button" style={{padding:8,borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280',position:'relative'}}>
+          <button type="button" title="Notificaciones" aria-label="Notificaciones" style={{padding:8,borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280',position:'relative'}}>
             <Icon name="bell" size={18}/>
             <span style={{position:'absolute',top:5,right:5,width:8,height:8,borderRadius:'50%',background:'var(--red)',border:'2px solid #fff'}}></span>
           </button>

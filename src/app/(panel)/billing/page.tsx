@@ -211,7 +211,7 @@ export default async function BillingPage() {
               <input
                 name="newMemberEmail"
                 type="email"
-                placeholder="Email (opcional)"
+                placeholder="Correo electrónico (opcional)"
                 className="border rounded-lg px-3 py-2 text-slate-900 bg-white"
               />
               <input

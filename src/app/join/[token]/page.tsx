@@ -146,7 +146,7 @@ export default async function JoinPage({
               <input name="phone" className={inputCls} style={{ border: borderInput }} />
             </div>
             <div className="min-w-0">
-              <label className={labelCls}>Email</label>
+              <label className={labelCls}>Correo electrónico</label>
               <input type="email" name="email" className={inputCls} style={{ border: borderInput }} />
             </div>
           </div>

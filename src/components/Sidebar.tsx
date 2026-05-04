@@ -44,13 +44,17 @@ export function Sidebar() {
 
   return (
     <div className="w-64 bg-slate-900 text-white min-h-screen p-4 flex flex-col">
-      <div className="text-2xl font-bold mb-8 text-center text-blue-400">Furvoley Admin</div>
+      <div className="text-2xl font-bold mb-8 text-center text-blue-400">Administración Furvoley</div>
 
       <div className="mb-6 px-3">
         <p className="text-sm text-slate-400">Hola,</p>
         <p className="font-medium truncate">{session?.user?.name || session?.user?.email}</p>
         <span className="text-xs bg-slate-800 px-2 py-1 rounded mt-1 inline-block text-slate-300">
-          {session?.user?.role}
+          {session?.user?.role === 'ADMIN'
+            ? 'Administrador'
+            : session?.user?.role === 'MEMBER'
+              ? 'Socio'
+              : session?.user?.role}
         </span>
       </div>
 
@@ -58,12 +62,12 @@ export function Sidebar() {
         {isAdmin ? (
           <Link href="/" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
             <Home size={20} />
-            <span>CRM</span>
+            <span>Panel CRM</span>
           </Link>
         ) : (
           <Link href="/" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
             <Home size={20} />
-            <span>Dashboard</span>
+            <span>Inicio</span>
           </Link>
         )}
         {!isAdmin && (
@@ -146,7 +150,7 @@ export function Sidebar() {
           className="flex items-center space-x-3 p-3 w-full rounded hover:bg-rose-900/50 text-rose-400 transition"
         >
           <LogOut size={20} />
-          <span>Cerrar Sesión</span>
+          <span>Cerrar sesión</span>
         </button>
       </div>
     </div>

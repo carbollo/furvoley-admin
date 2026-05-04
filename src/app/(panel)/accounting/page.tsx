@@ -35,15 +35,15 @@ export default async function AccountingPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <p className="text-sm text-slate-500 font-medium mb-1">Ingresos Totales</p>
+          <p className="text-sm text-slate-500 font-medium mb-1">Ingresos totales</p>
           <p className="text-2xl font-bold text-emerald-600">€{income.toFixed(2)}</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <p className="text-sm text-slate-500 font-medium mb-1">Egresos Totales</p>
+          <p className="text-sm text-slate-500 font-medium mb-1">Egresos totales</p>
           <p className="text-2xl font-bold text-rose-600">€{expense.toFixed(2)}</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-          <p className="text-sm text-slate-500 font-medium mb-1">Balance</p>
+          <p className="text-sm text-slate-500 font-medium mb-1">Saldo</p>
           <p className={`text-2xl font-bold ${balance >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
             €{balance.toFixed(2)}
           </p>

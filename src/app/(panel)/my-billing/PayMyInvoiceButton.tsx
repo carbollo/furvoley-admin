@@ -17,7 +17,7 @@ export function PayMyInvoiceButton({ invoiceId }: { invoiceId: string }) {
       className="px-3 py-1 text-sm bg-indigo-600 text-white rounded"
       disabled={pending}
     >
-      {pending ? 'Generando...' : 'Pagar'}
+      {pending ? 'Generando…' : 'Pagar'}
     </button>
   )
 }

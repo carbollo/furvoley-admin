@@ -6,8 +6,8 @@ import Providers from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Furvoley Admin Panel",
-  description: "Panel administrativo para gestión de socios y cobros.",
+  title: "Furvoley · Panel de administración",
+  description: "Panel administrativo para la gestión de socios, cobros y actividades del club.",
 };
 
 export default function RootLayout({

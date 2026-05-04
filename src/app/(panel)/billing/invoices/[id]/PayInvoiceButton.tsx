@@ -20,7 +20,7 @@ export function PayInvoiceButton({ invoiceId }: { invoiceId: string }) {
       }
       className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium disabled:opacity-50"
     >
-      {pending ? 'Generando...' : 'Generar link Stripe'}
+      {pending ? 'Generando…' : 'Generar enlace de pago (Stripe)'}
     </button>
   )
 }

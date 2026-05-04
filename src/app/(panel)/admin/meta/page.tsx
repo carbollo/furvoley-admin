@@ -43,7 +43,7 @@ export default async function MetaDashboardPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard de Meta Ads</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Panel de Meta Ads</h1>
           <p className="text-gray-500 mt-1">
             Rendimiento de tus campañas en los últimos 30 días.
           </p>
@@ -68,7 +68,7 @@ export default async function MetaDashboardPage() {
               <TrendingUp className="w-6 h-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Gasto Total</p>
+              <p className="text-sm font-medium text-gray-500">Gasto total</p>
               <h3 className="text-2xl font-bold text-gray-900">{totalSpend.toFixed(2)}€</h3>
             </div>
           </div>

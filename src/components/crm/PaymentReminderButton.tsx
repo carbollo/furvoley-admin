@@ -31,7 +31,7 @@ export function PaymentReminderButton() {
         className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition disabled:opacity-60"
       >
         <MessageCircle size={18} />
-        <span>{pending ? 'Enviando...' : 'Recordar cobros'}</span>
+        <span>{pending ? 'Enviando…' : 'Recordar cobros'}</span>
       </button>
       {resultMessage && <p className="text-xs text-emerald-700">{resultMessage}</p>}
       {errorMessage && <p className="text-xs text-rose-600">{errorMessage}</p>}

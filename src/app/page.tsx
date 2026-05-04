@@ -8,6 +8,17 @@ import { Suspense } from 'react'
 import CrmApp from '@/components/crm/CrmApp'
 import { AppShell } from '@/components/AppShell'
 
+function etiquetaEstadoFactura(status: string) {
+  const m: Record<string, string> = {
+    PENDING: 'Pendiente',
+    OVERDUE: 'Vencida',
+    PARTIAL: 'Parcialmente pagada',
+    PAID: 'Pagada',
+    VOID: 'Anulada',
+  }
+  return m[status] ?? status
+}
+
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
@@ -83,7 +94,7 @@ export default async function HomePage() {
                     <div>
                       <p className="font-semibold">{invoice.invoiceNumber}</p>
                       <p className="text-sm text-slate-500">
-                        Vence: {new Date(invoice.dueDate).toLocaleDateString()} - {invoice.status}
+                        Vence: {new Date(invoice.dueDate).toLocaleDateString('es-AR')} — {etiquetaEstadoFactura(invoice.status)}
                       </p>
                     </div>
                     <Link href="/my-billing" className="text-blue-600 hover:underline text-sm">

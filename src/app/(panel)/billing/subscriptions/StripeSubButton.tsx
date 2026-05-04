@@ -17,7 +17,7 @@ export function StripeSubButton({ subscriptionId }: { subscriptionId: string }) 
       className="px-3 py-1 text-sm rounded bg-indigo-100 text-indigo-700"
       disabled={pending}
     >
-      {pending ? 'Generando...' : 'Activar autopago'}
+      {pending ? 'Generando…' : 'Activar autopago'}
     </button>
   )
 }

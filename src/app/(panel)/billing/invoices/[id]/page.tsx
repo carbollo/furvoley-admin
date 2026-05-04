@@ -8,6 +8,35 @@ import { AdminManualPaymentForm } from './AdminManualPaymentForm'
 
 export const dynamic = 'force-dynamic'
 
+function etiquetaEstadoFactura(status: string) {
+  const m: Record<string, string> = {
+    PENDING: 'Pendiente',
+    OVERDUE: 'Vencida',
+    PARTIAL: 'Parcialmente pagada',
+    PAID: 'Pagada',
+    VOID: 'Anulada',
+  }
+  return m[status] ?? status
+}
+
+function etiquetaMetodoIntento(method: string) {
+  const m: Record<string, string> = {
+    STRIPE: 'Stripe',
+    CASH: 'Efectivo',
+    BANK_TRANSFER: 'Transferencia',
+  }
+  return m[method] ?? method
+}
+
+function etiquetaEstadoIntento(status: string) {
+  const m: Record<string, string> = {
+    PENDING: 'Pendiente',
+    SUCCEEDED: 'Completado',
+    FAILED: 'Fallido',
+  }
+  return m[status] ?? status
+}
+
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions)
   const role = (session?.user as { role?: string } | undefined)?.role
@@ -29,7 +58,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="space-y-6">
       <Link href="/billing" className="text-blue-600 hover:underline">
-        Volver a billing
+        Volver a facturación
       </Link>
 
       <div className="bg-white rounded-lg border p-6 space-y-3">
@@ -43,8 +72,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           )}
         </p>
         <p className="text-slate-600">Socio: {invoice.member.name}</p>
-        <p className="text-slate-600">Estado: {invoice.status}</p>
-        <p className="text-slate-600">Vencimiento: {new Date(invoice.dueDate).toLocaleDateString()}</p>
+        <p className="text-slate-600">Estado: {etiquetaEstadoFactura(invoice.status)}</p>
+        <p className="text-slate-600">Vencimiento: {new Date(invoice.dueDate).toLocaleDateString('es-AR')}</p>
         <p className="text-slate-900 font-semibold">Pendiente: €{pending.toFixed(2)}</p>
         <div className="flex flex-wrap gap-3 items-center">
           <a
@@ -87,7 +116,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <ul>
           {invoice.paymentAttempts.map((attempt) => (
             <li key={attempt.id} className="p-4 border-t text-sm">
-              {new Date(attempt.attemptedAt).toLocaleString()} - {attempt.method} - {attempt.status} - €
+              {new Date(attempt.attemptedAt).toLocaleString('es-AR')} — {etiquetaMetodoIntento(attempt.method)} — {etiquetaEstadoIntento(attempt.status)} — €
               {attempt.amount.toFixed(2)}
             </li>
           ))}
