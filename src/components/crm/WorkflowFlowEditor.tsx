@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, memo, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, memo, type CSSProperties, type MouseEvent } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -347,6 +347,26 @@ function WorkflowFlowEditorInner({
     [setNodes],
   )
 
+  const onEdgeDoubleClick = useCallback(
+    (event: MouseEvent, edge: Edge) => {
+      event.preventDefault()
+      event.stopPropagation()
+      setEdges((eds) => eds.filter((e) => e.id !== edge.id))
+    },
+    [setEdges],
+  )
+
+  const defaultEdgeOptions = useMemo(
+    () =>
+      ({
+        selectable: true,
+        deletable: true,
+        focusable: true,
+        interactionWidth: 24,
+      }) satisfies Partial<Edge>,
+    [],
+  )
+
   const onConnect = useCallback(
     (params: Connection) => {
       setEdges((eds) =>
@@ -533,8 +553,9 @@ function WorkflowFlowEditorInner({
               {editingId ? 'Editar flujo' : 'Nuevo flujo'}
             </h2>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
-              Arrastra pasos; el disparador no se mueve. Clic en el disparador o en un paso para configurar en el panel
-              derecho.
+              Arrastra pasos; el disparador no se mueve. Para quitar solo una conexión: doble clic en la línea, o
+              selecciónala (clic) y pulsa Supr / Retroceso. Clic en el disparador o en un paso para configurar a la
+              derecha.
             </p>
           </div>
           <button
@@ -564,9 +585,12 @@ function WorkflowFlowEditorInner({
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
+              onEdgeDoubleClick={onEdgeDoubleClick}
               isValidConnection={isValidConnection}
               onSelectionChange={onSelectionChange}
               nodeTypes={nodeTypes}
+              defaultEdgeOptions={defaultEdgeOptions}
+              elevateEdgesOnSelect
               fitView
               fitViewOptions={{ padding: 0.2 }}
               deleteKeyCode={['Backspace', 'Delete']}
