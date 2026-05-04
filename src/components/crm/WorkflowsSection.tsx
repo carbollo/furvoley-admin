@@ -2,12 +2,8 @@
 
 import { useCallback, useState } from 'react'
 import { Zap, Plus } from 'lucide-react'
+import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
 import { WorkflowFlowEditor, type WorkflowEditorInitialPaso } from './WorkflowFlowEditor'
-
-function etiquetaDisparador(t: string) {
-  const m: Record<string, string> = { MEMBER_CREATED: 'Alta de socio' }
-  return m[t] ?? t
-}
 
 function resumenPrimerPaso(
   actionType: string,
@@ -65,7 +61,7 @@ export function WorkflowsSection({
   const activos = wfs.filter((w) => w.activo).length
   const totalPasos = wfs.reduce((a, w) => a + ((w.pasos as unknown[])?.length ?? 0), 0)
 
-  const triggerColors: Record<string, string> = { MEMBER_CREATED: '#10B981' }
+  const triggerColors: Record<string, string> = { MEMBER_CREATED: '#10B981', MEMBER_UPDATED: '#0EA5E9' }
   const colorTrig = (t: string) => triggerColors[t] || '#64748b'
 
   const toggle = async (id: string) => {
@@ -127,6 +123,7 @@ export function WorkflowsSection({
   const handleSaveFromEditor = async (payload: {
     name: string
     description: string | null
+    triggerType: string
     steps: Array<{ position: number; stepType: string; actionType: string; config: Record<string, unknown> }>
   }) => {
     setSaveBusy(true)
@@ -134,7 +131,7 @@ export function WorkflowsSection({
       const body = {
         name: payload.name,
         description: payload.description,
-        triggerType: 'MEMBER_CREATED',
+        triggerType: payload.triggerType,
         isActive: true,
         steps: payload.steps,
       }
@@ -357,7 +354,7 @@ export function WorkflowsSection({
                         color: colorTrig(String(w.trigger)),
                       }}
                     >
-                      ⚡ {etiquetaDisparador(String(w.trigger))}
+                      ⚡ {workflowTriggerLabel(String(w.trigger))}
                     </span>
                     <span style={{ color: '#9ca3af', fontSize: 12 }}>→</span>
                     <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>{resumen}</span>

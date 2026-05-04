@@ -1,4 +1,5 @@
 import type { Edge, Node } from '@xyflow/react'
+import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
 
 export type WorkflowNodeData = {
   actionType: string
@@ -26,12 +27,6 @@ function getStepKeyFromPaso(p: {
   const c = p.config && typeof p.config === 'object' ? (p.config as Record<string, unknown>) : {}
   const k = c.stepKey
   return typeof k === 'string' && k.trim() ? k.trim() : genStepKey()
-}
-
-/** Etiqueta humana del tipo de disparador (igual que en la lista de flujos). */
-export function workflowTriggerLabel(triggerType: string): string {
-  const m: Record<string, string> = { MEMBER_CREATED: 'Alta de socio' }
-  return m[triggerType] ?? triggerType
 }
 
 export function shortActionLabel(actionType: string, c: Record<string, unknown>) {
@@ -71,6 +66,7 @@ export function emptyFlow(
           stepKey: '_trigger',
         },
         draggable: false,
+        deletable: false,
       },
     ],
     edges: [],
@@ -103,6 +99,7 @@ export function stepsToFlowNodes(
         stepKey: '_trigger',
       },
       draggable: false,
+      deletable: false,
     },
   ]
 

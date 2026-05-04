@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-const ALLOWED_TRIGGER = 'MEMBER_CREATED'
+import { isWorkflowTriggerAllowed } from '@/lib/crm-workflow-triggers'
 
 const ALLOWED_ACTIONS = new Set([
   'ASSIGN_TEAM',
@@ -53,12 +53,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'El nombre es obligatorio' }, { status: 400 })
   }
 
-  const triggerType = String(body.triggerType || ALLOWED_TRIGGER).trim()
-  if (triggerType !== ALLOWED_TRIGGER) {
-    return NextResponse.json(
-      { error: 'Por ahora solo está soportado el disparador «Alta de socio»' },
-      { status: 400 },
-    )
+  const triggerType = String(body.triggerType || 'MEMBER_CREATED').trim()
+  if (!isWorkflowTriggerAllowed(triggerType)) {
+    return NextResponse.json({ error: 'Tipo de disparador no válido' }, { status: 400 })
   }
 
   let steps: ReturnType<typeof normalizeSteps>

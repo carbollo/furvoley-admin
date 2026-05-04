@@ -21,6 +21,11 @@ import {
 import '@xyflow/react/dist/style.css'
 import { Plus, Trash2, Zap } from 'lucide-react'
 import {
+  isWorkflowTriggerAllowed,
+  workflowTriggerLabel,
+  WORKFLOW_TRIGGER_OPTIONS,
+} from '@/lib/crm-workflow-triggers'
+import {
   WORKFLOW_START_ID,
   emptyFlow,
   flowToPasos,
@@ -112,18 +117,18 @@ const labelBase: CSSProperties = {
   display: 'block',
 }
 
-const triggerCard: CSSProperties = {
+const triggerCard = (selected: boolean): CSSProperties => ({
   padding: '12px 16px 12px 14px',
   borderRadius: 12,
   background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-  border: '1px solid #6ee7b7',
+  border: `2px solid ${selected ? '#059669' : '#6ee7b7'}`,
   borderLeftWidth: 4,
-  borderLeftColor: '#10b981',
+  borderLeftColor: selected ? '#047857' : '#10b981',
   color: '#064e3b',
   minWidth: 148,
   maxWidth: 220,
   boxShadow: 'var(--card-shadow, 0 1px 3px rgba(0,0,0,0.08))',
-}
+})
 
 const stepBox = (selected: boolean): CSSProperties => ({
   position: 'relative',
@@ -136,9 +141,9 @@ const stepBox = (selected: boolean): CSSProperties => ({
   boxShadow: 'var(--card-shadow, 0 1px 3px rgba(0,0,0,0.06))',
 })
 
-const WorkflowTriggerNode = memo(function WorkflowTriggerNode({ data }: NodeProps<Node<WorkflowNodeData>>) {
+const WorkflowTriggerNode = memo(function WorkflowTriggerNode({ data, selected }: NodeProps<Node<WorkflowNodeData>>) {
   return (
-    <div style={triggerCard}>
+    <div style={triggerCard(!!selected)}>
       <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: '#059669', marginBottom: 6 }}>
         DISPARADOR
       </div>
@@ -238,6 +243,7 @@ export function WorkflowFlowEditor(props: {
   onSave: (payload: {
     name: string
     description: string | null
+    triggerType: string
     steps: Array<{ position: number; stepType: string; actionType: string; config: Record<string, unknown> }>
   }) => void
   saveBusy: boolean
@@ -270,6 +276,7 @@ function WorkflowFlowEditorInner({
   onSave: (payload: {
     name: string
     description: string | null
+    triggerType: string
     steps: Array<{ position: number; stepType: string; actionType: string; config: Record<string, unknown> }>
   }) => void
   saveBusy: boolean
@@ -303,6 +310,43 @@ function WorkflowFlowEditorInner({
     [nodes, selectedId],
   )
 
+  const selectedTriggerNode = useMemo(
+    () =>
+      selectedId === WORKFLOW_START_ID
+        ? (nodes.find((n) => n.id === WORKFLOW_START_ID && n.type === 'workflowTrigger') as
+            | Node<WorkflowNodeData>
+            | undefined)
+        : undefined,
+    [nodes, selectedId],
+  )
+
+  const setWorkflowTriggerType = useCallback(
+    (value: string) => {
+      if (!isWorkflowTriggerAllowed(value)) return
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === WORKFLOW_START_ID && n.type === 'workflowTrigger'
+            ? {
+                ...n,
+                data: {
+                  ...(n.data as WorkflowNodeData),
+                  label: workflowTriggerLabel(value),
+                  config: {
+                    ...(typeof (n.data as WorkflowNodeData).config === 'object' &&
+                    (n.data as WorkflowNodeData).config
+                      ? (n.data as WorkflowNodeData).config
+                      : {}),
+                    triggerType: value,
+                  },
+                },
+              }
+            : n,
+        ),
+      )
+    },
+    [setNodes],
+  )
+
   const onConnect = useCallback(
     (params: Connection) => {
       setEdges((eds) =>
@@ -332,13 +376,10 @@ function WorkflowFlowEditorInner({
     [edges],
   )
 
-  const onSelectionChange = useCallback(
-    ({ nodes: sel }: { nodes: Node[] }) => {
-      const first = sel[0]
-      setSelectedId(first?.type === 'workflowStep' ? first.id : null)
-    },
-    [],
-  )
+  const onSelectionChange = useCallback(({ nodes: sel }: { nodes: Node[] }) => {
+    const first = sel[0]
+    setSelectedId(first?.id ?? null)
+  }, [])
 
   const updateSelectedData = useCallback(
     (patch: Partial<WorkflowNodeData>) => {
@@ -431,9 +472,18 @@ function WorkflowFlowEditorInner({
       actionType: p.actionType,
       config: prepararConfigParaApi(p.actionType, p.config as Record<string, unknown>),
     }))
+    const triggerN = nodes.find((n) => n.id === WORKFLOW_START_ID && n.type === 'workflowTrigger')
+    const cfg = triggerN?.data && typeof (triggerN.data as WorkflowNodeData).config === 'object'
+      ? ((triggerN.data as WorkflowNodeData).config as Record<string, unknown>)
+      : {}
+    const resolvedTrigger =
+      typeof cfg.triggerType === 'string' && isWorkflowTriggerAllowed(cfg.triggerType)
+        ? cfg.triggerType
+        : triggerType
     onSave({
       name,
       description: descripcion.trim() || null,
+      triggerType: resolvedTrigger,
       steps,
     })
   }
@@ -483,7 +533,8 @@ function WorkflowFlowEditorInner({
               {editingId ? 'Editar flujo' : 'Nuevo flujo'}
             </h2>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
-              Arrastra nodos. Conecta desde el disparador y entre pasos. Clic en un paso para editar en el panel derecho.
+              Arrastra pasos; el disparador no se mueve. Clic en el disparador o en un paso para configurar en el panel
+              derecho.
             </p>
           </div>
           <button
@@ -590,8 +641,33 @@ function WorkflowFlowEditorInner({
               />
 
               <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0', paddingTop: 16 }}>
-                {!selectedNode && (
-                  <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Selecciona un paso en el lienzo para configurarlo.</p>
+                {!selectedNode && !selectedTriggerNode && (
+                  <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
+                    Haz clic en el disparador o en un paso del lienzo para configurarlo.
+                  </p>
+                )}
+                {selectedTriggerNode && (
+                  <>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>
+                      Disparador
+                    </div>
+                    <label style={labelBase}>Evento que inicia el flujo</label>
+                    <select
+                      value={String((selectedTriggerNode.data.config as Record<string, unknown>).triggerType ?? triggerType)}
+                      onChange={(e) => setWorkflowTriggerType(e.target.value)}
+                      style={{ ...inputBase, cursor: 'pointer' }}
+                    >
+                      {WORKFLOW_TRIGGER_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, lineHeight: 1.45, marginBottom: 0 }}>
+                      Hoy el motor ejecuta automáticamente solo los flujos con disparador «Alta de socio». Otros quedan
+                      guardados para cuando se conecten al sistema.
+                    </p>
+                  </>
                 )}
                 {selectedNode && (
                   <>
