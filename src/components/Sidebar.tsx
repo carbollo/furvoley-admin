@@ -19,7 +19,7 @@ function isAccountingSectionPath(path: string) {
   return (
     path === '/accounting' ||
     path.startsWith('/accounting/') ||
-    path.startsWith('/billing/impagos')
+    path.startsWith('/billing/')
   )
 }
 
@@ -116,7 +116,7 @@ export function Sidebar() {
                   <span>Resumen</span>
                 </Link>
                 <Link
-                  href="/billing/impagos"
+                  href="/?tab=cobros"
                   className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
                     pathname?.startsWith('/billing/impagos')
                       ? 'bg-slate-800 text-white'
