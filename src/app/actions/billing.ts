@@ -40,7 +40,7 @@ export async function createMembershipPlan(data: {
       enrollmentFee: data.enrollmentFee ?? 0,
     },
   })
-  revalidatePath('/billing')
+  revalidatePath('/')
   return plan
 }
 
@@ -59,7 +59,7 @@ export async function updateMembershipPlan(
     where: { id },
     data,
   })
-  revalidatePath('/billing')
+  revalidatePath('/')
   return plan
 }
 
@@ -81,7 +81,7 @@ export async function deleteMembershipPlan(id: string) {
     })
   }
 
-  revalidatePath('/billing')
+  revalidatePath('/')
 }
 
 export async function createSubscription(data: {
@@ -106,7 +106,7 @@ export async function createSubscription(data: {
 
   // first invoice
   await createInvoiceForSubscription(subscription.id)
-  revalidatePath('/billing')
+  revalidatePath('/')
   return subscription
 }
 
@@ -168,7 +168,7 @@ export async function generateDueInvoices() {
     created.push(invoice.id)
   }
 
-  revalidatePath('/billing')
+  revalidatePath('/')
   return { createdCount: created.length }
 }
 
@@ -205,9 +205,7 @@ export async function createManualInvoice(data: {
     },
   })
 
-  revalidatePath('/billing')
-  revalidatePath('/billing/extra-invoice')
-  revalidatePath('/billing/impagos')
+  revalidatePath('/')
   return invoice
 }
 
@@ -215,8 +213,7 @@ export async function runBillingAutomation() {
   const generated = await generateDueInvoices()
   await updateInvoiceStatuses()
   const reminders = await runReminderJob()
-  revalidatePath('/billing')
-  revalidatePath('/billing/impagos')
+  revalidatePath('/')
   revalidatePath('/')
   return {
     generatedInvoices: generated.createdCount,
@@ -240,8 +237,7 @@ export async function updateInvoiceStatuses() {
       })
     }
   }
-  revalidatePath('/billing')
-  revalidatePath('/billing/impagos')
+  revalidatePath('/')
 }
 
 export async function recordInvoicePayment(data: {
@@ -300,10 +296,9 @@ export async function recordInvoicePayment(data: {
     })
   }
 
-  revalidatePath('/billing')
-  revalidatePath('/billing/impagos')
+  revalidatePath('/')
   revalidatePath('/accounting')
-  revalidatePath(`/billing/invoices/${data.invoiceId}`)
+  revalidatePath('/my-billing')
   revalidatePath('/')
 }
 
@@ -357,8 +352,8 @@ export async function createInvoiceStripeLink(invoiceId: string) {
         },
       },
     ],
-    success_url: `${appUrl}/billing/invoices/${invoice.id}?success=true`,
-    cancel_url: `${appUrl}/billing/invoices/${invoice.id}?canceled=true`,
+    success_url: `${appUrl}/my-billing?success=true`,
+    cancel_url: `${appUrl}/my-billing?canceled=true`,
   })
 
   await prisma.invoice.update({
@@ -368,7 +363,7 @@ export async function createInvoiceStripeLink(invoiceId: string) {
       stripeSessionId: session.id,
     },
   })
-  revalidatePath(`/billing/invoices/${invoice.id}`)
+  revalidatePath('/my-billing')
   return session.url
 }
 
@@ -410,8 +405,8 @@ export async function createSubscriptionStripeLink(subscriptionId: string) {
         },
       },
     ],
-    success_url: `${appUrl}/billing/subscriptions?success=true`,
-    cancel_url: `${appUrl}/billing/subscriptions?canceled=true`,
+    success_url: `${appUrl}/?tab=cobros&success=true`,
+    cancel_url: `${appUrl}/?tab=cobros&canceled=true`,
   })
   return session.url
 }

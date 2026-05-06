@@ -34,7 +34,7 @@ export default withAuth(
       }
     }
 
-    const adminRoutes = ["/accounting", "/billing"]
+    const adminRoutes = ["/accounting"]
 
     if (adminRoutes.some(route => path.startsWith(route))) {
       if (token?.role !== "ADMIN") {

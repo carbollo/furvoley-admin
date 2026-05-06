@@ -88,7 +88,7 @@ export default async function AccountingPage() {
                 <td className="p-4 text-sm">
                   {t.invoice ? (
                     <a
-                      href={`/billing/invoices/${t.invoice.id}`}
+                      href={`/api/invoices/${t.invoice.id}/pdf`}
                       className="text-blue-600 hover:underline"
                     >
                       {t.invoice.invoiceNumber}
