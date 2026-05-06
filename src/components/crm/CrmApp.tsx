@@ -1984,7 +1984,10 @@ function Contabilidad({ setActive }) {
   const [downloadingCobroId, setDownloadingCobroId] = useState<string | null>(null);
   const [deletingCobroId, setDeletingCobroId] = useState<string | null>(null);
   const [showNuevoCobroModal, setShowNuevoCobroModal] = useState(false);
+  const [showMovimientoModal, setShowMovimientoModal] = useState(false);
+  const [movimientoType, setMovimientoType] = useState<'INCOME' | 'EXPENSE'>('INCOME');
   const [nuevoCobroBusy, setNuevoCobroBusy] = useState(false);
+  const [movimientoBusy, setMovimientoBusy] = useState(false);
   const [ledgerBusy, setLedgerBusy] = useState(false);
   const [ledgerData, setLedgerData] = useState<{
     entries: any[]
@@ -1998,8 +2001,19 @@ function Contabilidad({ setActive }) {
     amount: '',
     dueDate: '',
   });
+  const [movimientoForm, setMovimientoForm] = useState({
+    concept: '',
+    amount: '',
+    entryDate: '',
+    paymentAccountCode: '5720000',
+    categoryAccountCode: '',
+    memberId: '',
+  });
   const tabs = ['Todos','Pendiente','Pagado','Vencido'];
   const contaTabs = ['DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES', 'COBROS'];
+  const cuentasTesoreria = ledgerData.accounts.filter((a) => String(a.code || '').startsWith('57') || String(a.code || '').startsWith('56'));
+  const cuentasIngreso = ledgerData.accounts.filter((a) => a.nature === 'INCOME');
+  const cuentasGasto = ledgerData.accounts.filter((a) => a.nature === 'EXPENSE');
   const cobrosEnRango = COBROS_UI.filter((c) => {
     const registro = String(c.registro || c.vencimiento || '');
     if (fechaDesde && registro < fechaDesde) return false;
@@ -2156,6 +2170,27 @@ function Contabilidad({ setActive }) {
     setShowNuevoCobroModal(true)
   }
 
+  function openMovimientoModal(type: 'INCOME' | 'EXPENSE') {
+    const now = new Date()
+    const pad = (n) => String(n).padStart(2, '0')
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+    const categoryOptions = type === 'INCOME' ? cuentasIngreso : cuentasGasto
+    if (!cuentasTesoreria.length || !categoryOptions.length) {
+      showAlert('Faltan cuentas PGC activas para registrar este movimiento.')
+      return
+    }
+    setMovimientoType(type)
+    setMovimientoForm({
+      concept: type === 'INCOME' ? 'Ingreso manual' : 'Gasto manual',
+      amount: '',
+      entryDate: today,
+      paymentAccountCode: cuentasTesoreria[0]?.code || '5720000',
+      categoryAccountCode: categoryOptions[0]?.code || '',
+      memberId: '',
+    })
+    setShowMovimientoModal(true)
+  }
+
   async function submitNuevoCobro(e) {
     e.preventDefault()
     const memberId = String(nuevoCobroForm.memberId || '').trim()
@@ -2196,6 +2231,51 @@ function Contabilidad({ setActive }) {
     }
   }
 
+  async function submitMovimiento(e) {
+    e.preventDefault()
+    const concept = String(movimientoForm.concept || '').trim()
+    const amount = Number(movimientoForm.amount)
+    const entryDate = String(movimientoForm.entryDate || '').trim()
+    const paymentAccountCode = String(movimientoForm.paymentAccountCode || '').trim()
+    const categoryAccountCode = String(movimientoForm.categoryAccountCode || '').trim()
+    const memberId = String(movimientoForm.memberId || '').trim()
+    if (!concept || !entryDate || !paymentAccountCode || !categoryAccountCode || !Number.isFinite(amount) || amount <= 0) {
+      showAlert('Completa todos los campos del asiento manual.')
+      return
+    }
+    setMovimientoBusy(true)
+    try {
+      const r = await fetch('/api/crm/accounting/movements', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          movementType: movimientoType,
+          concept,
+          amount,
+          entryDate,
+          paymentAccountCode,
+          categoryAccountCode,
+          memberId: memberId || undefined,
+        }),
+      })
+      if (!r.ok) {
+        let msg = 'No se pudo registrar el movimiento'
+        try {
+          msg = (await r.json()).error || msg
+        } catch {
+          //
+        }
+        showAlert(msg)
+        return
+      }
+      setShowMovimientoModal(false)
+      await Promise.all([reload(), loadAccounting()])
+    } finally {
+      setMovimientoBusy(false)
+    }
+  }
+
   return (
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -2206,6 +2286,12 @@ function Contabilidad({ setActive }) {
         <div style={{display:'flex',gap:10}}>
           <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'#374151'}}>
             <Icon name="export" size={15}/>Exportar datos
+          </button>
+          <button type="button" onClick={() => openMovimientoModal('INCOME')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid rgba(16,185,129,0.35)',background:'#ecfdf5',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700,color:'#047857'}}>
+            <Icon name="plus" size={15}/>Crear ingreso
+          </button>
+          <button type="button" onClick={() => openMovimientoModal('EXPENSE')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid rgba(239,68,68,0.25)',background:'#fef2f2',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700,color:'#b91c1c'}}>
+            <Icon name="plus" size={15}/>Crear gasto
           </button>
           {contaTab === 'COBROS' && (
             <button type="button" onClick={openNuevoCobroModal} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
@@ -2425,6 +2511,141 @@ function Contabilidad({ setActive }) {
               </>
             )
           })()}
+        </div>
+      )}
+
+      {showMovimientoModal && (
+        <div
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !movimientoBusy) setShowMovimientoModal(false)
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 520,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(e) => e.stopPropagation()}
+            onSubmit={submitMovimiento}
+            style={{
+              width: '100%',
+              maxWidth: 560,
+              background: '#fff',
+              borderRadius: 16,
+              border: '1px solid rgba(0,0,0,0.07)',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.28)',
+              padding: 28,
+              fontFamily: 'inherit',
+            }}
+          >
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>
+                {movimientoType === 'INCOME' ? 'Crear ingreso (PGC)' : 'Crear gasto (PGC)'}
+              </h3>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>
+                Se registra simultáneamente en Diario y en movimientos económicos.
+              </p>
+            </div>
+
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Concepto</label>
+            <input
+              value={movimientoForm.concept}
+              onChange={(e) => setMovimientoForm((f) => ({ ...f, concept: e.target.value }))}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', marginBottom: 12, fontFamily: 'inherit' }}
+              placeholder={movimientoType === 'INCOME' ? 'Ej. Patrocinio local' : 'Ej. Compra material deportivo'}
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Importe (€)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={movimientoForm.amount}
+                  onChange={(e) => setMovimientoForm((f) => ({ ...f, amount: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Fecha contable</label>
+                <input
+                  type="date"
+                  value={movimientoForm.entryDate}
+                  onChange={(e) => setMovimientoForm((f) => ({ ...f, entryDate: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Cuenta tesorería (57/56)</label>
+                <select
+                  value={movimientoForm.paymentAccountCode}
+                  onChange={(e) => setMovimientoForm((f) => ({ ...f, paymentAccountCode: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+                >
+                  {cuentasTesoreria.map((a) => (
+                    <option key={a.id} value={a.code}>{a.code} · {a.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>
+                  {movimientoType === 'INCOME' ? 'Cuenta ingreso (grupo 7)' : 'Cuenta gasto (grupo 6)'}
+                </label>
+                <select
+                  value={movimientoForm.categoryAccountCode}
+                  onChange={(e) => setMovimientoForm((f) => ({ ...f, categoryAccountCode: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+                >
+                  {(movimientoType === 'INCOME' ? cuentasIngreso : cuentasGasto).map((a) => (
+                    <option key={a.id} value={a.code}>{a.code} · {a.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginTop: 12, marginBottom: 6, display: 'block' }}>Socio (opcional, trazabilidad)</label>
+            <select
+              value={movimientoForm.memberId}
+              onChange={(e) => setMovimientoForm((f) => ({ ...f, memberId: e.target.value }))}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+            >
+              <option value="">Sin socio asociado</option>
+              {SOCIOS_UI.map((s) => (
+                <option key={s.id} value={s.id}>{s.nombre}</option>
+              ))}
+            </select>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button
+                type="button"
+                disabled={movimientoBusy}
+                onClick={() => setShowMovimientoModal(false)}
+                style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: movimientoBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#374151' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={movimientoBusy}
+                style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: 'none', background: 'var(--accent)', cursor: movimientoBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#fff', opacity: movimientoBusy ? 0.75 : 1 }}
+              >
+                {movimientoBusy ? 'Registrando…' : movimientoType === 'INCOME' ? 'Crear ingreso' : 'Crear gasto'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
