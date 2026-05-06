@@ -1989,6 +1989,7 @@ function Contabilidad({ setActive }) {
   const [nuevoCobroBusy, setNuevoCobroBusy] = useState(false);
   const [movimientoBusy, setMovimientoBusy] = useState(false);
   const [deletingMovementId, setDeletingMovementId] = useState<string | null>(null);
+  const [taxBusy, setTaxBusy] = useState(false);
   const [ledgerBusy, setLedgerBusy] = useState(false);
   const [ledgerData, setLedgerData] = useState<{
     entries: any[]
@@ -2001,6 +2002,8 @@ function Contabilidad({ setActive }) {
     concepto: '',
     amount: '',
     dueDate: '',
+    applyTax: true,
+    taxRate: '',
   });
   const [movimientoForm, setMovimientoForm] = useState({
     concept: '',
@@ -2009,13 +2012,38 @@ function Contabilidad({ setActive }) {
     paymentAccountCode: '5720000',
     categoryAccountCode: '',
     memberId: '',
+    applyTax: true,
+    taxRate: '',
   });
+  const [taxConfigForm, setTaxConfigForm] = useState({
+    vatRateIncome: '21',
+    vatRateExpense: '21',
+    applyOnInvoices: true,
+    applyOnIncome: true,
+    applyOnExpense: true,
+  })
   const tabs = ['Todos','Pendiente','Pagado','Vencido'];
   const contaTabs = ['DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES', 'COBROS'];
   const cuentasTesoreria = ledgerData.accounts.filter((a) => String(a.code || '').startsWith('57') || String(a.code || '').startsWith('56'));
   const cuentasIngreso = ledgerData.accounts.filter((a) => a.nature === 'INCOME');
   const cuentasGasto = ledgerData.accounts.filter((a) => a.nature === 'EXPENSE');
   const movimientosEconomicos = Array.isArray(bundle?.reportTransactions) ? bundle.reportTransactions : [];
+  const defaultTaxConfig = bundle?.taxConfig || {};
+  useEffect(() => {
+    setTaxConfigForm({
+      vatRateIncome: String(defaultTaxConfig.vatRateIncome ?? 21),
+      vatRateExpense: String(defaultTaxConfig.vatRateExpense ?? 21),
+      applyOnInvoices: Boolean(defaultTaxConfig.applyOnInvoices ?? true),
+      applyOnIncome: Boolean(defaultTaxConfig.applyOnIncome ?? true),
+      applyOnExpense: Boolean(defaultTaxConfig.applyOnExpense ?? true),
+    })
+  }, [
+    defaultTaxConfig.vatRateIncome,
+    defaultTaxConfig.vatRateExpense,
+    defaultTaxConfig.applyOnInvoices,
+    defaultTaxConfig.applyOnIncome,
+    defaultTaxConfig.applyOnExpense,
+  ])
   const movimientosEnRango = movimientosEconomicos.filter((m) => {
     const fecha = String(m.date || m.createdAt || '').slice(0, 10)
     if (!fecha) return true
@@ -2178,6 +2206,8 @@ function Contabilidad({ setActive }) {
       concepto: 'Cuota mensual',
       amount: '',
       dueDate,
+      applyTax: taxConfigForm.applyOnInvoices,
+      taxRate: taxConfigForm.vatRateIncome,
     })
     setShowNuevoCobroModal(true)
   }
@@ -2199,6 +2229,8 @@ function Contabilidad({ setActive }) {
       paymentAccountCode: cuentasTesoreria[0]?.code || '5720000',
       categoryAccountCode: categoryOptions[0]?.code || '',
       memberId: '',
+      applyTax: type === 'INCOME' ? taxConfigForm.applyOnIncome : taxConfigForm.applyOnExpense,
+      taxRate: type === 'INCOME' ? taxConfigForm.vatRateIncome : taxConfigForm.vatRateExpense,
     })
     setShowMovimientoModal(true)
   }
@@ -2209,6 +2241,8 @@ function Contabilidad({ setActive }) {
     const concepto = String(nuevoCobroForm.concepto || '').trim()
     const dueDate = String(nuevoCobroForm.dueDate || '').trim()
     const amount = Number(nuevoCobroForm.amount)
+    const applyTax = Boolean(nuevoCobroForm.applyTax)
+    const taxRate = Number(nuevoCobroForm.taxRate)
     if (!memberId || !concepto || !dueDate || !Number.isFinite(amount) || amount <= 0) {
       showAlert('Completa todos los campos del nuevo cobro.')
       return
@@ -2224,6 +2258,8 @@ function Contabilidad({ setActive }) {
           concepto,
           amount,
           dueDate,
+          applyTax,
+          taxRate: Number.isFinite(taxRate) ? taxRate : 0,
         }),
       })
       if (!r.ok) {
@@ -2251,6 +2287,8 @@ function Contabilidad({ setActive }) {
     const paymentAccountCode = String(movimientoForm.paymentAccountCode || '').trim()
     const categoryAccountCode = String(movimientoForm.categoryAccountCode || '').trim()
     const memberId = String(movimientoForm.memberId || '').trim()
+    const applyTax = Boolean(movimientoForm.applyTax)
+    const taxRate = Number(movimientoForm.taxRate)
     if (!concept || !entryDate || !paymentAccountCode || !categoryAccountCode || !Number.isFinite(amount) || amount <= 0) {
       showAlert('Completa todos los campos del asiento manual.')
       return
@@ -2269,6 +2307,8 @@ function Contabilidad({ setActive }) {
           paymentAccountCode,
           categoryAccountCode,
           memberId: memberId || undefined,
+          applyTax,
+          taxRate: Number.isFinite(taxRate) ? taxRate : 0,
         }),
       })
       if (!r.ok) {
@@ -2320,6 +2360,43 @@ function Contabilidad({ setActive }) {
     }
   }
 
+  async function guardarConfigImpuestos() {
+    const vatRateIncome = Number(taxConfigForm.vatRateIncome)
+    const vatRateExpense = Number(taxConfigForm.vatRateExpense)
+    if (!Number.isFinite(vatRateIncome) || !Number.isFinite(vatRateExpense) || vatRateIncome < 0 || vatRateExpense < 0) {
+      showAlert('Introduce porcentajes de IVA válidos.')
+      return
+    }
+    setTaxBusy(true)
+    try {
+      const r = await fetch('/api/crm/accounting/tax-config', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vatRateIncome,
+          vatRateExpense,
+          applyOnInvoices: taxConfigForm.applyOnInvoices,
+          applyOnIncome: taxConfigForm.applyOnIncome,
+          applyOnExpense: taxConfigForm.applyOnExpense,
+        }),
+      })
+      if (!r.ok) {
+        let msg = 'No se pudo guardar la configuración de impuestos'
+        try {
+          msg = (await r.json()).error || msg
+        } catch {
+          //
+        }
+        showAlert(msg)
+        return
+      }
+      await reload()
+    } finally {
+      setTaxBusy(false)
+    }
+  }
+
   return (
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -2367,6 +2444,33 @@ function Contabilidad({ setActive }) {
             color:contaTab===t?'#fff':'#6b7280',fontFamily:'inherit',fontSize:12,fontWeight:600
           }}>{t}</button>
         ))}
+      </div>
+
+      <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px',display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+        <div style={{fontSize:12,fontWeight:700,color:'#475569',minWidth:130}}>Configuración impuestos</div>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+          IVA ingreso %
+          <input type="number" min={0} step="0.01" value={taxConfigForm.vatRateIncome} onChange={(e)=>setTaxConfigForm((s)=>({...s,vatRateIncome:e.target.value}))} style={{width:78,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,fontFamily:'inherit'}} />
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+          IVA gasto %
+          <input type="number" min={0} step="0.01" value={taxConfigForm.vatRateExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,vatRateExpense:e.target.value}))} style={{width:78,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,fontFamily:'inherit'}} />
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+          <input type="checkbox" checked={taxConfigForm.applyOnInvoices} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyOnInvoices:e.target.checked}))}/>
+          Aplicar en cobros
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+          <input type="checkbox" checked={taxConfigForm.applyOnIncome} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyOnIncome:e.target.checked}))}/>
+          Aplicar en ingresos
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+          <input type="checkbox" checked={taxConfigForm.applyOnExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyOnExpense:e.target.checked}))}/>
+          Aplicar en gastos
+        </label>
+        <button type="button" disabled={taxBusy} onClick={guardarConfigImpuestos} style={{marginLeft:'auto',padding:'8px 12px',borderRadius:10,border:'1px solid var(--border)',background:'#111827',color:'#fff',fontFamily:'inherit',fontSize:12,fontWeight:700,cursor:taxBusy?'not-allowed':'pointer',opacity:taxBusy?0.7:1}}>
+          {taxBusy ? 'Guardando…' : 'Guardar impuestos'}
+        </button>
       </div>
 
       {contaTab !== 'COBROS' && (
@@ -2682,6 +2786,30 @@ function Contabilidad({ setActive }) {
                 />
               </div>
             </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#475569'}}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(movimientoForm.applyTax)}
+                  onChange={(e) => setMovimientoForm((f) => ({ ...f, applyTax: e.target.checked }))}
+                />
+                Aplicar IVA
+              </label>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>IVA %</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={movimientoForm.taxRate}
+                  onChange={(e) => setMovimientoForm((f) => ({ ...f, taxRate: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+            <div style={{marginTop:10,fontSize:12,color:'#475569'}}>
+              Total movimiento: {fmtMoney(Number(movimientoForm.amount || 0) * (1 + (Boolean(movimientoForm.applyTax) ? Number(movimientoForm.taxRate || 0) / 100 : 0)))}
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
               <div>
@@ -2825,6 +2953,30 @@ function Contabilidad({ setActive }) {
                   style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
                 />
               </div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#475569'}}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(nuevoCobroForm.applyTax)}
+                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, applyTax: e.target.checked }))}
+                />
+                Aplicar IVA
+              </label>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>IVA %</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={nuevoCobroForm.taxRate}
+                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, taxRate: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+            <div style={{marginTop:10,fontSize:12,color:'#475569'}}>
+              Total cobro: {fmtMoney(Number(nuevoCobroForm.amount || 0) * (1 + (Boolean(nuevoCobroForm.applyTax) ? Number(nuevoCobroForm.taxRate || 0) / 100 : 0)))}
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>

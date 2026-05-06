@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getTaxConfig } from '@/lib/tax-config'
 
 async function nextInvoiceNumber() {
   const year = new Date().getFullYear()
@@ -30,6 +31,8 @@ export async function POST(request: Request) {
   const concepto = String(body.concepto || '').trim()
   const amount = Number(body.amount)
   const dueDateRaw = String(body.dueDate || '').trim()
+  const applyTaxRaw = body.applyTax
+  const taxRateRaw = body.taxRate
 
   if (!memberId || !concepto || !Number.isFinite(amount) || amount <= 0 || !dueDateRaw) {
     return NextResponse.json({ error: 'Datos incompletos o inválidos' }, { status: 400 })
@@ -51,6 +54,12 @@ export async function POST(request: Request) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const status = dueDate < today ? 'OVERDUE' : 'PENDING'
+  const taxConfig = await getTaxConfig()
+  const applyTax = typeof applyTaxRaw === 'boolean' ? applyTaxRaw : taxConfig.applyOnInvoices
+  const taxRateInput = Number(taxRateRaw)
+  const taxRate = Number.isFinite(taxRateInput) ? Math.max(0, taxRateInput) : taxConfig.vatRateIncome
+  const taxAmount = applyTax ? Number((amount * (taxRate / 100)).toFixed(2)) : 0
+  const totalAmount = Number((amount + taxAmount).toFixed(2))
 
   const invoice = await prisma.invoice.create({
     data: {
@@ -59,8 +68,8 @@ export async function POST(request: Request) {
       issueDate: new Date(),
       dueDate,
       subtotal: amount,
-      taxAmount: 0,
-      totalAmount: amount,
+      taxAmount,
+      totalAmount,
       paidAmount: 0,
       currency: 'EUR',
       status,

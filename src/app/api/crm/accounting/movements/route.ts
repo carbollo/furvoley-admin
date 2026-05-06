@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createJournalEntry } from '@/lib/accounting/engine'
 import { ensureBasePgcAccounts } from '@/lib/accounting/pgc'
+import { getTaxConfig } from '@/lib/tax-config'
 
 async function assertAdmin() {
   const session = await getServerSession(authOptions)
@@ -32,6 +33,8 @@ export async function POST(request: Request) {
   const paymentAccountCode = String(body.paymentAccountCode || '').trim()
   const categoryAccountCode = String(body.categoryAccountCode || '').trim()
   const memberId = body.memberId ? String(body.memberId).trim() : null
+  const applyTaxRaw = body.applyTax
+  const taxRateRaw = Number(body.taxRate)
 
   if (!['INCOME', 'EXPENSE'].includes(movementType)) {
     return NextResponse.json({ error: 'Tipo de movimiento inválido' }, { status: 400 })
@@ -47,6 +50,16 @@ export async function POST(request: Request) {
   }
 
   await ensureBasePgcAccounts()
+  const taxConfig = await getTaxConfig()
+  const applyTax = typeof applyTaxRaw === 'boolean'
+    ? applyTaxRaw
+    : movementType === 'INCOME'
+    ? taxConfig.applyOnIncome
+    : taxConfig.applyOnExpense
+  const defaultRate = movementType === 'INCOME' ? taxConfig.vatRateIncome : taxConfig.vatRateExpense
+  const taxRate = Number.isFinite(taxRateRaw) ? Math.max(0, taxRateRaw) : defaultRate
+  const taxAmount = applyTax ? Number((amount * (taxRate / 100)).toFixed(2)) : 0
+  const totalAmount = Number((amount + taxAmount).toFixed(2))
 
   const [paymentAccount, categoryAccount] = await Promise.all([
     prisma.accountChart.findUnique({ where: { code: paymentAccountCode } }),
@@ -75,7 +88,7 @@ export async function POST(request: Request) {
     const movement = await prisma.transaction.create({
       data: {
         type: movementType,
-        amount,
+        amount: totalAmount,
         description: concept,
         date: entryDate,
         source: 'MANUAL',
@@ -93,7 +106,7 @@ export async function POST(request: Request) {
               {
                 accountCode: paymentAccountCode,
                 side: 'DEBIT',
-                amount,
+                amount: totalAmount,
                 lineConcept: 'Entrada de tesorería',
                 memberId,
               },
@@ -104,6 +117,17 @@ export async function POST(request: Request) {
                 lineConcept: 'Reconocimiento de ingreso',
                 memberId,
               },
+              ...(taxAmount > 0
+                ? [
+                    {
+                      accountCode: '4770000',
+                      side: 'CREDIT' as const,
+                      amount: taxAmount,
+                      lineConcept: `IVA repercutido ${taxRate}%`,
+                      memberId,
+                    },
+                  ]
+                : []),
             ]
           : [
               {
@@ -116,14 +140,25 @@ export async function POST(request: Request) {
               {
                 accountCode: paymentAccountCode,
                 side: 'CREDIT',
-                amount,
+                amount: totalAmount,
                 lineConcept: 'Salida de tesorería',
                 memberId,
               },
+              ...(taxAmount > 0
+                ? [
+                    {
+                      accountCode: '4720000',
+                      side: 'DEBIT' as const,
+                      amount: taxAmount,
+                      lineConcept: `IVA soportado ${taxRate}%`,
+                      memberId,
+                    },
+                  ]
+                : []),
             ],
     })
 
-    return NextResponse.json({ ok: true, movement, entry })
+    return NextResponse.json({ ok: true, movement, entry, tax: { rate: taxRate, amount: taxAmount } })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'No se pudo registrar el movimiento' }, { status: 400 })
   }

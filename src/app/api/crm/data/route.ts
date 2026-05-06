@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getTaxConfig } from '@/lib/tax-config'
 
 function initials(name: string) {
   return name
@@ -52,6 +53,7 @@ export async function GET() {
     expenseTxYear,
     incomeTxMonthRaw,
     reportTxRaw,
+    taxConfig,
   ] = await Promise.all([
     prisma.member.findMany({
       orderBy: { name: 'asc' },
@@ -140,6 +142,7 @@ export async function GET() {
         invoice: { select: { kind: true } },
       },
     }),
+    getTaxConfig(),
   ])
 
   const pendingInvoicesAll = invoicesRaw.filter(
@@ -369,6 +372,13 @@ export async function GET() {
     workflows,
     meta: {
       today: now.toISOString(),
+    },
+    taxConfig: {
+      vatRateIncome: taxConfig.vatRateIncome,
+      vatRateExpense: taxConfig.vatRateExpense,
+      applyOnInvoices: taxConfig.applyOnInvoices,
+      applyOnIncome: taxConfig.applyOnIncome,
+      applyOnExpense: taxConfig.applyOnExpense,
     },
   })
 }
