@@ -1841,6 +1841,7 @@ function Cobros({ setActive }) {
   const [tab, setTab] = useState('Todos');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
+  const [menuCobroId, setMenuCobroId] = useState<string | null>(null);
   const [showNuevoCobroModal, setShowNuevoCobroModal] = useState(false);
   const [nuevoCobroBusy, setNuevoCobroBusy] = useState(false);
   const [nuevoCobroForm, setNuevoCobroForm] = useState({
@@ -1868,6 +1869,27 @@ function Cobros({ setActive }) {
     const r = await fetch('/api/crm/invoices/' + c.id + '/mark-paid', { method: 'POST', credentials: 'include' });
     if (!r.ok) { alert('No se pudo marcar como pagado'); return; }
     await reload();
+  }
+
+  useEffect(() => {
+    function onDocMouseDown(e) {
+      const el = e.target as HTMLElement | null
+      if (!el?.closest?.('[data-cobro-menu]')) setMenuCobroId(null)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [])
+
+  function abrirFactura(c) {
+    window.location.href = '/billing/invoices/' + c.id
+  }
+
+  async function copiarIdCobro(c) {
+    try {
+      await navigator.clipboard.writeText(String(c.id))
+    } catch {
+      // fallback silencioso
+    }
   }
 
   function openNuevoCobroModal() {
@@ -2020,16 +2042,56 @@ function Cobros({ setActive }) {
                   {new Date(c.vencimiento).toLocaleDateString('es-AR')}
                 </td>
                 <td style={{padding:'14px 16px'}}><Badge status={c.estado}/></td>
-                <td style={{padding:'14px 16px'}}>
-                  <div style={{display:'flex',gap:6}}>
-                    {c.estado !== 'Pagado' && (
-                      <button type="button" onClick={() => marcarPagado(c)} style={{
-                        padding:'6px 12px',borderRadius:8,border:'none',
-                        background:'var(--green-light)',color:'var(--green)',
-                        cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600
-                      }}>Marcar pagado</button>
+                <td style={{padding:'14px 16px', position:'relative'}}>
+                  <div style={{display:'flex',justifyContent:'flex-end'}} data-cobro-menu>
+                    <button
+                      type="button"
+                      onClick={() => setMenuCobroId((id) => (id === c.id ? null : c.id))}
+                      style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}}
+                    >
+                      <Icon name="dots" size={14}/>
+                    </button>
+                    {menuCobroId === c.id && (
+                      <div
+                        data-cobro-menu
+                        style={{
+                          position:'absolute',
+                          top:42,
+                          right:16,
+                          minWidth:170,
+                          background:'#fff',
+                          border:'1px solid var(--border)',
+                          borderRadius:10,
+                          boxShadow:'0 10px 24px rgba(15,23,42,0.14)',
+                          overflow:'hidden',
+                          zIndex:20,
+                        }}
+                      >
+                        {c.estado !== 'Pagado' && (
+                          <button
+                            type="button"
+                            onClick={async () => { setMenuCobroId(null); await marcarPagado(c) }}
+                            style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'var(--green)',fontWeight:600}}
+                          >
+                            Marcar pagado
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { setMenuCobroId(null); abrirFactura(c) }}
+                          style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#374151',fontWeight:500}}
+                        >
+                          Ver factura
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => { setMenuCobroId(null); await copiarIdCobro(c) }}
+                          style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#374151',fontWeight:500}}
+                        >
+                          Copiar ID
+                        </button>
+                      </div>
                     )}
-                    <button style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}}><Icon name="dots" size={14}/></button>
                   </div>
                 </td>
               </tr>
