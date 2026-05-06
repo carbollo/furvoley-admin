@@ -377,7 +377,7 @@ const NAV = [
   { id: 'dashboard', label: 'Inicio', icon: 'dashboard' },
   { id: 'socios', label: 'Socios', icon: 'users' },
   { id: 'equipos', label: 'Equipos', icon: 'teams' },
-  { id: 'cobros', label: 'Cobros', icon: 'billing' },
+  { id: 'contabilidad', label: 'Contabilidad', icon: 'billing' },
   { id: 'calendario', label: 'Calendario', icon: 'calendar' },
   { id: 'informes', label: 'Informes', icon: 'reports' },
   { id: 'workflows', label: 'Flujos', icon: 'workflows' },
@@ -441,7 +441,7 @@ function Sidebar({ active, setActive }) {
             }}>
               <span style={{opacity:isActive ? 1 : 0.7,flexShrink:0}}><Icon name={item.icon} size={16}/></span>
               <span className="sidebar-label">{item.label}</span>
-              {item.id === 'cobros' && pending > 0 && <span className="sidebar-badge" style={{
+              {item.id === 'contabilidad' && pending > 0 && <span className="sidebar-badge" style={{
                 marginLeft:'auto',background:'var(--red)',color:'#fff',
                 fontSize:10,fontWeight:700,padding:'1px 7px',borderRadius:999
               }}>{pending > 99 ? '99+' : pending}</span>}
@@ -561,7 +561,7 @@ function Dashboard({ setActive }) {
         <div style={{flex:1,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
             <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>Cobros Recientes</div>
-            <button type="button" onClick={() => setActive('cobros')} style={{fontSize:12,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>Ver todos →</button>
+            <button type="button" onClick={() => setActive('contabilidad')} style={{fontSize:12,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>Ver todos →</button>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
             {(COBROS_UI.slice(0,4)).map(c => (
@@ -1971,10 +1971,11 @@ function Equipos() {
 }
 
 // ── COBROS ──────────────────────────────────────────────────────────────────
-function Cobros({ setActive }) {
+function Contabilidad({ setActive }) {
   const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm();
   const COBROS_UI = bundle?.cobros ?? [];
   const SOCIOS_UI = bundle?.socios ?? [];
+  const [contaTab, setContaTab] = useState('RESUMEN');
   const [tab, setTab] = useState('Todos');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -1984,6 +1985,13 @@ function Cobros({ setActive }) {
   const [deletingCobroId, setDeletingCobroId] = useState<string | null>(null);
   const [showNuevoCobroModal, setShowNuevoCobroModal] = useState(false);
   const [nuevoCobroBusy, setNuevoCobroBusy] = useState(false);
+  const [ledgerBusy, setLedgerBusy] = useState(false);
+  const [ledgerData, setLedgerData] = useState<{
+    entries: any[]
+    accounts: any[]
+    periods: any[]
+    reports: any | null
+  }>({ entries: [], accounts: [], periods: [], reports: null });
   const [nuevoCobroForm, setNuevoCobroForm] = useState({
     memberId: '',
     concepto: '',
@@ -1991,6 +1999,7 @@ function Cobros({ setActive }) {
     dueDate: '',
   });
   const tabs = ['Todos','Pendiente','Pagado','Vencido'];
+  const contaTabs = ['RESUMEN', 'DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES'];
   const cobrosEnRango = COBROS_UI.filter((c) => {
     const registro = String(c.registro || c.vencimiento || '');
     if (fechaDesde && registro < fechaDesde) return false;
@@ -2004,6 +2013,36 @@ function Cobros({ setActive }) {
     pagado: cobrosEnRango.filter(c=>c.estado==='Pagado').reduce((a,c)=>a+c.monto,0),
     vencido: cobrosEnRango.filter(c=>c.estado==='Vencido').reduce((a,c)=>a+c.monto,0),
   };
+
+  const loadAccounting = useCallback(async () => {
+    setLedgerBusy(true);
+    try {
+      const [entriesR, accountsR, periodsR, reportsR] = await Promise.all([
+        fetch('/api/crm/accounting/entries', { credentials: 'include' }),
+        fetch('/api/crm/accounting/accounts', { credentials: 'include' }),
+        fetch('/api/crm/accounting/periods', { credentials: 'include' }),
+        fetch('/api/crm/accounting/reports', { credentials: 'include' }),
+      ]);
+      const [entriesJ, accountsJ, periodsJ, reportsJ] = await Promise.all([
+        entriesR.ok ? entriesR.json() : { entries: [] },
+        accountsR.ok ? accountsR.json() : { accounts: [] },
+        periodsR.ok ? periodsR.json() : { periods: [] },
+        reportsR.ok ? reportsR.json() : { trialBalance: [], pnl: [], balanceSheet: { assets: [], liabilities: [], equity: [] }, totals: { debit: 0, credit: 0 } },
+      ]);
+      setLedgerData({
+        entries: entriesJ.entries || [],
+        accounts: accountsJ.accounts || [],
+        periods: periodsJ.periods || [],
+        reports: reportsJ,
+      });
+    } finally {
+      setLedgerBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAccounting().catch(() => {});
+  }, [loadAccounting]);
 
   async function marcarPagado(c) {
     const r = await fetch('/api/crm/invoices/' + c.id + '/mark-paid', { method: 'POST', credentials: 'include' });
@@ -2161,8 +2200,8 @@ function Cobros({ setActive }) {
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Cobros</h1>
-          <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>Gestión de cuotas y pagos</p>
+          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Contabilidad</h1>
+          <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>Gestión contable PGC y cobros</p>
         </div>
         <div style={{display:'flex',gap:10}}>
           <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'#374151'}}>
@@ -2188,6 +2227,64 @@ function Cobros({ setActive }) {
         ))}
       </div>
       {/* Tabs */}
+      <div style={{display:'flex',gap:2,background:'#fff',border:'1px solid var(--border)',borderRadius:12,padding:4,width:'fit-content'}}>
+        {contaTabs.map((t) => (
+          <button key={t} onClick={() => setContaTab(t)} style={{
+            padding:'8px 14px',borderRadius:9,border:'none',cursor:'pointer',
+            background:contaTab===t?'#111827':'transparent',
+            color:contaTab===t?'#fff':'#6b7280',fontFamily:'inherit',fontSize:12,fontWeight:600
+          }}>{t}</button>
+        ))}
+      </div>
+
+      {contaTab !== 'RESUMEN' && (
+        <div style={{background:'#fff',borderRadius:16,padding:16,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)'}}>
+          {ledgerBusy ? (
+            <div style={{fontSize:13,color:'#64748b'}}>Cargando datos contables…</div>
+          ) : contaTab === 'DIARIO' ? (
+            <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
+              {ledgerData.entries.map((e) => (
+                <div key={e.id} style={{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{e.entryNumber} · {e.concept}</div>
+                  <div style={{fontSize:12,color:'#64748b'}}>{new Date(e.entryDate).toLocaleDateString('es-AR')} · {e.status}</div>
+                </div>
+              ))}
+              {ledgerData.entries.length === 0 && <div style={{fontSize:13,color:'#64748b'}}>Sin asientos.</div>}
+            </div>
+          ) : contaTab === 'MAYOR' ? (
+            <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
+              {(ledgerData.reports?.trialBalance || []).map((r: any) => (
+                <div key={r.code} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:12,padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10,fontSize:13}}>
+                  <span>{r.code} · {r.name}</span>
+                  <span>Debe {fmtMoney(r.debit)}</span>
+                  <span>Haber {fmtMoney(r.credit)}</span>
+                  <span>Saldo {fmtMoney((r.debit || 0) - (r.credit || 0))}</span>
+                </div>
+              ))}
+            </div>
+          ) : contaTab === 'CUENTAS' ? (
+            <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
+              {ledgerData.accounts.map((a) => (
+                <div key={a.id} style={{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10,fontSize:13}}>
+                  {a.code} · {a.name} · {a.nature}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+              <div style={{padding:12,border:'1px solid var(--border)',borderRadius:10}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Balance comprobación</div>
+                <div style={{fontSize:12,color:'#475569'}}>Debe {fmtMoney(ledgerData.reports?.totals?.debit || 0)} · Haber {fmtMoney(ledgerData.reports?.totals?.credit || 0)}</div>
+              </div>
+              <div style={{padding:12,border:'1px solid var(--border)',borderRadius:10}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Periodos fiscales</div>
+                <div style={{fontSize:12,color:'#475569'}}>{ledgerData.periods.length} periodos ({ledgerData.periods.filter((p) => p.isClosed).length} cerrados)</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
         <div style={{display:'flex',gap:2,background:'#fff',border:'1px solid var(--border)',borderRadius:12,padding:4,width:'fit-content'}}>
           {tabs.map(t => (
@@ -3037,7 +3134,7 @@ function Workflows() {
 }
 
 // ── APP ROOT ─────────────────────────────────────────────────────────────────
-const CRM_SECTION_IDS = ['dashboard','socios','equipos','cobros','calendario','informes','workflows'] as const;
+const CRM_SECTION_IDS = ['dashboard','socios','equipos','contabilidad','calendario','informes','workflows'] as const;
 type SectionId = (typeof CRM_SECTION_IDS)[number]
 
 function CrmInner() {
@@ -3047,14 +3144,20 @@ function CrmInner() {
   const [showNotifications, setShowNotifications] = useState(false)
 
   const tabRaw = searchParams.get('tab') ?? ''
-  const active: SectionId = CRM_SECTION_IDS.includes(tabRaw as SectionId)
-    ? (tabRaw as SectionId)
+  const normalizedTab = tabRaw === 'cobros' ? 'contabilidad' : tabRaw
+  const active: SectionId = CRM_SECTION_IDS.includes(normalizedTab as SectionId)
+    ? (normalizedTab as SectionId)
     : 'dashboard'
 
   useEffect(() => {
-    const t = searchParams.get('tab')
+    const tRaw = searchParams.get('tab')
+    const t = tRaw === 'cobros' ? 'contabilidad' : tRaw
     if (!t || !CRM_SECTION_IDS.includes(t as SectionId)) {
       router.replace('/?tab=dashboard', { scroll: false })
+      return
+    }
+    if (tRaw === 'cobros') {
+      router.replace('/?tab=contabilidad', { scroll: false })
     }
   }, [router, searchParams])
 
@@ -3092,7 +3195,7 @@ function CrmInner() {
           id: `overdue-${c.id}`,
           title: 'Cobro vencido',
           description: `${c.socio} · ${c.concepto}`,
-          tab: 'cobros',
+          tab: 'contabilidad',
           priority: 'high',
         })
       }
@@ -3107,7 +3210,7 @@ function CrmInner() {
           id: `due-soon-${c.id}`,
           title: 'Cobro por vencer',
           description: `${c.socio} · vence ${due.toLocaleDateString('es-AR')}`,
-          tab: 'cobros',
+          tab: 'contabilidad',
           priority: 'normal',
         })
       }
@@ -3147,7 +3250,7 @@ function CrmInner() {
     dashboard: Dashboard,
     socios: Socios,
     equipos: Equipos,
-    cobros: Cobros,
+    contabilidad: Contabilidad,
     calendario: Calendario,
     informes: Informes,
     workflows: Workflows,

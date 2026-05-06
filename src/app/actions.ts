@@ -199,8 +199,8 @@ export async function generateStripeLink(paymentId: string) {
       },
     ],
     mode: 'payment',
-    success_url: `${appUrl}/?tab=cobros&stripeSuccess=1`,
-    cancel_url: `${appUrl}/?tab=cobros&stripeCanceled=1`,
+    success_url: `${appUrl}/?tab=contabilidad&stripeSuccess=1`,
+    cancel_url: `${appUrl}/?tab=contabilidad&stripeCanceled=1`,
     client_reference_id: payment.id,
   })
 

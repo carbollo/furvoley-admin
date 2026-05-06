@@ -115,13 +115,13 @@ export function Sidebar() {
                   <span>Resumen</span>
                 </Link>
                 <Link
-                  href="/?tab=cobros"
+                  href="/?tab=contabilidad"
                   className={`flex items-center space-x-3 py-2 px-2 rounded-md text-sm transition ${
                     'text-slate-300 hover:bg-slate-800/60 hover:text-white'
                   }`}
                 >
                   <Receipt size={16} className="shrink-0 opacity-90" />
-                  <span>Impagos</span>
+                  <span>Contabilidad CRM</span>
                 </Link>
                 <Link
                   href="/accounting/bank-import"

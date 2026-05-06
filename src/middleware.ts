@@ -5,7 +5,7 @@ import { NextResponse } from "next/server"
 const ADMIN_TO_CRM_TAB: { test: (p: string) => boolean; tab: string }[] = [
   { test: (p) => p === "/members" || p.startsWith("/members/"), tab: "socios" },
   { test: (p) => p === "/teams" || p.startsWith("/teams/"), tab: "equipos" },
-  { test: (p) => p === "/payments" || p.startsWith("/payments/"), tab: "cobros" },
+  { test: (p) => p === "/payments" || p.startsWith("/payments/"), tab: "contabilidad" },
   { test: (p) => p === "/reports" || p.startsWith("/reports/"), tab: "informes" },
   { test: (p) => p === "/workflows" || p.startsWith("/workflows/"), tab: "workflows" },
   { test: (p) => p === "/admin-overview" || p.startsWith("/admin-overview/"), tab: "dashboard" },

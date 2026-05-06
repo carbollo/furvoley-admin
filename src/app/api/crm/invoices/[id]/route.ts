@@ -22,6 +22,19 @@ export async function DELETE(
     return NextResponse.json({ error: 'Cobro no encontrado' }, { status: 404 })
   }
 
+  const postedEntries = await prisma.journalEntry.count({
+    where: {
+      sourceId: id,
+      status: { in: ['POSTED', 'REVERSED'] },
+    },
+  })
+  if (postedEntries > 0) {
+    return NextResponse.json(
+      { error: 'No se puede borrar: el cobro está contabilizado. Revierte el asiento y anula el documento.' },
+      { status: 409 },
+    )
+  }
+
   await prisma.$transaction([
     prisma.transaction.deleteMany({ where: { invoiceId: id } }),
     prisma.invoice.delete({ where: { id } }),

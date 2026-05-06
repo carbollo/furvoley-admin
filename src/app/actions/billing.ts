@@ -3,6 +3,8 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { getStripe } from '@/lib/stripe'
+import { createJournalEntry } from '@/lib/accounting/engine'
+import { ensureBasePgcAccounts } from '@/lib/accounting/pgc'
 
 function startOfDay(date: Date) {
   const d = new Date(date)
@@ -294,6 +296,31 @@ export async function recordInvoicePayment(data: {
         bankReference: data.bankReference ?? null,
       },
     })
+
+    await ensureBasePgcAccounts()
+    const cashAccount = method === 'CASH' ? '5700000' : '5720000'
+    await createJournalEntry({
+      concept: `Cobro factura ${invoice.invoiceNumber} (${method})`,
+      entryDate: new Date(),
+      source: 'PAYMENT',
+      sourceId: invoice.id,
+      lines: [
+        {
+          accountCode: cashAccount,
+          side: 'DEBIT',
+          amount: data.amount,
+          lineConcept: 'Cobro recibido',
+          memberId: invoice.memberId,
+        },
+        {
+          accountCode: '4300000',
+          side: 'CREDIT',
+          amount: data.amount,
+          lineConcept: 'Cancelación parcial/total de cliente',
+          memberId: invoice.memberId,
+        },
+      ],
+    })
   }
 
   revalidatePath('/')
@@ -405,8 +432,8 @@ export async function createSubscriptionStripeLink(subscriptionId: string) {
         },
       },
     ],
-    success_url: `${appUrl}/?tab=cobros&success=true`,
-    cancel_url: `${appUrl}/?tab=cobros&canceled=true`,
+    success_url: `${appUrl}/?tab=contabilidad&success=true`,
+    cancel_url: `${appUrl}/?tab=contabilidad&canceled=true`,
   })
   return session.url
 }

@@ -270,6 +270,72 @@ model Transaction {
   bankMatches   BankStatementLine[]
 }
 
+model AccountChart {
+  id          String   @id @default(cuid())
+  code        String   @unique // PGC code (e.g. 4300001, 7000000)
+  name        String
+  level       Int      // 1..5
+  nature      String   // ASSET, LIABILITY, EQUITY, INCOME, EXPENSE
+  isActive    Boolean  @default(true)
+  parentCode  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lines       JournalLine[]
+
+  @@index([code])
+  @@index([nature])
+}
+
+model FiscalPeriod {
+  id          String   @id @default(cuid())
+  code        String   @unique // YYYY-MM
+  startsAt    DateTime
+  endsAt      DateTime
+  isClosed    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries     JournalEntry[]
+}
+
+model JournalEntry {
+  id              String   @id @default(cuid())
+  entryNumber     String   @unique
+  concept         String
+  entryDate       DateTime
+  reference       String?
+  status          String   @default("POSTED") // DRAFT, POSTED, REVERSED
+  source          String   @default("MANUAL") // MANUAL, INVOICE, PAYMENT, ADJUSTMENT, SYSTEM
+  sourceId        String?
+  reversalOfId    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  fiscalPeriodId  String
+  fiscalPeriod    FiscalPeriod @relation(fields: [fiscalPeriodId], references: [id], onDelete: Restrict)
+  lines           JournalLine[]
+}
+
+model JournalLine {
+  id            String   @id @default(cuid())
+  side          String   // DEBIT, CREDIT
+  amount        Float
+  lineConcept   String?
+  memberId      String?
+  costCenter    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  entryId       String
+  entry         JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  accountId     String
+  account       AccountChart @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([entryId, side])
+  @@index([accountId])
+}
+
 model BankImport {
   id         String   @id @default(cuid())
   fileName   String?
