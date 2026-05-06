@@ -2684,7 +2684,7 @@ function Contabilidad({ setActive }) {
         <table style={{width:'100%',borderCollapse:'collapse'}}>
           <thead>
             <tr style={{borderBottom:'1px solid var(--border)'}}>
-              {['Socio','Concepto','Deporte','Monto','Vencimiento','Estado','Acciones'].map(h => (
+              {['Socio','Concepto','Deporte','Importe','Vencimiento','Estado','Acciones'].map(h => (
                 <th key={h} style={{padding:'14px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#6b7280',textTransform:'uppercase',letterSpacing:0.5}}>{h}</th>
               ))}
             </tr>
@@ -2700,7 +2700,12 @@ function Contabilidad({ setActive }) {
                 </td>
                 <td style={{padding:'14px 16px',fontSize:14,color:'#374151'}}>{c.concepto}</td>
                 <td style={{padding:'14px 16px',fontSize:14,color:'#374151'}}>{c.deporte}</td>
-                <td style={{padding:'14px 16px',fontSize:14,fontWeight:700,color:'#111827'}}>{fmtMoney(c.monto)}</td>
+                <td style={{padding:'14px 16px'}}>
+                  <div style={{fontSize:14,fontWeight:800,color:'#111827'}}>{fmtMoney(c.monto)}</div>
+                  <div style={{fontSize:11,color:'#64748b',marginTop:3}}>
+                    Base {fmtMoney(Number(c.subtotal || 0))} · IVA {fmtMoney(Number(c.iva || 0))} · Ret. {fmtMoney(Number(c.retencion || 0))}
+                  </div>
+                </td>
                 <td style={{padding:'14px 16px',fontSize:14,color:c.estado==='Vencido'?'var(--red)':'#374151',fontWeight:c.estado==='Vencido'?600:400}}>
                   {new Date(c.vencimiento).toLocaleDateString('es-AR')}
                 </td>

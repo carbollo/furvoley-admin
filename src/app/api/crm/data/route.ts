@@ -286,6 +286,9 @@ export async function GET() {
   })
 
   const cobros = invoicesRaw.map((inv) => ({
+    subtotal: inv.subtotal,
+    iva: inv.taxAmount,
+    retencion: Math.max(0, (inv.subtotal + inv.taxAmount) - inv.totalAmount),
     id: inv.id,
     socio: inv.member.name,
     memberId: inv.memberId,
