@@ -15,7 +15,7 @@ async function ensureSchema() {
     )
     const result = spawnSync(
       process.platform === 'win32' ? 'npx.cmd' : 'npx',
-      ['prisma', 'db', 'push', '--skip-generate'],
+      ['prisma', 'db', 'push'],
       { stdio: 'inherit', env: process.env },
     )
     if (result.status === 0) {
