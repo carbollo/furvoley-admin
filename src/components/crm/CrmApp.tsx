@@ -1846,6 +1846,7 @@ function Cobros({ setActive }) {
   const [menuCobroId, setMenuCobroId] = useState<string | null>(null);
   const [menuCobroPos, setMenuCobroPos] = useState({ top: 0, right: 0 });
   const [downloadingCobroId, setDownloadingCobroId] = useState<string | null>(null);
+  const [deletingCobroId, setDeletingCobroId] = useState<string | null>(null);
   const [showNuevoCobroModal, setShowNuevoCobroModal] = useState(false);
   const [nuevoCobroBusy, setNuevoCobroBusy] = useState(false);
   const [nuevoCobroForm, setNuevoCobroForm] = useState({
@@ -1922,6 +1923,35 @@ function Cobros({ setActive }) {
       await navigator.clipboard.writeText(String(c.id))
     } catch {
       // fallback silencioso
+    }
+  }
+
+  async function eliminarCobro(c) {
+    const invoiceId = String(c?.id || '').trim()
+    if (!invoiceId) return
+    if (deletingCobroId === invoiceId) return
+    const ok = window.confirm(`¿Eliminar el cobro "${c.concepto}" de ${c.socio}? Esta acción no se puede deshacer.`)
+    if (!ok) return
+
+    setDeletingCobroId(invoiceId)
+    try {
+      const r = await fetch('/api/crm/invoices/' + encodeURIComponent(invoiceId), {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!r.ok) {
+        let msg = 'No se pudo eliminar el cobro'
+        try {
+          msg = (await r.json()).error || msg
+        } catch {
+          //
+        }
+        alert(msg)
+        return
+      }
+      await reload()
+    } finally {
+      setDeletingCobroId(null)
     }
   }
 
@@ -2145,6 +2175,14 @@ function Cobros({ setActive }) {
                   style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#374151',fontWeight:500}}
                 >
                   Copiar ID
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingCobroId === cobroActivo.id}
+                  onClick={async () => { setMenuCobroId(null); await eliminarCobro(cobroActivo) }}
+                  style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:deletingCobroId === cobroActivo.id ? 'not-allowed' : 'pointer',fontFamily:'inherit',fontSize:13,color:'var(--red)',fontWeight:600,opacity:deletingCobroId === cobroActivo.id ? 0.65 : 1}}
+                >
+                  {deletingCobroId === cobroActivo.id ? 'Eliminando…' : 'Eliminar cobro'}
                 </button>
               </>
             )
