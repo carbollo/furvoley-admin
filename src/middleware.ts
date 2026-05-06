@@ -1,31 +1,47 @@
 import { withAuth } from "next-auth/middleware"
 import { NextResponse } from "next/server"
 
+/** Rutas con UI antigua (Tailwind) eliminada: el CRM vive en /. */
+const ADMIN_TO_CRM_TAB: { test: (p: string) => boolean; tab: string }[] = [
+  { test: (p) => p === "/members" || p.startsWith("/members/"), tab: "socios" },
+  { test: (p) => p === "/teams" || p.startsWith("/teams/"), tab: "equipos" },
+  { test: (p) => p === "/payments" || p.startsWith("/payments/"), tab: "cobros" },
+  { test: (p) => p === "/reports" || p.startsWith("/reports/"), tab: "informes" },
+  { test: (p) => p === "/workflows" || p.startsWith("/workflows/"), tab: "workflows" },
+  { test: (p) => p === "/admin-overview" || p.startsWith("/admin-overview/"), tab: "dashboard" },
+]
+
 export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token
     const path = req.nextUrl.pathname
 
-    // Rutas solo para ADMIN
-    const adminRoutes = [
-      "/members",
-      "/payments",
-      "/accounting",
-      "/teams",
-      "/billing",
-      "/reports",
-      "/workflows",
-      "/crm",
-      "/admin-overview",
-    ]
-    
+    if (path === "/crm") {
+      const dest = new URL(req.url)
+      dest.pathname = "/"
+      return NextResponse.redirect(dest)
+    }
+
+    if (token?.role === "ADMIN") {
+      for (const { test, tab } of ADMIN_TO_CRM_TAB) {
+        if (!test(path)) continue
+        const u = req.nextUrl.clone()
+        u.pathname = "/"
+        const sp = new URLSearchParams(u.searchParams)
+        sp.set("tab", tab)
+        u.search = sp.toString()
+        return NextResponse.redirect(u)
+      }
+    }
+
+    const adminRoutes = ["/accounting"]
+
     if (adminRoutes.some(route => path.startsWith(route))) {
       if (token?.role !== "ADMIN") {
         return NextResponse.redirect(new URL("/", req.url))
       }
     }
 
-    // Gestión de eventos: /events (lista), /events/new, /events/:id/edit
     const isEventsAdmin =
       path === "/events" ||
       path.startsWith("/events/new") ||
@@ -41,7 +57,6 @@ export default withAuth(
     callbacks: {
       authorized: ({ token, req }) => {
         const path = req.nextUrl.pathname
-        // Ficha pública del evento: /events/:id (sin login), excepto /events/new
         const m = /^\/events\/([^/]+)$/.exec(path)
         if (m && m[1] !== "new") {
           return true

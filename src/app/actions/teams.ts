@@ -3,27 +3,54 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 
-// ... existing actions ...
-
-// TEAMS
 export async function createTeam(data: { name: string; category?: string }) {
   const team = await prisma.team.create({ data })
-  revalidatePath('/teams')
+  revalidatePath('/')
   return team
+}
+
+export async function updateTeam(
+  id: string,
+  data: { name?: string; category?: string | null },
+) {
+  await prisma.team.update({
+    where: { id },
+    data: {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.category !== undefined ? { category: data.category } : {}),
+    },
+  })
+  revalidatePath('/')
+}
+
+/** Un solo entrenador por equipo; el resto pasan a jugador si hacían de coach. */
+export async function setTeamCoach(teamId: string, memberId: string) {
+  await prisma.$transaction(async (tx) => {
+    await tx.teamMember.updateMany({
+      where: { teamId, role: 'COACH' },
+      data: { role: 'PLAYER' },
+    })
+    await tx.teamMember.upsert({
+      where: { teamId_memberId: { teamId, memberId } },
+      create: { teamId, memberId, role: 'COACH' },
+      update: { role: 'COACH' },
+    })
+  })
+  revalidatePath('/')
 }
 
 export async function deleteTeam(id: string) {
   await prisma.team.delete({ where: { id } })
-  revalidatePath('/teams')
+  revalidatePath('/')
 }
 
 export async function addTeamMember(data: { teamId: string; memberId: string; role: string }) {
   const teamMember = await prisma.teamMember.create({ data })
-  revalidatePath('/teams')
+  revalidatePath('/')
   return teamMember
 }
 
 export async function removeTeamMember(id: string) {
   await prisma.teamMember.delete({ where: { id } })
-  revalidatePath('/teams')
+  revalidatePath('/')
 }

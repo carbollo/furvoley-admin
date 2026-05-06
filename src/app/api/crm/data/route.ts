@@ -183,11 +183,20 @@ export async function GET() {
       }
     }
 
+    const deporteMostrar =
+      m.sportPreference?.trim() || team?.name || 'Club'
+
     return {
       id: m.id,
       nombre: m.name,
       email: m.email || '',
-      deporte: team?.name ?? 'Club',
+      telefono: m.phone ?? '',
+      dni: m.dni ?? '',
+      domicilio: m.address ?? '',
+      deporteInscripcion: m.sportPreference ?? '',
+      equipoNombre: team?.name ?? '',
+      fechaAlta: m.joinedAt.toISOString().slice(0, 10),
+      deporte: deporteMostrar,
       categoria: team?.category ?? '—',
       estado: estadoUi,
       cuota: sub?.plan?.amount ?? 0,
@@ -204,17 +213,26 @@ export async function GET() {
   const socioActivosCount = membersRaw.filter((m) => m.status === 'ACTIVE').length
 
   const equipos = teamsRaw.map((t) => {
-    const coach = t.members.find((tm) => tm.role === 'COACH')?.member?.name
+    const coachTm = t.members.find((tm) => tm.role === 'COACH')
     return {
       id: t.id,
       nombre: t.name,
       deporte: t.name,
       categoria: t.category ?? '—',
-      jugadores: t.members.filter((m) => m.role === 'PLAYER').length || t.members.length,
-      entrenador: coach ?? '—',
+      categoriaDb: t.category ?? '',
+      jugadores:
+        t.members.filter((m) => m.role === 'PLAYER').length || t.members.length,
+      entrenador: coachTm?.member?.name ?? '—',
+      coachMemberId: coachTm?.memberId ?? null,
       horario: '—',
       color: '#3B82F6',
       logo: '🏐',
+      miembros: t.members.map((tm) => ({
+        teamMemberId: tm.id,
+        memberId: tm.memberId,
+        nombre: tm.member.name,
+        role: tm.role,
+      })),
     }
   })
 
@@ -225,6 +243,7 @@ export async function GET() {
     concepto: inv.items[0]?.description ?? `Factura ${inv.invoiceNumber}`,
     monto: inv.totalAmount,
     estado: mapInvoiceEstado(inv.status),
+    registro: inv.createdAt.toISOString().slice(0, 10),
     vencimiento: inv.dueDate.toISOString().slice(0, 10),
     deporte: socios.find((s) => s.id === inv.memberId)?.deporte ?? '—',
     pendingAmount: Math.max(0, inv.totalAmount - inv.paidAmount),
@@ -241,22 +260,40 @@ export async function GET() {
   }))
 
   const workflows = workflowsRaw.map((w) => {
-    const step = w.steps[0]
+    const sortedSteps = [...w.steps].sort((a, b) => a.position - b.position)
+    const step = sortedSteps[0]
     return {
       id: w.id,
       nombre: w.name,
+      descripcion: w.description ?? '',
       trigger: w.triggerType,
       accion: step ? `${step.stepType}: ${step.actionType}` : '—',
       activo: w.isActive,
       ejecuciones: 0,
       ultima: '—',
+      pasos: sortedSteps.map((s) => ({
+        id: s.id,
+        position: s.position,
+        stepType: s.stepType,
+        actionType: s.actionType,
+        config: s.config ?? {},
+      })),
     }
   })
 
   const totalIngresosAnuales = ingresosMensual.reduce((a, b) => a + b, 0)
   const totalEgresosAnuales = egresoMensual.reduce((a, b) => a + b, 0)
 
+  const u = session.user as { name?: string | null; email?: string | null; role?: string }
+  const displayName = u.name?.trim() || u.email || 'Administrador'
+
   return NextResponse.json({
+    user: {
+      name: displayName,
+      email: u.email ?? '',
+      role: u.role ?? 'ADMIN',
+      initials: initials(displayName),
+    },
     currency,
     kpis: {
       sociosActivos: socioActivosCount,

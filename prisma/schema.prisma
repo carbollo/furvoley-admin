@@ -70,6 +70,7 @@ model Member {
   email     String?
   phone     String?
   address   String?
+  sportPreference String? // Deporte/interés de inscripción (ej. antes de asignar equipo)
   status    String    @default("ACTIVE") // ACTIVE, INACTIVE
   joinedAt  DateTime  @default(now())
   createdAt DateTime  @default(now())

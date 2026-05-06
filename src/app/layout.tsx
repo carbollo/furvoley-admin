@@ -2,13 +2,12 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
-import RootShell from "./RootShell";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Furvoley Admin Panel",
-  description: "Panel administrativo para gestión de socios y cobros.",
+  title: "Furvoley · Panel de administración",
+  description: "Panel administrativo para la gestión de socios, cobros y actividades del club.",
 };
 
 export default function RootLayout({
@@ -19,9 +18,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${inter.className} bg-slate-50 text-slate-900 flex`}>
-        <Providers>
-          <RootShell>{children}</RootShell>
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

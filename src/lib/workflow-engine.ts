@@ -5,6 +5,8 @@ export type WorkflowMemberPayload = {
   name: string
   email: string | null
   phone: string | null
+  address: string | null
+  sportPreference: string | null
   dni: string | null
   birthDate: Date | null
   status: string
@@ -58,8 +60,10 @@ function interpolateHttpTemplate(template: string, member: WorkflowMemberPayload
     memberName: member.name ?? '',
     memberEmail: member.email ?? '',
     memberPhone: member.phone ?? '',
+    memberAddress: member.address ?? '',
     memberDni: member.dni ?? '',
     memberStatus: member.status ?? '',
+    memberSportPreference: member.sportPreference ?? '',
   }
   return template.replace(/\{(\w+)\}/g, (_, key) => map[key] ?? `{${key}}`)
 }
@@ -75,6 +79,46 @@ function isAllowedHttpUrl(urlStr: string): boolean {
   } catch {
     return false
   }
+}
+
+function normalizeText(v: string | null): string {
+  return (v || '').trim().toLowerCase()
+}
+
+function parsePreferenceMap(config: unknown): Record<string, string> {
+  const raw =
+    config && typeof config === 'object'
+      ? (config as Record<string, unknown>).teamByPreference
+      : undefined
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      if (!parsed || typeof parsed !== 'object') return {}
+      return Object.fromEntries(
+        Object.entries(parsed)
+          .map(([k, v]) => [normalizeText(k), String(v || '').trim()])
+          .filter(([k, v]) => !!k && !!v),
+      )
+    } catch {
+      return {}
+    }
+  }
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return Object.fromEntries(
+      Object.entries(raw as Record<string, unknown>)
+        .map(([k, v]) => [normalizeText(k), String(v || '').trim()])
+        .filter(([k, v]) => !!k && !!v),
+    )
+  }
+  return {}
+}
+
+function parseIsoDate(config: unknown, key: string): Date | null {
+  const raw = readString(config, key)
+  if (!raw) return null
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return null
+  return d
 }
 
 function evalBranchCondition(
@@ -182,6 +226,42 @@ async function runMemberCreatedStepAction(
     return
   }
 
+  if (step.actionType === 'ASSIGN_TEAM_BY_PREFERENCE') {
+    const key = normalizeText(member.sportPreference)
+    if (!key) return
+    const map = parsePreferenceMap(step.config)
+    const teamId = map[key]
+    if (!teamId) return
+    await prisma.teamMember.upsert({
+      where: {
+        teamId_memberId: {
+          teamId,
+          memberId: member.id,
+        },
+      },
+      update: { role: 'PLAYER' },
+      create: { teamId, memberId: member.id, role: 'PLAYER' },
+    })
+    return
+  }
+
+  if (step.actionType === 'REMOVE_FROM_TEAM') {
+    const teamId = readString(step.config, 'teamId')
+    if (teamId) {
+      await prisma.teamMember.deleteMany({
+        where: {
+          memberId: member.id,
+          teamId,
+        },
+      })
+    } else {
+      await prisma.teamMember.deleteMany({
+        where: { memberId: member.id },
+      })
+    }
+    return
+  }
+
   if (step.actionType === 'SET_MEMBER_STATUS') {
     const targetStatus = readString(step.config, 'targetStatus')
     if (!targetStatus) return
@@ -193,6 +273,58 @@ async function runMemberCreatedStepAction(
       })
       member.status = targetStatus
     }
+    return
+  }
+
+  if (step.actionType === 'SET_MEMBER_SPORT_PREFERENCE') {
+    const sportPreference = readString(step.config, 'sportPreference')
+    if (!sportPreference) return
+    await prisma.member.update({
+      where: { id: member.id },
+      data: { sportPreference },
+    })
+    member.sportPreference = sportPreference
+    return
+  }
+
+  if (step.actionType === 'SET_MEMBER_CONTACT') {
+    const email = readString(step.config, 'email')
+    const phone = readString(step.config, 'phone')
+    const address = readString(step.config, 'address')
+    if (!email && !phone && !address) return
+    await prisma.member.update({
+      where: { id: member.id },
+      data: {
+        ...(email ? { email } : {}),
+        ...(phone ? { phone } : {}),
+        ...(address ? { address } : {}),
+      },
+    })
+    if (email) member.email = email
+    if (phone) member.phone = phone
+    if (address) member.address = address
+    return
+  }
+
+  if (step.actionType === 'SET_MEMBER_DNI') {
+    const dni = readString(step.config, 'dni')
+    if (!dni) return
+    await prisma.member.update({
+      where: { id: member.id },
+      data: { dni },
+    })
+    member.dni = dni
+    return
+  }
+
+  if (step.actionType === 'SET_MEMBER_BIRTHDATE') {
+    const birthDate = parseIsoDate(step.config, 'birthDate')
+    if (!birthDate) return
+    await prisma.member.update({
+      where: { id: member.id },
+      data: { birthDate },
+    })
+    member.birthDate = birthDate
     return
   }
 
@@ -211,6 +343,38 @@ async function runMemberCreatedStepAction(
         month,
         year,
         status: paymentStatus,
+      },
+    })
+    return
+  }
+
+  if (step.actionType === 'CREATE_SIGNUP_LINK') {
+    const maxUses = Math.max(1, Math.trunc(readNumber(step.config, 'maxUses') ?? 1))
+    const expiresInDays = Math.max(1, Math.trunc(readNumber(step.config, 'expiresInDays') ?? 30))
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+    await prisma.signupLink.create({
+      data: {
+        token: crypto.randomUUID().replace(/-/g, ''),
+        maxUses,
+        expiresAt,
+        createdMemberId: member.id,
+      },
+    })
+    return
+  }
+
+  if (step.actionType === 'CREATE_TRANSACTION') {
+    const amount = readNumber(step.config, 'amount')
+    const description = readString(step.config, 'description')
+    const type = (readString(step.config, 'type') || 'INCOME').toUpperCase()
+    if (amount === null || amount <= 0 || !description) return
+    await prisma.transaction.create({
+      data: {
+        type: type === 'EXPENSE' ? 'EXPENSE' : 'INCOME',
+        amount,
+        description,
+        date: new Date(),
+        source: 'MANUAL',
       },
     })
     return
@@ -303,7 +467,15 @@ async function runWorkflowStepsForMember(
   }
 }
 
-export async function runMemberCreatedWorkflows(memberId: string) {
+async function runWorkflowsForMemberByTrigger(
+  memberId: string,
+  triggerType:
+    | 'MEMBER_CREATED'
+    | 'MEMBER_UPDATED'
+    | 'MEMBER_STATUS_CHANGED'
+    | 'PAYMENT_CREATED'
+    | 'PAYMENT_PAID',
+) {
   const memberRow = await prisma.member.findUnique({
     where: { id: memberId },
     select: {
@@ -311,6 +483,8 @@ export async function runMemberCreatedWorkflows(memberId: string) {
       name: true,
       email: true,
       phone: true,
+      address: true,
+      sportPreference: true,
       dni: true,
       birthDate: true,
       status: true,
@@ -324,17 +498,49 @@ export async function runMemberCreatedWorkflows(memberId: string) {
     name: memberRow.name,
     email: memberRow.email,
     phone: memberRow.phone,
+    address: memberRow.address,
+    sportPreference: memberRow.sportPreference,
     dni: memberRow.dni,
     birthDate: memberRow.birthDate,
     status: memberRow.status,
   }
 
   const workflows = await prisma.workflow.findMany({
-    where: { isActive: true, triggerType: 'MEMBER_CREATED' },
+    where: { isActive: true, triggerType },
     include: { steps: true },
   })
 
   for (const workflow of workflows) {
     await runWorkflowStepsForMember(workflow.steps, member)
   }
+}
+
+export async function runMemberCreatedWorkflows(memberId: string) {
+  await runWorkflowsForMemberByTrigger(memberId, 'MEMBER_CREATED')
+}
+
+export async function runMemberUpdatedWorkflows(memberId: string) {
+  await runWorkflowsForMemberByTrigger(memberId, 'MEMBER_UPDATED')
+}
+
+export async function runMemberStatusChangedWorkflows(memberId: string) {
+  await runWorkflowsForMemberByTrigger(memberId, 'MEMBER_STATUS_CHANGED')
+}
+
+export async function runPaymentCreatedWorkflows(paymentId: string) {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    select: { memberId: true },
+  })
+  if (!payment) return
+  await runWorkflowsForMemberByTrigger(payment.memberId, 'PAYMENT_CREATED')
+}
+
+export async function runPaymentPaidWorkflows(paymentId: string) {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    select: { memberId: true },
+  })
+  if (!payment) return
+  await runWorkflowsForMemberByTrigger(payment.memberId, 'PAYMENT_PAID')
 }
