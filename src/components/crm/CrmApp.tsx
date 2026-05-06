@@ -1988,6 +1988,7 @@ function Contabilidad({ setActive }) {
   const [movimientoType, setMovimientoType] = useState<'INCOME' | 'EXPENSE'>('INCOME');
   const [nuevoCobroBusy, setNuevoCobroBusy] = useState(false);
   const [movimientoBusy, setMovimientoBusy] = useState(false);
+  const [deletingMovementId, setDeletingMovementId] = useState<string | null>(null);
   const [ledgerBusy, setLedgerBusy] = useState(false);
   const [ledgerData, setLedgerData] = useState<{
     entries: any[]
@@ -2061,7 +2062,7 @@ function Contabilidad({ setActive }) {
   async function marcarPagado(c) {
     const r = await fetch('/api/crm/invoices/' + c.id + '/mark-paid', { method: 'POST', credentials: 'include' });
     if (!r.ok) { showAlert('No se pudo marcar como pagado'); return; }
-    await reload();
+    await Promise.all([reload(), loadAccounting()]);
   }
 
   useEffect(() => {
@@ -2137,7 +2138,7 @@ function Contabilidad({ setActive }) {
         showAlert(msg)
         return
       }
-      await reload()
+      await Promise.all([reload(), loadAccounting()])
     } finally {
       setDeletingCobroId(null)
     }
@@ -2276,6 +2277,38 @@ function Contabilidad({ setActive }) {
     }
   }
 
+  async function eliminarMovimientoManual(entry: any) {
+    const movementId = String(entry?.sourceId || '').trim()
+    if (!movementId) {
+      showAlert('Este asiento no tiene un movimiento manual asociado.')
+      return
+    }
+    if (deletingMovementId === movementId) return
+    const ok = await showConfirm(`¿Eliminar este ${entry?.source === 'MANUAL' ? 'movimiento manual' : 'movimiento'} y su asiento contable?`)
+    if (!ok) return
+
+    setDeletingMovementId(movementId)
+    try {
+      const r = await fetch('/api/crm/accounting/movements?id=' + encodeURIComponent(movementId), {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!r.ok) {
+        let msg = 'No se pudo eliminar el movimiento'
+        try {
+          msg = (await r.json()).error || msg
+        } catch {
+          //
+        }
+        showAlert(msg)
+        return
+      }
+      await Promise.all([reload(), loadAccounting()])
+    } finally {
+      setDeletingMovementId(null)
+    }
+  }
+
   return (
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -2333,8 +2366,36 @@ function Contabilidad({ setActive }) {
             <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
               {ledgerData.entries.map((e) => (
                 <div key={e.id} style={{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10}}>
-                  <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{e.entryNumber} · {e.concept}</div>
-                  <div style={{fontSize:12,color:'#64748b'}}>{new Date(e.entryDate).toLocaleDateString('es-AR')} · {e.status}</div>
+                  <div style={{display:'flex',justifyContent:'space-between',gap:12}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{e.entryNumber} · {e.concept}</div>
+                      <div style={{fontSize:12,color:'#64748b'}}>
+                        {new Date(e.entryDate).toLocaleDateString('es-AR')} · {e.status} · {e.source}
+                      </div>
+                    </div>
+                    {e.source === 'MANUAL' && e.sourceId && (
+                      <button
+                        type="button"
+                        disabled={deletingMovementId === e.sourceId}
+                        onClick={() => eliminarMovimientoManual(e)}
+                        style={{
+                          alignSelf:'center',
+                          padding:'6px 10px',
+                          borderRadius:8,
+                          border:'1px solid rgba(239,68,68,0.25)',
+                          background:'#fff',
+                          cursor: deletingMovementId === e.sourceId ? 'not-allowed' : 'pointer',
+                          color:'#b91c1c',
+                          fontFamily:'inherit',
+                          fontSize:12,
+                          fontWeight:700,
+                          opacity: deletingMovementId === e.sourceId ? 0.6 : 1,
+                        }}
+                      >
+                        {deletingMovementId === e.sourceId ? 'Eliminando…' : 'Eliminar'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
               {ledgerData.entries.length === 0 && <div style={{fontSize:13,color:'#64748b'}}>Sin asientos.</div>}

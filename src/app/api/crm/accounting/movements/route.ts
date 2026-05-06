@@ -128,3 +128,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: e?.message || 'No se pudo registrar el movimiento' }, { status: 400 })
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    await assertAdmin()
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const url = new URL(request.url)
+  const movementId = String(url.searchParams.get('id') || '').trim()
+  if (!movementId) {
+    return NextResponse.json({ error: 'Falta el id del movimiento' }, { status: 400 })
+  }
+
+  const movement = await prisma.transaction.findUnique({
+    where: { id: movementId },
+    select: { id: true, source: true, type: true },
+  })
+  if (!movement) {
+    return NextResponse.json({ error: 'Movimiento no encontrado' }, { status: 404 })
+  }
+  if (movement.source !== 'MANUAL') {
+    return NextResponse.json(
+      { error: 'Solo se pueden eliminar movimientos manuales desde esta vista' },
+      { status: 409 },
+    )
+  }
+
+  await prisma.$transaction([
+    prisma.journalLine.deleteMany({
+      where: { entry: { source: 'MANUAL', sourceId: movementId } },
+    }),
+    prisma.journalEntry.deleteMany({
+      where: { source: 'MANUAL', sourceId: movementId },
+    }),
+    prisma.transaction.delete({
+      where: { id: movementId },
+    }),
+  ])
+
+  return NextResponse.json({ ok: true })
+}
