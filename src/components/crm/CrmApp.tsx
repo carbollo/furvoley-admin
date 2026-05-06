@@ -2370,7 +2370,7 @@ function Contabilidad({ setActive }) {
                     <div>
                       <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{e.entryNumber} · {e.concept}</div>
                       <div style={{fontSize:12,color:'#64748b'}}>
-                        {new Date(e.entryDate).toLocaleDateString('es-AR')} · {e.status} · {e.source}
+                        {new Date(e.entryDate).toLocaleDateString('es-ES')} · {e.status} · {e.source}
                       </div>
                     </div>
                     {e.source === 'MANUAL' && e.sourceId && (
@@ -2395,6 +2395,30 @@ function Contabilidad({ setActive }) {
                         {deletingMovementId === e.sourceId ? 'Eliminando…' : 'Eliminar'}
                       </button>
                     )}
+                  </div>
+                  <div style={{marginTop:8,display:'grid',gap:6}}>
+                    {(e.lines || []).map((l: any) => (
+                      <div key={l.id} style={{display:'grid',gridTemplateColumns:'72px 1fr auto',gap:10,fontSize:12,alignItems:'center'}}>
+                        <span style={{
+                          width:'fit-content',
+                          padding:'2px 8px',
+                          borderRadius:999,
+                          fontWeight:700,
+                          background:l.side==='DEBIT' ? '#eff6ff' : '#fef2f2',
+                          color:l.side==='DEBIT' ? '#1d4ed8' : '#b91c1c',
+                        }}>
+                          {l.side === 'DEBIT' ? 'Debe' : 'Haber'}
+                        </span>
+                        <span style={{color:'#374151'}}>
+                          {l.account?.code} · {l.account?.name}
+                          {l.lineConcept ? ` · ${l.lineConcept}` : ''}
+                        </span>
+                        <span style={{fontWeight:700,color:'#111827'}}>{fmtMoney(Number(l.amount || 0))}</span>
+                      </div>
+                    ))}
+                    <div style={{display:'flex',justifyContent:'flex-end',fontSize:12,color:'#475569',fontWeight:700}}>
+                      Total asiento: {fmtMoney((e.lines || []).reduce((a: number, l: any) => a + Number(l.amount || 0), 0) / 2)}
+                    </div>
                   </div>
                 </div>
               ))}
