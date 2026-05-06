@@ -1837,7 +1837,16 @@ function Equipos() {
 function Cobros({ setActive }) {
   const { bundle, reload, fmtMoney } = useCrm();
   const COBROS_UI = bundle?.cobros ?? [];
+  const SOCIOS_UI = bundle?.socios ?? [];
   const [tab, setTab] = useState('Todos');
+  const [showNuevoCobroModal, setShowNuevoCobroModal] = useState(false);
+  const [nuevoCobroBusy, setNuevoCobroBusy] = useState(false);
+  const [nuevoCobroForm, setNuevoCobroForm] = useState({
+    memberId: '',
+    concepto: '',
+    amount: '',
+    dueDate: '',
+  });
   const tabs = ['Todos','Pendiente','Pagado','Vencido'];
   const filtered = COBROS_UI.filter(c => tab === 'Todos' || c.estado === tab);
   const totales = {
@@ -1853,6 +1862,64 @@ function Cobros({ setActive }) {
     await reload();
   }
 
+  function openNuevoCobroModal() {
+    if (!SOCIOS_UI.length) {
+      alert('No hay socios para facturar.')
+      return
+    }
+    const today = new Date()
+    const pad = (n) => String(n).padStart(2, '0')
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 5)
+    const dueDate = `${nextMonth.getFullYear()}-${pad(nextMonth.getMonth() + 1)}-${pad(nextMonth.getDate())}`
+    setNuevoCobroForm({
+      memberId: SOCIOS_UI[0].id,
+      concepto: 'Cuota mensual',
+      amount: '',
+      dueDate,
+    })
+    setShowNuevoCobroModal(true)
+  }
+
+  async function submitNuevoCobro(e) {
+    e.preventDefault()
+    const memberId = String(nuevoCobroForm.memberId || '').trim()
+    const concepto = String(nuevoCobroForm.concepto || '').trim()
+    const dueDate = String(nuevoCobroForm.dueDate || '').trim()
+    const amount = Number(nuevoCobroForm.amount)
+    if (!memberId || !concepto || !dueDate || !Number.isFinite(amount) || amount <= 0) {
+      alert('Completa todos los campos del nuevo cobro.')
+      return
+    }
+    setNuevoCobroBusy(true)
+    try {
+      const r = await fetch('/api/crm/invoices', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId,
+          concepto,
+          amount,
+          dueDate,
+        }),
+      })
+      if (!r.ok) {
+        let msg = 'No se pudo crear el cobro'
+        try {
+          msg = (await r.json()).error || msg
+        } catch {
+          //
+        }
+        alert(msg)
+        return
+      }
+      setShowNuevoCobroModal(false)
+      await reload()
+    } finally {
+      setNuevoCobroBusy(false)
+    }
+  }
+
   return (
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -1864,7 +1931,7 @@ function Cobros({ setActive }) {
           <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'#374151'}}>
             <Icon name="export" size={15}/>Exportar datos
           </button>
-          <button type="button" onClick={() => setActive('cobros')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
+          <button type="button" onClick={openNuevoCobroModal} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
             <Icon name="plus" size={15}/>Nuevo cobro
           </button>
         </div>
@@ -1937,6 +2004,109 @@ function Cobros({ setActive }) {
           </tbody>
         </table>
       </div>
+
+      {showNuevoCobroModal && (
+        <div
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !nuevoCobroBusy) setShowNuevoCobroModal(false)
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 500,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(e) => e.stopPropagation()}
+            onSubmit={submitNuevoCobro}
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: '#fff',
+              borderRadius: 16,
+              border: '1px solid rgba(0,0,0,0.07)',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.28)',
+              padding: 28,
+              fontFamily: 'inherit',
+            }}
+          >
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>Nuevo cobro</h3>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>
+                Crea un cobro manual sin salir de esta vista.
+              </p>
+            </div>
+
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Socio</label>
+            <select
+              value={nuevoCobroForm.memberId}
+              onChange={(e) => setNuevoCobroForm((f) => ({ ...f, memberId: e.target.value }))}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', marginBottom: 12, fontFamily: 'inherit' }}
+            >
+              {SOCIOS_UI.map((s) => (
+                <option key={s.id} value={s.id}>{s.nombre}</option>
+              ))}
+            </select>
+
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Concepto</label>
+            <input
+              value={nuevoCobroForm.concepto}
+              onChange={(e) => setNuevoCobroForm((f) => ({ ...f, concepto: e.target.value }))}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', marginBottom: 12, fontFamily: 'inherit' }}
+              placeholder="Ej. Cuota mensual"
+            />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Importe (€)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={nuevoCobroForm.amount}
+                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, amount: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Vencimiento</label>
+                <input
+                  type="date"
+                  value={nuevoCobroForm.dueDate}
+                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, dueDate: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button
+                type="button"
+                disabled={nuevoCobroBusy}
+                onClick={() => setShowNuevoCobroModal(false)}
+                style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: nuevoCobroBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#374151' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={nuevoCobroBusy}
+                style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: 'none', background: 'var(--accent)', cursor: nuevoCobroBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#fff', opacity: nuevoCobroBusy ? 0.75 : 1 }}
+              >
+                {nuevoCobroBusy ? 'Creando…' : 'Crear cobro'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
