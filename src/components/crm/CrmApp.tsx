@@ -204,7 +204,8 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
   const safeSecondary = secondaryData.length === safeData.length ? secondaryData : safeData.map(() => 0);
   const safeLabels = labels && labels.length === safeData.length ? labels : safeData.map(() => '');
   const max = Math.max(1, ...safeData, ...safeSecondary);
-  const chartW = safeData.length * 56;
+  const groupW = 62;
+  const chartW = safeData.length * groupW;
   const baseY = height - 28;
   const barMaxH = height - 62;
   return (
@@ -217,18 +218,19 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
         const v2 = safeSecondary[i] ?? 0;
         const h1 = max > 0 ? (v / max) * barMaxH : 0;
         const h2 = max > 0 ? (v2 / max) * barMaxH : 0;
-        const x = i * 56 + 10;
+        const groupX = i * groupW;
+        const x = groupX + 11;
+        const groupCenter = groupX + groupW / 2;
         const y1 = baseY - h1;
         const y2 = baseY - h2;
         return (
           <g key={i}>
-            <rect x={x} y={y1} width="16" height={h1} rx="5" fill={color} opacity="0.9">
-              <title>{`${safeLabels[i]} · Ingresos: ${Math.round(v)}`}</title>
+            <rect x={x} y={y1} width="16" height={h1} rx="5" fill={color} opacity="0.9" />
+            <rect x={x + 24} y={y2} width="16" height={h2} rx="5" fill={secondaryColor} opacity="0.88" />
+            <rect x={groupX} y={18} width={groupW} height={baseY - 10} fill="transparent">
+              <title>{`${safeLabels[i]} · Ingresos: ${Math.round(v)} · Gastos: ${Math.round(v2)}`}</title>
             </rect>
-            <rect x={x + 20} y={y2} width="16" height={h2} rx="5" fill={secondaryColor} opacity="0.88">
-              <title>{`${safeLabels[i]} · Gastos: ${Math.round(v2)}`}</title>
-            </rect>
-            <text x={x + 18} y={height - 8} textAnchor="middle" fontSize="10.5" fill="#64748b" fontFamily="Plus Jakarta Sans" fontWeight="600">
+            <text x={groupCenter} y={height - 8} textAnchor="middle" fontSize="10.5" fill="#64748b" fontFamily="Plus Jakarta Sans" fontWeight="600">
               {safeLabels[i]}
             </text>
           </g>
