@@ -2032,7 +2032,7 @@ function Contabilidad({ setActive }) {
     applyWithholdOnExpense: false,
   })
   const tabs = ['Todos','Pendiente','Pagado','Vencido'];
-  const contaTabs = ['DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES', 'COBROS'];
+  const contaTabs = ['DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES'];
   const cuentasTesoreria = ledgerData.accounts.filter((a) => String(a.code || '').startsWith('57') || String(a.code || '').startsWith('56'));
   const cuentasIngreso = ledgerData.accounts.filter((a) => a.nature === 'INCOME');
   const cuentasGasto = ledgerData.accounts.filter((a) => a.nature === 'EXPENSE');
@@ -2462,11 +2462,6 @@ function Contabilidad({ setActive }) {
           <button type="button" onClick={() => openMovimientoModal('EXPENSE')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid rgba(239,68,68,0.25)',background:'#fef2f2',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700,color:'#b91c1c'}}>
             <Icon name="plus" size={15}/>Crear gasto
           </button>
-          {contaTab === 'COBROS' && (
-            <button type="button" onClick={openNuevoCobroModal} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
-              <Icon name="plus" size={15}/>Nuevo cobro
-            </button>
-          )}
         </div>
       </div>
       {/* Summary cards */}
@@ -2541,105 +2536,103 @@ function Contabilidad({ setActive }) {
         </button>
       </div>
 
-      {contaTab !== 'COBROS' && (
-        <div style={{background:'#fff',borderRadius:16,padding:16,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)'}}>
-          {ledgerBusy ? (
-            <div style={{fontSize:13,color:'#64748b'}}>Cargando datos contables…</div>
-          ) : contaTab === 'DIARIO' ? (
-            <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
-              {ledgerData.entries.map((e) => (
-                <div key={e.id} style={{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10}}>
-                  <div style={{display:'flex',justifyContent:'space-between',gap:12}}>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{e.entryNumber} · {e.concept}</div>
-                      <div style={{fontSize:12,color:'#64748b'}}>
-                        {new Date(e.entryDate).toLocaleDateString('es-ES')} · {e.status} · {e.source}
-                      </div>
-                    </div>
-                    {e.source === 'MANUAL' && e.sourceId && (
-                      <button
-                        type="button"
-                        disabled={deletingMovementId === e.sourceId}
-                        onClick={() => eliminarMovimientoManual(e)}
-                        style={{
-                          alignSelf:'center',
-                          padding:'6px 10px',
-                          borderRadius:8,
-                          border:'1px solid rgba(239,68,68,0.25)',
-                          background:'#fff',
-                          cursor: deletingMovementId === e.sourceId ? 'not-allowed' : 'pointer',
-                          color:'#b91c1c',
-                          fontFamily:'inherit',
-                          fontSize:12,
-                          fontWeight:700,
-                          opacity: deletingMovementId === e.sourceId ? 0.6 : 1,
-                        }}
-                      >
-                        {deletingMovementId === e.sourceId ? 'Eliminando…' : 'Eliminar'}
-                      </button>
-                    )}
-                  </div>
-                  <div style={{marginTop:8,display:'grid',gap:6}}>
-                    {(e.lines || []).map((l: any) => (
-                      <div key={l.id} style={{display:'grid',gridTemplateColumns:'72px 1fr auto',gap:10,fontSize:12,alignItems:'center'}}>
-                        <span style={{
-                          width:'fit-content',
-                          padding:'2px 8px',
-                          borderRadius:999,
-                          fontWeight:700,
-                          background:l.side==='DEBIT' ? '#eff6ff' : '#fef2f2',
-                          color:l.side==='DEBIT' ? '#1d4ed8' : '#b91c1c',
-                        }}>
-                          {l.side === 'DEBIT' ? 'Debe' : 'Haber'}
-                        </span>
-                        <span style={{color:'#374151'}}>
-                          {l.account?.code} · {l.account?.name}
-                          {l.lineConcept ? ` · ${l.lineConcept}` : ''}
-                        </span>
-                        <span style={{fontWeight:700,color:'#111827'}}>{fmtMoney(Number(l.amount || 0))}</span>
-                      </div>
-                    ))}
-                    <div style={{display:'flex',justifyContent:'flex-end',fontSize:12,color:'#475569',fontWeight:700}}>
-                      Total asiento: {fmtMoney((e.lines || []).reduce((a: number, l: any) => a + Number(l.amount || 0), 0) / 2)}
+      <div style={{background:'#fff',borderRadius:16,padding:16,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)'}}>
+        {ledgerBusy ? (
+          <div style={{fontSize:13,color:'#64748b'}}>Cargando datos contables…</div>
+        ) : contaTab === 'DIARIO' ? (
+          <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
+            {ledgerData.entries.map((e) => (
+              <div key={e.id} style={{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10}}>
+                <div style={{display:'flex',justifyContent:'space-between',gap:12}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{e.entryNumber} · {e.concept}</div>
+                    <div style={{fontSize:12,color:'#64748b'}}>
+                      {new Date(e.entryDate).toLocaleDateString('es-ES')} · {e.status} · {e.source}
                     </div>
                   </div>
+                  {e.source === 'MANUAL' && e.sourceId && (
+                    <button
+                      type="button"
+                      disabled={deletingMovementId === e.sourceId}
+                      onClick={() => eliminarMovimientoManual(e)}
+                      style={{
+                        alignSelf:'center',
+                        padding:'6px 10px',
+                        borderRadius:8,
+                        border:'1px solid rgba(239,68,68,0.25)',
+                        background:'#fff',
+                        cursor: deletingMovementId === e.sourceId ? 'not-allowed' : 'pointer',
+                        color:'#b91c1c',
+                        fontFamily:'inherit',
+                        fontSize:12,
+                        fontWeight:700,
+                        opacity: deletingMovementId === e.sourceId ? 0.6 : 1,
+                      }}
+                    >
+                      {deletingMovementId === e.sourceId ? 'Eliminando…' : 'Eliminar'}
+                    </button>
+                  )}
                 </div>
-              ))}
-              {ledgerData.entries.length === 0 && <div style={{fontSize:13,color:'#64748b'}}>Sin asientos.</div>}
-            </div>
-          ) : contaTab === 'MAYOR' ? (
-            <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
-              {(ledgerData.reports?.trialBalance || []).map((r: any) => (
-                <div key={r.code} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:12,padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10,fontSize:13}}>
-                  <span>{r.code} · {r.name}</span>
-                  <span>Debe {fmtMoney(r.debit)}</span>
-                  <span>Haber {fmtMoney(r.credit)}</span>
-                  <span>Saldo {fmtMoney((r.debit || 0) - (r.credit || 0))}</span>
+                <div style={{marginTop:8,display:'grid',gap:6}}>
+                  {(e.lines || []).map((l: any) => (
+                    <div key={l.id} style={{display:'grid',gridTemplateColumns:'72px 1fr auto',gap:10,fontSize:12,alignItems:'center'}}>
+                      <span style={{
+                        width:'fit-content',
+                        padding:'2px 8px',
+                        borderRadius:999,
+                        fontWeight:700,
+                        background:l.side==='DEBIT' ? '#eff6ff' : '#fef2f2',
+                        color:l.side==='DEBIT' ? '#1d4ed8' : '#b91c1c',
+                      }}>
+                        {l.side === 'DEBIT' ? 'Debe' : 'Haber'}
+                      </span>
+                      <span style={{color:'#374151'}}>
+                        {l.account?.code} · {l.account?.name}
+                        {l.lineConcept ? ` · ${l.lineConcept}` : ''}
+                      </span>
+                      <span style={{fontWeight:700,color:'#111827'}}>{fmtMoney(Number(l.amount || 0))}</span>
+                    </div>
+                  ))}
+                  <div style={{display:'flex',justifyContent:'flex-end',fontSize:12,color:'#475569',fontWeight:700}}>
+                    Total asiento: {fmtMoney((e.lines || []).reduce((a: number, l: any) => a + Number(l.amount || 0), 0) / 2)}
+                  </div>
                 </div>
-              ))}
-            </div>
-          ) : contaTab === 'CUENTAS' ? (
-            <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
-              {ledgerData.accounts.map((a) => (
-                <div key={a.id} style={{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10,fontSize:13}}>
-                  {a.code} · {a.name} · {a.nature}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-              <div style={{padding:12,border:'1px solid var(--border)',borderRadius:10}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Balance comprobación</div>
-                <div style={{fontSize:12,color:'#475569'}}>Debe {fmtMoney(ledgerData.reports?.totals?.debit || 0)} · Haber {fmtMoney(ledgerData.reports?.totals?.credit || 0)}</div>
               </div>
-              <div style={{padding:12,border:'1px solid var(--border)',borderRadius:10}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Periodos fiscales</div>
-                <div style={{fontSize:12,color:'#475569'}}>{ledgerData.periods.length} periodos ({ledgerData.periods.filter((p) => p.isClosed).length} cerrados)</div>
+            ))}
+            {ledgerData.entries.length === 0 && <div style={{fontSize:13,color:'#64748b'}}>Sin asientos.</div>}
+          </div>
+        ) : contaTab === 'MAYOR' ? (
+          <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
+            {(ledgerData.reports?.trialBalance || []).map((r: any) => (
+              <div key={r.code} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:12,padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10,fontSize:13}}>
+                <span>{r.code} · {r.name}</span>
+                <span>Debe {fmtMoney(r.debit)}</span>
+                <span>Haber {fmtMoney(r.credit)}</span>
+                <span>Saldo {fmtMoney((r.debit || 0) - (r.credit || 0))}</span>
               </div>
+            ))}
+          </div>
+        ) : contaTab === 'CUENTAS' ? (
+          <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
+            {ledgerData.accounts.map((a) => (
+              <div key={a.id} style={{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10,fontSize:13}}>
+                {a.code} · {a.name} · {a.nature}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+            <div style={{padding:12,border:'1px solid var(--border)',borderRadius:10}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Balance comprobación</div>
+              <div style={{fontSize:12,color:'#475569'}}>Debe {fmtMoney(ledgerData.reports?.totals?.debit || 0)} · Haber {fmtMoney(ledgerData.reports?.totals?.credit || 0)}</div>
             </div>
-          )}
-        </div>
-      )}
+            <div style={{padding:12,border:'1px solid var(--border)',borderRadius:10}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Periodos fiscales</div>
+              <div style={{fontSize:12,color:'#475569'}}>{ledgerData.periods.length} periodos ({ledgerData.periods.filter((p) => p.isClosed).length} cerrados)</div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {contaTab === 'COBROS' && (
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
