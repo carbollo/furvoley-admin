@@ -199,20 +199,38 @@ function MiniLineChart({ data, color = "var(--accent)", height = 40, width = 120
   );
 }
 
-function BarChart({ data, labels, color = "var(--accent)", height = 160 }) {
+function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", secondaryColor = "#EF4444", height = 170 }) {
   const safeData = data && data.length ? data : [0];
+  const safeSecondary = secondaryData.length === safeData.length ? secondaryData : safeData.map(() => 0);
   const safeLabels = labels && labels.length === safeData.length ? labels : safeData.map(() => '');
-  const max = Math.max(...safeData);
+  const max = Math.max(1, ...safeData, ...safeSecondary);
+  const chartW = safeData.length * 56;
+  const baseY = height - 28;
+  const barMaxH = height - 62;
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${safeData.length * 48} ${height}`} preserveAspectRatio="none">
+    <svg width="100%" height={height} viewBox={`0 0 ${chartW} ${height}`} preserveAspectRatio="none">
+      {[0, 1, 2, 3].map((r) => {
+        const y = 18 + r * ((baseY - 18) / 3);
+        return <line key={r} x1="0" y1={y} x2={chartW} y2={y} stroke="#e2e8f0" strokeWidth="1" />;
+      })}
       {safeData.map((v, i) => {
-        const barH = max > 0 ? (v / max) * (height - 30) : 0;
-        const x = i * 48 + 8;
-        const y = height - 20 - barH;
+        const v2 = safeSecondary[i] ?? 0;
+        const h1 = max > 0 ? (v / max) * barMaxH : 0;
+        const h2 = max > 0 ? (v2 / max) * barMaxH : 0;
+        const x = i * 56 + 10;
+        const y1 = baseY - h1;
+        const y2 = baseY - h2;
         return (
           <g key={i}>
-            <rect x={x} y={y} width="32" height={barH} rx="4" fill={color} opacity="0.85"/>
-            <text x={x+16} y={height-4} textAnchor="middle" fontSize="10" fill="#888" fontFamily="Plus Jakarta Sans">{safeLabels[i]}</text>
+            <rect x={x} y={y1} width="16" height={h1} rx="5" fill={color} opacity="0.9">
+              <title>{`${safeLabels[i]} · Ingresos: ${Math.round(v)}`}</title>
+            </rect>
+            <rect x={x + 20} y={y2} width="16" height={h2} rx="5" fill={secondaryColor} opacity="0.88">
+              <title>{`${safeLabels[i]} · Gastos: ${Math.round(v2)}`}</title>
+            </rect>
+            <text x={x + 18} y={height - 8} textAnchor="middle" fontSize="10.5" fill="#64748b" fontFamily="Plus Jakarta Sans" fontWeight="600">
+              {safeLabels[i]}
+            </text>
           </g>
         );
       })}
@@ -2899,17 +2917,17 @@ function Informes({ setActive }) {
       {/* Charts */}
       <div style={{display:'flex',gap:16}}>
         <div style={{flex:2,background:'#fff',borderRadius:16,padding:24,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{fontWeight:700,fontSize:15,color:'#111827',marginBottom:4}}>Ingresos y egresos</div>
+          <div style={{fontWeight:800,fontSize:16,color:'#0f172a',marginBottom:4,letterSpacing:'-0.2px'}}>Ingresos y gastos</div>
           <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>Enero — Diciembre 2026</div>
           <div style={{position:'relative'}}>
-            <BarChart data={ingresos} labels={meses} color="#3B82F6" height={130}/>
+            <BarChart data={ingresos} secondaryData={egresos} labels={meses} color="#3B82F6" secondaryColor="#EF4444" height={150}/>
           </div>
           <div style={{display:'flex',gap:16,marginTop:12}}>
             <span style={{fontSize:12,display:'flex',alignItems:'center',gap:6,color:'#374151'}}>
               <span style={{width:12,height:12,borderRadius:3,background:'#3B82F6',display:'inline-block'}}></span>Ingresos
             </span>
             <span style={{fontSize:12,display:'flex',alignItems:'center',gap:6,color:'#374151'}}>
-              <span style={{width:12,height:12,borderRadius:3,background:'#EF4444',display:'inline-block'}}></span>Egresos
+              <span style={{width:12,height:12,borderRadius:3,background:'#EF4444',display:'inline-block'}}></span>Gastos
             </span>
           </div>
         </div>
