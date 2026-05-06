@@ -1975,7 +1975,7 @@ function Contabilidad({ setActive }) {
   const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm();
   const COBROS_UI = bundle?.cobros ?? [];
   const SOCIOS_UI = bundle?.socios ?? [];
-  const [contaTab, setContaTab] = useState('RESUMEN');
+  const [contaTab, setContaTab] = useState('DIARIO');
   const [tab, setTab] = useState('Todos');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -1999,7 +1999,7 @@ function Contabilidad({ setActive }) {
     dueDate: '',
   });
   const tabs = ['Todos','Pendiente','Pagado','Vencido'];
-  const contaTabs = ['RESUMEN', 'DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES'];
+  const contaTabs = ['DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES', 'COBROS'];
   const cobrosEnRango = COBROS_UI.filter((c) => {
     const registro = String(c.registro || c.vencimiento || '');
     if (fechaDesde && registro < fechaDesde) return false;
@@ -2207,9 +2207,11 @@ function Contabilidad({ setActive }) {
           <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'#374151'}}>
             <Icon name="export" size={15}/>Exportar datos
           </button>
-          <button type="button" onClick={openNuevoCobroModal} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
-            <Icon name="plus" size={15}/>Nuevo cobro
-          </button>
+          {contaTab === 'COBROS' && (
+            <button type="button" onClick={openNuevoCobroModal} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
+              <Icon name="plus" size={15}/>Nuevo cobro
+            </button>
+          )}
         </div>
       </div>
       {/* Summary cards */}
@@ -2237,7 +2239,7 @@ function Contabilidad({ setActive }) {
         ))}
       </div>
 
-      {contaTab !== 'RESUMEN' && (
+      {contaTab !== 'COBROS' && (
         <div style={{background:'#fff',borderRadius:16,padding:16,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)'}}>
           {ledgerBusy ? (
             <div style={{fontSize:13,color:'#64748b'}}>Cargando datos contables…</div>
@@ -2285,6 +2287,7 @@ function Contabilidad({ setActive }) {
         </div>
       )}
 
+      {contaTab === 'COBROS' && (
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
         <div style={{display:'flex',gap:2,background:'#fff',border:'1px solid var(--border)',borderRadius:12,padding:4,width:'fit-content'}}>
           {tabs.map(t => (
@@ -2320,7 +2323,9 @@ function Contabilidad({ setActive }) {
           </button>
         </div>
       </div>
+      )}
       {/* Table */}
+      {contaTab === 'COBROS' && (
       <div style={{background:'#fff',borderRadius:16,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',overflow:'hidden'}}>
         <table style={{width:'100%',borderCollapse:'collapse'}}>
           <thead>
@@ -2362,8 +2367,9 @@ function Contabilidad({ setActive }) {
           </tbody>
         </table>
       </div>
+      )}
 
-      {menuCobroId && (
+      {contaTab === 'COBROS' && menuCobroId && (
         <div
           data-cobro-menu
           style={{
@@ -2422,7 +2428,7 @@ function Contabilidad({ setActive }) {
         </div>
       )}
 
-      {showNuevoCobroModal && (
+      {contaTab === 'COBROS' && showNuevoCobroModal && (
         <div
           role="presentation"
           onMouseDown={(e) => {
