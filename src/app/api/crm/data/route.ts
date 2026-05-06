@@ -141,11 +141,17 @@ export async function GET() {
   const overdueInvoices = pendingInvoicesAll.filter((i) => i.status === 'OVERDUE')
   const pendingCount = pendingInvoicesAll.length
 
+  const invoicePaymentSources = new Set([
+    'INVOICE_PAYMENT',
+    'STRIPE',
+    'BANK_TRANSFER',
+    'CASH',
+  ])
   const incomeTxYear = incomeTxYearRaw.filter(
-    (t) => !(t.source === 'INVOICE_PAYMENT' && !t.invoiceId),
+    (t) => !(invoicePaymentSources.has(String(t.source || '')) && !t.invoiceId),
   )
   const incomeTxMonth = incomeTxMonthRaw.filter(
-    (t) => !(t.source === 'INVOICE_PAYMENT' && !t.invoiceId),
+    (t) => !(invoicePaymentSources.has(String(t.source || '')) && !t.invoiceId),
   )
 
   const ingresoMesSum = incomeTxMonth.reduce((a, t) => a + t.amount, 0)
