@@ -2,7 +2,13 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { runMemberCreatedWorkflows } from '@/lib/workflow-engine'
+import {
+  runMemberCreatedWorkflows,
+  runMemberStatusChangedWorkflows,
+  runMemberUpdatedWorkflows,
+  runPaymentCreatedWorkflows,
+  runPaymentPaidWorkflows,
+} from '@/lib/workflow-engine'
 
 // MEMBERS
 export async function createMember(data: {
@@ -41,7 +47,15 @@ export async function updateMember(
     status?: string
   },
 ) {
+  const before = await prisma.member.findUnique({
+    where: { id },
+    select: { status: true },
+  })
   const member = await prisma.member.update({ where: { id }, data })
+  await runMemberUpdatedWorkflows(member.id)
+  if (before?.status != null && before.status !== member.status) {
+    await runMemberStatusChangedWorkflows(member.id)
+  }
   revalidatePath('/')
   return member
 }
@@ -147,6 +161,10 @@ export async function sendWhatsAppPaymentReminders() {
 // PAYMENTS
 export async function createPayment(data: { memberId: string; amount: number; month: number; year: number; status?: string }) {
   const payment = await prisma.payment.create({ data })
+  await runPaymentCreatedWorkflows(payment.id)
+  if (payment.status === 'PAID') {
+    await runPaymentPaidWorkflows(payment.id)
+  }
   revalidatePath('/')
   return payment
 }
@@ -199,6 +217,10 @@ export async function generateStripeLink(paymentId: string) {
 }
 
 export async function updatePaymentStatus(id: string, status: string) {
+  const before = await prisma.payment.findUnique({
+    where: { id },
+    select: { status: true },
+  })
   await prisma.payment.update({
     where: { id },
     data: { 
@@ -206,6 +228,9 @@ export async function updatePaymentStatus(id: string, status: string) {
       paidAt: status === 'PAID' ? new Date() : null
     }
   })
+  if (before?.status !== 'PAID' && status === 'PAID') {
+    await runPaymentPaidWorkflows(id)
+  }
   revalidatePath('/')
 }
 

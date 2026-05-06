@@ -403,7 +403,15 @@ async function runWorkflowStepsForMember(
   }
 }
 
-export async function runMemberCreatedWorkflows(memberId: string) {
+async function runWorkflowsForMemberByTrigger(
+  memberId: string,
+  triggerType:
+    | 'MEMBER_CREATED'
+    | 'MEMBER_UPDATED'
+    | 'MEMBER_STATUS_CHANGED'
+    | 'PAYMENT_CREATED'
+    | 'PAYMENT_PAID',
+) {
   const memberRow = await prisma.member.findUnique({
     where: { id: memberId },
     select: {
@@ -434,11 +442,41 @@ export async function runMemberCreatedWorkflows(memberId: string) {
   }
 
   const workflows = await prisma.workflow.findMany({
-    where: { isActive: true, triggerType: 'MEMBER_CREATED' },
+    where: { isActive: true, triggerType },
     include: { steps: true },
   })
 
   for (const workflow of workflows) {
     await runWorkflowStepsForMember(workflow.steps, member)
   }
+}
+
+export async function runMemberCreatedWorkflows(memberId: string) {
+  await runWorkflowsForMemberByTrigger(memberId, 'MEMBER_CREATED')
+}
+
+export async function runMemberUpdatedWorkflows(memberId: string) {
+  await runWorkflowsForMemberByTrigger(memberId, 'MEMBER_UPDATED')
+}
+
+export async function runMemberStatusChangedWorkflows(memberId: string) {
+  await runWorkflowsForMemberByTrigger(memberId, 'MEMBER_STATUS_CHANGED')
+}
+
+export async function runPaymentCreatedWorkflows(paymentId: string) {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    select: { memberId: true },
+  })
+  if (!payment) return
+  await runWorkflowsForMemberByTrigger(payment.memberId, 'PAYMENT_CREATED')
+}
+
+export async function runPaymentPaidWorkflows(paymentId: string) {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    select: { memberId: true },
+  })
+  if (!payment) return
+  await runWorkflowsForMemberByTrigger(payment.memberId, 'PAYMENT_PAID')
 }
