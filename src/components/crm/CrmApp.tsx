@@ -3,6 +3,7 @@
 
 import { WorkflowsSection } from './WorkflowsSection'
 import { PaymentReminderButton } from './PaymentReminderButton'
+import { InviteLinkButton } from './InviteLinkButton'
 import './crm-vars.css'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import React, {
