@@ -1839,6 +1839,8 @@ function Cobros({ setActive }) {
   const COBROS_UI = bundle?.cobros ?? [];
   const SOCIOS_UI = bundle?.socios ?? [];
   const [tab, setTab] = useState('Todos');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
   const [showNuevoCobroModal, setShowNuevoCobroModal] = useState(false);
   const [nuevoCobroBusy, setNuevoCobroBusy] = useState(false);
   const [nuevoCobroForm, setNuevoCobroForm] = useState({
@@ -1848,12 +1850,18 @@ function Cobros({ setActive }) {
     dueDate: '',
   });
   const tabs = ['Todos','Pendiente','Pagado','Vencido'];
-  const filtered = COBROS_UI.filter(c => tab === 'Todos' || c.estado === tab);
+  const cobrosEnRango = COBROS_UI.filter((c) => {
+    const v = String(c.vencimiento || '');
+    if (fechaDesde && v < fechaDesde) return false;
+    if (fechaHasta && v > fechaHasta) return false;
+    return true;
+  });
+  const filtered = cobrosEnRango.filter(c => tab === 'Todos' || c.estado === tab);
   const totales = {
-    total: COBROS_UI.reduce((a,c) => a + c.monto, 0),
-    pendiente: COBROS_UI.filter(c=>c.estado==='Pendiente').reduce((a,c)=>a+c.monto,0),
-    pagado: COBROS_UI.filter(c=>c.estado==='Pagado').reduce((a,c)=>a+c.monto,0),
-    vencido: COBROS_UI.filter(c=>c.estado==='Vencido').reduce((a,c)=>a+c.monto,0),
+    total: cobrosEnRango.reduce((a,c) => a + c.monto, 0),
+    pendiente: cobrosEnRango.filter(c=>c.estado==='Pendiente').reduce((a,c)=>a+c.monto,0),
+    pagado: cobrosEnRango.filter(c=>c.estado==='Pagado').reduce((a,c)=>a+c.monto,0),
+    vencido: cobrosEnRango.filter(c=>c.estado==='Vencido').reduce((a,c)=>a+c.monto,0),
   };
 
   async function marcarPagado(c) {
@@ -1951,15 +1959,40 @@ function Cobros({ setActive }) {
         ))}
       </div>
       {/* Tabs */}
-      <div style={{display:'flex',gap:2,background:'#fff',border:'1px solid var(--border)',borderRadius:12,padding:4,width:'fit-content'}}>
-        {tabs.map(t => (
-          <button key={t} onClick={()=>setTab(t)} style={{
-            padding:'8px 20px',borderRadius:9,border:'none',cursor:'pointer',
-            background:tab===t?'#111827':'transparent',
-            color:tab===t?'#fff':'#6b7280',
-            fontFamily:'inherit',fontSize:13,fontWeight:tab===t?600:400
-          }}>{t} {t!=='Todos' && <span style={{opacity:0.7}}>({COBROS_UI.filter(c=>c.estado===t).length})</span>}</button>
-        ))}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:2,background:'#fff',border:'1px solid var(--border)',borderRadius:12,padding:4,width:'fit-content'}}>
+          {tabs.map(t => (
+            <button key={t} onClick={()=>setTab(t)} style={{
+              padding:'8px 20px',borderRadius:9,border:'none',cursor:'pointer',
+              background:tab===t?'#111827':'transparent',
+              color:tab===t?'#fff':'#6b7280',
+              fontFamily:'inherit',fontSize:13,fontWeight:tab===t?600:400
+            }}>{t} {t!=='Todos' && <span style={{opacity:0.7}}>({cobrosEnRango.filter(c=>c.estado===t).length})</span>}</button>
+          ))}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <span style={{fontSize:12,fontWeight:700,color:'#64748b'}}>Rango</span>
+          <input
+            type="date"
+            value={fechaDesde}
+            onChange={(e) => setFechaDesde(e.target.value)}
+            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
+          />
+          <span style={{fontSize:12,color:'#9ca3af'}}>—</span>
+          <input
+            type="date"
+            value={fechaHasta}
+            onChange={(e) => setFechaHasta(e.target.value)}
+            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
+          />
+          <button
+            type="button"
+            onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#64748b'}}
+          >
+            Limpiar
+          </button>
+        </div>
       </div>
       {/* Table */}
       <div style={{background:'#fff',borderRadius:16,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',overflow:'hidden'}}>
