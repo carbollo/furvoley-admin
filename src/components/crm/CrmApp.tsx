@@ -2876,12 +2876,44 @@ function Calendario({ setActive }) {
 function Informes({ setActive }) {
   const { bundle, fmtMoney } = useCrm();
   const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const ingresos = bundle?.ingresosMensual ?? Array(12).fill(0);
-  const egresos = bundle?.egresoMensual ?? Array(12).fill(0);
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const reportTx = bundle?.reportTransactions ?? [];
+  const txFiltradas = reportTx.filter((t) => {
+    const d = String(t.date || '');
+    if (fechaDesde && d < fechaDesde) return false;
+    if (fechaHasta && d > fechaHasta) return false;
+    return true;
+  });
+  const ingresos = Array(12).fill(0);
+  const egresos = Array(12).fill(0);
+  for (const t of txFiltradas) {
+    const dt = new Date(String(t.date || ''));
+    if (Number.isNaN(dt.getTime())) continue;
+    const m = dt.getMonth();
+    if (m < 0 || m > 11) continue;
+    if (t.type === 'INCOME') ingresos[m] += Number(t.amount || 0);
+    if (t.type === 'EXPENSE') egresos[m] += Number(t.amount || 0);
+  }
   const totIng = ingresos.reduce((a,b)=>a+b,0);
   const totEgr = egresos.reduce((a,b)=>a+b,0);
   const SOCIOS_UI = bundle?.socios ?? [];
-  const conceptos = bundle?.ingresosPorConcepto ?? [];
+  const conceptTotals = new Map();
+  for (const t of txFiltradas) {
+    if (t.type !== 'INCOME') continue;
+    let label = 'Otros';
+    if (t.invoiceKind === 'MEMBERSHIP') label = 'Cuotas mensuales';
+    else if (t.invoiceKind === 'OTHER') label = 'Cobros adicionales';
+    else if (t.source === 'STRIPE') label = 'Pagos Stripe';
+    else if (t.source === 'BANK_TRANSFER') label = 'Transferencias';
+    else if (t.source === 'CASH') label = 'Efectivo';
+    else if (t.source === 'MANUAL') label = 'Manual';
+    conceptTotals.set(label, (conceptTotals.get(label) ?? 0) + Number(t.amount || 0));
+  }
+  const palette = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#06B6D4', '#EF4444'];
+  const conceptos = Array.from(conceptTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value], i) => ({ label, value, color: palette[i % palette.length] }));
   const totalConceptos = conceptos.reduce((a, c) => a + c.value, 0);
   const donutSegments = conceptos.length
     ? conceptos
@@ -2895,6 +2927,29 @@ function Informes({ setActive }) {
           <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>Resumen financiero y operacional</p>
         </div>
         <div style={{display:'flex',gap:10}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <span style={{fontSize:12,fontWeight:700,color:'#64748b'}}>Rango</span>
+            <input
+              type="date"
+              value={fechaDesde}
+              onChange={(e) => setFechaDesde(e.target.value)}
+              style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
+            />
+            <span style={{fontSize:12,color:'#9ca3af'}}>—</span>
+            <input
+              type="date"
+              value={fechaHasta}
+              onChange={(e) => setFechaHasta(e.target.value)}
+              style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
+            />
+            <button
+              type="button"
+              onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+              style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#64748b'}}
+            >
+              Limpiar
+            </button>
+          </div>
           <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'#374151'}}>
             <Icon name="export" size={15}/>Exportar datos CSV
           </button>
@@ -2904,7 +2959,7 @@ function Informes({ setActive }) {
       <div style={{display:'flex',gap:16}}>
         {[
           {label:'Ingresos totales',value: fmtMoney(totIng),color:'var(--green)',bg:'var(--green-light)',trend:'—'},
-          {label:'Egresos totales',value: fmtMoney(totEgr),color:'var(--red)',bg:'var(--red-light)',trend:'—'},
+          {label:'Gastos totales',value: fmtMoney(totEgr),color:'var(--red)',bg:'var(--red-light)',trend:'—'},
           {label:'Resultado neto',value: fmtMoney(totIng - totEgr),color:'var(--accent)',bg:'var(--accent-light)',trend:'—'},
         ].map(({label,value,color,bg,trend}) => (
           <div key={label} style={{flex:1,background:bg,borderRadius:16,padding:'20px 24px'}}>

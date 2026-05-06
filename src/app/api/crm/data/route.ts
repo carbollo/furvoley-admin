@@ -51,6 +51,7 @@ export async function GET() {
     incomeTxYearRaw,
     expenseTxYear,
     incomeTxMonthRaw,
+    reportTxRaw,
   ] = await Promise.all([
     prisma.member.findMany({
       orderBy: { name: 'asc' },
@@ -127,6 +128,16 @@ export async function GET() {
         amount: true,
         source: true,
         invoiceId: true,
+      },
+    }),
+    prisma.transaction.findMany({
+      orderBy: { date: 'asc' },
+      select: {
+        amount: true,
+        date: true,
+        type: true,
+        source: true,
+        invoice: { select: { kind: true } },
       },
     }),
   ])
@@ -343,6 +354,13 @@ export async function GET() {
     ingresosMensual,
     egresoMensual,
     ingresosPorConcepto,
+    reportTransactions: reportTxRaw.map((t) => ({
+      amount: t.amount,
+      date: t.date.toISOString().slice(0, 10),
+      type: t.type,
+      source: t.source,
+      invoiceKind: t.invoice?.kind ?? null,
+    })),
     sociosPorDeporte: teamLabels,
     socios,
     equipos,
