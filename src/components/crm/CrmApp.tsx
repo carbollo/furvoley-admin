@@ -23,6 +23,8 @@ type CrmCtx = {
   loading: boolean
   error: string | null
   fmtMoney: (n: number) => string
+  showAlert: (message: string) => void
+  showConfirm: (message: string) => Promise<boolean>
 }
 
 const CrmContext = createContext<CrmCtx | null>(null);
@@ -36,6 +38,11 @@ function CrmProvider({ children }: { children: ReactNode }) {
   const [bundle, setBundle] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [popup, setPopup] = useState<{
+    kind: 'alert' | 'confirm'
+    message: string
+    onResolve?: (ok: boolean) => void
+  } | null>(null)
   const reload = useCallback(async () => {
     const r = await fetch('/api/crm/data', { credentials: 'include' });
     if (r.status === 401) {
@@ -58,9 +65,110 @@ function CrmProvider({ children }: { children: ReactNode }) {
       return '€' + Number(n).toLocaleString('es-AR');
     }
   }, [bundle?.currency]);
+
+  const showAlert = useCallback((message: string) => {
+    setPopup({ kind: 'alert', message })
+  }, [])
+
+  const showConfirm = useCallback((message: string) => {
+    return new Promise<boolean>((resolve) => {
+      setPopup({
+        kind: 'confirm',
+        message,
+        onResolve: resolve,
+      })
+    })
+  }, [])
+
+  const closePopup = useCallback((ok: boolean) => {
+    setPopup((current) => {
+      if (current?.kind === 'confirm' && current.onResolve) {
+        current.onResolve(ok)
+      }
+      return null
+    })
+  }, [])
+
   return (
-    <CrmContext.Provider value={{ bundle, reload, loading, error, fmtMoney }}>
+    <CrmContext.Provider value={{ bundle, reload, loading, error, fmtMoney, showAlert, showConfirm }}>
       {children}
+      {popup && (
+        <div
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target !== e.currentTarget) return
+            closePopup(false)
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1300,
+            background: 'rgba(15,23,42,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 460,
+              background: '#fff',
+              borderRadius: 14,
+              border: '1px solid rgba(0,0,0,0.08)',
+              boxShadow: '0 24px 50px rgba(15,23,42,0.24)',
+              padding: 22,
+            }}
+          >
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#111827', marginBottom: 8 }}>
+              {popup.kind === 'confirm' ? 'Confirmar acción' : 'Aviso'}
+            </div>
+            <div style={{ fontSize: 14, color: '#475569', lineHeight: 1.5, marginBottom: 18 }}>
+              {popup.message}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              {popup.kind === 'confirm' && (
+                <button
+                  type="button"
+                  onClick={() => closePopup(false)}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    border: '1px solid var(--border)',
+                    background: '#fff',
+                    color: '#475569',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontWeight: 600,
+                  }}
+                >
+                  Cancelar
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => closePopup(true)}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontWeight: 700,
+                }}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </CrmContext.Provider>
   );
 }
@@ -454,7 +562,7 @@ function Dashboard({ setActive }) {
 function Socios() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { bundle, reload, fmtMoney } = useCrm();
+  const { bundle, reload, fmtMoney, showAlert } = useCrm();
   const SOCIOS_UI = bundle?.socios ?? [];
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const teamFilterId = (searchParams.get('team') ?? '').trim();
@@ -527,7 +635,7 @@ function Socios() {
   async function enviarInscripcion(e) {
     e.preventDefault();
     if (!formInscripcion.nombre.trim() || !formInscripcion.apellidos.trim()) {
-      alert('Nombre y apellidos son obligatorios.');
+      showAlert('Nombre y apellidos son obligatorios.');
       return;
     }
     setInscripcionBusy(true);
@@ -549,9 +657,9 @@ function Socios() {
       if (!r.ok) {
         try {
           const j = await r.json();
-          alert(j.error || 'Error al guardar');
+          showAlert(j.error || 'Error al guardar');
         } catch {
-          alert('No se pudo crear el socio');
+          showAlert('No se pudo crear el socio');
         }
         return;
       }
@@ -618,7 +726,7 @@ function Socios() {
         } catch {
           //
         }
-        alert(msg);
+        showAlert(msg);
         return;
       }
       setShowEditSocioModal(false);
@@ -653,11 +761,11 @@ function Socios() {
 
   async function registrarPagoSocio() {
     if (!selected?.pendingInvoiceId) {
-      alert('No hay factura pendiente registrada para este socio.');
+      showAlert('No hay factura pendiente registrada para este socio.');
       return;
     }
     const r = await fetch('/api/crm/invoices/' + selected.pendingInvoiceId + '/mark-paid', { method: 'POST', credentials: 'include' });
-    if (!r.ok) { alert('No se pudo registrar el pago'); return; }
+    if (!r.ok) { showAlert('No se pudo registrar el pago'); return; }
     setSelected(null);
     await reload();
   }
@@ -1171,7 +1279,7 @@ function Socios() {
 // ── EQUIPOS ─────────────────────────────────────────────────────────────────
 function Equipos() {
   const router = useRouter()
-  const { bundle, reload } = useCrm();
+  const { bundle, reload, showAlert } = useCrm();
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const [view, setView] = useState('grid');
   const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
@@ -1227,7 +1335,7 @@ function Equipos() {
         } catch {
           //
         }
-        alert(msg);
+        showAlert(msg);
         return;
       }
       setShowNuevoEquipoModal(false);
@@ -1283,7 +1391,7 @@ function Equipos() {
         } catch {
           //
         }
-        alert(msg);
+        showAlert(msg);
         return;
       }
       const j = await reload();
@@ -1303,7 +1411,7 @@ function Equipos() {
 
   async function aplicarEntrenador() {
     if (!gestionarEquipo || !coachSelectMemberId) {
-      alert('Elige un socio como entrenador.');
+      showAlert('Elige un socio como entrenador.');
       return;
     }
     setGestionarBusy(true);
@@ -1316,9 +1424,9 @@ function Equipos() {
       });
       if (!r.ok) {
         try {
-          alert((await r.json()).error || 'Error');
+          showAlert((await r.json()).error || 'Error');
         } catch {
-          alert('Error');
+          showAlert('Error');
         }
         return;
       }
@@ -1342,7 +1450,7 @@ function Equipos() {
         credentials: 'include',
       });
       if (!r.ok) {
-        alert('No se pudo quitar del equipo');
+        showAlert('No se pudo quitar del equipo');
         return;
       }
       const j = await reload();
@@ -1370,9 +1478,9 @@ function Equipos() {
       });
       if (!r.ok) {
         try {
-          alert((await r.json()).error || 'Error');
+          showAlert((await r.json()).error || 'Error');
         } catch {
-          alert('Error');
+          showAlert('Error');
         }
         return;
       }
@@ -1837,7 +1945,7 @@ function Equipos() {
 
 // ── COBROS ──────────────────────────────────────────────────────────────────
 function Cobros({ setActive }) {
-  const { bundle, reload, fmtMoney } = useCrm();
+  const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm();
   const COBROS_UI = bundle?.cobros ?? [];
   const SOCIOS_UI = bundle?.socios ?? [];
   const [tab, setTab] = useState('Todos');
@@ -1872,7 +1980,7 @@ function Cobros({ setActive }) {
 
   async function marcarPagado(c) {
     const r = await fetch('/api/crm/invoices/' + c.id + '/mark-paid', { method: 'POST', credentials: 'include' });
-    if (!r.ok) { alert('No se pudo marcar como pagado'); return; }
+    if (!r.ok) { showAlert('No se pudo marcar como pagado'); return; }
     await reload();
   }
 
@@ -1896,7 +2004,7 @@ function Cobros({ setActive }) {
         credentials: 'include',
       })
       if (!r.ok) {
-        alert('No se pudo descargar la factura seleccionada.')
+        showAlert('No se pudo descargar la factura seleccionada.')
         return
       }
 
@@ -1930,7 +2038,7 @@ function Cobros({ setActive }) {
     const invoiceId = String(c?.id || '').trim()
     if (!invoiceId) return
     if (deletingCobroId === invoiceId) return
-    const ok = window.confirm(`¿Eliminar el cobro "${c.concepto}" de ${c.socio}? Esta acción no se puede deshacer.`)
+    const ok = await showConfirm(`¿Eliminar el cobro "${c.concepto}" de ${c.socio}? Esta acción no se puede deshacer.`)
     if (!ok) return
 
     setDeletingCobroId(invoiceId)
@@ -1946,7 +2054,7 @@ function Cobros({ setActive }) {
         } catch {
           //
         }
-        alert(msg)
+        showAlert(msg)
         return
       }
       await reload()
@@ -1966,7 +2074,7 @@ function Cobros({ setActive }) {
 
   function openNuevoCobroModal() {
     if (!SOCIOS_UI.length) {
-      alert('No hay socios para facturar.')
+      showAlert('No hay socios para facturar.')
       return
     }
     const today = new Date()
@@ -1989,7 +2097,7 @@ function Cobros({ setActive }) {
     const dueDate = String(nuevoCobroForm.dueDate || '').trim()
     const amount = Number(nuevoCobroForm.amount)
     if (!memberId || !concepto || !dueDate || !Number.isFinite(amount) || amount <= 0) {
-      alert('Completa todos los campos del nuevo cobro.')
+      showAlert('Completa todos los campos del nuevo cobro.')
       return
     }
     setNuevoCobroBusy(true)
@@ -2012,7 +2120,7 @@ function Cobros({ setActive }) {
         } catch {
           //
         }
-        alert(msg)
+        showAlert(msg)
         return
       }
       setShowNuevoCobroModal(false)
@@ -2311,7 +2419,7 @@ const CRM_EVENT_TYPES = [
 
 // ── CALENDARIO ──────────────────────────────────────────────────────────────
 function Calendario({ setActive }) {
-  const { bundle, reload } = useCrm();
+  const { bundle, reload, showAlert } = useCrm();
   const EVENTOS_UI = bundle?.eventos ?? [];
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const [fechaDesde, setFechaDesde] = useState('');
@@ -2355,7 +2463,7 @@ function Calendario({ setActive }) {
 
   function openNuevoEventoModal() {
     if (!EQUIPOS_UI.length) {
-      alert('Crea antes un equipo (pestaña Equipos).')
+      showAlert('Crea antes un equipo (pestaña Equipos).')
       setActive('equipos')
       return
     }
@@ -2376,7 +2484,7 @@ function Calendario({ setActive }) {
     if (!title || !teamId) return
     const d = new Date(formEvento.datetimeLocal)
     if (Number.isNaN(d.getTime())) {
-      alert('Fecha u hora no válida.')
+      showAlert('Fecha u hora no válida.')
       return
     }
     setNuevoEventoBusy(true)
@@ -2401,7 +2509,7 @@ function Calendario({ setActive }) {
         } catch {
           //
         }
-        alert(msg)
+        showAlert(msg)
         return
       }
       setShowNuevoEventoModal(false)
