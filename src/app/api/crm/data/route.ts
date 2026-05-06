@@ -243,6 +243,7 @@ export async function GET() {
     concepto: inv.items[0]?.description ?? `Factura ${inv.invoiceNumber}`,
     monto: inv.totalAmount,
     estado: mapInvoiceEstado(inv.status),
+    registro: inv.createdAt.toISOString().slice(0, 10),
     vencimiento: inv.dueDate.toISOString().slice(0, 10),
     deporte: socios.find((s) => s.id === inv.memberId)?.deporte ?? '—',
     pendingAmount: Math.max(0, inv.totalAmount - inv.paidAmount),

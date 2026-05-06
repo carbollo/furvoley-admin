@@ -1851,9 +1851,9 @@ function Cobros({ setActive }) {
   });
   const tabs = ['Todos','Pendiente','Pagado','Vencido'];
   const cobrosEnRango = COBROS_UI.filter((c) => {
-    const v = String(c.vencimiento || '');
-    if (fechaDesde && v < fechaDesde) return false;
-    if (fechaHasta && v > fechaHasta) return false;
+    const registro = String(c.registro || c.vencimiento || '');
+    if (fechaDesde && registro < fechaDesde) return false;
+    if (fechaHasta && registro > fechaHasta) return false;
     return true;
   });
   const filtered = cobrosEnRango.filter(c => tab === 'Todos' || c.estado === tab);
@@ -1971,7 +1971,7 @@ function Cobros({ setActive }) {
           ))}
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <span style={{fontSize:12,fontWeight:700,color:'#64748b'}}>Rango</span>
+          <span style={{fontSize:12,fontWeight:700,color:'#64748b'}}>Rango (registro)</span>
           <input
             type="date"
             value={fechaDesde}
