@@ -2004,6 +2004,8 @@ function Contabilidad({ setActive }) {
     dueDate: '',
     applyTax: true,
     taxRate: '',
+    applyWithholding: false,
+    withholdingRate: '',
   });
   const [movimientoForm, setMovimientoForm] = useState({
     concept: '',
@@ -2014,13 +2016,20 @@ function Contabilidad({ setActive }) {
     memberId: '',
     applyTax: true,
     taxRate: '',
+    applyWithholding: false,
+    withholdingRate: '',
   });
   const [taxConfigForm, setTaxConfigForm] = useState({
     vatRateIncome: '21',
     vatRateExpense: '21',
+    withholdRateIncome: '0',
+    withholdRateExpense: '0',
     applyOnInvoices: true,
     applyOnIncome: true,
     applyOnExpense: true,
+    applyWithholdOnInvoices: false,
+    applyWithholdOnIncome: false,
+    applyWithholdOnExpense: false,
   })
   const tabs = ['Todos','Pendiente','Pagado','Vencido'];
   const contaTabs = ['DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES', 'COBROS'];
@@ -2033,9 +2042,14 @@ function Contabilidad({ setActive }) {
     setTaxConfigForm({
       vatRateIncome: String(defaultTaxConfig.vatRateIncome ?? 21),
       vatRateExpense: String(defaultTaxConfig.vatRateExpense ?? 21),
+      withholdRateIncome: String(defaultTaxConfig.withholdRateIncome ?? 0),
+      withholdRateExpense: String(defaultTaxConfig.withholdRateExpense ?? 0),
       applyOnInvoices: Boolean(defaultTaxConfig.applyOnInvoices ?? true),
       applyOnIncome: Boolean(defaultTaxConfig.applyOnIncome ?? true),
       applyOnExpense: Boolean(defaultTaxConfig.applyOnExpense ?? true),
+      applyWithholdOnInvoices: Boolean(defaultTaxConfig.applyWithholdOnInvoices ?? false),
+      applyWithholdOnIncome: Boolean(defaultTaxConfig.applyWithholdOnIncome ?? false),
+      applyWithholdOnExpense: Boolean(defaultTaxConfig.applyWithholdOnExpense ?? false),
     })
   }, [
     defaultTaxConfig.vatRateIncome,
@@ -2043,6 +2057,11 @@ function Contabilidad({ setActive }) {
     defaultTaxConfig.applyOnInvoices,
     defaultTaxConfig.applyOnIncome,
     defaultTaxConfig.applyOnExpense,
+    defaultTaxConfig.withholdRateIncome,
+    defaultTaxConfig.withholdRateExpense,
+    defaultTaxConfig.applyWithholdOnInvoices,
+    defaultTaxConfig.applyWithholdOnIncome,
+    defaultTaxConfig.applyWithholdOnExpense,
   ])
   const movimientosEnRango = movimientosEconomicos.filter((m) => {
     const fecha = String(m.date || m.createdAt || '').slice(0, 10)
@@ -2208,6 +2227,8 @@ function Contabilidad({ setActive }) {
       dueDate,
       applyTax: taxConfigForm.applyOnInvoices,
       taxRate: taxConfigForm.vatRateIncome,
+      applyWithholding: taxConfigForm.applyWithholdOnInvoices,
+      withholdingRate: taxConfigForm.withholdRateIncome,
     })
     setShowNuevoCobroModal(true)
   }
@@ -2231,6 +2252,14 @@ function Contabilidad({ setActive }) {
       memberId: '',
       applyTax: type === 'INCOME' ? taxConfigForm.applyOnIncome : taxConfigForm.applyOnExpense,
       taxRate: type === 'INCOME' ? taxConfigForm.vatRateIncome : taxConfigForm.vatRateExpense,
+      applyWithholding:
+        type === 'INCOME'
+          ? taxConfigForm.applyWithholdOnIncome
+          : taxConfigForm.applyWithholdOnExpense,
+      withholdingRate:
+        type === 'INCOME'
+          ? taxConfigForm.withholdRateIncome
+          : taxConfigForm.withholdRateExpense,
     })
     setShowMovimientoModal(true)
   }
@@ -2243,6 +2272,8 @@ function Contabilidad({ setActive }) {
     const amount = Number(nuevoCobroForm.amount)
     const applyTax = Boolean(nuevoCobroForm.applyTax)
     const taxRate = Number(nuevoCobroForm.taxRate)
+    const applyWithholding = Boolean(nuevoCobroForm.applyWithholding)
+    const withholdingRate = Number(nuevoCobroForm.withholdingRate)
     if (!memberId || !concepto || !dueDate || !Number.isFinite(amount) || amount <= 0) {
       showAlert('Completa todos los campos del nuevo cobro.')
       return
@@ -2260,6 +2291,8 @@ function Contabilidad({ setActive }) {
           dueDate,
           applyTax,
           taxRate: Number.isFinite(taxRate) ? taxRate : 0,
+          applyWithholding,
+          withholdingRate: Number.isFinite(withholdingRate) ? withholdingRate : 0,
         }),
       })
       if (!r.ok) {
@@ -2289,6 +2322,8 @@ function Contabilidad({ setActive }) {
     const memberId = String(movimientoForm.memberId || '').trim()
     const applyTax = Boolean(movimientoForm.applyTax)
     const taxRate = Number(movimientoForm.taxRate)
+    const applyWithholding = Boolean(movimientoForm.applyWithholding)
+    const withholdingRate = Number(movimientoForm.withholdingRate)
     if (!concept || !entryDate || !paymentAccountCode || !categoryAccountCode || !Number.isFinite(amount) || amount <= 0) {
       showAlert('Completa todos los campos del asiento manual.')
       return
@@ -2309,6 +2344,8 @@ function Contabilidad({ setActive }) {
           memberId: memberId || undefined,
           applyTax,
           taxRate: Number.isFinite(taxRate) ? taxRate : 0,
+          applyWithholding,
+          withholdingRate: Number.isFinite(withholdingRate) ? withholdingRate : 0,
         }),
       })
       if (!r.ok) {
@@ -2363,8 +2400,14 @@ function Contabilidad({ setActive }) {
   async function guardarConfigImpuestos() {
     const vatRateIncome = Number(taxConfigForm.vatRateIncome)
     const vatRateExpense = Number(taxConfigForm.vatRateExpense)
+    const withholdRateIncome = Number(taxConfigForm.withholdRateIncome)
+    const withholdRateExpense = Number(taxConfigForm.withholdRateExpense)
     if (!Number.isFinite(vatRateIncome) || !Number.isFinite(vatRateExpense) || vatRateIncome < 0 || vatRateExpense < 0) {
       showAlert('Introduce porcentajes de IVA válidos.')
+      return
+    }
+    if (!Number.isFinite(withholdRateIncome) || !Number.isFinite(withholdRateExpense) || withholdRateIncome < 0 || withholdRateExpense < 0) {
+      showAlert('Introduce porcentajes de retención válidos.')
       return
     }
     setTaxBusy(true)
@@ -2376,9 +2419,14 @@ function Contabilidad({ setActive }) {
         body: JSON.stringify({
           vatRateIncome,
           vatRateExpense,
+          withholdRateIncome,
+          withholdRateExpense,
           applyOnInvoices: taxConfigForm.applyOnInvoices,
           applyOnIncome: taxConfigForm.applyOnIncome,
           applyOnExpense: taxConfigForm.applyOnExpense,
+          applyWithholdOnInvoices: taxConfigForm.applyWithholdOnInvoices,
+          applyWithholdOnIncome: taxConfigForm.applyWithholdOnIncome,
+          applyWithholdOnExpense: taxConfigForm.applyWithholdOnExpense,
         }),
       })
       if (!r.ok) {
@@ -2457,6 +2505,14 @@ function Contabilidad({ setActive }) {
           <input type="number" min={0} step="0.01" value={taxConfigForm.vatRateExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,vatRateExpense:e.target.value}))} style={{width:78,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,fontFamily:'inherit'}} />
         </label>
         <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+          Retención ingreso %
+          <input type="number" min={0} step="0.01" value={taxConfigForm.withholdRateIncome} onChange={(e)=>setTaxConfigForm((s)=>({...s,withholdRateIncome:e.target.value}))} style={{width:78,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,fontFamily:'inherit'}} />
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+          Retención gasto %
+          <input type="number" min={0} step="0.01" value={taxConfigForm.withholdRateExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,withholdRateExpense:e.target.value}))} style={{width:78,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,fontFamily:'inherit'}} />
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
           <input type="checkbox" checked={taxConfigForm.applyOnInvoices} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyOnInvoices:e.target.checked}))}/>
           Aplicar en cobros
         </label>
@@ -2467,6 +2523,18 @@ function Contabilidad({ setActive }) {
         <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
           <input type="checkbox" checked={taxConfigForm.applyOnExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyOnExpense:e.target.checked}))}/>
           Aplicar en gastos
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+          <input type="checkbox" checked={taxConfigForm.applyWithholdOnInvoices} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyWithholdOnInvoices:e.target.checked}))}/>
+          Retención en cobros
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+          <input type="checkbox" checked={taxConfigForm.applyWithholdOnIncome} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyWithholdOnIncome:e.target.checked}))}/>
+          Retención en ingresos
+        </label>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+          <input type="checkbox" checked={taxConfigForm.applyWithholdOnExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyWithholdOnExpense:e.target.checked}))}/>
+          Retención en gastos
         </label>
         <button type="button" disabled={taxBusy} onClick={guardarConfigImpuestos} style={{marginLeft:'auto',padding:'8px 12px',borderRadius:10,border:'1px solid var(--border)',background:'#111827',color:'#fff',fontFamily:'inherit',fontSize:12,fontWeight:700,cursor:taxBusy?'not-allowed':'pointer',opacity:taxBusy?0.7:1}}>
           {taxBusy ? 'Guardando…' : 'Guardar impuestos'}
@@ -2807,8 +2875,34 @@ function Contabilidad({ setActive }) {
                 />
               </div>
             </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#475569'}}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(movimientoForm.applyWithholding)}
+                  onChange={(e) => setMovimientoForm((f) => ({ ...f, applyWithholding: e.target.checked }))}
+                />
+                Aplicar retención
+              </label>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Retención %</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={movimientoForm.withholdingRate}
+                  onChange={(e) => setMovimientoForm((f) => ({ ...f, withholdingRate: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
             <div style={{marginTop:10,fontSize:12,color:'#475569'}}>
-              Total movimiento: {fmtMoney(Number(movimientoForm.amount || 0) * (1 + (Boolean(movimientoForm.applyTax) ? Number(movimientoForm.taxRate || 0) / 100 : 0)))}
+              Total movimiento (tesorería neta): {fmtMoney(
+                Number(movimientoForm.amount || 0) *
+                  (1 + (Boolean(movimientoForm.applyTax) ? Number(movimientoForm.taxRate || 0) / 100 : 0)) -
+                  Number(movimientoForm.amount || 0) *
+                    (Boolean(movimientoForm.applyWithholding) ? Number(movimientoForm.withholdingRate || 0) / 100 : 0)
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
@@ -2975,8 +3069,34 @@ function Contabilidad({ setActive }) {
                 />
               </div>
             </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#475569'}}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(nuevoCobroForm.applyWithholding)}
+                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, applyWithholding: e.target.checked }))}
+                />
+                Aplicar retención
+              </label>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Retención %</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={nuevoCobroForm.withholdingRate}
+                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, withholdingRate: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
+                />
+              </div>
+            </div>
             <div style={{marginTop:10,fontSize:12,color:'#475569'}}>
-              Total cobro: {fmtMoney(Number(nuevoCobroForm.amount || 0) * (1 + (Boolean(nuevoCobroForm.applyTax) ? Number(nuevoCobroForm.taxRate || 0) / 100 : 0)))}
+              Total cobro neto: {fmtMoney(
+                Number(nuevoCobroForm.amount || 0) *
+                  (1 + (Boolean(nuevoCobroForm.applyTax) ? Number(nuevoCobroForm.taxRate || 0) / 100 : 0)) -
+                  Number(nuevoCobroForm.amount || 0) *
+                    (Boolean(nuevoCobroForm.applyWithholding) ? Number(nuevoCobroForm.withholdingRate || 0) / 100 : 0)
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>

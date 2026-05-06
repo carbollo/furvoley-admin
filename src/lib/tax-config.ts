@@ -8,9 +8,14 @@ export async function getTaxConfig() {
       isDefault: true,
       vatRateIncome: 21,
       vatRateExpense: 21,
+      withholdRateIncome: 0,
+      withholdRateExpense: 0,
       applyOnInvoices: true,
       applyOnIncome: true,
       applyOnExpense: true,
+      applyWithholdOnInvoices: false,
+      applyWithholdOnIncome: false,
+      applyWithholdOnExpense: false,
     },
   })
 }

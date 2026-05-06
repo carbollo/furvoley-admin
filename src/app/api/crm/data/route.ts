@@ -376,9 +376,14 @@ export async function GET() {
     taxConfig: {
       vatRateIncome: taxConfig.vatRateIncome,
       vatRateExpense: taxConfig.vatRateExpense,
+      withholdRateIncome: taxConfig.withholdRateIncome,
+      withholdRateExpense: taxConfig.withholdRateExpense,
       applyOnInvoices: taxConfig.applyOnInvoices,
       applyOnIncome: taxConfig.applyOnIncome,
       applyOnExpense: taxConfig.applyOnExpense,
+      applyWithholdOnInvoices: taxConfig.applyWithholdOnInvoices,
+      applyWithholdOnIncome: taxConfig.applyWithholdOnIncome,
+      applyWithholdOnExpense: taxConfig.applyWithholdOnExpense,
     },
   })
 }

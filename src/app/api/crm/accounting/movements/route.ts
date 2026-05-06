@@ -35,6 +35,8 @@ export async function POST(request: Request) {
   const memberId = body.memberId ? String(body.memberId).trim() : null
   const applyTaxRaw = body.applyTax
   const taxRateRaw = Number(body.taxRate)
+  const applyWithholdingRaw = body.applyWithholding
+  const withholdingRateRaw = Number(body.withholdingRate)
 
   if (!['INCOME', 'EXPENSE'].includes(movementType)) {
     return NextResponse.json({ error: 'Tipo de movimiento inválido' }, { status: 400 })
@@ -57,9 +59,23 @@ export async function POST(request: Request) {
     ? taxConfig.applyOnIncome
     : taxConfig.applyOnExpense
   const defaultRate = movementType === 'INCOME' ? taxConfig.vatRateIncome : taxConfig.vatRateExpense
+  const defaultWithholdRate =
+    movementType === 'INCOME' ? taxConfig.withholdRateIncome : taxConfig.withholdRateExpense
   const taxRate = Number.isFinite(taxRateRaw) ? Math.max(0, taxRateRaw) : defaultRate
+  const applyWithholding = typeof applyWithholdingRaw === 'boolean'
+    ? applyWithholdingRaw
+    : movementType === 'INCOME'
+    ? taxConfig.applyWithholdOnIncome
+    : taxConfig.applyWithholdOnExpense
+  const withholdingRate = Number.isFinite(withholdingRateRaw)
+    ? Math.max(0, withholdingRateRaw)
+    : defaultWithholdRate
   const taxAmount = applyTax ? Number((amount * (taxRate / 100)).toFixed(2)) : 0
+  const withholdingAmount = applyWithholding
+    ? Number((amount * (withholdingRate / 100)).toFixed(2))
+    : 0
   const totalAmount = Number((amount + taxAmount).toFixed(2))
+  const netTreasury = Number((totalAmount - withholdingAmount).toFixed(2))
 
   const [paymentAccount, categoryAccount] = await Promise.all([
     prisma.accountChart.findUnique({ where: { code: paymentAccountCode } }),
@@ -88,7 +104,7 @@ export async function POST(request: Request) {
     const movement = await prisma.transaction.create({
       data: {
         type: movementType,
-        amount: totalAmount,
+        amount: netTreasury,
         description: concept,
         date: entryDate,
         source: 'MANUAL',
@@ -106,7 +122,7 @@ export async function POST(request: Request) {
               {
                 accountCode: paymentAccountCode,
                 side: 'DEBIT',
-                amount: totalAmount,
+                amount: netTreasury,
                 lineConcept: 'Entrada de tesorería',
                 memberId,
               },
@@ -128,6 +144,17 @@ export async function POST(request: Request) {
                     },
                   ]
                 : []),
+              ...(withholdingAmount > 0
+                ? [
+                    {
+                      accountCode: '4730000',
+                      side: 'DEBIT' as const,
+                      amount: withholdingAmount,
+                      lineConcept: `Retención soportada ${withholdingRate}%`,
+                      memberId,
+                    },
+                  ]
+                : []),
             ]
           : [
               {
@@ -140,7 +167,7 @@ export async function POST(request: Request) {
               {
                 accountCode: paymentAccountCode,
                 side: 'CREDIT',
-                amount: totalAmount,
+                amount: netTreasury,
                 lineConcept: 'Salida de tesorería',
                 memberId,
               },
@@ -155,10 +182,27 @@ export async function POST(request: Request) {
                     },
                   ]
                 : []),
+              ...(withholdingAmount > 0
+                ? [
+                    {
+                      accountCode: '4751000',
+                      side: 'CREDIT' as const,
+                      amount: withholdingAmount,
+                      lineConcept: `Retención practicada ${withholdingRate}%`,
+                      memberId,
+                    },
+                  ]
+                : []),
             ],
     })
 
-    return NextResponse.json({ ok: true, movement, entry, tax: { rate: taxRate, amount: taxAmount } })
+    return NextResponse.json({
+      ok: true,
+      movement,
+      entry,
+      tax: { rate: taxRate, amount: taxAmount },
+      withholding: { rate: withholdingRate, amount: withholdingAmount },
+    })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'No se pudo registrar el movimiento' }, { status: 400 })
   }

@@ -10,6 +10,7 @@ export const BASE_PGC_ACCOUNTS = [
   { code: '6290000', name: 'Otros servicios', level: 3, nature: 'EXPENSE' },
   { code: '6400000', name: 'Sueldos y salarios', level: 3, nature: 'EXPENSE' },
   { code: '4720000', name: 'HP IVA soportado', level: 3, nature: 'ASSET' },
+  { code: '4730000', name: 'HP retenciones y pagos a cuenta', level: 3, nature: 'ASSET' },
   { code: '4751000', name: 'HP acreedora por retenciones', level: 3, nature: 'LIABILITY' },
   { code: '4770000', name: 'HP IVA repercutido', level: 3, nature: 'LIABILITY' },
 ] as const

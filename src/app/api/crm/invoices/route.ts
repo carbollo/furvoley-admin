@@ -33,6 +33,8 @@ export async function POST(request: Request) {
   const dueDateRaw = String(body.dueDate || '').trim()
   const applyTaxRaw = body.applyTax
   const taxRateRaw = body.taxRate
+  const applyWithholdingRaw = body.applyWithholding
+  const withholdingRateRaw = body.withholdingRate
 
   if (!memberId || !concepto || !Number.isFinite(amount) || amount <= 0 || !dueDateRaw) {
     return NextResponse.json({ error: 'Datos incompletos o inválidos' }, { status: 400 })
@@ -56,10 +58,21 @@ export async function POST(request: Request) {
   const status = dueDate < today ? 'OVERDUE' : 'PENDING'
   const taxConfig = await getTaxConfig()
   const applyTax = typeof applyTaxRaw === 'boolean' ? applyTaxRaw : taxConfig.applyOnInvoices
+  const applyWithholding =
+    typeof applyWithholdingRaw === 'boolean'
+      ? applyWithholdingRaw
+      : taxConfig.applyWithholdOnInvoices
   const taxRateInput = Number(taxRateRaw)
+  const withholdingRateInput = Number(withholdingRateRaw)
   const taxRate = Number.isFinite(taxRateInput) ? Math.max(0, taxRateInput) : taxConfig.vatRateIncome
+  const withholdingRate = Number.isFinite(withholdingRateInput)
+    ? Math.max(0, withholdingRateInput)
+    : taxConfig.withholdRateIncome
   const taxAmount = applyTax ? Number((amount * (taxRate / 100)).toFixed(2)) : 0
-  const totalAmount = Number((amount + taxAmount).toFixed(2))
+  const withholdingAmount = applyWithholding
+    ? Number((amount * (withholdingRate / 100)).toFixed(2))
+    : 0
+  const totalAmount = Number((amount + taxAmount - withholdingAmount).toFixed(2))
 
   const invoice = await prisma.invoice.create({
     data: {

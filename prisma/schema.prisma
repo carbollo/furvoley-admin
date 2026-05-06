@@ -502,9 +502,14 @@ model TaxConfig {
   isDefault       Boolean  @default(true)
   vatRateIncome   Float    @default(21)
   vatRateExpense  Float    @default(21)
+  withholdRateIncome  Float   @default(0)
+  withholdRateExpense Float   @default(0)
   applyOnInvoices Boolean  @default(true)
   applyOnIncome   Boolean  @default(true)
   applyOnExpense  Boolean  @default(true)
+  applyWithholdOnInvoices Boolean @default(false)
+  applyWithholdOnIncome   Boolean @default(false)
+  applyWithholdOnExpense  Boolean @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
