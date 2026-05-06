@@ -2056,7 +2056,7 @@ function Cobros({ setActive }) {
                         data-cobro-menu
                         style={{
                           position:'absolute',
-                          top:42,
+                          bottom:42,
                           right:16,
                           minWidth:170,
                           background:'#fff',
