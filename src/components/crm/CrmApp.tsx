@@ -1844,6 +1844,7 @@ function Cobros({ setActive }) {
   const [fechaHasta, setFechaHasta] = useState('');
   const [menuCobroId, setMenuCobroId] = useState<string | null>(null);
   const [menuCobroPos, setMenuCobroPos] = useState({ top: 0, right: 0 });
+  const [downloadingCobroId, setDownloadingCobroId] = useState<string | null>(null);
   const [showNuevoCobroModal, setShowNuevoCobroModal] = useState(false);
   const [nuevoCobroBusy, setNuevoCobroBusy] = useState(false);
   const [nuevoCobroForm, setNuevoCobroForm] = useState({
@@ -1882,10 +1883,37 @@ function Cobros({ setActive }) {
     return () => document.removeEventListener('mousedown', onDocMouseDown)
   }, [])
 
-  function abrirFactura(c) {
-    const url = '/api/invoices/' + c.id + '/pdf'
-    const win = window.open(url, '_blank', 'noopener,noreferrer')
-    if (!win) window.location.href = url
+  async function abrirFactura(c) {
+    const invoiceId = String(c?.id || '').trim()
+    if (!invoiceId) return
+    if (downloadingCobroId === invoiceId) return
+
+    setDownloadingCobroId(invoiceId)
+    try {
+      const r = await fetch('/api/invoices/' + encodeURIComponent(invoiceId) + '/pdf', {
+        credentials: 'include',
+      })
+      if (!r.ok) {
+        alert('No se pudo descargar la factura seleccionada.')
+        return
+      }
+
+      const blob = await r.blob()
+      const contentDisposition = r.headers.get('content-disposition') || ''
+      const match = /filename="?([^"]+)"?/i.exec(contentDisposition)
+      const filename = match?.[1] || `factura-${invoiceId}.pdf`
+
+      const fileUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = fileUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(fileUrl)
+    } finally {
+      setDownloadingCobroId(null)
+    }
   }
 
   async function copiarIdCobro(c) {
@@ -2104,10 +2132,11 @@ function Cobros({ setActive }) {
                 )}
                 <button
                   type="button"
-                  onClick={() => { setMenuCobroId(null); abrirFactura(cobroActivo) }}
-                  style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#374151',fontWeight:500}}
+                  disabled={downloadingCobroId === cobroActivo.id}
+                  onClick={async () => { setMenuCobroId(null); await abrirFactura(cobroActivo) }}
+                  style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:downloadingCobroId === cobroActivo.id ? 'not-allowed' : 'pointer',fontFamily:'inherit',fontSize:13,color:'#374151',fontWeight:500,opacity:downloadingCobroId === cobroActivo.id ? 0.65 : 1}}
                 >
-                  Ver factura
+                  {downloadingCobroId === cobroActivo.id ? 'Descargando…' : 'Ver factura'}
                 </button>
                 <button
                   type="button"
