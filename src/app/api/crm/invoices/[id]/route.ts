@@ -22,7 +22,10 @@ export async function DELETE(
     return NextResponse.json({ error: 'Cobro no encontrado' }, { status: 404 })
   }
 
-  await prisma.invoice.delete({ where: { id } })
+  await prisma.$transaction([
+    prisma.transaction.deleteMany({ where: { invoiceId: id } }),
+    prisma.invoice.delete({ where: { id } }),
+  ])
 
   return NextResponse.json({ ok: true })
 }
