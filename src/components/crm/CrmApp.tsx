@@ -2015,6 +2015,17 @@ function Contabilidad({ setActive }) {
   const cuentasTesoreria = ledgerData.accounts.filter((a) => String(a.code || '').startsWith('57') || String(a.code || '').startsWith('56'));
   const cuentasIngreso = ledgerData.accounts.filter((a) => a.nature === 'INCOME');
   const cuentasGasto = ledgerData.accounts.filter((a) => a.nature === 'EXPENSE');
+  const movimientosEconomicos = Array.isArray(bundle?.reportTransactions) ? bundle.reportTransactions : [];
+  const movimientosEnRango = movimientosEconomicos.filter((m) => {
+    const fecha = String(m.date || m.createdAt || '').slice(0, 10)
+    if (!fecha) return true
+    if (fechaDesde && fecha < fechaDesde) return false
+    if (fechaHasta && fecha > fechaHasta) return false
+    return true
+  })
+  const ingresosManuales = movimientosEnRango
+    .filter((m) => m.type === 'INCOME' && m.source === 'MANUAL')
+    .reduce((a, m) => a + Number(m.amount || 0), 0)
   const cobrosEnRango = COBROS_UI.filter((c) => {
     const registro = String(c.registro || c.vencimiento || '');
     if (fechaDesde && registro < fechaDesde) return false;
@@ -2023,9 +2034,9 @@ function Contabilidad({ setActive }) {
   });
   const filtered = cobrosEnRango.filter(c => tab === 'Todos' || c.estado === tab);
   const totales = {
-    total: cobrosEnRango.reduce((a,c) => a + c.monto, 0),
+    total: cobrosEnRango.reduce((a,c) => a + c.monto, 0) + ingresosManuales,
     pendiente: cobrosEnRango.filter(c=>c.estado==='Pendiente').reduce((a,c)=>a+c.monto,0),
-    pagado: cobrosEnRango.filter(c=>c.estado==='Pagado').reduce((a,c)=>a+c.monto,0),
+    pagado: cobrosEnRango.filter(c=>c.estado==='Pagado').reduce((a,c)=>a+c.monto,0) + ingresosManuales,
     vencido: cobrosEnRango.filter(c=>c.estado==='Vencido').reduce((a,c)=>a+c.monto,0),
   };
 
