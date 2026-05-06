@@ -222,6 +222,13 @@ function BarChart({ data, labels, color = "var(--accent)", height = 160 }) {
 
 function DonutChart({ segments, size = 100 }) {
   const total = segments.reduce((a, s) => a + s.value, 0);
+  if (total <= 0) {
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size / 2} cy={size / 2} r={size * 0.3} fill="none" stroke="#e5e7eb" strokeWidth={size * 0.12} />
+      </svg>
+    );
+  }
   let cumAngle = -90;
   const cx = size / 2, cy = size / 2, r = size * 0.38, inner = size * 0.25;
   const paths = segments.map(seg => {
@@ -2856,6 +2863,11 @@ function Informes({ setActive }) {
   const totIng = ingresos.reduce((a,b)=>a+b,0);
   const totEgr = egresos.reduce((a,b)=>a+b,0);
   const SOCIOS_UI = bundle?.socios ?? [];
+  const conceptos = bundle?.ingresosPorConcepto ?? [];
+  const totalConceptos = conceptos.reduce((a, c) => a + c.value, 0);
+  const donutSegments = conceptos.length
+    ? conceptos
+    : [{ label: 'Sin ingresos', value: 0, color: '#CBD5E1' }];
 
   return (
     <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
@@ -2904,18 +2916,17 @@ function Informes({ setActive }) {
         <div style={{flex:1,background:'#fff',borderRadius:16,padding:24,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
           <div style={{fontWeight:700,fontSize:15,color:'#111827',marginBottom:4}}>Ingresos por concepto</div>
           <div style={{fontSize:13,color:'#6b7280',marginBottom:16}}>Año 2026</div>
-          <DonutChart size={110} segments={[
-            {label:'Cuotas',value:65,color:'#3B82F6'},
-            {label:'Inscripciones',value:20,color:'#8B5CF6'},
-            {label:'Torneos',value:10,color:'#10B981'},
-            {label:'Otros',value:5,color:'#F59E0B'},
-          ]}/>
+          <DonutChart size={110} segments={donutSegments}/>
           <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:16}}>
-            {[['Cuotas mensuales','#3B82F6','65%'],['Inscripciones','#8B5CF6','20%'],['Torneos','#10B981','10%'],['Otros','#F59E0B','5%']].map(([l,c,p]) => (
-              <div key={l} style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{width:8,height:8,borderRadius:2,background:c,flexShrink:0}}></span>
-                <span style={{fontSize:12,color:'#374151',flex:1}}>{l}</span>
-                <span style={{fontSize:12,fontWeight:700,color:'#111827'}}>{p}</span>
+            {conceptos.length === 0 ? (
+              <div style={{fontSize:12,color:'#6b7280'}}>Sin ingresos registrados.</div>
+            ) : conceptos.map((row) => (
+              <div key={row.label} style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{width:8,height:8,borderRadius:2,background:row.color,flexShrink:0}}></span>
+                <span style={{fontSize:12,color:'#374151',flex:1}}>{row.label}</span>
+                <span style={{fontSize:12,fontWeight:700,color:'#111827'}}>
+                  {totalConceptos > 0 ? `${Math.round((row.value / totalConceptos) * 100)}%` : '0%'}
+                </span>
               </div>
             ))}
           </div>

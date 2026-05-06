@@ -48,9 +48,9 @@ export async function GET() {
     invoicesRaw,
     eventsRaw,
     workflowsRaw,
-    incomeTxYear,
+    incomeTxYearRaw,
     expenseTxYear,
-    incomeTxMonth,
+    incomeTxMonthRaw,
   ] = await Promise.all([
     prisma.member.findMany({
       orderBy: { name: 'asc' },
@@ -103,7 +103,13 @@ export async function GET() {
         type: 'INCOME',
         date: { gte: startYear, lt: endYear },
       },
-      select: { amount: true, date: true },
+      select: {
+        amount: true,
+        date: true,
+        source: true,
+        invoiceId: true,
+        invoice: { select: { kind: true } },
+      },
     }),
     prisma.transaction.findMany({
       where: {
@@ -117,7 +123,11 @@ export async function GET() {
         type: 'INCOME',
         date: { gte: monthStart, lte: monthEnd },
       },
-      select: { amount: true },
+      select: {
+        amount: true,
+        source: true,
+        invoiceId: true,
+      },
     }),
   ])
 
@@ -130,6 +140,13 @@ export async function GET() {
 
   const overdueInvoices = pendingInvoicesAll.filter((i) => i.status === 'OVERDUE')
   const pendingCount = pendingInvoicesAll.length
+
+  const incomeTxYear = incomeTxYearRaw.filter(
+    (t) => !(t.source === 'INVOICE_PAYMENT' && !t.invoiceId),
+  )
+  const incomeTxMonth = incomeTxMonthRaw.filter(
+    (t) => !(t.source === 'INVOICE_PAYMENT' && !t.invoiceId),
+  )
 
   const ingresoMesSum = incomeTxMonth.reduce((a, t) => a + t.amount, 0)
 
@@ -146,6 +163,28 @@ export async function GET() {
     const m = new Date(t.date).getMonth()
     egresoMensual[m] += t.amount
   }
+
+  const conceptTotals = new Map<string, number>()
+  for (const t of incomeTxYear) {
+    let label = 'Otros'
+    if (t.invoice?.kind === 'MEMBERSHIP') label = 'Cuotas mensuales'
+    else if (t.invoice?.kind === 'OTHER') label = 'Cobros adicionales'
+    else if (t.source === 'STRIPE') label = 'Pagos Stripe'
+    else if (t.source === 'BANK_TRANSFER') label = 'Transferencias'
+    else if (t.source === 'CASH') label = 'Efectivo'
+    else if (t.source === 'MANUAL') label = 'Manual'
+
+    conceptTotals.set(label, (conceptTotals.get(label) ?? 0) + t.amount)
+  }
+
+  const conceptPalette = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#06B6D4', '#EF4444']
+  const ingresosPorConcepto = Array.from(conceptTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value], i) => ({
+      label,
+      value,
+      color: conceptPalette[i % conceptPalette.length],
+    }))
 
   const teamLabels: { label: string; value: number; color: string }[] =
     teamsRaw.length > 0
@@ -307,6 +346,7 @@ export async function GET() {
     },
     ingresosMensual,
     egresoMensual,
+    ingresosPorConcepto,
     sociosPorDeporte: teamLabels,
     socios,
     equipos,
