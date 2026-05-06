@@ -20,6 +20,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { Plus, Trash2, Zap } from 'lucide-react'
+import { WORKFLOW_ACTION_OPTIONS } from '@/lib/crm-workflow-actions'
 import {
   isWorkflowTriggerAllowed,
   workflowTriggerLabel,
@@ -38,14 +39,7 @@ import {
 } from './workflow-graph'
 import { WorkflowDeletableEdge } from './WorkflowDeletableEdge'
 
-const ACCIONES = [
-  { value: 'ASSIGN_TEAM', label: 'Asignar a un equipo' },
-  { value: 'ASSIGN_TEAM_BY_AGE', label: 'Asignar por rango de edad' },
-  { value: 'SET_MEMBER_STATUS', label: 'Cambiar estado del socio' },
-  { value: 'CREATE_PAYMENT', label: 'Registrar cobro (cuota)' },
-  { value: 'HTTP_REQUEST', label: 'Petición HTTP' },
-  { value: 'BRANCH_IF', label: 'Condición (ramificar)' },
-] as const
+const ACCIONES = WORKFLOW_ACTION_OPTIONS
 
 function defaultStepConfig(actionType: string): Record<string, unknown> {
   switch (actionType) {
@@ -55,8 +49,16 @@ function defaultStepConfig(actionType: string): Record<string, unknown> {
       return { teamId: '', minAge: '', maxAge: '' }
     case 'SET_MEMBER_STATUS':
       return { targetStatus: 'ACTIVE' }
+    case 'SET_MEMBER_SPORT_PREFERENCE':
+      return { sportPreference: '' }
+    case 'SET_MEMBER_CONTACT':
+      return { email: '', phone: '', address: '' }
     case 'CREATE_PAYMENT':
       return { amount: '', monthOffset: '0', paymentStatus: 'PENDING' }
+    case 'CREATE_SIGNUP_LINK':
+      return { maxUses: '1', expiresInDays: '30' }
+    case 'ASSIGN_TEAM_BY_PREFERENCE':
+      return { teamByPreference: '{}' }
     case 'HTTP_REQUEST':
       return { httpUrl: '', httpMethod: 'POST', httpBody: '', httpHeaders: '' }
     case 'BRANCH_IF':
@@ -93,6 +95,18 @@ function prepararConfigParaApi(actionType: string, raw: Record<string, unknown>)
     if (o.maxAge !== '' && o.maxAge != null) {
       const n = Number(o.maxAge)
       if (Number.isFinite(n)) o.maxAge = String(n)
+    }
+  }
+  if (actionType === 'CREATE_SIGNUP_LINK') {
+    if (o.maxUses !== '' && o.maxUses != null) {
+      const n = Math.trunc(Number(o.maxUses))
+      if (Number.isFinite(n) && n > 0) o.maxUses = String(n)
+      else delete o.maxUses
+    }
+    if (o.expiresInDays !== '' && o.expiresInDays != null) {
+      const n = Math.trunc(Number(o.expiresInDays))
+      if (Number.isFinite(n) && n > 0) o.expiresInDays = String(n)
+      else delete o.expiresInDays
     }
   }
   Object.keys(o).forEach((k) => {
@@ -843,6 +857,59 @@ function WorkflowFlowEditorInner({
                       </>
                     )}
 
+                    {selectedNode.data.actionType === 'SET_MEMBER_SPORT_PREFERENCE' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 12 }}>Preferencia deportiva</label>
+                        <input
+                          value={String(selectedNode.data.config.sportPreference ?? '')}
+                          onChange={(e) => patchConfig({ sportPreference: e.target.value })}
+                          style={inputBase}
+                          placeholder="Ej. Voley playa"
+                        />
+                      </>
+                    )}
+
+                    {selectedNode.data.actionType === 'SET_MEMBER_CONTACT' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 12 }}>Email</label>
+                        <input
+                          value={String(selectedNode.data.config.email ?? '')}
+                          onChange={(e) => patchConfig({ email: e.target.value })}
+                          style={inputBase}
+                          placeholder="correo@ejemplo.com"
+                        />
+                        <label style={{ ...labelBase, marginTop: 10 }}>Teléfono</label>
+                        <input
+                          value={String(selectedNode.data.config.phone ?? '')}
+                          onChange={(e) => patchConfig({ phone: e.target.value })}
+                          style={inputBase}
+                          placeholder="+34 ..."
+                        />
+                        <label style={{ ...labelBase, marginTop: 10 }}>Dirección</label>
+                        <input
+                          value={String(selectedNode.data.config.address ?? '')}
+                          onChange={(e) => patchConfig({ address: e.target.value })}
+                          style={inputBase}
+                          placeholder="Calle / número"
+                        />
+                      </>
+                    )}
+
+                    {selectedNode.data.actionType === 'ASSIGN_TEAM_BY_PREFERENCE' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 12 }}>
+                          Mapa JSON preferencia→equipo
+                        </label>
+                        <textarea
+                          value={String(selectedNode.data.config.teamByPreference ?? '{}')}
+                          onChange={(e) => patchConfig({ teamByPreference: e.target.value })}
+                          rows={4}
+                          style={{ ...inputBase, minHeight: 96 }}
+                          placeholder='{"voley playa":"teamId1","voley pista":"teamId2"}'
+                        />
+                      </>
+                    )}
+
                     {selectedNode.data.actionType === 'CREATE_PAYMENT' && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
                         <div>
@@ -874,6 +941,31 @@ function WorkflowFlowEditorInner({
                             <option value="PENDING">Pendiente</option>
                             <option value="PAID">Pagado</option>
                           </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedNode.data.actionType === 'CREATE_SIGNUP_LINK' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+                        <div>
+                          <label style={labelBase}>Usos máximos</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={String(selectedNode.data.config.maxUses ?? '1')}
+                            onChange={(e) => patchConfig({ maxUses: e.target.value })}
+                            style={inputBase}
+                          />
+                        </div>
+                        <div>
+                          <label style={labelBase}>Caduca en días</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={String(selectedNode.data.config.expiresInDays ?? '30')}
+                            onChange={(e) => patchConfig({ expiresInDays: e.target.value })}
+                            style={inputBase}
+                          />
                         </div>
                       </div>
                     )}

@@ -5,6 +5,8 @@ export type WorkflowMemberPayload = {
   name: string
   email: string | null
   phone: string | null
+  address: string | null
+  sportPreference: string | null
   dni: string | null
   birthDate: Date | null
   status: string
@@ -58,8 +60,10 @@ function interpolateHttpTemplate(template: string, member: WorkflowMemberPayload
     memberName: member.name ?? '',
     memberEmail: member.email ?? '',
     memberPhone: member.phone ?? '',
+    memberAddress: member.address ?? '',
     memberDni: member.dni ?? '',
     memberStatus: member.status ?? '',
+    memberSportPreference: member.sportPreference ?? '',
   }
   return template.replace(/\{(\w+)\}/g, (_, key) => map[key] ?? `{${key}}`)
 }
@@ -75,6 +79,38 @@ function isAllowedHttpUrl(urlStr: string): boolean {
   } catch {
     return false
   }
+}
+
+function normalizeText(v: string | null): string {
+  return (v || '').trim().toLowerCase()
+}
+
+function parsePreferenceMap(config: unknown): Record<string, string> {
+  const raw =
+    config && typeof config === 'object'
+      ? (config as Record<string, unknown>).teamByPreference
+      : undefined
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      if (!parsed || typeof parsed !== 'object') return {}
+      return Object.fromEntries(
+        Object.entries(parsed)
+          .map(([k, v]) => [normalizeText(k), String(v || '').trim()])
+          .filter(([k, v]) => !!k && !!v),
+      )
+    } catch {
+      return {}
+    }
+  }
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return Object.fromEntries(
+      Object.entries(raw as Record<string, unknown>)
+        .map(([k, v]) => [normalizeText(k), String(v || '').trim()])
+        .filter(([k, v]) => !!k && !!v),
+    )
+  }
+  return {}
 }
 
 function evalBranchCondition(
@@ -182,6 +218,25 @@ async function runMemberCreatedStepAction(
     return
   }
 
+  if (step.actionType === 'ASSIGN_TEAM_BY_PREFERENCE') {
+    const key = normalizeText(member.sportPreference)
+    if (!key) return
+    const map = parsePreferenceMap(step.config)
+    const teamId = map[key]
+    if (!teamId) return
+    await prisma.teamMember.upsert({
+      where: {
+        teamId_memberId: {
+          teamId,
+          memberId: member.id,
+        },
+      },
+      update: { role: 'PLAYER' },
+      create: { teamId, memberId: member.id, role: 'PLAYER' },
+    })
+    return
+  }
+
   if (step.actionType === 'SET_MEMBER_STATUS') {
     const targetStatus = readString(step.config, 'targetStatus')
     if (!targetStatus) return
@@ -193,6 +248,36 @@ async function runMemberCreatedStepAction(
       })
       member.status = targetStatus
     }
+    return
+  }
+
+  if (step.actionType === 'SET_MEMBER_SPORT_PREFERENCE') {
+    const sportPreference = readString(step.config, 'sportPreference')
+    if (!sportPreference) return
+    await prisma.member.update({
+      where: { id: member.id },
+      data: { sportPreference },
+    })
+    member.sportPreference = sportPreference
+    return
+  }
+
+  if (step.actionType === 'SET_MEMBER_CONTACT') {
+    const email = readString(step.config, 'email')
+    const phone = readString(step.config, 'phone')
+    const address = readString(step.config, 'address')
+    if (!email && !phone && !address) return
+    await prisma.member.update({
+      where: { id: member.id },
+      data: {
+        ...(email ? { email } : {}),
+        ...(phone ? { phone } : {}),
+        ...(address ? { address } : {}),
+      },
+    })
+    if (email) member.email = email
+    if (phone) member.phone = phone
+    if (address) member.address = address
     return
   }
 
@@ -211,6 +296,21 @@ async function runMemberCreatedStepAction(
         month,
         year,
         status: paymentStatus,
+      },
+    })
+    return
+  }
+
+  if (step.actionType === 'CREATE_SIGNUP_LINK') {
+    const maxUses = Math.max(1, Math.trunc(readNumber(step.config, 'maxUses') ?? 1))
+    const expiresInDays = Math.max(1, Math.trunc(readNumber(step.config, 'expiresInDays') ?? 30))
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+    await prisma.signupLink.create({
+      data: {
+        token: crypto.randomUUID().replace(/-/g, ''),
+        maxUses,
+        expiresAt,
+        createdMemberId: member.id,
       },
     })
     return
@@ -311,6 +411,8 @@ export async function runMemberCreatedWorkflows(memberId: string) {
       name: true,
       email: true,
       phone: true,
+      address: true,
+      sportPreference: true,
       dni: true,
       birthDate: true,
       status: true,
@@ -324,6 +426,8 @@ export async function runMemberCreatedWorkflows(memberId: string) {
     name: memberRow.name,
     email: memberRow.email,
     phone: memberRow.phone,
+    address: memberRow.address,
+    sportPreference: memberRow.sportPreference,
     dni: memberRow.dni,
     birthDate: memberRow.birthDate,
     status: memberRow.status,

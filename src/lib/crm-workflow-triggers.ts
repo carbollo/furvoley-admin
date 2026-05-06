@@ -3,6 +3,9 @@
 export const WORKFLOW_TRIGGER_OPTIONS = [
   { value: 'MEMBER_CREATED', label: 'Alta de socio' },
   { value: 'MEMBER_UPDATED', label: 'Cambio de datos del socio' },
+  { value: 'MEMBER_STATUS_CHANGED', label: 'Cambio de estado del socio' },
+  { value: 'PAYMENT_CREATED', label: 'Cobro creado' },
+  { value: 'PAYMENT_PAID', label: 'Cobro marcado como pagado' },
 ] as const
 
 export const ALLOWED_WORKFLOW_TRIGGER_TYPES = new Set<string>(

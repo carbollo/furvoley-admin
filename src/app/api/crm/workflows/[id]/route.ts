@@ -2,23 +2,15 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { isWorkflowActionAllowed } from '@/lib/crm-workflow-actions'
 import { isWorkflowTriggerAllowed } from '@/lib/crm-workflow-triggers'
-
-const ALLOWED_ACTIONS = new Set([
-  'ASSIGN_TEAM',
-  'ASSIGN_TEAM_BY_AGE',
-  'SET_MEMBER_STATUS',
-  'CREATE_PAYMENT',
-  'HTTP_REQUEST',
-  'BRANCH_IF',
-])
 
 function normalizeSteps(raw: unknown) {
   if (!Array.isArray(raw)) return []
   return raw.map((s, i) => {
     const o = s && typeof s === 'object' ? (s as Record<string, unknown>) : {}
     const actionType = String(o.actionType || '').trim()
-    if (!ALLOWED_ACTIONS.has(actionType)) {
+    if (!isWorkflowActionAllowed(actionType)) {
       throw new Error(`Tipo de paso no válido: ${actionType || '(vacío)'}`)
     }
     return {
