@@ -1882,7 +1882,9 @@ function Cobros({ setActive }) {
   }, [])
 
   function abrirFactura(c) {
-    window.location.href = '/billing/invoices/' + c.id
+    const url = '/api/invoices/' + c.id + '/pdf'
+    const win = window.open(url, '_blank', 'noopener,noreferrer')
+    if (!win) window.location.href = url
   }
 
   async function copiarIdCobro(c) {
