@@ -10,6 +10,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useContext,
   createContext,
   type ReactNode,
@@ -2811,6 +2812,7 @@ function CrmInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { loading, error, bundle } = useCrm()
+  const [showNotifications, setShowNotifications] = useState(false)
 
   const tabRaw = searchParams.get('tab') ?? ''
   const active: SectionId = CRM_SECTION_IDS.includes(tabRaw as SectionId)
@@ -2831,6 +2833,83 @@ function CrmInner() {
     },
     [router]
   )
+
+  const notifications = useMemo(() => {
+    const out = [] as {
+      id: string
+      title: string
+      description: string
+      tab: SectionId
+      priority: 'high' | 'normal'
+    }[]
+
+    const cobros = Array.isArray(bundle?.cobros) ? bundle.cobros : []
+    const eventos = Array.isArray(bundle?.eventos) ? bundle.eventos : []
+    const now = new Date()
+    const addDays = (d: Date, days: number) => {
+      const x = new Date(d)
+      x.setDate(x.getDate() + days)
+      return x
+    }
+    const inThreeDays = addDays(now, 3)
+    const inSevenDays = addDays(now, 7)
+
+    for (const c of cobros) {
+      if (c?.estado === 'Vencido') {
+        out.push({
+          id: `overdue-${c.id}`,
+          title: 'Cobro vencido',
+          description: `${c.socio} · ${c.concepto}`,
+          tab: 'cobros',
+          priority: 'high',
+        })
+      }
+    }
+
+    for (const c of cobros) {
+      if (c?.estado !== 'Pendiente') continue
+      const due = new Date(String(c.vencimiento || ''))
+      if (Number.isNaN(due.getTime())) continue
+      if (due >= now && due <= inThreeDays) {
+        out.push({
+          id: `due-soon-${c.id}`,
+          title: 'Cobro por vencer',
+          description: `${c.socio} · vence ${due.toLocaleDateString('es-AR')}`,
+          tab: 'cobros',
+          priority: 'normal',
+        })
+      }
+    }
+
+    for (const e of eventos) {
+      const eventDate = new Date(String(e.fecha || ''))
+      if (Number.isNaN(eventDate.getTime())) continue
+      if (eventDate >= now && eventDate <= inSevenDays) {
+        out.push({
+          id: `event-${e.id}`,
+          title: 'Evento próximo',
+          description: `${e.titulo} · ${eventDate.toLocaleDateString('es-AR')}`,
+          tab: 'calendario',
+          priority: 'normal',
+        })
+      }
+    }
+
+    return out
+      .sort((a, b) => (a.priority === 'high' ? -1 : 1) - (b.priority === 'high' ? -1 : 1))
+      .slice(0, 8)
+  }, [bundle])
+
+  const unreadCount = notifications.length
+
+  useEffect(() => {
+    function onDocMouseDown(e: MouseEvent) {
+      const el = e.target as HTMLElement | null
+      if (!el?.closest?.('[data-crm-notifications]')) setShowNotifications(false)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [])
 
   const screens = {
     dashboard: Dashboard,
@@ -2866,10 +2945,70 @@ function CrmInner() {
           display:'flex',alignItems:'center',justifyContent:'flex-end',
           padding:'0 28px',gap:12,flexShrink:0
         }}>
-          <button type="button" title="Notificaciones" aria-label="Notificaciones" style={{padding:8,borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280',position:'relative'}}>
+          <div data-crm-notifications style={{position:'relative'}}>
+          <button
+            type="button"
+            title="Notificaciones"
+            aria-label="Notificaciones"
+            onClick={() => setShowNotifications((v) => !v)}
+            style={{padding:8,borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280',position:'relative'}}
+          >
             <Icon name="bell" size={18}/>
-            <span style={{position:'absolute',top:5,right:5,width:8,height:8,borderRadius:'50%',background:'var(--red)',border:'2px solid #fff'}}></span>
+            {unreadCount > 0 && (
+              <span style={{position:'absolute',top:5,right:5,width:8,height:8,borderRadius:'50%',background:'var(--red)',border:'2px solid #fff'}}></span>
+            )}
           </button>
+          {showNotifications && (
+            <div style={{
+              position:'absolute',
+              top:42,
+              right:0,
+              width:320,
+              maxHeight:360,
+              overflowY:'auto',
+              background:'#fff',
+              border:'1px solid var(--border)',
+              borderRadius:12,
+              boxShadow:'0 12px 28px rgba(15,23,42,0.14)',
+              zIndex:300,
+            }}>
+              <div style={{padding:'10px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <span style={{fontSize:13,fontWeight:700,color:'#111827'}}>Notificaciones</span>
+                <span style={{fontSize:12,color:'#6b7280'}}>{unreadCount}</span>
+              </div>
+              {notifications.length === 0 ? (
+                <div style={{padding:'14px 12px',fontSize:13,color:'#6b7280'}}>No hay novedades ahora mismo.</div>
+              ) : (
+                notifications.map((n) => (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => {
+                      setShowNotifications(false)
+                      setActive(n.tab)
+                    }}
+                    style={{
+                      width:'100%',
+                      border:'none',
+                      borderBottom:'1px solid var(--border)',
+                      background:'#fff',
+                      textAlign:'left',
+                      padding:'10px 12px',
+                      cursor:'pointer',
+                      fontFamily:'inherit',
+                    }}
+                  >
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{width:7,height:7,borderRadius:'50%',background:n.priority === 'high' ? 'var(--red)' : '#94a3b8',flexShrink:0}}></span>
+                      <span style={{fontSize:13,fontWeight:600,color:'#111827'}}>{n.title}</span>
+                    </div>
+                    <div style={{fontSize:12,color:'#6b7280',marginTop:4,paddingLeft:15}}>{n.description}</div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+          </div>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <div style={{
               width:32,height:32,borderRadius:'50%',
