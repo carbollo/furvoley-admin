@@ -2243,6 +2243,8 @@ function Calendario({ setActive }) {
   const { bundle, reload } = useCrm();
   const EVENTOS_UI = bundle?.eventos ?? [];
   const EQUIPOS_UI = bundle?.equipos ?? [];
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
   const todayRef = bundle?.meta?.today ? new Date(bundle.meta.today) : new Date();
   const [viewYm, setViewYm] = useState(() => ({
     year: todayRef.getFullYear(),
@@ -2342,9 +2344,16 @@ function Calendario({ setActive }) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const tipoColors = {Torneo:'#3B82F6',Entrenamiento:'#10B981',Partido:'#F59E0B',Reunión:'#8B5CF6',Competencia:'#EF4444',Especial:'#06B6D4', 'Otro': '#64748b'};
 
-  const dayEvents = (d) => EVENTOS_UI.filter(e => new Date(e.fecha).getDate() === d && new Date(e.fecha).getMonth() === month && new Date(e.fecha).getFullYear() === year);
+  const eventosEnRango = EVENTOS_UI.filter((e) => {
+    const f = String(e.fecha || '')
+    if (fechaDesde && f < fechaDesde) return false
+    if (fechaHasta && f > fechaHasta) return false
+    return true
+  })
 
-  const monthEvents = EVENTOS_UI.filter(e => {
+  const dayEvents = (d) => eventosEnRango.filter(e => new Date(e.fecha).getDate() === d && new Date(e.fecha).getMonth() === month && new Date(e.fecha).getFullYear() === year);
+
+  const monthEvents = eventosEnRango.filter(e => {
     const dt = new Date(e.fecha);
     return dt.getMonth() === month && dt.getFullYear() === year;
   });
@@ -2365,7 +2374,28 @@ function Calendario({ setActive }) {
           <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Calendario</h1>
           <p style={{color:'#6b7280',fontSize:14,marginTop:4,textTransform:'capitalize'}}>{monthTitle}</p>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',justifyContent:'flex-end'}}>
+          <span style={{fontSize:12,fontWeight:700,color:'#64748b'}}>Rango</span>
+          <input
+            type="date"
+            value={fechaDesde}
+            onChange={(e) => setFechaDesde(e.target.value)}
+            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
+          />
+          <span style={{fontSize:12,color:'#9ca3af'}}>—</span>
+          <input
+            type="date"
+            value={fechaHasta}
+            onChange={(e) => setFechaHasta(e.target.value)}
+            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
+          />
+          <button
+            type="button"
+            onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#64748b'}}
+          >
+            Limpiar
+          </button>
           <button type="button" onClick={() => setViewYm(prev => {
             let m = prev.month - 1, y = prev.year;
             if (m < 0) { m = 11; y--; }
