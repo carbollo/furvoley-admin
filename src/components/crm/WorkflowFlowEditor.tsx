@@ -47,18 +47,26 @@ function defaultStepConfig(actionType: string): Record<string, unknown> {
       return { teamId: '' }
     case 'ASSIGN_TEAM_BY_AGE':
       return { teamId: '', minAge: '', maxAge: '' }
+    case 'ASSIGN_TEAM_BY_PREFERENCE':
+      return { teamByPreference: '{}' }
+    case 'REMOVE_FROM_TEAM':
+      return { teamId: '' }
     case 'SET_MEMBER_STATUS':
       return { targetStatus: 'ACTIVE' }
     case 'SET_MEMBER_SPORT_PREFERENCE':
       return { sportPreference: '' }
     case 'SET_MEMBER_CONTACT':
       return { email: '', phone: '', address: '' }
+    case 'SET_MEMBER_DNI':
+      return { dni: '' }
+    case 'SET_MEMBER_BIRTHDATE':
+      return { birthDate: '' }
     case 'CREATE_PAYMENT':
       return { amount: '', monthOffset: '0', paymentStatus: 'PENDING' }
     case 'CREATE_SIGNUP_LINK':
       return { maxUses: '1', expiresInDays: '30' }
-    case 'ASSIGN_TEAM_BY_PREFERENCE':
-      return { teamByPreference: '{}' }
+    case 'CREATE_TRANSACTION':
+      return { type: 'INCOME', amount: '', description: '' }
     case 'HTTP_REQUEST':
       return { httpUrl: '', httpMethod: 'POST', httpBody: '', httpHeaders: '' }
     case 'BRANCH_IF':
@@ -85,6 +93,13 @@ function prepararConfigParaApi(actionType: string, raw: Record<string, unknown>)
     if (o.monthOffset !== '' && o.monthOffset != null) {
       const n = Math.trunc(Number(o.monthOffset))
       if (Number.isFinite(n)) o.monthOffset = String(n)
+    }
+  }
+  if (actionType === 'CREATE_TRANSACTION') {
+    if (o.amount !== '' && o.amount != null) {
+      const n = Number(o.amount)
+      if (Number.isFinite(n) && n > 0) o.amount = n
+      else delete o.amount
     }
   }
   if (actionType === 'ASSIGN_TEAM_BY_AGE') {
@@ -843,6 +858,27 @@ function WorkflowFlowEditorInner({
                       </>
                     )}
 
+                    {selectedNode.data.actionType === 'REMOVE_FROM_TEAM' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 12 }}>Equipo (opcional)</label>
+                        <select
+                          value={String(selectedNode.data.config.teamId ?? '')}
+                          onChange={(e) => patchConfig({ teamId: e.target.value })}
+                          style={{ ...inputBase, cursor: 'pointer' }}
+                        >
+                          <option value="">— Todos los equipos —</option>
+                          {equipos.map((eq) => (
+                            <option key={eq.id} value={eq.id}>
+                              {eq.nombre}
+                            </option>
+                          ))}
+                        </select>
+                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.4 }}>
+                          Si dejas vacío, quitará al socio de todos los equipos.
+                        </p>
+                      </>
+                    )}
+
                     {selectedNode.data.actionType === 'SET_MEMBER_STATUS' && (
                       <>
                         <label style={{ ...labelBase, marginTop: 12 }}>Estado</label>
@@ -891,6 +927,30 @@ function WorkflowFlowEditorInner({
                           onChange={(e) => patchConfig({ address: e.target.value })}
                           style={inputBase}
                           placeholder="Calle / número"
+                        />
+                      </>
+                    )}
+
+                    {selectedNode.data.actionType === 'SET_MEMBER_DNI' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 12 }}>DNI</label>
+                        <input
+                          value={String(selectedNode.data.config.dni ?? '')}
+                          onChange={(e) => patchConfig({ dni: e.target.value })}
+                          style={inputBase}
+                          placeholder="12345678A"
+                        />
+                      </>
+                    )}
+
+                    {selectedNode.data.actionType === 'SET_MEMBER_BIRTHDATE' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 12 }}>Fecha nacimiento</label>
+                        <input
+                          type="date"
+                          value={String(selectedNode.data.config.birthDate ?? '')}
+                          onChange={(e) => patchConfig({ birthDate: e.target.value })}
+                          style={inputBase}
                         />
                       </>
                     )}
@@ -968,6 +1028,36 @@ function WorkflowFlowEditorInner({
                           />
                         </div>
                       </div>
+                    )}
+
+                    {selectedNode.data.actionType === 'CREATE_TRANSACTION' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 12 }}>Tipo de movimiento</label>
+                        <select
+                          value={String(selectedNode.data.config.type ?? 'INCOME')}
+                          onChange={(e) => patchConfig({ type: e.target.value })}
+                          style={{ ...inputBase, cursor: 'pointer' }}
+                        >
+                          <option value="INCOME">Ingreso</option>
+                          <option value="EXPENSE">Gasto</option>
+                        </select>
+                        <label style={{ ...labelBase, marginTop: 10 }}>Importe</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          value={String(selectedNode.data.config.amount ?? '')}
+                          onChange={(e) => patchConfig({ amount: e.target.value })}
+                          style={inputBase}
+                        />
+                        <label style={{ ...labelBase, marginTop: 10 }}>Descripción</label>
+                        <input
+                          value={String(selectedNode.data.config.description ?? '')}
+                          onChange={(e) => patchConfig({ description: e.target.value })}
+                          style={inputBase}
+                          placeholder="Concepto del movimiento"
+                        />
+                      </>
                     )}
 
                     {selectedNode.data.actionType === 'HTTP_REQUEST' && (

@@ -48,16 +48,24 @@ export function shortActionLabel(actionType: string, c: Record<string, unknown>)
       return 'Equipo por edad'
     case 'ASSIGN_TEAM_BY_PREFERENCE':
       return 'Equipo por preferencia'
+    case 'REMOVE_FROM_TEAM':
+      return 'Quitar de equipo'
     case 'SET_MEMBER_STATUS':
       return 'Estado socio'
     case 'SET_MEMBER_SPORT_PREFERENCE':
       return 'Preferencia deportiva'
     case 'SET_MEMBER_CONTACT':
       return 'Contacto socio'
+    case 'SET_MEMBER_DNI':
+      return 'Actualizar DNI'
+    case 'SET_MEMBER_BIRTHDATE':
+      return 'Fecha nacimiento'
     case 'CREATE_PAYMENT':
       return 'Cobro'
     case 'CREATE_SIGNUP_LINK':
       return 'Enlace inscripción'
+    case 'CREATE_TRANSACTION':
+      return 'Movimiento contable'
     case 'HTTP_REQUEST':
       return 'HTTP'
     case 'BRANCH_IF':

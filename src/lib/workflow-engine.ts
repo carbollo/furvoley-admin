@@ -113,6 +113,14 @@ function parsePreferenceMap(config: unknown): Record<string, string> {
   return {}
 }
 
+function parseIsoDate(config: unknown, key: string): Date | null {
+  const raw = readString(config, key)
+  if (!raw) return null
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return null
+  return d
+}
+
 function evalBranchCondition(
   config: unknown,
   member: WorkflowMemberPayload,
@@ -237,6 +245,23 @@ async function runMemberCreatedStepAction(
     return
   }
 
+  if (step.actionType === 'REMOVE_FROM_TEAM') {
+    const teamId = readString(step.config, 'teamId')
+    if (teamId) {
+      await prisma.teamMember.deleteMany({
+        where: {
+          memberId: member.id,
+          teamId,
+        },
+      })
+    } else {
+      await prisma.teamMember.deleteMany({
+        where: { memberId: member.id },
+      })
+    }
+    return
+  }
+
   if (step.actionType === 'SET_MEMBER_STATUS') {
     const targetStatus = readString(step.config, 'targetStatus')
     if (!targetStatus) return
@@ -281,6 +306,28 @@ async function runMemberCreatedStepAction(
     return
   }
 
+  if (step.actionType === 'SET_MEMBER_DNI') {
+    const dni = readString(step.config, 'dni')
+    if (!dni) return
+    await prisma.member.update({
+      where: { id: member.id },
+      data: { dni },
+    })
+    member.dni = dni
+    return
+  }
+
+  if (step.actionType === 'SET_MEMBER_BIRTHDATE') {
+    const birthDate = parseIsoDate(step.config, 'birthDate')
+    if (!birthDate) return
+    await prisma.member.update({
+      where: { id: member.id },
+      data: { birthDate },
+    })
+    member.birthDate = birthDate
+    return
+  }
+
   if (step.actionType === 'CREATE_PAYMENT') {
     const amount = readNumber(step.config, 'amount')
     if (amount === null || amount <= 0) return
@@ -311,6 +358,23 @@ async function runMemberCreatedStepAction(
         maxUses,
         expiresAt,
         createdMemberId: member.id,
+      },
+    })
+    return
+  }
+
+  if (step.actionType === 'CREATE_TRANSACTION') {
+    const amount = readNumber(step.config, 'amount')
+    const description = readString(step.config, 'description')
+    const type = (readString(step.config, 'type') || 'INCOME').toUpperCase()
+    if (amount === null || amount <= 0 || !description) return
+    await prisma.transaction.create({
+      data: {
+        type: type === 'EXPENSE' ? 'EXPENSE' : 'INCOME',
+        amount,
+        description,
+        date: new Date(),
+        source: 'MANUAL',
       },
     })
     return
