@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { sendApiWassText } from '@/lib/apiwass'
+import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 
 export type WorkflowMemberPayload = {
   id: string
@@ -193,6 +194,14 @@ async function runMemberCreatedStepAction(
   },
   member: WorkflowMemberPayload,
 ): Promise<void> {
+  async function resolveWorkflowWhatsAppSessionId(explicitSessionId?: string) {
+    const explicit = String(explicitSessionId || '').trim()
+    if (explicit) return explicit
+    const cfg = await getWhatsAppConfig()
+    const linked = String(cfg.linkedSessionId || '').trim()
+    return linked || undefined
+  }
+
   if (step.actionType === 'ASSIGN_TEAM_BY_AGE') {
     if (!member.birthDate) return
 
@@ -390,7 +399,7 @@ async function runMemberCreatedStepAction(
   }
 
   if (step.actionType === 'SEND_WHATSAPP') {
-    const sessionId = readString(step.config, 'waSessionId') || undefined
+    const sessionId = await resolveWorkflowWhatsAppSessionId(readString(step.config, 'waSessionId') || undefined)
     const phoneTpl = readString(step.config, 'waPhone') || '{memberPhone}'
     const messageTpl = readString(step.config, 'waMessage') || ''
     const phone = interpolateHttpTemplate(phoneTpl, member).replace(/[^\d+]/g, '')
