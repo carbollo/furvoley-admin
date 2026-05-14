@@ -3738,7 +3738,7 @@ function normalizePhoneE164(raw: string) {
 function WhatsAppSection() {
   const { showAlert } = useCrm()
   const [busy, setBusy] = useState(false)
-  const [sessions, setSessions] = useState<any[]>([])
+  const [session, setSession] = useState<any | null>(null)
   const [activeSessionId, setActiveSessionId] = useState('')
   const [status, setStatus] = useState('—')
   const [qrImage, setQrImage] = useState<string | null>(null)
@@ -3753,8 +3753,9 @@ function WhatsAppSection() {
       const sR = await fetch('/api/crm/whatsapp/sessions', { credentials: 'include' })
       const sJ = sR.ok ? await sR.json() : { sessions: [] }
       const list = Array.isArray(sJ.sessions) ? sJ.sessions : []
-      setSessions(list)
-      const next = preferredSessionId || activeSessionId || list[0]?.id || ''
+      const one = list[0] || null
+      setSession(one)
+      const next = preferredSessionId || activeSessionId || one?.id || ''
       setActiveSessionId(next)
       if (!next) {
         setStatus('SIN_SESION')
@@ -3871,21 +3872,20 @@ function WhatsAppSection() {
 
       <div style={{display:'grid',gridTemplateColumns:'1.2fr 1fr',gap:14}}>
         <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:10}}>Sesiones</div>
+          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:10}}>Sesión vinculada al CRM</div>
           <div style={{display:'flex',gap:8,marginBottom:10}}>
             <input value={createSessionId} onChange={(e)=>setCreateSessionId(e.target.value)} placeholder="session-id-1" style={{flex:1,padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13}} />
-            <button type="button" onClick={createSession} disabled={busy} style={{padding:'9px 12px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Crear sesión</button>
+            <button type="button" onClick={createSession} disabled={busy || !!session} style={{padding:'9px 12px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer',opacity:(busy || !!session)?0.7:1}}>Crear sesión</button>
           </div>
-          <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center'}}>
-            <select value={activeSessionId} onChange={(e)=>setActiveSessionId(e.target.value)} style={{flex:1,padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13}}>
-              <option value="">— Sin sesión —</option>
-              {sessions.map((s:any)=><option key={s.id} value={s.id}>{s.id} · {s.status || s.state || 'UNKNOWN'}</option>)}
-            </select>
-            <button type="button" onClick={() => loadAll(activeSessionId)} disabled={busy} style={{padding:'9px 12px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Refrescar</button>
+          <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center',padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',background:'#fafafa'}}>
+            <span style={{fontSize:13,color:'#111827',fontWeight:600,flex:1}}>
+              {session ? `${session.id} · ${session.status || session.state || 'UNKNOWN'}` : 'Sin sesión vinculada'}
+            </span>
           </div>
           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
             <button type="button" onClick={() => runSessionAction('restart')} disabled={busy || !activeSessionId} style={{padding:'8px 11px',borderRadius:9,border:'1px solid var(--border)',background:'#fff',fontFamily:'inherit',fontWeight:600,cursor:busy?'not-allowed':'pointer'}}>Reiniciar</button>
             <button type="button" onClick={() => runSessionAction('delete')} disabled={busy || !activeSessionId} style={{padding:'8px 11px',borderRadius:9,border:'1px solid rgba(239,68,68,0.3)',background:'#fff',color:'#b91c1c',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Eliminar</button>
+            <span style={{fontSize:12,color:'#6b7280'}}>Solo se permite 1 sesión activa por CRM.</span>
             <span style={{marginLeft:'auto',fontSize:12,fontWeight:700,color:status==='READY'?'#047857':status==='QR_READY'?'#b45309':'#64748b'}}>Estado: {status}</span>
           </div>
         </div>

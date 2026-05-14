@@ -24,6 +24,14 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await assertAdmin()
+    const existingRaw = await apiWassRequest('/sessions')
+    const existing = Array.isArray(existingRaw) ? existingRaw : existingRaw?.sessions || []
+    if (existing.length > 0) {
+      return NextResponse.json(
+        { error: 'Ya existe una sesión vinculada al CRM. Elimínala para crear una nueva.' },
+        { status: 409 },
+      )
+    }
     const body = await request.json().catch(() => ({}))
     const id = String(body?.id || '').trim()
     const type = String(body?.type || 'standard').trim()
