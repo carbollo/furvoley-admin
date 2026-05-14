@@ -11,6 +11,7 @@ export const WORKFLOW_ACTION_OPTIONS = [
   { value: 'CREATE_PAYMENT', label: 'Registrar cobro (cuota)' },
   { value: 'CREATE_SIGNUP_LINK', label: 'Crear enlace de inscripción' },
   { value: 'CREATE_TRANSACTION', label: 'Crear movimiento contable' },
+  { value: 'SEND_WHATSAPP', label: 'Enviar WhatsApp' },
   { value: 'HTTP_REQUEST', label: 'Petición HTTP' },
   { value: 'BRANCH_IF', label: 'Condición (ramificar)' },
 ] as const

@@ -67,6 +67,8 @@ function defaultStepConfig(actionType: string): Record<string, unknown> {
       return { maxUses: '1', expiresInDays: '30' }
     case 'CREATE_TRANSACTION':
       return { type: 'INCOME', amount: '', description: '' }
+    case 'SEND_WHATSAPP':
+      return { waSessionId: '', waPhone: '{memberPhone}', waMessage: 'Hola {memberName}, te escribimos desde Furvoley.' }
     case 'HTTP_REQUEST':
       return { httpUrl: '', httpMethod: 'POST', httpBody: '', httpHeaders: '' }
     case 'BRANCH_IF':
@@ -101,6 +103,11 @@ function prepararConfigParaApi(actionType: string, raw: Record<string, unknown>)
       if (Number.isFinite(n) && n > 0) o.amount = n
       else delete o.amount
     }
+  }
+  if (actionType === 'SEND_WHATSAPP') {
+    if (typeof o.waPhone === 'string') o.waPhone = o.waPhone.trim()
+    if (typeof o.waMessage === 'string') o.waMessage = o.waMessage.trim()
+    if (typeof o.waSessionId === 'string') o.waSessionId = o.waSessionId.trim()
   }
   if (actionType === 'ASSIGN_TEAM_BY_AGE') {
     if (o.minAge !== '' && o.minAge != null) {
@@ -1057,6 +1064,36 @@ function WorkflowFlowEditorInner({
                           style={inputBase}
                           placeholder="Concepto del movimiento"
                         />
+                      </>
+                    )}
+
+                    {selectedNode.data.actionType === 'SEND_WHATSAPP' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 12 }}>Session ID (opcional)</label>
+                        <input
+                          value={String(selectedNode.data.config.waSessionId ?? '')}
+                          onChange={(e) => patchConfig({ waSessionId: e.target.value })}
+                          style={inputBase}
+                          placeholder="Si vacío, usa APIWASS_DEFAULT_SESSION_ID"
+                        />
+                        <label style={{ ...labelBase, marginTop: 10 }}>Teléfono destino</label>
+                        <input
+                          value={String(selectedNode.data.config.waPhone ?? '{memberPhone}')}
+                          onChange={(e) => patchConfig({ waPhone: e.target.value })}
+                          style={inputBase}
+                          placeholder="{memberPhone} o 34666777888"
+                        />
+                        <label style={{ ...labelBase, marginTop: 10 }}>Mensaje</label>
+                        <textarea
+                          value={String(selectedNode.data.config.waMessage ?? '')}
+                          onChange={(e) => patchConfig({ waMessage: e.target.value })}
+                          rows={3}
+                          style={{ ...inputBase, minHeight: 72 }}
+                          placeholder="Hola {memberName}, tu pago está pendiente."
+                        />
+                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.45 }}>
+                          Variables disponibles: {'{memberName}'}, {'{memberPhone}'}, {'{memberEmail}'}, {'{memberId}'}
+                        </p>
                       </>
                     )}
 

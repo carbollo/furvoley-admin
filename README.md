@@ -21,8 +21,9 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
    - `NEXTAUTH_URL`: La URL pública de tu aplicación en Railway (ej. `https://furvoley-admin-production.up.railway.app`).
    - `STRIPE_SECRET_KEY`: Tu clave secreta de Stripe.
    - `STRIPE_WEBHOOK_SECRET`: El secreto del endpoint webhook de Stripe.
-   - `APIWASS_TOKEN`: Token API para envío de WhatsApp.
-   - `APIWASS_API_URL` (opcional): Endpoint de envío, por defecto `https://api.wassenger.com/v1/messages`.
+  - `APIWASS_API_KEY`: Clave API de ApiWass (`sk_...`), usada en backend para conexión/sesiones/envío.
+  - `APIWASS_BASE_URL` (opcional): Base URL de ApiWass, por defecto `https://apiwass.com/api`.
+  - `APIWASS_DEFAULT_SESSION_ID` (opcional): Session ID por defecto para envíos automáticos (workflows) y panel.
    - `NEXT_PUBLIC_APP_URL`: La misma URL pública de tu aplicación en Railway.
    - `CRON_SECRET`: Token para ejecutar tareas automáticas en `/api/jobs/billing`.
    - `ADMIN_EMAIL` (opcional): email del admin bootstrap.
@@ -38,3 +39,16 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
 3. Crea un archivo `.env` en la raíz con tu `DATABASE_URL` local.
 4. Ejecuta las migraciones: `npx prisma migrate dev`
 5. Inicia el servidor: `npm run dev`
+
+## WhatsApp CRM (ApiWass)
+
+- El panel `Whatsapp` en el CRM permite:
+  - crear/seleccionar sesión,
+  - consultar estado (`READY`, `QR_READY`, etc.),
+  - visualizar QR y logs,
+  - enviar mensajes manuales.
+- Los flujos (`Flujos`) incluyen la acción `Enviar WhatsApp` (`SEND_WHATSAPP`) para automatizaciones.
+- Errores comunes:
+  - API key inválida o ausente: revisar `APIWASS_API_KEY`.
+  - sesión inexistente: crear sesión en pestaña `Whatsapp` o ajustar `APIWASS_DEFAULT_SESSION_ID`.
+  - QR no disponible: refrescar estado/logs y reiniciar sesión.

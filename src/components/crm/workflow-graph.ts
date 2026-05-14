@@ -66,6 +66,8 @@ export function shortActionLabel(actionType: string, c: Record<string, unknown>)
       return 'Enlace inscripción'
     case 'CREATE_TRANSACTION':
       return 'Movimiento contable'
+    case 'SEND_WHATSAPP':
+      return 'WhatsApp'
     case 'HTTP_REQUEST':
       return 'HTTP'
     case 'BRANCH_IF':

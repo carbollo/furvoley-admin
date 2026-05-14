@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { sendApiWassText } from '@/lib/apiwass'
 
 export type WorkflowMemberPayload = {
   id: string
@@ -377,6 +378,21 @@ async function runMemberCreatedStepAction(
         source: 'MANUAL',
       },
     })
+    return
+  }
+
+  if (step.actionType === 'SEND_WHATSAPP') {
+    const sessionId = readString(step.config, 'waSessionId') || undefined
+    const phoneTpl = readString(step.config, 'waPhone') || '{memberPhone}'
+    const messageTpl = readString(step.config, 'waMessage') || ''
+    const phone = interpolateHttpTemplate(phoneTpl, member).replace(/[^\d+]/g, '')
+    const message = interpolateHttpTemplate(messageTpl, member)
+    if (!phone || !message.trim()) return
+    try {
+      await sendApiWassText({ sessionId, phone, message })
+    } catch (e) {
+      console.warn('[workflow] SEND_WHATSAPP fallo:', e)
+    }
     return
   }
 

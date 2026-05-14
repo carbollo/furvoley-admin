@@ -283,6 +283,7 @@ const Icon = ({ name, size = 18 }) => {
     calendar: <><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>,
     reports: <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>,
     workflows: <><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></>,
+    whatsapp: <><path d="M20 11.2c0 4.6-3.8 8.3-8.5 8.3-1.3 0-2.6-.3-3.8-.9L3 20l1.5-4.5c-.7-1.3-1-2.7-1-4.3C3.5 6.6 7.3 3 12 3s8 3.6 8 8.2z"/><path d="M8.8 9.5c.2-.4.4-.4.6-.4h.5c.2 0 .4 0 .5.4.2.4.6 1.4.7 1.6.1.2.1.4 0 .6-.1.2-.2.3-.4.5-.2.2-.3.3-.4.5-.1.2 0 .4.1.5.2.2.9 1.5 2.3 2 .4.2.7.1.9 0 .2-.1.6-.7.8-.9.2-.2.4-.2.6-.1.2.1 1.3.6 1.6.7.2.1.4.2.4.4 0 .2 0 1.1-.7 1.7-.7.6-1.6.6-2.2.5-.6-.1-3.1-1.2-4.5-3.8-.3-.5-.8-1.6-.8-2.3 0-.6.3-.9.4-1.1z"/></>,
     logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></>,
     plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
     search: <><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>,
@@ -381,6 +382,7 @@ const NAV = [
   { id: 'calendario', label: 'Calendario', icon: 'calendar' },
   { id: 'informes', label: 'Informes', icon: 'reports' },
   { id: 'workflows', label: 'Flujos', icon: 'workflows' },
+  { id: 'whatsapp', label: 'Whatsapp', icon: 'whatsapp' },
 ];
 
 function Sidebar({ active, setActive }) {
@@ -3726,8 +3728,202 @@ function Workflows() {
   return <WorkflowsSection bundle={bundle} reload={reload} />;
 }
 
+function normalizePhoneE164(raw: string) {
+  const only = String(raw || '').replace(/[^\d+]/g, '')
+  if (!only) return ''
+  if (only.startsWith('+')) return only.slice(1)
+  return only
+}
+
+function WhatsAppSection() {
+  const { showAlert } = useCrm()
+  const [busy, setBusy] = useState(false)
+  const [sessions, setSessions] = useState<any[]>([])
+  const [activeSessionId, setActiveSessionId] = useState('')
+  const [status, setStatus] = useState('—')
+  const [qrImage, setQrImage] = useState<string | null>(null)
+  const [logs, setLogs] = useState<any[]>([])
+  const [createSessionId, setCreateSessionId] = useState('')
+  const [sendPhone, setSendPhone] = useState('')
+  const [sendMessage, setSendMessage] = useState('')
+
+  const loadAll = useCallback(async (preferredSessionId?: string) => {
+    setBusy(true)
+    try {
+      const sR = await fetch('/api/crm/whatsapp/sessions', { credentials: 'include' })
+      const sJ = sR.ok ? await sR.json() : { sessions: [] }
+      const list = Array.isArray(sJ.sessions) ? sJ.sessions : []
+      setSessions(list)
+      const next = preferredSessionId || activeSessionId || list[0]?.id || ''
+      setActiveSessionId(next)
+      if (!next) {
+        setStatus('SIN_SESION')
+        setQrImage(null)
+        setLogs([])
+        return
+      }
+
+      const [stR, qrR, lR] = await Promise.all([
+        fetch('/api/crm/whatsapp/sessions/' + encodeURIComponent(next) + '/status', { credentials: 'include' }),
+        fetch('/api/crm/whatsapp/sessions/' + encodeURIComponent(next) + '/qr', { credentials: 'include' }),
+        fetch('/api/crm/whatsapp/sessions/' + encodeURIComponent(next) + '/logs', { credentials: 'include' }),
+      ])
+      const stJ = stR.ok ? await stR.json() : {}
+      const qrJ = qrR.ok ? await qrR.json() : {}
+      const lJ = lR.ok ? await lR.json() : {}
+      setStatus(String(stJ.status || stJ.state || 'UNKNOWN'))
+      setQrImage((typeof qrJ.qrImage === 'string' && qrJ.qrImage) || (typeof qrJ.qrBase64 === 'string' && qrJ.qrBase64) || null)
+      setLogs(Array.isArray(lJ.logs) ? lJ.logs : [])
+    } finally {
+      setBusy(false)
+    }
+  }, [activeSessionId])
+
+  useEffect(() => {
+    loadAll().catch(() => {})
+  }, [loadAll])
+
+  async function createSession() {
+    const id = createSessionId.trim()
+    if (!id) {
+      showAlert('Indica un Session ID para crear la conexión.')
+      return
+    }
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/whatsapp/sessions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, type: 'standard' }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        showAlert(j.error || 'No se pudo crear la sesión de WhatsApp')
+        return
+      }
+      setCreateSessionId('')
+      await loadAll(id)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function runSessionAction(action: 'restart' | 'delete') {
+    if (!activeSessionId) {
+      showAlert('Selecciona una sesión primero.')
+      return
+    }
+    setBusy(true)
+    try {
+      const url =
+        action === 'restart'
+          ? '/api/crm/whatsapp/sessions/' + encodeURIComponent(activeSessionId) + '/restart'
+          : '/api/crm/whatsapp/sessions/' + encodeURIComponent(activeSessionId)
+      const method = action === 'restart' ? 'POST' : 'DELETE'
+      const r = await fetch(url, { method, credentials: 'include' })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        showAlert(j.error || 'No se pudo ejecutar la acción sobre la sesión')
+        return
+      }
+      await loadAll(action === 'delete' ? '' : activeSessionId)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function sendTextMessage(e: React.FormEvent) {
+    e.preventDefault()
+    const sessionId = activeSessionId.trim()
+    const phone = normalizePhoneE164(sendPhone)
+    const message = sendMessage.trim()
+    if (!sessionId || !phone || !message) {
+      showAlert('Completa sesión, teléfono y mensaje.')
+      return
+    }
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/whatsapp/send', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, phone, message }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        showAlert(j.error || 'No se pudo enviar el mensaje de WhatsApp')
+        return
+      }
+      setSendMessage('')
+      await loadAll(sessionId)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:20}}>
+      <div>
+        <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Whatsapp</h1>
+        <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>Conexión ApiWass y envío integrado con el CRM.</p>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'1.2fr 1fr',gap:14}}>
+        <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:10}}>Sesiones</div>
+          <div style={{display:'flex',gap:8,marginBottom:10}}>
+            <input value={createSessionId} onChange={(e)=>setCreateSessionId(e.target.value)} placeholder="session-id-1" style={{flex:1,padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13}} />
+            <button type="button" onClick={createSession} disabled={busy} style={{padding:'9px 12px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Crear sesión</button>
+          </div>
+          <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center'}}>
+            <select value={activeSessionId} onChange={(e)=>setActiveSessionId(e.target.value)} style={{flex:1,padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13}}>
+              <option value="">— Sin sesión —</option>
+              {sessions.map((s:any)=><option key={s.id} value={s.id}>{s.id} · {s.status || s.state || 'UNKNOWN'}</option>)}
+            </select>
+            <button type="button" onClick={() => loadAll(activeSessionId)} disabled={busy} style={{padding:'9px 12px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Refrescar</button>
+          </div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            <button type="button" onClick={() => runSessionAction('restart')} disabled={busy || !activeSessionId} style={{padding:'8px 11px',borderRadius:9,border:'1px solid var(--border)',background:'#fff',fontFamily:'inherit',fontWeight:600,cursor:busy?'not-allowed':'pointer'}}>Reiniciar</button>
+            <button type="button" onClick={() => runSessionAction('delete')} disabled={busy || !activeSessionId} style={{padding:'8px 11px',borderRadius:9,border:'1px solid rgba(239,68,68,0.3)',background:'#fff',color:'#b91c1c',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Eliminar</button>
+            <span style={{marginLeft:'auto',fontSize:12,fontWeight:700,color:status==='READY'?'#047857':status==='QR_READY'?'#b45309':'#64748b'}}>Estado: {status}</span>
+          </div>
+        </div>
+
+        <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14,display:'flex',alignItems:'center',justifyContent:'center',minHeight:180}}>
+          {qrImage ? <img src={qrImage} alt="QR WhatsApp" style={{maxWidth:'100%',maxHeight:220,borderRadius:10,border:'1px solid var(--border)'}}/> : <div style={{fontSize:12,color:'#6b7280'}}>Sin QR disponible (si estado es READY no hace falta escanear).</div>}
+        </div>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+        <form onSubmit={sendTextMessage} style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:10}}>Enviar mensaje manual</div>
+          <label style={{fontSize:12,fontWeight:600,color:'#64748b',display:'block',marginBottom:5}}>Teléfono (E.164 sin +)</label>
+          <input value={sendPhone} onChange={(e)=>setSendPhone(e.target.value)} placeholder="34666777888" style={{width:'100%',padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,marginBottom:10}} />
+          <label style={{fontSize:12,fontWeight:600,color:'#64748b',display:'block',marginBottom:5}}>Mensaje</label>
+          <textarea value={sendMessage} onChange={(e)=>setSendMessage(e.target.value)} rows={4} placeholder="Hola, este mensaje sale desde Furvoley CRM." style={{width:'100%',padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,marginBottom:10}} />
+          <button type="submit" disabled={busy || !activeSessionId} style={{padding:'9px 12px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Enviar WhatsApp</button>
+        </form>
+
+        <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:10}}>Logs de sesión</div>
+          <div style={{maxHeight:180,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
+            {logs.length === 0 ? (
+              <div style={{fontSize:12,color:'#6b7280'}}>Sin logs recientes.</div>
+            ) : logs.slice(0, 80).map((l:any, i:number) => (
+              <div key={i} style={{fontSize:12,color:'#374151',padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,background:'#fafafa'}}>
+                {typeof l === 'string' ? l : JSON.stringify(l)}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── APP ROOT ─────────────────────────────────────────────────────────────────
-const CRM_SECTION_IDS = ['dashboard','socios','equipos','contabilidad','calendario','informes','workflows'] as const;
+const CRM_SECTION_IDS = ['dashboard','socios','equipos','contabilidad','calendario','informes','workflows','whatsapp'] as const;
 type SectionId = (typeof CRM_SECTION_IDS)[number]
 
 function CrmInner() {
@@ -3847,6 +4043,7 @@ function CrmInner() {
     calendario: Calendario,
     informes: Informes,
     workflows: Workflows,
+    whatsapp: WhatsAppSection,
   };
   const Screen = screens[active] || Dashboard;
 
