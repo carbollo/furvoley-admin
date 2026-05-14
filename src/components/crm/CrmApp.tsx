@@ -3798,6 +3798,14 @@ function WhatsAppSection() {
     loadAll().catch(() => {})
   }, [loadAll])
 
+  useEffect(() => {
+    if (!activeSessionId) return
+    const poll = window.setInterval(() => {
+      loadAll(activeSessionId).catch(() => {})
+    }, 4000)
+    return () => window.clearInterval(poll)
+  }, [activeSessionId, loadAll])
+
   async function createSession() {
     const id = createSessionId.trim()
     if (!id) {
