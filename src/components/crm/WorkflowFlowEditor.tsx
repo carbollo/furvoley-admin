@@ -1092,7 +1092,8 @@ function WorkflowFlowEditorInner({
                           placeholder="Hola {memberName}, tu pago está pendiente."
                         />
                         <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.45 }}>
-                          Variables disponibles: {'{memberName}'}, {'{memberPhone}'}, {'{memberEmail}'}, {'{memberId}'}
+                          Variables disponibles: {'{memberName}'}, {'{memberPhone}'}, {'{memberEmail}'}, {'{memberId}'},
+                          {'{assignedTeamName}'}, {'{assignedTeamId}'}
                         </p>
                       </>
                     )}

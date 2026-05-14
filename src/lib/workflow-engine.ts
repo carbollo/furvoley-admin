@@ -14,6 +14,11 @@ export type WorkflowMemberPayload = {
   status: string
 }
 
+type WorkflowRunContext = {
+  variables: Record<string, string>
+  teamNameCache: Map<string, string>
+}
+
 function calculateAge(birthDate: Date, now = new Date()) {
   let age = now.getFullYear() - birthDate.getFullYear()
   const monthDiff = now.getMonth() - birthDate.getMonth()
@@ -56,7 +61,11 @@ function resolveStepIndex(
   return byLabel
 }
 
-function interpolateHttpTemplate(template: string, member: WorkflowMemberPayload): string {
+function interpolateHttpTemplate(
+  template: string,
+  member: WorkflowMemberPayload,
+  runContext?: WorkflowRunContext,
+): string {
   const map: Record<string, string> = {
     memberId: member.id,
     memberName: member.name ?? '',
@@ -67,6 +76,7 @@ function interpolateHttpTemplate(template: string, member: WorkflowMemberPayload
     memberStatus: member.status ?? '',
     memberSportPreference: member.sportPreference ?? '',
   }
+  if (runContext) Object.assign(map, runContext.variables)
   // Accept multiple token styles so workflow configs are resilient:
   // - {memberName}
   // - (memberName)
@@ -193,6 +203,7 @@ async function runMemberCreatedStepAction(
     config: unknown
   },
   member: WorkflowMemberPayload,
+  runContext: WorkflowRunContext,
 ): Promise<void> {
   async function resolveWorkflowWhatsAppSessionId(explicitSessionId?: string) {
     const explicit = String(explicitSessionId || '').trim()
@@ -202,17 +213,52 @@ async function runMemberCreatedStepAction(
     return linked || undefined
   }
 
+  async function resolveTeamName(teamId: string) {
+    const cached = runContext.teamNameCache.get(teamId)
+    if (cached) return cached
+    const team = await prisma.team.findUnique({
+      where: { id: teamId },
+      select: { name: true },
+    })
+    const name = String(team?.name || '')
+    if (name) runContext.teamNameCache.set(teamId, name)
+    return name
+  }
+
+  async function setAssignedTeamResult(teamId: string | null, applied: boolean) {
+    const cleanId = String(teamId || '').trim()
+    const teamName = cleanId ? await resolveTeamName(cleanId) : ''
+    const flag = applied ? 'true' : 'false'
+    runContext.variables.assignedTeamId = cleanId
+    runContext.variables.assignedTeamName = teamName
+    runContext.variables.teamAssignedId = cleanId
+    runContext.variables.teamAssignedName = teamName
+    runContext.variables.assignmentApplied = flag
+  }
+
   if (step.actionType === 'ASSIGN_TEAM_BY_AGE') {
-    if (!member.birthDate) return
+    if (!member.birthDate) {
+      await setAssignedTeamResult(null, false)
+      return
+    }
 
     const maxAge = readNumber(step.config, 'maxAge')
     const minAge = readNumber(step.config, 'minAge')
     const teamId = readString(step.config, 'teamId')
-    if (!teamId) return
+    if (!teamId) {
+      await setAssignedTeamResult(null, false)
+      return
+    }
 
     const age = calculateAge(member.birthDate)
-    if (minAge !== null && age < minAge) return
-    if (maxAge !== null && age > maxAge) return
+    if (minAge !== null && age < minAge) {
+      await setAssignedTeamResult(null, false)
+      return
+    }
+    if (maxAge !== null && age > maxAge) {
+      await setAssignedTeamResult(null, false)
+      return
+    }
 
     await prisma.teamMember.upsert({
       where: {
@@ -224,12 +270,16 @@ async function runMemberCreatedStepAction(
       update: { role: 'PLAYER' },
       create: { teamId, memberId: member.id, role: 'PLAYER' },
     })
+    await setAssignedTeamResult(teamId, true)
     return
   }
 
   if (step.actionType === 'ASSIGN_TEAM') {
     const teamId = readString(step.config, 'teamId')
-    if (!teamId) return
+    if (!teamId) {
+      await setAssignedTeamResult(null, false)
+      return
+    }
 
     await prisma.teamMember.upsert({
       where: {
@@ -241,15 +291,22 @@ async function runMemberCreatedStepAction(
       update: { role: 'PLAYER' },
       create: { teamId, memberId: member.id, role: 'PLAYER' },
     })
+    await setAssignedTeamResult(teamId, true)
     return
   }
 
   if (step.actionType === 'ASSIGN_TEAM_BY_PREFERENCE') {
     const key = normalizeText(member.sportPreference)
-    if (!key) return
+    if (!key) {
+      await setAssignedTeamResult(null, false)
+      return
+    }
     const map = parsePreferenceMap(step.config)
     const teamId = map[key]
-    if (!teamId) return
+    if (!teamId) {
+      await setAssignedTeamResult(null, false)
+      return
+    }
     await prisma.teamMember.upsert({
       where: {
         teamId_memberId: {
@@ -260,6 +317,7 @@ async function runMemberCreatedStepAction(
       update: { role: 'PLAYER' },
       create: { teamId, memberId: member.id, role: 'PLAYER' },
     })
+    await setAssignedTeamResult(teamId, true)
     return
   }
 
@@ -277,6 +335,7 @@ async function runMemberCreatedStepAction(
         where: { memberId: member.id },
       })
     }
+    await setAssignedTeamResult(null, true)
     return
   }
 
@@ -402,8 +461,8 @@ async function runMemberCreatedStepAction(
     const sessionId = await resolveWorkflowWhatsAppSessionId(readString(step.config, 'waSessionId') || undefined)
     const phoneTpl = readString(step.config, 'waPhone') || '{memberPhone}'
     const messageTpl = readString(step.config, 'waMessage') || ''
-    const phone = interpolateHttpTemplate(phoneTpl, member).replace(/[^\d+]/g, '')
-    const message = interpolateHttpTemplate(messageTpl, member)
+    const phone = interpolateHttpTemplate(phoneTpl, member, runContext).replace(/[^\d+]/g, '')
+    const message = interpolateHttpTemplate(messageTpl, member, runContext)
     if (!phone || !message.trim()) return
     try {
       await sendApiWassText({ sessionId, phone, message })
@@ -441,7 +500,7 @@ async function runMemberCreatedStepAction(
     let body: string | undefined
     const bodyTpl = readString(step.config, 'httpBody')
     if (bodyTpl && method !== 'GET' && method !== 'HEAD') {
-      body = interpolateHttpTemplate(bodyTpl, member)
+      body = interpolateHttpTemplate(bodyTpl, member, runContext)
       const hasCt = Object.keys(headers).some((k) => k.toLowerCase() === 'content-type')
       if (!hasCt) headers['Content-Type'] = 'application/json'
     }
@@ -467,6 +526,16 @@ async function runWorkflowStepsForMember(
   steps: { position: number; stepType: string; actionType: string; config: unknown }[],
   member: WorkflowMemberPayload,
 ) {
+  const runContext: WorkflowRunContext = {
+    variables: {
+      assignedTeamId: '',
+      assignedTeamName: '',
+      teamAssignedId: '',
+      teamAssignedName: '',
+      assignmentApplied: 'false',
+    },
+    teamNameCache: new Map<string, string>(),
+  }
   const sorted = [...steps].sort((a, b) => a.position - b.position)
   const maxIter = Math.max(sorted.length * 25, 50)
   let i = 0
@@ -491,7 +560,7 @@ async function runWorkflowStepsForMember(
       continue
     }
 
-    await runMemberCreatedStepAction(step, member)
+    await runMemberCreatedStepAction(step, member, runContext)
     i++
   }
 
