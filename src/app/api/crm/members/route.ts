@@ -34,12 +34,16 @@ export async function POST(request: Request) {
   const combined =
     fullNameDirect ||
     ([first, last].filter(Boolean).join(' ').trim() || '')
+  const phone = String(body.phone || '').trim()
 
   if (!combined) {
     return NextResponse.json(
       { error: 'Nombre y apellidos (o nombre completo) son obligatorios' },
       { status: 400 },
     )
+  }
+  if (!phone) {
+    return NextResponse.json({ error: 'El teléfono es obligatorio' }, { status: 400 })
   }
 
   let joined: Date | undefined
@@ -51,7 +55,7 @@ export async function POST(request: Request) {
   const member = await createMember({
     name: combined,
     email: body.email?.trim() || undefined,
-    phone: body.phone?.trim() || undefined,
+    phone,
     dni: body.dni?.trim() || undefined,
     address: body.address?.trim() || undefined,
     sportPreference: body.sportPreference?.trim() || undefined,

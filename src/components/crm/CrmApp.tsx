@@ -621,6 +621,7 @@ function Socios() {
   const [formInscripcion, setFormInscripcion] = useState({
     nombre: '',
     apellidos: '',
+    telefono: '',
     dni: '',
     email: '',
     domicilio: '',
@@ -652,6 +653,7 @@ function Socios() {
     setFormInscripcion({
       nombre: '',
       apellidos: '',
+      telefono: '',
       dni: '',
       email: '',
       domicilio: '',
@@ -663,8 +665,8 @@ function Socios() {
 
   async function enviarInscripcion(e) {
     e.preventDefault();
-    if (!formInscripcion.nombre.trim() || !formInscripcion.apellidos.trim()) {
-      showAlert('Nombre y apellidos son obligatorios.');
+    if (!formInscripcion.nombre.trim() || !formInscripcion.apellidos.trim() || !formInscripcion.telefono.trim()) {
+      showAlert('Nombre, apellidos y teléfono son obligatorios.');
       return;
     }
     setInscripcionBusy(true);
@@ -676,6 +678,7 @@ function Socios() {
         body: JSON.stringify({
           firstName: formInscripcion.nombre.trim(),
           lastName: formInscripcion.apellidos.trim(),
+          phone: formInscripcion.telefono.trim(),
           dni: formInscripcion.dni.trim() || undefined,
           email: formInscripcion.email.trim() || undefined,
           address: formInscripcion.domicilio.trim() || undefined,
@@ -1227,6 +1230,17 @@ function Socios() {
                   value={formInscripcion.fechaAlta}
                   onChange={(e) => setFormInscripcion((p) => ({ ...p, fechaAlta: e.target.value }))}
                   style={insInput}
+                />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={insLabel}>Teléfono *</label>
+                <input
+                  required
+                  value={formInscripcion.telefono}
+                  onChange={(e) => setFormInscripcion((p) => ({ ...p, telefono: e.target.value }))}
+                  placeholder="Ej. +34 666 777 888"
+                  style={insInput}
+                  autoComplete="tel"
                 />
               </div>
               <div style={{ gridColumn: 'span 2' }}>
