@@ -3736,7 +3736,7 @@ function normalizePhoneE164(raw: string) {
 }
 
 function WhatsAppSection() {
-  const { showAlert } = useCrm()
+  const { showAlert, reload } = useCrm()
   const [busy, setBusy] = useState(false)
   const [session, setSession] = useState<any | null>(null)
   const [activeSessionId, setActiveSessionId] = useState('')
@@ -3804,6 +3804,7 @@ function WhatsAppSection() {
         return
       }
       setCreateSessionId('')
+      await reload()
       await loadAll(id)
     } finally {
       setBusy(false)
