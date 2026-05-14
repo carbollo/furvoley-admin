@@ -3773,7 +3773,7 @@ function WhatsAppSection() {
       const qrJ = qrR.ok ? await qrR.json() : {}
       const lJ = lR.ok ? await lR.json() : {}
       setStatus(String(stJ.status || stJ.state || 'UNKNOWN'))
-      setQrImage((typeof qrJ.qrImage === 'string' && qrJ.qrImage) || (typeof qrJ.qrBase64 === 'string' && qrJ.qrBase64) || null)
+      setQrImage((typeof qrJ.qrImage === 'string' && qrJ.qrImage) || null)
       setLogs(Array.isArray(lJ.logs) ? lJ.logs : [])
     } finally {
       setBusy(false)
@@ -3891,7 +3891,24 @@ function WhatsAppSection() {
         </div>
 
         <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14,display:'flex',alignItems:'center',justifyContent:'center',minHeight:180}}>
-          {qrImage ? <img src={qrImage} alt="QR WhatsApp" style={{maxWidth:'100%',maxHeight:220,borderRadius:10,border:'1px solid var(--border)'}}/> : <div style={{fontSize:12,color:'#6b7280'}}>Sin QR disponible (si estado es READY no hace falta escanear).</div>}
+          {qrImage ? (
+            <img
+              src={qrImage}
+              alt="QR WhatsApp"
+              style={{
+                width: 220,
+                height: 220,
+                maxWidth: '100%',
+                objectFit: 'contain',
+                imageRendering: 'pixelated',
+                borderRadius: 0,
+                border: '1px solid var(--border)',
+                background: '#fff',
+              }}
+            />
+          ) : (
+            <div style={{fontSize:12,color:'#6b7280'}}>Sin QR disponible (si estado es READY no hace falta escanear).</div>
+          )}
         </div>
       </div>
 

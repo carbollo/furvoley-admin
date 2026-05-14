@@ -11,7 +11,9 @@ async function assertAdmin() {
 }
 
 function toImageSrc(data: any): string | null {
-  const raw = String(data?.qrImage || data?.qrBase64 || data?.qr || '').trim()
+  // Important: do not infer image from raw QR text payload.
+  // ApiWass can return both raw QR string and image base64; only image fields are valid for <img src>.
+  const raw = String(data?.qrImage || data?.qrBase64 || '').trim()
   if (!raw) return null
   if (raw.startsWith('data:image/')) return raw
   if (/^[A-Za-z0-9+/=]+$/.test(raw)) return `data:image/png;base64,${raw}`
