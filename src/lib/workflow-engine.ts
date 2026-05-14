@@ -66,7 +66,15 @@ function interpolateHttpTemplate(template: string, member: WorkflowMemberPayload
     memberStatus: member.status ?? '',
     memberSportPreference: member.sportPreference ?? '',
   }
-  return template.replace(/\{(\w+)\}/g, (_, key) => map[key] ?? `{${key}}`)
+  // Accept multiple token styles so workflow configs are resilient:
+  // - {memberName}
+  // - (memberName)
+  // - {{memberName}}
+  return template.replace(/\{\{(\w+)\}\}|\{(\w+)\}|\((\w+)\)/g, (match, k1, k2, k3) => {
+    const key = String(k1 || k2 || k3 || '')
+    if (!key) return match
+    return map[key] ?? match
+  })
 }
 
 function isAllowedHttpUrl(urlStr: string): boolean {
