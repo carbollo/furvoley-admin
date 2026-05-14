@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { apiWassRequest } from '@/lib/apiwass'
+import { getWhatsAppConfig, setLinkedWhatsAppSessionId } from '@/lib/whatsapp-config'
 
 async function assertAdmin() {
   const session = await getServerSession(authOptions)
@@ -17,7 +18,12 @@ export async function DELETE(
     await assertAdmin()
     const { id } = await context.params
     if (!id) return NextResponse.json({ error: 'Session ID requerido' }, { status: 400 })
+    const cfg = await getWhatsAppConfig()
+    if (!cfg.linkedSessionId || cfg.linkedSessionId !== id) {
+      return NextResponse.json({ error: 'Solo puedes eliminar la sesión vinculada al CRM.' }, { status: 409 })
+    }
     await apiWassRequest(`/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    await setLinkedWhatsAppSessionId(null)
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     const msg = e?.message || 'No se pudo eliminar la sesión'

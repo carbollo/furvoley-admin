@@ -3836,11 +3836,10 @@ function WhatsAppSection() {
 
   async function sendTextMessage(e: React.FormEvent) {
     e.preventDefault()
-    const sessionId = activeSessionId.trim()
     const phone = normalizePhoneE164(sendPhone)
     const message = sendMessage.trim()
-    if (!sessionId || !phone || !message) {
-      showAlert('Completa sesión, teléfono y mensaje.')
+    if (!phone || !message) {
+      showAlert('Completa teléfono y mensaje.')
       return
     }
     setBusy(true)
@@ -3849,7 +3848,7 @@ function WhatsAppSection() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, phone, message }),
+        body: JSON.stringify({ phone, message }),
       })
       if (!r.ok) {
         const j = await r.json().catch(() => ({}))
@@ -3857,7 +3856,7 @@ function WhatsAppSection() {
         return
       }
       setSendMessage('')
-      await loadAll(sessionId)
+      await loadAll(activeSessionId)
     } finally {
       setBusy(false)
     }
@@ -3874,7 +3873,7 @@ function WhatsAppSection() {
         <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14}}>
           <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:10}}>Sesión vinculada al CRM</div>
           <div style={{display:'flex',gap:8,marginBottom:10}}>
-            <input value={createSessionId} onChange={(e)=>setCreateSessionId(e.target.value)} placeholder="session-id-1" style={{flex:1,padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13}} />
+            <input value={createSessionId} onChange={(e)=>setCreateSessionId(e.target.value)} placeholder="session-id-crm" style={{flex:1,padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13}} />
             <button type="button" onClick={createSession} disabled={busy || !!session} style={{padding:'9px 12px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer',opacity:(busy || !!session)?0.7:1}}>Crear sesión</button>
           </div>
           <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center',padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',background:'#fafafa'}}>
@@ -3885,7 +3884,7 @@ function WhatsAppSection() {
           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
             <button type="button" onClick={() => runSessionAction('restart')} disabled={busy || !activeSessionId} style={{padding:'8px 11px',borderRadius:9,border:'1px solid var(--border)',background:'#fff',fontFamily:'inherit',fontWeight:600,cursor:busy?'not-allowed':'pointer'}}>Reiniciar</button>
             <button type="button" onClick={() => runSessionAction('delete')} disabled={busy || !activeSessionId} style={{padding:'8px 11px',borderRadius:9,border:'1px solid rgba(239,68,68,0.3)',background:'#fff',color:'#b91c1c',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Eliminar</button>
-            <span style={{fontSize:12,color:'#6b7280'}}>Solo se permite 1 sesión activa por CRM.</span>
+            <span style={{fontSize:12,color:'#6b7280'}}>Esta es la única sesión vinculada y visible en este CRM.</span>
             <span style={{marginLeft:'auto',fontSize:12,fontWeight:700,color:status==='READY'?'#047857':status==='QR_READY'?'#b45309':'#64748b'}}>Estado: {status}</span>
           </div>
         </div>

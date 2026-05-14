@@ -516,6 +516,16 @@ model TaxConfig {
   @@unique([isDefault])
 }
 
+model WhatsAppConfig {
+  id              String   @id @default(cuid())
+  isDefault       Boolean  @default(true)
+  linkedSessionId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([isDefault])
+}
+
 // --- META ADS INTEGRATION MODELS ---
 
 model MetaConfig {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sendApiWassText } from '@/lib/apiwass'
+import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 
 async function assertAdmin() {
   const session = await getServerSession(authOptions)
@@ -13,11 +14,15 @@ export async function POST(request: Request) {
   try {
     await assertAdmin()
     const body = await request.json().catch(() => ({}))
-    const sessionId = String(body?.sessionId || '').trim()
     const phone = String(body?.phone || '').trim()
     const message = String(body?.message || '').trim()
     if (!phone || !message) {
       return NextResponse.json({ error: 'Faltan teléfono o mensaje' }, { status: 400 })
+    }
+    const cfg = await getWhatsAppConfig()
+    const sessionId = String(cfg.linkedSessionId || '').trim()
+    if (!sessionId) {
+      return NextResponse.json({ error: 'No hay sesión de WhatsApp vinculada al CRM.' }, { status: 409 })
     }
     const result = await sendApiWassText({ sessionId, phone, message })
     return NextResponse.json({ ok: true, result })
