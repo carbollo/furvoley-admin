@@ -1,5 +1,6 @@
 import { withAuth } from "next-auth/middleware"
 import { NextResponse } from "next/server"
+import { normalizeRole } from "@/lib/rbac"
 
 /** Rutas con UI antigua (Tailwind) eliminada: el CRM vive en /. */
 const ADMIN_TO_CRM_TAB: { test: (p: string) => boolean; tab: string }[] = [
@@ -15,6 +16,7 @@ export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token
     const path = req.nextUrl.pathname
+    const role = normalizeRole(token?.role)
 
     if (path === "/crm") {
       const dest = new URL(req.url)
@@ -22,7 +24,7 @@ export default withAuth(
       return NextResponse.redirect(dest)
     }
 
-    if (token?.role === "ADMIN") {
+    if (role === "ADMIN") {
       for (const { test, tab } of ADMIN_TO_CRM_TAB) {
         if (!test(path)) continue
         const u = req.nextUrl.clone()
@@ -34,10 +36,8 @@ export default withAuth(
       }
     }
 
-    const adminRoutes = ["/accounting"]
-
-    if (adminRoutes.some(route => path.startsWith(route))) {
-      if (token?.role !== "ADMIN") {
+    if (path.startsWith("/accounting")) {
+      if (!(role === "ADMIN" || role === "TREASURER")) {
         return NextResponse.redirect(new URL("/", req.url))
       }
     }
@@ -48,7 +48,7 @@ export default withAuth(
       /^\/events\/[^/]+\/edit/.test(path)
 
     if (isEventsAdmin) {
-      if (token?.role !== "ADMIN") {
+      if (!(role === "ADMIN" || role === "COACH")) {
         return NextResponse.redirect(new URL("/", req.url))
       }
     }

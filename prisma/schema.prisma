@@ -43,13 +43,14 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
-  role          String    @default("PLAYER") // ADMIN, COACH, PLAYER
+  role          String    @default("MEMBER") // ADMIN, COACH, TREASURER, MEMBER (PLAYER legacy)
   accounts      Account[]
   sessions      Session[]
 
   // Link to the club member profile
   memberId      String?   @unique
   member        Member?   @relation(fields: [memberId], references: [id])
+  newsPosts     NewsPost[]
 }
 
 model VerificationToken {
@@ -556,4 +557,18 @@ model MetaCampaign {
   lastSyncedAt    DateTime @default(now())
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model NewsPost {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text
+  isPublished Boolean  @default(false)
+  priority    String   @default("NORMAL") // HIGH, NORMAL
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  authorId    String?
+  author      User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
 }

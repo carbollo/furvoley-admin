@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { createTeam } from '@/app/actions/teams'
+import { requireRoles } from '@/lib/rbac-api'
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
-  const role = (session?.user as { role?: string } | undefined)?.role
-  if (!session?.user || role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const auth = await requireRoles(['ADMIN'])
+  if (!auth.ok) return auth.response
 
   let body: { name?: string; category?: string }
   try {

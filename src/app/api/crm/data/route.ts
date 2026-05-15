@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTaxConfig } from '@/lib/tax-config'
+import { requireRoles } from '@/lib/rbac-api'
+import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
 
 function initials(name: string) {
   return name
@@ -30,10 +30,22 @@ const TYPE_LABEL: Record<string, string> = {
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  const role = (session?.user as { role?: string } | undefined)?.role
-  if (!session?.user || role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireRoles(['ADMIN', 'COACH', 'TREASURER'])
+  if (!auth.ok) return auth.response
+  const role = auth.role
+  const sessionUser = auth.session.user as { memberId?: string | null; name?: string | null; email?: string | null; role?: string }
+  const sessionMemberId = sessionUser.memberId || null
+  const canUseAccounting = role === 'ADMIN' || role === 'TREASURER'
+  const canManageWorkflows = role === 'ADMIN'
+  const canManagePeople = role === 'ADMIN' || role === 'COACH'
+
+  let coachTeamIds: string[] = []
+  if (role === 'COACH' && sessionMemberId) {
+    const coachTeams = await prisma.teamMember.findMany({
+      where: { memberId: sessionMemberId, role: 'COACH' },
+      select: { teamId: true },
+    })
+    coachTeamIds = coachTeams.map((t) => t.teamId)
   }
 
   const now = new Date()
@@ -54,8 +66,18 @@ export async function GET() {
     incomeTxMonthRaw,
     reportTxRaw,
     taxConfig,
+    usersRaw,
+    newsRaw,
   ] = await Promise.all([
     prisma.member.findMany({
+      where:
+        role === 'COACH'
+          ? {
+              teamRoles: {
+                some: { teamId: { in: coachTeamIds } },
+              },
+            }
+          : {},
       orderBy: { name: 'asc' },
       include: {
         subscriptions: {
@@ -76,6 +98,7 @@ export async function GET() {
       },
     }),
     prisma.team.findMany({
+      where: role === 'COACH' ? { id: { in: coachTeamIds } } : {},
       orderBy: { name: 'asc' },
       include: {
         members: {
@@ -84,6 +107,7 @@ export async function GET() {
       },
     }),
     prisma.invoice.findMany({
+      where: canUseAccounting ? {} : { id: '__none__' },
       include: {
         member: true,
         items: { take: 1 },
@@ -92,20 +116,26 @@ export async function GET() {
       take: 120,
     }),
     prisma.event.findMany({
-      where: { date: { gte: new Date(year, now.getMonth() - 1, 1) } },
+      where: {
+        date: { gte: new Date(year, now.getMonth() - 1, 1) },
+        ...(role === 'COACH' ? { teamId: { in: coachTeamIds } } : {}),
+      },
       include: { team: true },
       orderBy: { date: 'asc' },
       take: 80,
     }),
     prisma.workflow.findMany({
+      where: canManageWorkflows ? {} : { id: '__none__' },
       include: { steps: { orderBy: { position: 'asc' } } },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.transaction.findMany({
-      where: {
+      where: canUseAccounting
+        ? {
         type: 'INCOME',
         date: { gte: startYear, lt: endYear },
-      },
+          }
+        : { id: '__none__' },
       select: {
         amount: true,
         date: true,
@@ -115,17 +145,21 @@ export async function GET() {
       },
     }),
     prisma.transaction.findMany({
-      where: {
+      where: canUseAccounting
+        ? {
         type: 'EXPENSE',
         date: { gte: startYear, lt: endYear },
-      },
+          }
+        : { id: '__none__' },
       select: { amount: true, date: true },
     }),
     prisma.transaction.findMany({
-      where: {
+      where: canUseAccounting
+        ? {
         type: 'INCOME',
         date: { gte: monthStart, lte: monthEnd },
-      },
+          }
+        : { id: '__none__' },
       select: {
         amount: true,
         source: true,
@@ -133,6 +167,7 @@ export async function GET() {
       },
     }),
     prisma.transaction.findMany({
+      where: canUseAccounting ? {} : { id: '__none__' },
       orderBy: { date: 'asc' },
       select: {
         amount: true,
@@ -143,6 +178,20 @@ export async function GET() {
       },
     }),
     getTaxConfig(),
+    role === 'ADMIN'
+      ? prisma.user.findMany({
+          orderBy: { email: 'asc' },
+          include: { member: { select: { id: true, name: true, email: true } } },
+          take: 500,
+        })
+      : Promise.resolve([]),
+    role === 'ADMIN'
+      ? prisma.newsPost.findMany({
+          orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+          include: { author: { select: { id: true, name: true, email: true } } },
+          take: 150,
+        })
+      : Promise.resolve([]),
   ])
 
   const pendingInvoicesAll = invoicesRaw.filter(
@@ -337,14 +386,36 @@ export async function GET() {
   const totalIngresosAnuales = ingresosMensual.reduce((a, b) => a + b, 0)
   const totalEgresosAnuales = egresoMensual.reduce((a, b) => a + b, 0)
 
-  const u = session.user as { name?: string | null; email?: string | null; role?: string }
-  const displayName = u.name?.trim() || u.email || 'Administrador'
+  const displayName = sessionUser.name?.trim() || sessionUser.email || 'Administrador'
+  const currentRole = normalizeRole(sessionUser.role)
+  const users = usersRaw.map((usr) => {
+    const mappedRole = normalizeRole(usr.role)
+    return {
+      id: usr.id,
+      name: usr.name || '',
+      email: usr.email || '',
+      role: mappedRole,
+      roleLabel: ROLE_LABEL[mappedRole],
+      memberId: usr.memberId || null,
+      memberName: usr.member?.name || '',
+    }
+  })
+  const newsPosts = newsRaw.map((post) => ({
+    id: post.id,
+    title: post.title,
+    content: post.content,
+    priority: post.priority,
+    isPublished: post.isPublished,
+    publishedAt: post.publishedAt ? post.publishedAt.toISOString() : null,
+    createdAt: post.createdAt.toISOString(),
+    authorName: post.author?.name || post.author?.email || '',
+  }))
 
   return NextResponse.json({
     user: {
       name: displayName,
-      email: u.email ?? '',
-      role: u.role ?? 'ADMIN',
+      email: sessionUser.email ?? '',
+      role: currentRole,
       initials: initials(displayName),
     },
     currency,
@@ -389,5 +460,7 @@ export async function GET() {
       applyWithholdOnIncome: taxConfig.applyWithholdOnIncome,
       applyWithholdOnExpense: taxConfig.applyWithholdOnExpense,
     },
+    users,
+    newsPosts,
   })
 }

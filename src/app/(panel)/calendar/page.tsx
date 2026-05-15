@@ -5,12 +5,16 @@ import { deleteEvent } from '@/app/actions/events'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { normalizeRole } from '@/lib/rbac'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CalendarPage() {
   const session = await getServerSession(authOptions)
-  const isAdmin = session?.user?.role === 'ADMIN'
+  const role = normalizeRole(session?.user?.role)
+  const isAdmin = role === 'ADMIN'
+  const isCoach = role === 'COACH'
+  const isMember = role === 'MEMBER'
 
   const teams = await prisma.team.findMany({
     orderBy: { name: 'asc' }
@@ -29,8 +33,8 @@ export default async function CalendarPage() {
         }
       }
     })
-  } else {
-    // For players/coaches, only show their team's events
+  } else if (isCoach || isMember) {
+    // Coaches and members: only their team events
     const userMember = await prisma.member.findUnique({
       where: { id: session?.user?.memberId || '' },
       include: { teamRoles: true }
@@ -49,6 +53,8 @@ export default async function CalendarPage() {
         orderBy: { date: 'asc' }
       })
     }
+  } else {
+    events = []
   }
 
   const getEventTypeColor = (type: string) => {

@@ -10,10 +10,12 @@ import {
   Receipt,
   Landmark,
   ChevronDown,
+  Newspaper,
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import { normalizeRole, ROLE_LABEL } from '@/lib/rbac'
 
 function isAccountingSectionPath(path: string) {
   return (
@@ -39,7 +41,8 @@ export function Sidebar() {
   if (pathname === '/login' || isJoinRoute) return null
   if (isPublicEventShare && !session) return null
 
-  const isAdmin = session?.user?.role === 'ADMIN'
+  const role = normalizeRole(session?.user?.role)
+  const isStaff = role === 'ADMIN' || role === 'COACH' || role === 'TREASURER'
 
   return (
     <div className="w-64 bg-slate-900 text-white min-h-screen p-4 flex flex-col">
@@ -49,16 +52,12 @@ export function Sidebar() {
         <p className="text-sm text-slate-400">Hola,</p>
         <p className="font-medium truncate">{session?.user?.name || session?.user?.email}</p>
         <span className="text-xs bg-slate-800 px-2 py-1 rounded mt-1 inline-block text-slate-300">
-          {session?.user?.role === 'ADMIN'
-            ? 'Administrador'
-            : session?.user?.role === 'MEMBER'
-              ? 'Socio'
-              : session?.user?.role}
+          {ROLE_LABEL[role]}
         </span>
       </div>
 
       <nav className="flex-1 space-y-2">
-        {isAdmin ? (
+        {isStaff ? (
           <Link href="/" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
             <Home size={20} />
             <span>Panel CRM</span>
@@ -69,20 +68,26 @@ export function Sidebar() {
             <span>Inicio</span>
           </Link>
         )}
-        {!isAdmin && (
+        {!isStaff && (
           <Link href="/calendar" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
             <Calendar size={20} />
             <span>Calendario</span>
           </Link>
         )}
-        {!isAdmin && (
+        {!isStaff && (
           <Link href="/my-billing" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
             <CreditCard size={20} />
             <span>Mis Pagos</span>
           </Link>
         )}
+        {!isStaff && (
+          <Link href="/" className="flex items-center space-x-3 p-3 rounded hover:bg-slate-800 transition">
+            <Newspaper size={20} />
+            <span>Mural</span>
+          </Link>
+        )}
 
-        {isAdmin && (
+        {(role === 'ADMIN' || role === 'TREASURER') && (
           <div className="rounded-lg overflow-hidden pt-2">
             <button
               type="button"

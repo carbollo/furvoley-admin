@@ -1,18 +1,16 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTaxConfig } from '@/lib/tax-config'
+import { requireRoles } from '@/lib/rbac-api'
 
-async function assertAdmin() {
-  const session = await getServerSession(authOptions)
-  const role = (session?.user as { role?: string } | undefined)?.role
-  if (!session?.user || role !== 'ADMIN') throw new Error('Unauthorized')
+async function assertAccountingRole() {
+  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  if (!auth.ok) throw new Error('Unauthorized')
 }
 
 export async function GET() {
   try {
-    await assertAdmin()
+    await assertAccountingRole()
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -22,7 +20,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    await assertAdmin()
+    await assertAccountingRole()
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

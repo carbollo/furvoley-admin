@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import bcrypt from 'bcryptjs'
 import {
   runMemberCreatedWorkflows,
   runMemberStatusChangedWorkflows,
@@ -23,11 +24,40 @@ export async function createMember(data: {
   status?: string
 }) {
   const { joinedAt, ...rest } = data
-  const member = await prisma.member.create({
-    data: {
-      ...rest,
-      ...(joinedAt !== undefined ? { joinedAt } : {}),
-    },
+  const member = await prisma.$transaction(async (tx) => {
+    const created = await tx.member.create({
+      data: {
+        ...rest,
+        ...(joinedAt !== undefined ? { joinedAt } : {}),
+      },
+    })
+
+    const email = created.email?.trim().toLowerCase()
+    if (email) {
+      const existing = await tx.user.findUnique({ where: { email } })
+      if (!existing) {
+        const defaultPasswordRaw = process.env.MEMBER_DEFAULT_PASSWORD || '12345678'
+        const hashed = await bcrypt.hash(defaultPasswordRaw, 10)
+        await tx.user.create({
+          data: {
+            name: created.name,
+            email,
+            password: hashed,
+            role: 'MEMBER',
+            memberId: created.id,
+          },
+        })
+      } else if (!existing.memberId) {
+        await tx.user.update({
+          where: { id: existing.id },
+          data: {
+            role: 'MEMBER',
+            memberId: created.id,
+          },
+        })
+      }
+    }
+    return created
   })
   await runMemberCreatedWorkflows(member.id)
   revalidatePath('/')

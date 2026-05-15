@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import CrmApp from '@/components/crm/CrmApp'
 import { AppShell } from '@/components/AppShell'
+import { normalizeRole } from '@/lib/rbac'
 
 function etiquetaEstadoFactura(status: string) {
   const m: Record<string, string> = {
@@ -28,8 +29,8 @@ export default async function HomePage() {
     redirect('/login')
   }
 
-  const role = (session.user as { role?: string }).role
-  if (role === 'ADMIN') {
+  const role = normalizeRole((session.user as { role?: string }).role)
+  if (role === 'ADMIN' || role === 'COACH' || role === 'TREASURER') {
     return (
       <Suspense fallback={<div className="p-8 text-slate-600">Cargando CRM…</div>}>
         <CrmApp />
@@ -58,10 +59,21 @@ export default async function HomePage() {
     .filter((i) => i.status !== 'PAID' && i.status !== 'VOID')
     .reduce((acc, i) => acc + (i.totalAmount - i.paidAmount), 0)
 
+  const newsPosts = await prisma.newsPost.findMany({
+    where: { isPublished: true },
+    orderBy: [{ priority: 'desc' }, { publishedAt: 'desc' }, { createdAt: 'desc' }],
+    take: 8,
+  })
+  const publicEventsAsNews = await prisma.event.findMany({
+    where: { isPublic: true, date: { gte: new Date() } },
+    orderBy: { date: 'asc' },
+    take: 6,
+  })
+
   return (
     <AppShell>
       <div>
-      <h1 className="text-3xl font-bold mb-8">Mi Panel</h1>
+      <h1 className="text-3xl font-bold mb-8">Portal de Socios</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
@@ -108,6 +120,33 @@ export default async function HomePage() {
               )}
             </ul>
           </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="p-4 border-b border-slate-100 bg-slate-50">
+              <h2 className="font-bold text-slate-800">Mural de noticias</h2>
+            </div>
+            <ul className="divide-y divide-slate-100">
+              {newsPosts.map((post) => (
+                <li key={post.id} className="p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-semibold text-slate-900">{post.title}</p>
+                    {post.priority === 'HIGH' && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                        Destacada
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-slate-600 whitespace-pre-wrap">{post.content}</p>
+                  <p className="text-xs text-slate-400 mt-2">
+                    {new Date(post.publishedAt || post.createdAt).toLocaleDateString('es-ES')}
+                  </p>
+                </li>
+              ))}
+              {newsPosts.length === 0 && (
+                <li className="p-4 text-sm text-slate-500">No hay noticias publicadas.</li>
+              )}
+            </ul>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -126,6 +165,24 @@ export default async function HomePage() {
               ))}
               {(!userMember || userMember.teamRoles.length === 0) && (
                 <li className="p-4 text-slate-500 text-sm">No estás asignado a ningún equipo.</li>
+              )}
+            </ul>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="p-4 border-b border-slate-100 bg-slate-50">
+              <h2 className="font-bold text-slate-800">Eventos públicos</h2>
+            </div>
+            <ul className="divide-y divide-slate-100">
+              {publicEventsAsNews.map((event) => (
+                <li key={event.id} className="p-4">
+                  <p className="font-semibold text-slate-900">{event.title}</p>
+                  <p className="text-sm text-slate-500">
+                    {new Date(event.date).toLocaleDateString('es-ES')} · {event.location || 'Ubicación pendiente'}
+                  </p>
+                </li>
+              ))}
+              {publicEventsAsNews.length === 0 && (
+                <li className="p-4 text-sm text-slate-500">No hay eventos públicos próximos.</li>
               )}
             </ul>
           </div>

@@ -32,6 +32,11 @@ async function main() {
     },
   })
 
+  await prisma.user.updateMany({
+    where: { role: 'PLAYER' },
+    data: { role: 'MEMBER' },
+  })
+
   console.log(`Admin ready: ${adminEmail}`)
 }
 

@@ -16,6 +16,7 @@ import React, {
   type ReactNode,
 } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { canAccessCrmSection, normalizeRole, ROLE_LABEL } from '@/lib/rbac'
 
 type CrmCtx = {
   bundle: Record<string, unknown> | null
@@ -383,10 +384,13 @@ const NAV = [
   { id: 'informes', label: 'Informes', icon: 'reports' },
   { id: 'workflows', label: 'Flujos', icon: 'workflows' },
   { id: 'whatsapp', label: 'Whatsapp', icon: 'whatsapp' },
+  { id: 'personal', label: 'Personal', icon: 'users' },
 ];
 
 function Sidebar({ active, setActive }) {
   const { bundle } = useCrm();
+  const role = normalizeRole(bundle?.user?.role)
+  const visibleNav = NAV.filter((item) => canAccessCrmSection(role, item.id))
   const pending = bundle?.kpis?.cobrosPendientes ?? 0;
   return (
     <div className="sidebar" style={{
@@ -423,14 +427,14 @@ function Sidebar({ active, setActive }) {
               display:'inline-block',background:'rgba(99,102,241,0.3)',
               color:'#a5b4fc',fontSize:9,fontWeight:700,padding:'1px 7px',
               borderRadius:999,letterSpacing:1
-            }}>{({ ADMIN: 'Administrador', MEMBER: 'Socio' }[bundle?.user?.role] ?? bundle?.user?.role) || 'Administrador'}</div>
+            }}>{ROLE_LABEL[role] || 'Socio'}</div>
           </div>
         </div>
       </div>
       {/* Nav */}
       <nav style={{flex:1,padding:'12px 12px',overflowY:'auto',display:'flex',flexDirection:'column',gap:2}}>
         <div className="sidebar-section-label" style={{color:'rgba(255,255,255,0.3)',fontSize:10,fontWeight:700,letterSpacing:1.5,padding:'8px 8px 4px',textTransform:'uppercase'}}>Menú</div>
-        {NAV.map(item => {
+        {visibleNav.map(item => {
           const isActive = active === item.id;
           return (
             <button key={item.id} onClick={() => setActive(item.id)} title={item.label} style={{
@@ -469,6 +473,10 @@ function Sidebar({ active, setActive }) {
 // ── DASHBOARD ───────────────────────────────────────────────────────────────
 function Dashboard({ setActive }) {
   const { bundle, fmtMoney } = useCrm();
+  const userRole = normalizeRole(bundle?.user?.role)
+  if (userRole !== 'ADMIN') {
+    return null
+  }
   const meta = bundle?.meta?.today ? new Date(bundle.meta.today) : new Date();
   const dateStr = meta.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const ingresosMes = bundle?.ingresosMensual ?? Array(12).fill(0);
@@ -592,6 +600,8 @@ function Socios() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { bundle, reload, fmtMoney, showAlert } = useCrm();
+  const role = normalizeRole(bundle?.user?.role)
+  if (role !== 'ADMIN') return null
   const SOCIOS_UI = bundle?.socios ?? [];
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const teamFilterId = (searchParams.get('team') ?? '').trim();
@@ -697,6 +707,16 @@ function Socios() {
           showAlert('No se pudo crear el socio');
         }
         return;
+      }
+      try {
+        const j = await r.json()
+        if (j?.memberAccount?.email) {
+          showAlert(`Socio creado. Acceso portal: ${j.memberAccount.email} / ${j.memberAccount.defaultPassword}`)
+        } else if (j?.warning) {
+          showAlert(j.warning)
+        }
+      } catch {
+        //
       }
       setShowInscripcion(false);
       await reload();
@@ -1336,6 +1356,8 @@ function Socios() {
 function Equipos() {
   const router = useRouter()
   const { bundle, reload, showAlert } = useCrm();
+  const role = normalizeRole(bundle?.user?.role)
+  if (!(role === 'ADMIN' || role === 'COACH')) return null
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const [view, setView] = useState('grid');
   const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
@@ -2002,6 +2024,8 @@ function Equipos() {
 // ── COBROS ──────────────────────────────────────────────────────────────────
 function Contabilidad({ setActive }) {
   const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm();
+  const role = normalizeRole(bundle?.user?.role)
+  if (!(role === 'ADMIN' || role === 'TREASURER')) return null
   const COBROS_UI = bundle?.cobros ?? [];
   const SOCIOS_UI = bundle?.socios ?? [];
   const [contaTab, setContaTab] = useState('DIARIO');
@@ -3166,6 +3190,8 @@ const CRM_EVENT_TYPES = [
 // ── CALENDARIO ──────────────────────────────────────────────────────────────
 function Calendario({ setActive }) {
   const { bundle, reload, showAlert } = useCrm();
+  const role = normalizeRole(bundle?.user?.role)
+  if (!(role === 'ADMIN' || role === 'COACH')) return null
   const EVENTOS_UI = bundle?.eventos ?? [];
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const [fechaDesde, setFechaDesde] = useState('');
@@ -3596,6 +3622,8 @@ function Calendario({ setActive }) {
 // ── INFORMES ────────────────────────────────────────────────────────────────
 function Informes({ setActive }) {
   const { bundle, fmtMoney } = useCrm();
+  const role = normalizeRole(bundle?.user?.role)
+  if (!(role === 'ADMIN' || role === 'TREASURER')) return null
   const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -3752,7 +3780,324 @@ function Informes({ setActive }) {
 
 function Workflows() {
   const { bundle, reload } = useCrm();
+  const role = normalizeRole(bundle?.user?.role)
+  if (role !== 'ADMIN') return null
   return <WorkflowsSection bundle={bundle} reload={reload} />;
+}
+
+function Personal() {
+  const { bundle, reload, showAlert, showConfirm } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  if (role !== 'ADMIN') return null
+  const users = (bundle?.users as any[]) ?? []
+  const members = (bundle?.socios as any[]) ?? []
+  const newsPosts = (bundle?.newsPosts as any[]) ?? []
+  const [busy, setBusy] = useState(false)
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'COACH',
+    memberId: '',
+  })
+  const [newsForm, setNewsForm] = useState({
+    title: '',
+    content: '',
+    priority: 'NORMAL',
+    isPublished: true,
+  })
+
+  async function createUser(e: React.FormEvent) {
+    e.preventDefault()
+    const name = form.name.trim()
+    const email = form.email.trim()
+    const password = form.password.trim()
+    if (!name || !email || !password) {
+      showAlert('Nombre, email y contraseña son obligatorios.')
+      return
+    }
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/users', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          role: form.role,
+          memberId: form.memberId || null,
+        }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        showAlert(j.error || 'No se pudo crear la cuenta')
+        return
+      }
+      setForm({ name: '', email: '', password: '', role: 'COACH', memberId: '' })
+      await reload()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function updateUserRole(userId: string, role: string) {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/users/' + encodeURIComponent(userId), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        showAlert(j.error || 'No se pudo actualizar el rol')
+        return
+      }
+      await reload()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function resetPassword(userId: string) {
+    const ok = await showConfirm('¿Resetear la contraseña de esta cuenta a la contraseña por defecto?')
+    if (!ok) return
+    setBusy(true)
+    try {
+      const defaultPassword = '12345678'
+      const r = await fetch('/api/crm/users/' + encodeURIComponent(userId), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: defaultPassword }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        showAlert(j.error || 'No se pudo resetear la contraseña')
+        return
+      }
+      showAlert(`Contraseña reseteada. Nueva contraseña: ${defaultPassword}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeUser(userId: string, name: string) {
+    const ok = await showConfirm(`¿Eliminar la cuenta "${name}"?`)
+    if (!ok) return
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/users/' + encodeURIComponent(userId), {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        showAlert(j.error || 'No se pudo eliminar la cuenta')
+        return
+      }
+      await reload()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function createNews(e: React.FormEvent) {
+    e.preventDefault()
+    const title = newsForm.title.trim()
+    const content = newsForm.content.trim()
+    if (!title || !content) {
+      showAlert('Título y contenido son obligatorios.')
+      return
+    }
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/news', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newsForm),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        showAlert(j.error || 'No se pudo crear la noticia')
+        return
+      }
+      setNewsForm({ title: '', content: '', priority: 'NORMAL', isPublished: true })
+      await reload()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function togglePublish(post: any) {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/news/' + encodeURIComponent(post.id), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublished: !post.isPublished }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        showAlert(j.error || 'No se pudo actualizar la noticia')
+        return
+      }
+      await reload()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeNews(post: any) {
+    const ok = await showConfirm(`¿Eliminar la noticia "${post.title}"?`)
+    if (!ok) return
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/news/' + encodeURIComponent(post.id), {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        showAlert(j.error || 'No se pudo eliminar la noticia')
+        return
+      }
+      await reload()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>Personal</h1>
+        <p style={{ color: '#6b7280', fontSize: 14, marginTop: 4 }}>Gestiona cuentas y accesos por rol del club.</p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <form onSubmit={createUser} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, padding: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 10 }}>Crear cuenta de personal</div>
+          <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Nombre" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }} />
+          <input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} placeholder="Email" type="email" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }} />
+          <input value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} placeholder="Contraseña inicial" type="password" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }} />
+          <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }}>
+            <option value="COACH">Entrenador</option>
+            <option value="TREASURER">Tesorero</option>
+            <option value="ADMIN">Administrador</option>
+          </select>
+          <select value={form.memberId} onChange={(e) => setForm((p) => ({ ...p, memberId: e.target.value }))} style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 10 }}>
+            <option value="">Sin socio vinculado</option>
+            {members.map((m: any) => (
+              <option key={m.id} value={m.id}>{m.nombre}</option>
+            ))}
+          </select>
+          <button type="submit" disabled={busy} style={{ padding: '9px 12px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer' }}>
+            Crear cuenta
+          </button>
+        </form>
+
+        <form onSubmit={createNews} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, padding: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 10 }}>Publicar noticia</div>
+          <input value={newsForm.title} onChange={(e) => setNewsForm((p) => ({ ...p, title: e.target.value }))} placeholder="Título" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }} />
+          <textarea value={newsForm.content} onChange={(e) => setNewsForm((p) => ({ ...p, content: e.target.value }))} rows={4} placeholder="Contenido de la noticia" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }} />
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <select value={newsForm.priority} onChange={(e) => setNewsForm((p) => ({ ...p, priority: e.target.value }))} style={{ flex: 1, padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13 }}>
+              <option value="NORMAL">Prioridad normal</option>
+              <option value="HIGH">Prioridad alta</option>
+            </select>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
+              <input type="checkbox" checked={newsForm.isPublished} onChange={(e) => setNewsForm((p) => ({ ...p, isPublished: e.target.checked }))} />
+              Publicada
+            </label>
+          </div>
+          <button type="submit" disabled={busy} style={{ padding: '9px 12px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer' }}>
+            Guardar noticia
+          </button>
+        </form>
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontWeight: 700, color: '#111827' }}>Cuentas de acceso</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: '#f8fafc', color: '#64748b' }}>
+                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Nombre</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Email</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Rol</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Socio vinculado</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u: any) => (
+                <tr key={u.id} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 600, color: '#111827' }}>{u.name || '—'}</td>
+                  <td style={{ padding: '10px 12px', color: '#475569' }}>{u.email || '—'}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value)} disabled={busy} style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit' }}>
+                      <option value="ADMIN">ADMIN</option>
+                      <option value="COACH">COACH</option>
+                      <option value="TREASURER">TREASURER</option>
+                      <option value="MEMBER">MEMBER</option>
+                    </select>
+                  </td>
+                  <td style={{ padding: '10px 12px', color: '#475569' }}>{u.memberName || '—'}</td>
+                  <td style={{ padding: '10px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => resetPassword(u.id)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Reset password</button>
+                    <button type="button" onClick={() => removeUser(u.id, u.name || u.email || u.id)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #fecaca', color: '#b91c1c', background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Eliminar</button>
+                  </td>
+                </tr>
+              ))}
+              {users.length === 0 && (
+                <tr><td colSpan={5} style={{ padding: 16, textAlign: 'center', color: '#94a3b8' }}>Sin cuentas registradas.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontWeight: 700, color: '#111827' }}>Mural de noticias</div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {newsPosts.map((post: any) => (
+            <div key={post.id} style={{ borderTop: '1px solid var(--border)', padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ fontWeight: 700, color: '#111827' }}>{post.title}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '2px 8px', background: post.priority === 'HIGH' ? '#fee2e2' : '#e2e8f0', color: post.priority === 'HIGH' ? '#b91c1c' : '#475569' }}>
+                  {post.priority === 'HIGH' ? 'Alta' : 'Normal'}
+                </span>
+                <span style={{ fontSize: 11, color: '#64748b' }}>{post.isPublished ? 'Publicada' : 'Borrador'}</span>
+              </div>
+              <div style={{ fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap' }}>{post.content}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                <span style={{ fontSize: 12, color: '#94a3b8' }}>
+                  {post.authorName || '—'} · {post.createdAt ? new Date(post.createdAt).toLocaleString('es-ES') : '—'}
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => togglePublish(post)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {post.isPublished ? 'Despublicar' : 'Publicar'}
+                  </button>
+                  <button type="button" onClick={() => removeNews(post)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #fecaca', color: '#b91c1c', background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {newsPosts.length === 0 && (
+            <div style={{ padding: 16, textAlign: 'center', color: '#94a3b8' }}>No hay noticias aún.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function normalizePhoneE164(raw: string) {
@@ -3763,7 +4108,9 @@ function normalizePhoneE164(raw: string) {
 }
 
 function WhatsAppSection() {
-  const { showAlert, reload } = useCrm()
+  const { showAlert, reload, bundle } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  if (role !== 'ADMIN') return null
   const [busy, setBusy] = useState(false)
   const [session, setSession] = useState<any | null>(null)
   const [activeSessionId, setActiveSessionId] = useState('')
@@ -3975,7 +4322,7 @@ function WhatsAppSection() {
 }
 
 // ── APP ROOT ─────────────────────────────────────────────────────────────────
-const CRM_SECTION_IDS = ['dashboard','socios','equipos','contabilidad','calendario','informes','workflows','whatsapp'] as const;
+const CRM_SECTION_IDS = ['dashboard','socios','equipos','contabilidad','calendario','informes','workflows','whatsapp','personal'] as const;
 type SectionId = (typeof CRM_SECTION_IDS)[number]
 
 function CrmInner() {
@@ -3987,28 +4334,36 @@ function CrmInner() {
 
   const tabRaw = searchParams.get('tab') ?? ''
   const normalizedTab = tabRaw === 'cobros' ? 'contabilidad' : tabRaw
+  const role = normalizeRole(bundle?.user?.role)
   const active: SectionId = CRM_SECTION_IDS.includes(normalizedTab as SectionId)
     ? (normalizedTab as SectionId)
     : 'dashboard'
+  const firstAllowed = (CRM_SECTION_IDS.find((id) => canAccessCrmSection(role, id)) || 'dashboard') as SectionId
+  const safeActive = canAccessCrmSection(role, active) ? active : firstAllowed
 
   useEffect(() => {
     const tRaw = searchParams.get('tab')
     const t = tRaw === 'cobros' ? 'contabilidad' : tRaw
     if (!t || !CRM_SECTION_IDS.includes(t as SectionId)) {
-      router.replace('/?tab=dashboard', { scroll: false })
+      router.replace(`/?tab=${firstAllowed}`, { scroll: false })
+      return
+    }
+    if (!canAccessCrmSection(role, t as SectionId)) {
+      router.replace(`/?tab=${firstAllowed}`, { scroll: false })
       return
     }
     if (tRaw === 'cobros') {
       router.replace('/?tab=contabilidad', { scroll: false })
     }
-  }, [router, searchParams])
+  }, [router, searchParams, role, firstAllowed])
 
   const setActive = useCallback(
     (id: string) => {
       if (!CRM_SECTION_IDS.includes(id as SectionId)) return
+      if (!canAccessCrmSection(role, id as SectionId)) return
       router.replace(`/?tab=${encodeURIComponent(id)}`, { scroll: false })
     },
-    [router]
+    [router, role]
   )
 
   const notifications = useMemo(() => {
@@ -4172,8 +4527,9 @@ function CrmInner() {
     informes: Informes,
     workflows: Workflows,
     whatsapp: WhatsAppSection,
+    personal: Personal,
   };
-  const Screen = screens[active] || Dashboard;
+  const Screen = screens[safeActive] || Dashboard;
 
   if (error) {
     return (
@@ -4191,7 +4547,7 @@ function CrmInner() {
           Cargando CRM…
         </div>
       )}
-      <Sidebar active={active} setActive={setActive}/>
+      <Sidebar active={safeActive} setActive={setActive}/>
       <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',minWidth:0}}>
         <div style={{
           height:56,background:'#fff',borderBottom:'1px solid var(--border)',

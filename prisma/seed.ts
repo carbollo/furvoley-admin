@@ -33,6 +33,11 @@ async function main() {
   } else {
     console.log('Admin user already exists')
   }
+
+  await prisma.user.updateMany({
+    where: { role: 'PLAYER' },
+    data: { role: 'MEMBER' },
+  })
 }
 
 main()

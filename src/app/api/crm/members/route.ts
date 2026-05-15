@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { createMember } from '@/app/actions'
+import { requireRoles } from '@/lib/rbac-api'
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
-  const role = (session?.user as { role?: string } | undefined)?.role
-  if (!session?.user || role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const auth = await requireRoles(['ADMIN'])
+  if (!auth.ok) return auth.response
 
   let body: {
     firstName?: string
@@ -72,6 +68,18 @@ export async function POST(request: Request) {
     status: 'ACTIVE',
     ...(joined !== undefined ? { joinedAt: joined } : {}),
   })
-
-  return NextResponse.json({ ok: true, id: member.id })
+  const hasEmail = !!member.email?.trim()
+  const defaultPasswordRaw = process.env.MEMBER_DEFAULT_PASSWORD || '12345678'
+  return NextResponse.json({
+    ok: true,
+    id: member.id,
+    memberAccount: hasEmail
+      ? {
+          email: member.email,
+          role: 'MEMBER',
+          defaultPassword: defaultPasswordRaw,
+        }
+      : null,
+    warning: hasEmail ? null : 'El socio no tiene email válido; no se creó usuario de portal.',
+  })
 }
