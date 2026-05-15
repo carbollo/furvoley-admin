@@ -616,6 +616,8 @@ function Socios() {
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterDeporte, setFilterDeporte] = useState('Todos');
   const [selected, setSelected] = useState(null);
+  const [menuSocioId, setMenuSocioId] = useState<string | null>(null)
+  const [menuSocioPos, setMenuSocioPos] = useState({ top: 0, right: 0 })
   const [showInscripcion, setShowInscripcion] = useState(false);
   const [inscripcionBusy, setInscripcionBusy] = useState(false);
   const [showEditSocioModal, setShowEditSocioModal] = useState(false);
@@ -643,6 +645,17 @@ function Socios() {
   useEffect(() => {
     if (!selected) setShowEditSocioModal(false);
   }, [selected]);
+
+  useEffect(() => {
+    function closeMenu(e: MouseEvent) {
+      const el = e.target as HTMLElement | null
+      if (!el?.closest?.('[data-socio-menu]')) {
+        setMenuSocioId(null)
+      }
+    }
+    document.addEventListener('mousedown', closeMenu)
+    return () => document.removeEventListener('mousedown', closeMenu)
+  }, [])
 
   const filtered = SOCIOS_UI.filter(s => {
     if (teamFilterId) {
@@ -791,6 +804,37 @@ function Socios() {
     } finally {
       setEditSocioBusy(false);
     }
+  }
+
+  function toggleSocioMenu(e: React.MouseEvent<HTMLElement>, socio: any) {
+    e.stopPropagation()
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const right = Math.max(12, window.innerWidth - r.right)
+    setMenuSocioPos({ top: r.bottom + 6, right })
+    setMenuSocioId((prev) => (prev === socio.id ? null : socio.id))
+  }
+
+  async function eliminarSocio(socio: any) {
+    setMenuSocioId(null)
+    const ok = await showConfirm(`¿Eliminar el socio "${socio.nombre}"? Esta acción no se puede deshacer.`)
+    if (!ok) return
+    const r = await fetch('/api/crm/members/' + encodeURIComponent(socio.id), {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+    if (!r.ok) {
+      try {
+        const j = await r.json()
+        showAlert(j.error || 'No se pudo eliminar el socio')
+      } catch {
+        showAlert('No se pudo eliminar el socio')
+      }
+      return
+    }
+    if (selected?.id === socio.id) {
+      setSelected(null)
+    }
+    await reload()
   }
 
   const editInput = {
@@ -958,13 +1002,66 @@ function Socios() {
                 <td style={{padding:'14px 16px'}}>
                   <div style={{display:'flex',gap:4}}>
                     <button type="button" onClick={e=>{e.stopPropagation(); setSelected(s);}} style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}} title="Ver y editar"><Icon name="edit" size={14}/></button>
-                    <button onClick={e=>{e.stopPropagation();}} style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}}><Icon name="dots" size={14}/></button>
+                    <button
+                      type="button"
+                      onClick={(e)=>toggleSocioMenu(e, s)}
+                      data-socio-menu
+                      style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}}
+                    >
+                      <Icon name="dots" size={14}/>
+                    </button>
                   </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {menuSocioId && (
+          <div
+            data-socio-menu
+            style={{
+              position:'fixed',
+              top: menuSocioPos.top,
+              right: menuSocioPos.right,
+              minWidth: 170,
+              background:'#fff',
+              border:'1px solid var(--border)',
+              borderRadius:10,
+              boxShadow:'0 14px 26px rgba(15,23,42,0.16)',
+              zIndex:1200,
+              overflow:'hidden',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                const socio = filtered.find((x) => x.id === menuSocioId)
+                if (!socio) return
+                setSelected(socio)
+                setMenuSocioId(null)
+                openEditSocioModal()
+              }}
+              style={{
+                width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderBottom:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#374151',fontWeight:600
+              }}
+            >
+              Editar socio
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const socio = filtered.find((x) => x.id === menuSocioId)
+                if (!socio) return
+                eliminarSocio(socio)
+              }}
+              style={{
+                width:'100%',textAlign:'left',padding:'10px 12px',border:'none',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#b91c1c',fontWeight:700
+              }}
+            >
+              Eliminar socio
+            </button>
+          </div>
+        )}
       </div>
       {selected && (
         <div style={{

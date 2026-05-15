@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { updateMember } from '@/app/actions'
+import { deleteMember, updateMember } from '@/app/actions'
 import { requireRoles } from '@/lib/rbac-api'
 
 export async function PATCH(
@@ -53,4 +53,20 @@ export async function PATCH(
   await updateMember(id, payload)
 
   return NextResponse.json({ ok: true })
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireRoles(['ADMIN'])
+  if (!auth.ok) return auth.response
+
+  const { id } = await context.params
+  try {
+    await deleteMember(id)
+    return NextResponse.json({ ok: true })
+  } catch {
+    return NextResponse.json({ error: 'No se pudo eliminar el socio' }, { status: 400 })
+  }
 }

@@ -93,6 +93,29 @@ export async function updateMember(
   return member
 }
 
+export async function deleteMember(id: string) {
+  await prisma.$transaction(async (tx) => {
+    const linkedUser = await tx.user.findUnique({
+      where: { memberId: id },
+      select: { id: true, role: true },
+    })
+
+    if (linkedUser) {
+      if (linkedUser.role === 'MEMBER') {
+        await tx.user.delete({ where: { id: linkedUser.id } })
+      } else {
+        await tx.user.update({
+          where: { id: linkedUser.id },
+          data: { memberId: null },
+        })
+      }
+    }
+
+    await tx.member.delete({ where: { id } })
+  })
+  revalidatePath('/')
+}
+
 export async function sendWhatsAppPaymentReminders() {
   const apiUrl = process.env.APIWASS_API_URL || 'https://api.wassenger.com/v1/messages'
   const apiToken = process.env.APIWASS_TOKEN
