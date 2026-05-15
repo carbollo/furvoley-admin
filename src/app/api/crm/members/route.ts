@@ -18,6 +18,7 @@ export async function POST(request: Request) {
     email?: string
     address?: string
     sportPreference?: string
+    birthDate?: string
     joinedAt?: string
     phone?: string
   }
@@ -45,6 +46,14 @@ export async function POST(request: Request) {
   if (!phone) {
     return NextResponse.json({ error: 'El teléfono es obligatorio' }, { status: 400 })
   }
+  const birthDateRaw = String(body.birthDate || '').trim()
+  if (!birthDateRaw) {
+    return NextResponse.json({ error: 'La fecha de nacimiento es obligatoria' }, { status: 400 })
+  }
+  const birthDate = new Date(birthDateRaw)
+  if (Number.isNaN(birthDate.getTime())) {
+    return NextResponse.json({ error: 'Fecha de nacimiento inválida' }, { status: 400 })
+  }
 
   let joined: Date | undefined
   if (body.joinedAt) {
@@ -59,6 +68,7 @@ export async function POST(request: Request) {
     dni: body.dni?.trim() || undefined,
     address: body.address?.trim() || undefined,
     sportPreference: body.sportPreference?.trim() || undefined,
+    birthDate,
     status: 'ACTIVE',
     ...(joined !== undefined ? { joinedAt: joined } : {}),
   })

@@ -622,6 +622,7 @@ function Socios() {
     nombre: '',
     apellidos: '',
     telefono: '',
+    fechaNacimiento: '',
     dni: '',
     email: '',
     domicilio: '',
@@ -654,6 +655,7 @@ function Socios() {
       nombre: '',
       apellidos: '',
       telefono: '',
+      fechaNacimiento: '',
       dni: '',
       email: '',
       domicilio: '',
@@ -665,8 +667,8 @@ function Socios() {
 
   async function enviarInscripcion(e) {
     e.preventDefault();
-    if (!formInscripcion.nombre.trim() || !formInscripcion.apellidos.trim() || !formInscripcion.telefono.trim()) {
-      showAlert('Nombre, apellidos y teléfono son obligatorios.');
+    if (!formInscripcion.nombre.trim() || !formInscripcion.apellidos.trim() || !formInscripcion.telefono.trim() || !formInscripcion.fechaNacimiento.trim()) {
+      showAlert('Nombre, apellidos, teléfono y fecha de nacimiento son obligatorios.');
       return;
     }
     setInscripcionBusy(true);
@@ -683,6 +685,7 @@ function Socios() {
           email: formInscripcion.email.trim() || undefined,
           address: formInscripcion.domicilio.trim() || undefined,
           sportPreference: formInscripcion.deporte.trim() || undefined,
+          birthDate: formInscripcion.fechaNacimiento || undefined,
           joinedAt: formInscripcion.fechaAlta || undefined,
         }),
       });
@@ -1212,6 +1215,16 @@ function Socios() {
                   placeholder="Ej. García López"
                   style={insInput}
                   autoComplete="family-name"
+                />
+              </div>
+              <div>
+                <label style={insLabel}>Fecha de nacimiento *</label>
+                <input
+                  type="date"
+                  required
+                  value={formInscripcion.fechaNacimiento}
+                  onChange={(e) => setFormInscripcion((p) => ({ ...p, fechaNacimiento: e.target.value }))}
+                  style={insInput}
                 />
               </div>
               <div>
