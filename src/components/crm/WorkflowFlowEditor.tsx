@@ -304,6 +304,18 @@ function tokenTargetsForAction(actionType: string): Array<{ key: string; label: 
   return []
 }
 
+const TRIGGER_TOKEN_OPTIONS: TokenOption[] = [
+  { token: '{memberId}', label: 'Socio ID' },
+  { token: '{memberName}', label: 'Socio nombre' },
+  { token: '{memberEmail}', label: 'Socio email' },
+  { token: '{memberPhone}', label: 'Socio teléfono' },
+  { token: '{memberAddress}', label: 'Socio dirección' },
+  { token: '{memberDni}', label: 'Socio DNI' },
+  { token: '{memberStatus}', label: 'Socio estado' },
+  { token: '{memberSportPreference}', label: 'Socio preferencia deportiva' },
+  { token: '{memberAge}', label: 'Socio edad' },
+]
+
 export type WorkflowEditorInitialPaso = {
   position: number
   stepType: string
@@ -400,13 +412,53 @@ function WorkflowFlowEditorInner({
 
   const priorStepNodes = useMemo(() => {
     if (!selectedNode) return [] as Node<WorkflowNodeData>[]
-    return nodes
-      .filter((n): n is Node<WorkflowNodeData> => n.type === 'workflowStep')
-      .filter((n) => n.id !== selectedNode.id)
-  }, [nodes, selectedNode])
+    const stepMap = new Map(
+      nodes
+        .filter((n): n is Node<WorkflowNodeData> => n.type === 'workflowStep')
+        .map((n) => [n.id, n] as const),
+    )
+    const ancestors = new Set<string>()
+    const queue: string[] = [selectedNode.id]
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      for (const e of edges) {
+        if (e.target !== current) continue
+        if (e.source === WORKFLOW_START_ID) continue
+        if (!stepMap.has(e.source) || ancestors.has(e.source)) continue
+        ancestors.add(e.source)
+        queue.push(e.source)
+      }
+    }
+    return Array.from(ancestors)
+      .map((id) => stepMap.get(id))
+      .filter((n): n is Node<WorkflowNodeData> => !!n)
+  }, [edges, nodes, selectedNode])
+
+  const triggerConnectedToSelected = useMemo(() => {
+    if (!selectedNode) return false
+    const queue: string[] = [selectedNode.id]
+    const seen = new Set<string>()
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      if (seen.has(current)) continue
+      seen.add(current)
+      for (const e of edges) {
+        if (e.target !== current) continue
+        if (e.source === WORKFLOW_START_ID) return true
+        queue.push(e.source)
+      }
+    }
+    return false
+  }, [edges, selectedNode])
 
   const availableTokenGroups = useMemo(() => {
     const groups: TokenGroup[] = []
+    if (triggerConnectedToSelected) {
+      groups.push({
+        sourceLabel: 'Disparador',
+        options: TRIGGER_TOKEN_OPTIONS,
+      })
+    }
     for (const n of priorStepNodes) {
       const d = n.data as WorkflowNodeData
       const stepTitle = d.label || d.actionType || d.stepKey
@@ -426,7 +478,7 @@ function WorkflowFlowEditorInner({
       groups.push({ sourceLabel: stepTitle, options })
     }
     return groups
-  }, [priorStepNodes])
+  }, [priorStepNodes, triggerConnectedToSelected])
 
   const tokenTargets = useMemo(
     () => (selectedNode ? tokenTargetsForAction(selectedNode.data.actionType) : []),
