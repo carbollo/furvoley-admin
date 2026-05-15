@@ -546,7 +546,9 @@ async function runMemberCreatedStepAction(
     })
     runContext.variables.stepCreatedSignupLinkId = link.id
     runContext.variables.stepCreatedSignupLinkToken = link.token
-    runContext.variables.stepCreatedSignupLinkExpiresAt = link.expiresAt.toISOString()
+    runContext.variables.stepCreatedSignupLinkExpiresAt = link.expiresAt
+      ? link.expiresAt.toISOString()
+      : ''
     setStepApplied()
     return
   }
