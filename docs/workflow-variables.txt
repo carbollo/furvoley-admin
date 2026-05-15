@@ -1,0 +1,211 @@
+Documentacion de variables de flujo (runtime context)
+=====================================================
+
+Este documento explica las variables dinamicas que los nodos del sistema de flujos
+pueden compartir entre si durante una misma ejecucion.
+
+
+1) Como funciona el contexto entre nodos
+----------------------------------------
+
+- Cada ejecucion de un flujo crea un contexto interno de variables.
+- Cuando un nodo se ejecuta, escribe resultados en ese contexto.
+- Los nodos posteriores pueden leer esos resultados usando plantillas.
+- Formatos aceptados en plantillas:
+  - {variable}
+  - {{variable}}
+  - (variable)
+
+Importante:
+- El contexto es por ejecucion (no global, no persistente en DB).
+- Si un nodo no llega a ejecutarse, sus variables no se actualizan en esa rama.
+- Muchas variables reflejan "el ultimo nodo ejecutado" (prefijo step*).
+
+
+2) Variables base del socio (siempre disponibles)
+--------------------------------------------------
+
+- {memberId}
+- {memberName}
+- {memberEmail}
+- {memberPhone}
+- {memberAddress}
+- {memberDni}
+- {memberStatus}
+- {memberSportPreference}
+- {memberAge}
+
+Uso recomendado:
+- Mensajes personalizados, llamadas HTTP, condiciones por datos del socio.
+
+
+3) Variables globales del ultimo paso ejecutado (step*)
+-------------------------------------------------------
+
+- {stepActionType}           -> accion del ultimo nodo ejecutado
+- {stepPosition}             -> posicion del ultimo paso
+- {stepLabel}                -> label del paso (si existe en config)
+- {stepApplied}              -> "true" o "false" segun si aplico correctamente
+- {stepError}                -> motivo de error o vacio si todo fue bien
+- {stepBranchResult}         -> "then" o "else" en nodos BRANCH_IF
+
+Cuandolas usar:
+- Auditoria en mensajes/logs.
+- Reintentos condicionales.
+- Flujos donde un nodo siguiente depende de si el anterior aplico o fallo.
+
+
+4) Variables de equipo asignado
+-------------------------------
+
+- {assignedTeamId}
+- {assignedTeamName}
+- {teamAssignedId}           -> alias de assignedTeamId
+- {teamAssignedName}         -> alias de assignedTeamName
+- {assignmentApplied}        -> "true"/"false"
+
+Se actualizan en:
+- ASSIGN_TEAM
+- ASSIGN_TEAM_BY_AGE
+- ASSIGN_TEAM_BY_PREFERENCE
+- REMOVE_FROM_TEAM (las deja vacias y marca assignmentApplied segun el caso)
+
+Uso recomendado:
+- WhatsApp: "Te ha tocado {assignedTeamName}"
+- HTTP: enviar equipo asignado a sistemas externos.
+
+
+5) Variables de setters de miembro
+----------------------------------
+
+SET_MEMBER_STATUS:
+- {stepTargetStatus}
+
+SET_MEMBER_SPORT_PREFERENCE:
+- {stepTargetSportPreference}
+
+SET_MEMBER_CONTACT:
+- {stepTargetEmail}
+- {stepTargetPhone}
+- {stepTargetAddress}
+
+SET_MEMBER_DNI:
+- {stepTargetDni}
+
+SET_MEMBER_BIRTHDATE:
+- {stepTargetBirthDate}      -> ISO datetime
+
+Uso recomendado:
+- Confirmaciones por WhatsApp tras cambios de perfil.
+- Sincronizacion con CRM/ERP externos.
+
+
+6) Variables de creacion de cobros/pagos
+----------------------------------------
+
+CREATE_PAYMENT:
+- {stepCreatedPaymentId}
+- {stepCreatedPaymentAmount}
+- {stepCreatedPaymentMonth}
+- {stepCreatedPaymentYear}
+- {stepCreatedPaymentStatus}
+
+Uso recomendado:
+- Notificar "se genero un cobro X para mes Y".
+- Encadenar una llamada HTTP con el ID del cobro.
+
+
+7) Variables de enlaces de inscripcion
+--------------------------------------
+
+CREATE_SIGNUP_LINK:
+- {stepCreatedSignupLinkId}
+- {stepCreatedSignupLinkToken}
+- {stepCreatedSignupLinkExpiresAt}
+
+Uso recomendado:
+- Mensaje WhatsApp con token/enlace.
+- Registrar en sistema externo el token generado.
+
+
+8) Variables de movimientos contables
+-------------------------------------
+
+CREATE_TRANSACTION:
+- {stepCreatedTransactionId}
+- {stepCreatedTransactionType}
+- {stepCreatedTransactionAmount}
+- {stepCreatedTransactionDescription}
+
+Uso recomendado:
+- Notificacion interna de ingreso/gasto.
+- Encadenar reporte o webhook contable.
+
+
+9) Variables de HTTP_REQUEST
+----------------------------
+
+- {stepHttpStatus}           -> codigo HTTP (ej. 200, 400)
+- {stepHttpOk}               -> "true"/"false"
+- {stepHttpResponse}         -> body (recortado)
+
+Uso recomendado:
+- Ramas de control posteriores.
+- Mensajes de estado tecnico.
+
+
+10) Variables de SEND_WHATSAPP
+------------------------------
+
+- {stepSentWhatsAppPhone}
+- {stepSentWhatsAppMessage}
+- {stepSentWhatsAppSessionId}
+- {stepWhatsAppSent}         -> "true"/"false"
+- {stepWhatsAppError}
+
+Uso recomendado:
+- Verificacion interna de envio.
+- Reintento por HTTP o rama alternativa.
+
+
+11) Ejemplos practicos
+----------------------
+
+Ejemplo A: confirmar equipo por WhatsApp
+- Nodo 1: ASSIGN_TEAM_BY_AGE
+- Nodo 2: SEND_WHATSAPP
+  Mensaje:
+  "Hola {memberName}, tu equipo es {assignedTeamName}. Estado: {stepApplied}"
+
+Ejemplo B: enviar a webhook y notificar resultado
+- Nodo 1: CREATE_PAYMENT
+- Nodo 2: HTTP_REQUEST
+  Body:
+  {"memberId":"{memberId}","paymentId":"{stepCreatedPaymentId}","amount":"{stepCreatedPaymentAmount}"}
+- Nodo 3: SEND_WHATSAPP
+  Mensaje:
+  "Cobro creado ({stepCreatedPaymentId}). Webhook HTTP {stepHttpStatus}."
+
+Ejemplo C: condicion usando valor dinamico
+- BRANCH_IF con ifValue que use plantilla:
+  ifValue = "{memberStatus}"
+  (el motor interpola plantillas en ifValue)
+
+
+12) Reglas de uso recomendadas
+------------------------------
+
+- Usa {step*} cuando te interesa el resultado inmediato del nodo anterior.
+- Usa {member*} para datos estables del socio.
+- Para trazabilidad, incluye {stepActionType} y {stepError} en mensajes tecnicos.
+- Si una variable puede quedar vacia, prepara mensaje fallback en el texto.
+- Mantener mensajes cortos en WhatsApp; para payloads largos, usar HTTP_REQUEST.
+
+
+13) Limitaciones actuales
+-------------------------
+
+- El contexto es secuencial por ejecucion, no historial completo por paso.
+- Las variables step* siempre representan el ultimo paso procesado.
+- Si necesitas historial de varios pasos, conviene enviarlo a un endpoint externo
+  (HTTP_REQUEST) para almacenarlo.
