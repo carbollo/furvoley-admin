@@ -196,19 +196,50 @@ export function WorkflowsSection({
     })
   }
 
-  const exportWorkflows = () => {
+  const exportWorkflows = (onlyWorkflow?: Record<string, unknown>) => {
+    const selectedName = onlyWorkflow ? String(onlyWorkflow.nombre || 'flujo') : ''
+    const selectedPayload = onlyWorkflow
+      ? (() => {
+          const pasos = Array.isArray(onlyWorkflow.pasos) ? (onlyWorkflow.pasos as Record<string, unknown>[]) : []
+          return [
+            {
+              name: String(onlyWorkflow.nombre || ''),
+              description: String(onlyWorkflow.descripcion || '').trim() || null,
+              triggerType: String(onlyWorkflow.trigger || 'MEMBER_CREATED'),
+              isActive: !!onlyWorkflow.activo,
+              steps: pasos.map((p, i) => ({
+                position: typeof p.position === 'number' ? p.position : i,
+                stepType: String(p.stepType || 'ACTION'),
+                actionType: String(p.actionType || ''),
+                config:
+                  p.config && typeof p.config === 'object' && !Array.isArray(p.config)
+                    ? (p.config as Record<string, unknown>)
+                    : {},
+              })),
+            },
+          ]
+        })()
+      : buildExportPayload()
     const payload = {
       format: 'furvoley-workflows',
       version: 1,
       exportedAt: new Date().toISOString(),
-      workflows: buildExportPayload(),
+      workflows: selectedPayload,
     }
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
     a.href = url
-    a.download = `furvoley-workflows-${stamp}.json`
+    const safeName = selectedName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9-_]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase()
+    a.download = onlyWorkflow
+      ? `furvoley-workflow-${safeName || 'seleccionado'}-${stamp}.json`
+      : `furvoley-workflows-${stamp}.json`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -340,7 +371,7 @@ export function WorkflowsSection({
           />
           <button
             type="button"
-            onClick={exportWorkflows}
+            onClick={() => exportWorkflows()}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -564,6 +595,23 @@ export function WorkflowsSection({
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => exportWorkflows(w)}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: 10,
+                      border: '1px solid var(--border)',
+                      background: '#fff',
+                      cursor: 'pointer',
+                      color: '#374151',
+                      fontFamily: 'inherit',
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Exportar
+                  </button>
                   <button
                     type="button"
                     onClick={() => openEditar(w)}
