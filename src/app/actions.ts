@@ -98,21 +98,17 @@ export async function updateMember(
 
 export async function deleteMember(id: string) {
   await prisma.$transaction(async (tx) => {
-    const linkedUser = await tx.user.findUnique({
-      where: { memberId: id },
-      select: { id: true, role: true },
+    await tx.user.deleteMany({
+      where: {
+        memberId: id,
+        role: { in: ['MEMBER', 'PLAYER'] },
+      },
     })
 
-    if (linkedUser) {
-      if (linkedUser.role === 'MEMBER') {
-        await tx.user.delete({ where: { id: linkedUser.id } })
-      } else {
-        await tx.user.update({
-          where: { id: linkedUser.id },
-          data: { memberId: null },
-        })
-      }
-    }
+    await tx.user.updateMany({
+      where: { memberId: id },
+      data: { memberId: null },
+    })
 
     await tx.member.delete({ where: { id } })
   })

@@ -68,8 +68,8 @@ export async function DELETE(
   try {
     await deleteMember(id)
     return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'No se pudo eliminar el socio' }, { status: 400 })
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'No se pudo eliminar el socio' }, { status: 400 })
   }
 }
 
