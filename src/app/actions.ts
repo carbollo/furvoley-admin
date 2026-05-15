@@ -54,7 +54,10 @@ export async function updateMember(
   const member = await prisma.member.update({ where: { id }, data })
   await runMemberUpdatedWorkflows(member.id)
   if (before?.status != null && before.status !== member.status) {
-    await runMemberStatusChangedWorkflows(member.id)
+    await runMemberStatusChangedWorkflows(member.id, {
+      previousStatus: before.status,
+      currentStatus: member.status,
+    })
   }
   revalidatePath('/')
   return member

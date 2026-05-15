@@ -304,17 +304,50 @@ function tokenTargetsForAction(actionType: string): Array<{ key: string; label: 
   return []
 }
 
-const TRIGGER_TOKEN_OPTIONS: TokenOption[] = [
-  { token: '{memberId}', label: 'Socio ID' },
-  { token: '{memberName}', label: 'Socio nombre' },
-  { token: '{memberEmail}', label: 'Socio email' },
-  { token: '{memberPhone}', label: 'Socio teléfono' },
-  { token: '{memberAddress}', label: 'Socio dirección' },
-  { token: '{memberDni}', label: 'Socio DNI' },
-  { token: '{memberStatus}', label: 'Socio estado' },
-  { token: '{memberSportPreference}', label: 'Socio preferencia deportiva' },
-  { token: '{memberAge}', label: 'Socio edad' },
-]
+function triggerTokenOptionsByType(triggerType: string): TokenOption[] {
+  const memberBase: TokenOption[] = [
+    { token: '{memberId}', label: 'Socio ID' },
+    { token: '{memberName}', label: 'Socio nombre' },
+    { token: '{memberEmail}', label: 'Socio email' },
+    { token: '{memberPhone}', label: 'Socio teléfono' },
+    { token: '{memberAddress}', label: 'Socio dirección' },
+    { token: '{memberDni}', label: 'Socio DNI' },
+    { token: '{memberStatus}', label: 'Socio estado' },
+    { token: '{memberSportPreference}', label: 'Socio preferencia deportiva' },
+    { token: '{memberAge}', label: 'Socio edad' },
+  ]
+  const triggerBase: TokenOption[] = [
+    { token: '{triggerType}', label: 'Trigger · tipo' },
+    { token: '{triggerEventAt}', label: 'Trigger · fecha evento' },
+    { token: '{triggerMemberId}', label: 'Trigger · socio id' },
+    { token: '{triggerMemberName}', label: 'Trigger · socio nombre' },
+    { token: '{triggerMemberEmail}', label: 'Trigger · socio email' },
+    { token: '{triggerMemberPhone}', label: 'Trigger · socio teléfono' },
+    { token: '{triggerMemberStatus}', label: 'Trigger · socio estado' },
+  ]
+  const memberStatusChanged: TokenOption[] = [
+    { token: '{triggerPreviousStatus}', label: 'Trigger · estado anterior' },
+    { token: '{triggerCurrentStatus}', label: 'Trigger · estado actual' },
+  ]
+  const paymentTrigger: TokenOption[] = [
+    { token: '{triggerPaymentId}', label: 'Trigger · pago id' },
+    { token: '{triggerPaymentAmount}', label: 'Trigger · pago importe' },
+    { token: '{triggerPaymentMonth}', label: 'Trigger · pago mes' },
+    { token: '{triggerPaymentYear}', label: 'Trigger · pago año' },
+    { token: '{triggerPaymentStatus}', label: 'Trigger · pago estado' },
+    { token: '{triggerPaymentPaidAt}', label: 'Trigger · pago fecha cobro' },
+    { token: '{triggerPaymentCreatedAt}', label: 'Trigger · pago creado' },
+    { token: '{triggerPaymentUpdatedAt}', label: 'Trigger · pago actualizado' },
+  ]
+
+  if (triggerType === 'MEMBER_STATUS_CHANGED') {
+    return [...memberBase, ...triggerBase, ...memberStatusChanged]
+  }
+  if (triggerType === 'PAYMENT_CREATED' || triggerType === 'PAYMENT_PAID') {
+    return [...memberBase, ...triggerBase, ...paymentTrigger]
+  }
+  return [...memberBase, ...triggerBase]
+}
 
 export type WorkflowEditorInitialPaso = {
   position: number
@@ -451,12 +484,33 @@ function WorkflowFlowEditorInner({
     return false
   }, [edges, selectedNode])
 
+  const selectedTriggerNode = useMemo(
+    () =>
+      selectedId === WORKFLOW_START_ID
+        ? (nodes.find((n) => n.id === WORKFLOW_START_ID && n.type === 'workflowTrigger') as
+            | Node<WorkflowNodeData>
+            | undefined)
+        : undefined,
+    [nodes, selectedId],
+  )
+
+  const selectedTriggerType = useMemo(() => {
+    const triggerNode = nodes.find((n) => n.id === WORKFLOW_START_ID && n.type === 'workflowTrigger')
+    const cfg =
+      triggerNode?.data && typeof (triggerNode.data as WorkflowNodeData).config === 'object'
+        ? ((triggerNode.data as WorkflowNodeData).config as Record<string, unknown>)
+        : {}
+    return typeof cfg.triggerType === 'string' && cfg.triggerType
+      ? cfg.triggerType
+      : triggerType
+  }, [nodes, triggerType])
+
   const availableTokenGroups = useMemo(() => {
     const groups: TokenGroup[] = []
     if (triggerConnectedToSelected) {
       groups.push({
         sourceLabel: 'Disparador',
-        options: TRIGGER_TOKEN_OPTIONS,
+        options: triggerTokenOptionsByType(selectedTriggerType),
       })
     }
     for (const n of priorStepNodes) {
@@ -478,7 +532,7 @@ function WorkflowFlowEditorInner({
       groups.push({ sourceLabel: stepTitle, options })
     }
     return groups
-  }, [priorStepNodes, triggerConnectedToSelected])
+  }, [priorStepNodes, triggerConnectedToSelected, selectedTriggerType])
 
   const tokenTargets = useMemo(
     () => (selectedNode ? tokenTargetsForAction(selectedNode.data.actionType) : []),
@@ -502,16 +556,6 @@ function WorkflowFlowEditorInner({
       }))
       .filter((g) => g.options.length > 0)
   }, [availableTokenGroups, tokenSearch])
-
-  const selectedTriggerNode = useMemo(
-    () =>
-      selectedId === WORKFLOW_START_ID
-        ? (nodes.find((n) => n.id === WORKFLOW_START_ID && n.type === 'workflowTrigger') as
-            | Node<WorkflowNodeData>
-            | undefined)
-        : undefined,
-    [nodes, selectedId],
-  )
 
   const setWorkflowTriggerType = useCallback(
     (value: string) => {

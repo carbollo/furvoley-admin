@@ -19,6 +19,28 @@ type WorkflowRunContext = {
   teamNameCache: Map<string, string>
 }
 
+type WorkflowTriggerType =
+  | 'MEMBER_CREATED'
+  | 'MEMBER_UPDATED'
+  | 'MEMBER_STATUS_CHANGED'
+  | 'PAYMENT_CREATED'
+  | 'PAYMENT_PAID'
+
+type WorkflowTriggerContext = {
+  previousStatus?: string | null
+  currentStatus?: string | null
+  payment?: {
+    id: string
+    amount: number
+    month: number
+    year: number
+    status: string
+    paidAt: Date | null
+    createdAt: Date
+    updatedAt: Date
+  } | null
+}
+
 function tokenSafePart(value: string): string {
   return String(value || '')
     .trim()
@@ -38,6 +60,23 @@ function snapshotNodeScopedVariables(runContext: WorkflowRunContext, stepKey: st
 
 function defaultWorkflowVariables() {
   return {
+    triggerType: '',
+    triggerEventAt: '',
+    triggerMemberId: '',
+    triggerMemberName: '',
+    triggerMemberEmail: '',
+    triggerMemberPhone: '',
+    triggerMemberStatus: '',
+    triggerPreviousStatus: '',
+    triggerCurrentStatus: '',
+    triggerPaymentId: '',
+    triggerPaymentAmount: '',
+    triggerPaymentMonth: '',
+    triggerPaymentYear: '',
+    triggerPaymentStatus: '',
+    triggerPaymentPaidAt: '',
+    triggerPaymentCreatedAt: '',
+    triggerPaymentUpdatedAt: '',
     stepActionType: '',
     stepPosition: '',
     stepLabel: '',
@@ -78,6 +117,33 @@ function defaultWorkflowVariables() {
     teamAssignedId: '',
     teamAssignedName: '',
     assignmentApplied: 'false',
+  } satisfies Record<string, string>
+}
+
+function buildTriggerVariables(
+  triggerType: WorkflowTriggerType,
+  member: WorkflowMemberPayload,
+  context: WorkflowTriggerContext,
+) {
+  const payment = context.payment
+  return {
+    triggerType,
+    triggerEventAt: new Date().toISOString(),
+    triggerMemberId: member.id,
+    triggerMemberName: member.name ?? '',
+    triggerMemberEmail: member.email ?? '',
+    triggerMemberPhone: member.phone ?? '',
+    triggerMemberStatus: member.status ?? '',
+    triggerPreviousStatus: String(context.previousStatus || ''),
+    triggerCurrentStatus: String(context.currentStatus || member.status || ''),
+    triggerPaymentId: String(payment?.id || ''),
+    triggerPaymentAmount: payment ? String(payment.amount) : '',
+    triggerPaymentMonth: payment ? String(payment.month) : '',
+    triggerPaymentYear: payment ? String(payment.year) : '',
+    triggerPaymentStatus: String(payment?.status || ''),
+    triggerPaymentPaidAt: payment?.paidAt ? payment.paidAt.toISOString() : '',
+    triggerPaymentCreatedAt: payment?.createdAt ? payment.createdAt.toISOString() : '',
+    triggerPaymentUpdatedAt: payment?.updatedAt ? payment.updatedAt.toISOString() : '',
   } satisfies Record<string, string>
 }
 
@@ -691,9 +757,14 @@ async function runMemberCreatedStepAction(
 async function runWorkflowStepsForMember(
   steps: { position: number; stepType: string; actionType: string; config: unknown }[],
   member: WorkflowMemberPayload,
+  triggerType: WorkflowTriggerType,
+  triggerContext: WorkflowTriggerContext,
 ) {
   const runContext: WorkflowRunContext = {
-    variables: defaultWorkflowVariables(),
+    variables: {
+      ...defaultWorkflowVariables(),
+      ...buildTriggerVariables(triggerType, member, triggerContext),
+    },
     teamNameCache: new Map<string, string>(),
   }
   const sorted = [...steps].sort((a, b) => a.position - b.position)
@@ -739,12 +810,8 @@ async function runWorkflowStepsForMember(
 
 async function runWorkflowsForMemberByTrigger(
   memberId: string,
-  triggerType:
-    | 'MEMBER_CREATED'
-    | 'MEMBER_UPDATED'
-    | 'MEMBER_STATUS_CHANGED'
-    | 'PAYMENT_CREATED'
-    | 'PAYMENT_PAID',
+  triggerType: WorkflowTriggerType,
+  triggerContext: WorkflowTriggerContext = {},
 ) {
   const memberRow = await prisma.member.findUnique({
     where: { id: memberId },
@@ -781,7 +848,7 @@ async function runWorkflowsForMemberByTrigger(
   })
 
   for (const workflow of workflows) {
-    await runWorkflowStepsForMember(workflow.steps, member)
+    await runWorkflowStepsForMember(workflow.steps, member, triggerType, triggerContext)
   }
 }
 
@@ -793,24 +860,47 @@ export async function runMemberUpdatedWorkflows(memberId: string) {
   await runWorkflowsForMemberByTrigger(memberId, 'MEMBER_UPDATED')
 }
 
-export async function runMemberStatusChangedWorkflows(memberId: string) {
-  await runWorkflowsForMemberByTrigger(memberId, 'MEMBER_STATUS_CHANGED')
+export async function runMemberStatusChangedWorkflows(
+  memberId: string,
+  context: { previousStatus?: string | null; currentStatus?: string | null } = {},
+) {
+  await runWorkflowsForMemberByTrigger(memberId, 'MEMBER_STATUS_CHANGED', context)
 }
 
 export async function runPaymentCreatedWorkflows(paymentId: string) {
   const payment = await prisma.payment.findUnique({
     where: { id: paymentId },
-    select: { memberId: true },
+    select: {
+      id: true,
+      memberId: true,
+      amount: true,
+      month: true,
+      year: true,
+      status: true,
+      paidAt: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   })
   if (!payment) return
-  await runWorkflowsForMemberByTrigger(payment.memberId, 'PAYMENT_CREATED')
+  await runWorkflowsForMemberByTrigger(payment.memberId, 'PAYMENT_CREATED', { payment })
 }
 
 export async function runPaymentPaidWorkflows(paymentId: string) {
   const payment = await prisma.payment.findUnique({
     where: { id: paymentId },
-    select: { memberId: true },
+    select: {
+      id: true,
+      memberId: true,
+      amount: true,
+      month: true,
+      year: true,
+      status: true,
+      paidAt: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   })
   if (!payment) return
-  await runWorkflowsForMemberByTrigger(payment.memberId, 'PAYMENT_PAID')
+  await runWorkflowsForMemberByTrigger(payment.memberId, 'PAYMENT_PAID', { payment })
 }
