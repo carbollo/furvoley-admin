@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useState } from 'react'
-import { Zap, Plus } from 'lucide-react'
+import { useCallback, useRef, useState, type ChangeEvent } from 'react'
+import { Zap, Plus, Download, Upload } from 'lucide-react'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
+import { isWorkflowTriggerAllowed } from '@/lib/crm-workflow-triggers'
+import { isWorkflowActionAllowed } from '@/lib/crm-workflow-actions'
 import { WorkflowFlowEditor, type WorkflowEditorInitialPaso } from './WorkflowFlowEditor'
 
 function resumenPrimerPaso(
@@ -33,6 +35,18 @@ function resumenPrimerPaso(
 }
 
 type BundleEquip = { id: string; nombre: string }
+type SerializableWorkflow = {
+  name: string
+  description: string | null
+  triggerType: string
+  isActive: boolean
+  steps: Array<{
+    position: number
+    stepType: string
+    actionType: string
+    config: Record<string, unknown>
+  }>
+}
 
 export function WorkflowsSection({
   bundle,
@@ -57,6 +71,8 @@ export function WorkflowsSection({
   const [initialPasos, setInitialPasos] = useState<WorkflowEditorInitialPaso[]>([])
   const [initialTriggerType, setInitialTriggerType] = useState('MEMBER_CREATED')
   const [saveBusy, setSaveBusy] = useState(false)
+  const [importBusy, setImportBusy] = useState(false)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
 
   const activos = wfs.filter((w) => w.activo).length
   const totalPasos = wfs.reduce((a, w) => a + ((w.pasos as unknown[])?.length ?? 0), 0)
@@ -159,6 +175,141 @@ export function WorkflowsSection({
     }
   }
 
+  const buildExportPayload = (): SerializableWorkflow[] => {
+    return wfs.map((w) => {
+      const pasos = Array.isArray(w.pasos) ? (w.pasos as Record<string, unknown>[]) : []
+      return {
+        name: String(w.nombre || ''),
+        description: String(w.descripcion || '').trim() || null,
+        triggerType: String(w.trigger || 'MEMBER_CREATED'),
+        isActive: !!w.activo,
+        steps: pasos.map((p, i) => ({
+          position: typeof p.position === 'number' ? p.position : i,
+          stepType: String(p.stepType || 'ACTION'),
+          actionType: String(p.actionType || ''),
+          config:
+            p.config && typeof p.config === 'object' && !Array.isArray(p.config)
+              ? (p.config as Record<string, unknown>)
+              : {},
+        })),
+      }
+    })
+  }
+
+  const exportWorkflows = () => {
+    const payload = {
+      format: 'furvoley-workflows',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      workflows: buildExportPayload(),
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    a.href = url
+    a.download = `furvoley-workflows-${stamp}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  function normalizeImportedWorkflows(input: unknown): SerializableWorkflow[] {
+    const rawList =
+      Array.isArray(input)
+        ? input
+        : input && typeof input === 'object' && Array.isArray((input as Record<string, unknown>).workflows)
+          ? ((input as Record<string, unknown>).workflows as unknown[])
+          : []
+    return rawList
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null
+        const o = item as Record<string, unknown>
+        const triggerType = String(o.triggerType || 'MEMBER_CREATED')
+        if (!isWorkflowTriggerAllowed(triggerType)) return null
+        const stepsRaw = Array.isArray(o.steps) ? (o.steps as Record<string, unknown>[]) : []
+        const steps = stepsRaw
+          .map((s, i) => {
+            const actionType = String(s.actionType || '')
+            if (!isWorkflowActionAllowed(actionType)) return null
+            return {
+              position: typeof s.position === 'number' ? s.position : i,
+              stepType: String(s.stepType || 'ACTION'),
+              actionType,
+              config:
+                s.config && typeof s.config === 'object' && !Array.isArray(s.config)
+                  ? (s.config as Record<string, unknown>)
+                  : {},
+            }
+          })
+          .filter((x): x is SerializableWorkflow['steps'][number] => !!x)
+        const name = String(o.name || '').trim()
+        if (!name) return null
+        return {
+          name,
+          description: String(o.description || '').trim() || null,
+          triggerType,
+          isActive: o.isActive !== false,
+          steps,
+        } satisfies SerializableWorkflow
+      })
+      .filter((x): x is SerializableWorkflow => !!x)
+  }
+
+  const onImportFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.currentTarget.value = ''
+    if (!file) return
+    setImportBusy(true)
+    try {
+      const text = await file.text()
+      let parsed: unknown = null
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        alert('El archivo no es un JSON válido.')
+        return
+      }
+      const workflows = normalizeImportedWorkflows(parsed)
+      if (workflows.length === 0) {
+        alert('No se encontraron flujos válidos para importar.')
+        return
+      }
+
+      let okCount = 0
+      const errors: string[] = []
+      for (const wf of workflows) {
+        const r = await fetch('/api/crm/workflows', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(wf),
+        })
+        if (r.ok) {
+          okCount++
+        } else {
+          let msg = `Error al importar "${wf.name}"`
+          try {
+            const j = await r.json()
+            msg = j.error || msg
+          } catch {
+            //
+          }
+          errors.push(msg)
+        }
+      }
+      await reload()
+      if (errors.length > 0) {
+        alert(`Importados: ${okCount}. Errores: ${errors.length}.\n${errors.slice(0, 3).join('\n')}`)
+      } else {
+        alert(`Importación completada. Flujos importados: ${okCount}.`)
+      }
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
   return (
     <div
       style={{
@@ -180,6 +331,55 @@ export function WorkflowsSection({
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={onImportFile}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            onClick={exportWorkflows}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 18px',
+              borderRadius: 12,
+              border: '1px solid var(--border)',
+              background: '#fff',
+              color: '#374151',
+              fontFamily: 'inherit',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <Download size={16} /> Exportar JSON
+          </button>
+          <button
+            type="button"
+            disabled={importBusy}
+            onClick={() => importInputRef.current?.click()}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 18px',
+              borderRadius: 12,
+              border: '1px solid var(--border)',
+              background: '#fff',
+              color: '#374151',
+              fontFamily: 'inherit',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: importBusy ? 'not-allowed' : 'pointer',
+              opacity: importBusy ? 0.7 : 1,
+            }}
+          >
+            <Upload size={16} /> {importBusy ? 'Importando…' : 'Importar JSON'}
+          </button>
           <button
             type="button"
             onClick={() =>
