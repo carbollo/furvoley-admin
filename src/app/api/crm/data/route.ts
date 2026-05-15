@@ -399,7 +399,7 @@ export async function GET() {
       memberId: usr.memberId || null,
       memberName: usr.member?.name || '',
     }
-  })
+  }).filter((u) => u.role !== 'MEMBER')
   const newsPosts = newsRaw.map((post) => ({
     id: post.id,
     title: post.title,
