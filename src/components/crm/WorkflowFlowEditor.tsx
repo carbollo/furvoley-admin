@@ -69,7 +69,7 @@ function defaultStepConfig(actionType: string): Record<string, unknown> {
     case 'CREATE_TRANSACTION':
       return { type: 'INCOME', amount: '', description: '' }
     case 'SEND_WHATSAPP':
-      return { waSessionId: '', waPhone: '{memberPhone}', waMessage: 'Hola {memberName}, te escribimos desde Furvoley.' }
+      return { waSessionId: '', waPhone: '', waMessage: '' }
     case 'HTTP_REQUEST':
       return { httpUrl: '', httpMethod: 'POST', httpBody: '', httpHeaders: '' }
     case 'BRANCH_IF':
@@ -266,15 +266,6 @@ const edgeTypes = { [WORKFLOW_EDGE_TYPE]: WorkflowDeletableEdge }
 
 type BundleEquip = { id: string; nombre: string }
 
-const GLOBAL_TOKEN_OPTIONS = [
-  { key: 'memberId', label: 'Socio ID' },
-  { key: 'memberName', label: 'Socio nombre' },
-  { key: 'memberEmail', label: 'Socio email' },
-  { key: 'memberPhone', label: 'Socio teléfono' },
-  { key: 'memberStatus', label: 'Socio estado' },
-  { key: 'memberAge', label: 'Socio edad' },
-]
-
 function tokenSafePart(value: string) {
   return String(value || '')
     .trim()
@@ -382,9 +373,6 @@ function WorkflowFlowEditorInner({
 
   const availableTokenOptions = useMemo(() => {
     const options: Array<{ token: string; label: string }> = []
-    for (const item of GLOBAL_TOKEN_OPTIONS) {
-      options.push({ token: `{${item.key}}`, label: `Global · ${item.label}` })
-    }
     for (const n of priorStepNodes) {
       const d = n.data as WorkflowNodeData
       const stepTitle = d.label || d.actionType || d.stepKey
@@ -891,6 +879,11 @@ function WorkflowFlowEditorInner({
                           style={{ ...inputBase, padding: '8px 10px', fontSize: 12 }}
                         >
                           <option value="">Selecciona variable para insertar</option>
+                          {availableTokenOptions.length === 0 && (
+                            <option value="" disabled>
+                              No hay nodos previos con variables
+                            </option>
+                          )}
                           {availableTokenOptions.map((opt) => (
                             <option key={`${opt.token}-${opt.label}`} value={opt.token}>
                               {opt.label}
@@ -1206,7 +1199,7 @@ function WorkflowFlowEditorInner({
                           value={String(selectedNode.data.config.waPhone ?? '{memberPhone}')}
                           onChange={(e) => patchConfig({ waPhone: e.target.value })}
                           style={inputBase}
-                          placeholder="{memberPhone} o 34666777888"
+                          placeholder="34666777888"
                         />
                         <label style={{ ...labelBase, marginTop: 10 }}>Mensaje</label>
                         <textarea
@@ -1214,11 +1207,11 @@ function WorkflowFlowEditorInner({
                           onChange={(e) => patchConfig({ waMessage: e.target.value })}
                           rows={3}
                           style={{ ...inputBase, minHeight: 72 }}
-                          placeholder="Hola {memberName}, tu pago está pendiente."
+                          placeholder="Escribe el mensaje..."
                         />
                         <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.45 }}>
-                          Variables disponibles: {'{memberName}'}, {'{memberPhone}'}, {'{memberEmail}'}, {'{memberId}'},
-                          {'{assignedTeamName}'}, {'{assignedTeamId}'}, {'{stepActionType}'}, {'{stepApplied}'},
+                          Variables disponibles: {'{assignedTeamName}'}, {'{assignedTeamId}'},
+                          {'{stepActionType}'}, {'{stepApplied}'},
                           {'{stepError}'}, {'{stepCreatedPaymentId}'}, {'{stepCreatedTransactionId}'},
                           {'{stepCreatedSignupLinkToken}'}, {'{stepTargetStatus}'}
                         </p>
