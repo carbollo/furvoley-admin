@@ -33,6 +33,7 @@ import {
   emptyFlow,
   flowToPasos,
   newWorkflowNode,
+  outputDefsByAction,
   shortActionLabel,
   stepsToFlowNodes,
   type WorkflowNodeData,
@@ -265,6 +266,23 @@ const edgeTypes = { [WORKFLOW_EDGE_TYPE]: WorkflowDeletableEdge }
 
 type BundleEquip = { id: string; nombre: string }
 
+const GLOBAL_TOKEN_OPTIONS = [
+  { key: 'memberId', label: 'Socio ID' },
+  { key: 'memberName', label: 'Socio nombre' },
+  { key: 'memberEmail', label: 'Socio email' },
+  { key: 'memberPhone', label: 'Socio teléfono' },
+  { key: 'memberStatus', label: 'Socio estado' },
+  { key: 'memberAge', label: 'Socio edad' },
+]
+
+function tokenSafePart(value: string) {
+  return String(value || '')
+    .trim()
+    .replace(/[^\w]/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase()
+}
+
 export type WorkflowEditorInitialPaso = {
   position: number
   stepType: string
@@ -335,6 +353,7 @@ function WorkflowFlowEditorInner({
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([])
+  const [tokenTargetField, setTokenTargetField] = useState<string | null>(null)
 
   useEffect(() => {
     setNombre(initialNombre)
@@ -346,12 +365,44 @@ function WorkflowFlowEditorInner({
     setEdges(e)
     setSelectedId(null)
     setSelectedEdgeIds([])
+    setTokenTargetField(null)
   }, [initialPasos, initialNombre, initialDescripcion, triggerType, setNodes, setEdges])
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedId && n.type === 'workflowStep') as Node<WorkflowNodeData> | undefined,
     [nodes, selectedId],
   )
+
+  const priorStepNodes = useMemo(() => {
+    if (!selectedNode) return [] as Node<WorkflowNodeData>[]
+    return nodes
+      .filter((n): n is Node<WorkflowNodeData> => n.type === 'workflowStep')
+      .filter((n) => n.id !== selectedNode.id)
+  }, [nodes, selectedNode])
+
+  const availableTokenOptions = useMemo(() => {
+    const options: Array<{ token: string; label: string }> = []
+    for (const item of GLOBAL_TOKEN_OPTIONS) {
+      options.push({ token: `{${item.key}}`, label: `Global · ${item.label}` })
+    }
+    for (const n of priorStepNodes) {
+      const d = n.data as WorkflowNodeData
+      const stepTitle = d.label || d.actionType || d.stepKey
+      const defs = Array.isArray(d.outputs) ? d.outputs : outputDefsByAction(d.actionType)
+      for (const def of defs) {
+        options.push({
+          token: `{${def.key}}`,
+          label: `${stepTitle} · ${def.label}`,
+        })
+        const scopedKey = `node_${tokenSafePart(d.stepKey)}_${def.key}`
+        options.push({
+          token: `{${scopedKey}}`,
+          label: `${stepTitle} · ${def.label} (fijo por nodo)`,
+        })
+      }
+    }
+    return options
+  }, [priorStepNodes])
 
   const selectedTriggerNode = useMemo(
     () =>
@@ -506,6 +557,15 @@ function WorkflowFlowEditorInner({
     [selectedNode, updateSelectedData],
   )
 
+  const appendTokenToField = useCallback(
+    (configKey: string, token: string) => {
+      if (!selectedNode) return
+      const prev = String((selectedNode.data.config as Record<string, unknown>)[configKey] ?? '')
+      patchConfig({ [configKey]: `${prev}${token}` })
+    },
+    [patchConfig, selectedNode],
+  )
+
   const setActionType = useCallback(
     (actionType: string) => {
       if (!selectedId) return
@@ -521,6 +581,7 @@ function WorkflowFlowEditorInner({
               actionType,
               config: cfg,
               label: shortActionLabel(actionType, cfg),
+              outputs: outputDefsByAction(actionType),
             },
           }
         }),
@@ -532,6 +593,7 @@ function WorkflowFlowEditorInner({
           return e.sourceHandle === 'next' || e.sourceHandle === null
         }),
       )
+      setTokenTargetField(null)
     },
     [selectedId, selectedNode?.data.stepKey, setNodes, setEdges],
   )
@@ -774,6 +836,69 @@ function WorkflowFlowEditorInner({
                 )}
                 {selectedNode && (
                   <>
+                    <div style={{ marginTop: 12, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#f8fafc' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>Salidas de este nodo</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {(selectedNode.data.outputs || outputDefsByAction(selectedNode.data.actionType)).map((out) => (
+                          <span key={out.key} style={{ fontSize: 11, color: '#334155', background: '#e2e8f0', borderRadius: 999, padding: '3px 8px' }}>
+                            {`{${out.key}}`}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#f8fafc' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>Insertar variable (tipo n8n)</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        <select
+                          value={tokenTargetField || ''}
+                          onChange={(e) => setTokenTargetField(e.target.value || null)}
+                          style={{ ...inputBase, padding: '8px 10px', fontSize: 12 }}
+                        >
+                          <option value="">Selecciona campo destino</option>
+                          {selectedNode.data.actionType === 'SEND_WHATSAPP' && (
+                            <>
+                              <option value="waPhone">WhatsApp · Teléfono</option>
+                              <option value="waMessage">WhatsApp · Mensaje</option>
+                            </>
+                          )}
+                          {selectedNode.data.actionType === 'HTTP_REQUEST' && (
+                            <>
+                              <option value="httpUrl">HTTP · URL</option>
+                              <option value="httpBody">HTTP · Body</option>
+                              <option value="httpHeaders">HTTP · Headers JSON</option>
+                            </>
+                          )}
+                          {selectedNode.data.actionType === 'BRANCH_IF' && (
+                            <option value="ifValue">Condición · Valor comparado</option>
+                          )}
+                          {selectedNode.data.actionType === 'SET_MEMBER_CONTACT' && (
+                            <>
+                              <option value="email">Contacto · Email</option>
+                              <option value="phone">Contacto · Teléfono</option>
+                              <option value="address">Contacto · Dirección</option>
+                            </>
+                          )}
+                        </select>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const token = e.target.value
+                            if (!token || !tokenTargetField) return
+                            appendTokenToField(tokenTargetField, token)
+                            e.currentTarget.value = ''
+                          }}
+                          disabled={!tokenTargetField}
+                          style={{ ...inputBase, padding: '8px 10px', fontSize: 12 }}
+                        >
+                          <option value="">Selecciona variable para insertar</option>
+                          {availableTokenOptions.map((opt) => (
+                            <option key={`${opt.token}-${opt.label}`} value={opt.token}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Paso seleccionado</span>
                       <button

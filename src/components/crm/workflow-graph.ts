@@ -17,6 +17,7 @@ export type WorkflowNodeData = {
   config: Record<string, unknown>
   stepKey: string
   label: string
+  outputs?: Array<{ key: string; label: string }>
 }
 
 export type WorkflowPasoPayload = {
@@ -74,6 +75,78 @@ export function shortActionLabel(actionType: string, c: Record<string, unknown>)
       return 'Condición'
     default:
       return actionType
+  }
+}
+
+export function outputDefsByAction(actionType: string): Array<{ key: string; label: string }> {
+  const base = [
+    { key: 'stepActionType', label: 'Acción ejecutada' },
+    { key: 'stepApplied', label: 'Aplicado (true/false)' },
+    { key: 'stepError', label: 'Error último paso' },
+  ]
+  switch (actionType) {
+    case 'ASSIGN_TEAM':
+    case 'ASSIGN_TEAM_BY_AGE':
+    case 'ASSIGN_TEAM_BY_PREFERENCE':
+    case 'REMOVE_FROM_TEAM':
+      return [
+        ...base,
+        { key: 'assignedTeamName', label: 'Equipo asignado (nombre)' },
+        { key: 'assignedTeamId', label: 'Equipo asignado (id)' },
+        { key: 'assignmentApplied', label: 'Asignación aplicada' },
+      ]
+    case 'SET_MEMBER_STATUS':
+      return [...base, { key: 'stepTargetStatus', label: 'Estado objetivo' }]
+    case 'SET_MEMBER_SPORT_PREFERENCE':
+      return [...base, { key: 'stepTargetSportPreference', label: 'Preferencia objetivo' }]
+    case 'SET_MEMBER_CONTACT':
+      return [
+        ...base,
+        { key: 'stepTargetEmail', label: 'Email objetivo' },
+        { key: 'stepTargetPhone', label: 'Teléfono objetivo' },
+        { key: 'stepTargetAddress', label: 'Dirección objetivo' },
+      ]
+    case 'SET_MEMBER_DNI':
+      return [...base, { key: 'stepTargetDni', label: 'DNI objetivo' }]
+    case 'SET_MEMBER_BIRTHDATE':
+      return [...base, { key: 'stepTargetBirthDate', label: 'Fecha nacimiento objetivo' }]
+    case 'CREATE_PAYMENT':
+      return [
+        ...base,
+        { key: 'stepCreatedPaymentId', label: 'ID cobro creado' },
+        { key: 'stepCreatedPaymentAmount', label: 'Importe cobro creado' },
+        { key: 'stepCreatedPaymentStatus', label: 'Estado cobro creado' },
+      ]
+    case 'CREATE_SIGNUP_LINK':
+      return [
+        ...base,
+        { key: 'stepCreatedSignupLinkId', label: 'ID enlace creado' },
+        { key: 'stepCreatedSignupLinkToken', label: 'Token enlace creado' },
+      ]
+    case 'CREATE_TRANSACTION':
+      return [
+        ...base,
+        { key: 'stepCreatedTransactionId', label: 'ID movimiento creado' },
+        { key: 'stepCreatedTransactionAmount', label: 'Importe movimiento creado' },
+        { key: 'stepCreatedTransactionType', label: 'Tipo movimiento creado' },
+      ]
+    case 'SEND_WHATSAPP':
+      return [
+        ...base,
+        { key: 'stepWhatsAppSent', label: 'WhatsApp enviado' },
+        { key: 'stepWhatsAppError', label: 'Error WhatsApp' },
+        { key: 'stepSentWhatsAppPhone', label: 'Teléfono enviado' },
+      ]
+    case 'HTTP_REQUEST':
+      return [
+        ...base,
+        { key: 'stepHttpStatus', label: 'HTTP status' },
+        { key: 'stepHttpOk', label: 'HTTP ok' },
+      ]
+    case 'BRANCH_IF':
+      return [...base, { key: 'stepBranchResult', label: 'Rama tomada (then/else)' }]
+    default:
+      return base
   }
 }
 
@@ -149,6 +222,7 @@ export function stepsToFlowNodes(
         config: cfg,
         stepKey,
         label,
+        outputs: outputDefsByAction(p.actionType),
       },
     })
   })
@@ -355,6 +429,7 @@ export function newWorkflowNode(
       config: cfg,
       stepKey,
       label: shortActionLabel(actionType, cfg),
+      outputs: outputDefsByAction(actionType),
     },
   }
 }

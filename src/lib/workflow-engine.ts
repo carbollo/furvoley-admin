@@ -19,6 +19,23 @@ type WorkflowRunContext = {
   teamNameCache: Map<string, string>
 }
 
+function tokenSafePart(value: string): string {
+  return String(value || '')
+    .trim()
+    .replace(/[^\w]/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase()
+}
+
+function snapshotNodeScopedVariables(runContext: WorkflowRunContext, stepKey: string) {
+  const safeStepKey = tokenSafePart(stepKey || 'step')
+  if (!safeStepKey) return
+  const entries = Object.entries(runContext.variables).filter(([k]) => !k.startsWith('node_'))
+  for (const [key, value] of entries) {
+    runContext.variables[`node_${safeStepKey}_${key}`] = value
+  }
+}
+
 function defaultWorkflowVariables() {
   return {
     stepActionType: '',
@@ -686,14 +703,16 @@ async function runWorkflowStepsForMember(
 
   while (i < sorted.length && guard++ < maxIter) {
     const step = sorted[i]
+    const stepKey = readString(step.config, 'stepKey') || `step_${step.position}`
     runContext.variables.stepPosition = String(step.position)
-    runContext.variables.stepLabel = readString(step.config, 'label') || ''
+    runContext.variables.stepLabel = readString(step.config, 'label') || stepKey
     setStepActionBase(runContext, step.actionType)
 
     if (step.actionType === 'BRANCH_IF') {
       const ok = evalBranchCondition(step.config, member, runContext)
       runContext.variables.stepApplied = 'true'
       runContext.variables.stepBranchResult = ok ? 'then' : 'else'
+      snapshotNodeScopedVariables(runContext, stepKey)
       const thenRef = readString(step.config, 'thenTargetKey') || readString(step.config, 'thenGoToLabel')
       const elseRef = readString(step.config, 'elseTargetKey') || readString(step.config, 'elseGoToLabel')
       const targetRef = ok ? thenRef : elseRef
@@ -709,6 +728,7 @@ async function runWorkflowStepsForMember(
     }
 
     await runMemberCreatedStepAction(step, member, runContext)
+    snapshotNodeScopedVariables(runContext, stepKey)
     i++
   }
 
