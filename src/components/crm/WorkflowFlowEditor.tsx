@@ -266,12 +266,42 @@ const edgeTypes = { [WORKFLOW_EDGE_TYPE]: WorkflowDeletableEdge }
 
 type BundleEquip = { id: string; nombre: string }
 
+type TokenOption = { token: string; label: string }
+type TokenGroup = { sourceLabel: string; options: TokenOption[] }
+
 function tokenSafePart(value: string) {
   return String(value || '')
     .trim()
     .replace(/[^\w]/g, '_')
     .replace(/^_+|_+$/g, '')
     .toLowerCase()
+}
+
+function tokenTargetsForAction(actionType: string): Array<{ key: string; label: string }> {
+  if (actionType === 'SEND_WHATSAPP') {
+    return [
+      { key: 'waPhone', label: 'WhatsApp · Teléfono' },
+      { key: 'waMessage', label: 'WhatsApp · Mensaje' },
+    ]
+  }
+  if (actionType === 'HTTP_REQUEST') {
+    return [
+      { key: 'httpUrl', label: 'HTTP · URL' },
+      { key: 'httpBody', label: 'HTTP · Body' },
+      { key: 'httpHeaders', label: 'HTTP · Headers JSON' },
+    ]
+  }
+  if (actionType === 'BRANCH_IF') {
+    return [{ key: 'ifValue', label: 'Condición · Valor comparado' }]
+  }
+  if (actionType === 'SET_MEMBER_CONTACT') {
+    return [
+      { key: 'email', label: 'Contacto · Email' },
+      { key: 'phone', label: 'Contacto · Teléfono' },
+      { key: 'address', label: 'Contacto · Dirección' },
+    ]
+  }
+  return []
 }
 
 export type WorkflowEditorInitialPaso = {
@@ -345,6 +375,8 @@ function WorkflowFlowEditorInner({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([])
   const [tokenTargetField, setTokenTargetField] = useState<string | null>(null)
+  const [tokenSearch, setTokenSearch] = useState('')
+  const [lastInsertedToken, setLastInsertedToken] = useState('')
 
   useEffect(() => {
     setNombre(initialNombre)
@@ -357,6 +389,8 @@ function WorkflowFlowEditorInner({
     setSelectedId(null)
     setSelectedEdgeIds([])
     setTokenTargetField(null)
+    setTokenSearch('')
+    setLastInsertedToken('')
   }, [initialPasos, initialNombre, initialDescripcion, triggerType, setNodes, setEdges])
 
   const selectedNode = useMemo(
@@ -371,26 +405,51 @@ function WorkflowFlowEditorInner({
       .filter((n) => n.id !== selectedNode.id)
   }, [nodes, selectedNode])
 
-  const availableTokenOptions = useMemo(() => {
-    const options: Array<{ token: string; label: string }> = []
+  const availableTokenGroups = useMemo(() => {
+    const groups: TokenGroup[] = []
     for (const n of priorStepNodes) {
       const d = n.data as WorkflowNodeData
       const stepTitle = d.label || d.actionType || d.stepKey
       const defs = Array.isArray(d.outputs) ? d.outputs : outputDefsByAction(d.actionType)
+      const options: TokenOption[] = []
       for (const def of defs) {
         options.push({
           token: `{${def.key}}`,
-          label: `${stepTitle} · ${def.label}`,
+          label: def.label,
         })
         const scopedKey = `node_${tokenSafePart(d.stepKey)}_${def.key}`
         options.push({
           token: `{${scopedKey}}`,
-          label: `${stepTitle} · ${def.label} (fijo por nodo)`,
+          label: `${def.label} (fijo por nodo)`,
         })
       }
+      groups.push({ sourceLabel: stepTitle, options })
     }
-    return options
+    return groups
   }, [priorStepNodes])
+
+  const tokenTargets = useMemo(
+    () => (selectedNode ? tokenTargetsForAction(selectedNode.data.actionType) : []),
+    [selectedNode],
+  )
+
+  const selectedTargetLabel = useMemo(
+    () => tokenTargets.find((t) => t.key === tokenTargetField)?.label ?? null,
+    [tokenTargets, tokenTargetField],
+  )
+
+  const filteredTokenGroups = useMemo(() => {
+    const q = tokenSearch.trim().toLowerCase()
+    if (!q) return availableTokenGroups
+    return availableTokenGroups
+      .map((g) => ({
+        ...g,
+        options: g.options.filter(
+          (o) => o.token.toLowerCase().includes(q) || o.label.toLowerCase().includes(q),
+        ),
+      }))
+      .filter((g) => g.options.length > 0)
+  }, [availableTokenGroups, tokenSearch])
 
   const selectedTriggerNode = useMemo(
     () =>
@@ -554,6 +613,15 @@ function WorkflowFlowEditorInner({
     [patchConfig, selectedNode],
   )
 
+  const insertToken = useCallback(
+    (token: string) => {
+      if (!tokenTargetField) return
+      appendTokenToField(tokenTargetField, token)
+      setLastInsertedToken(token)
+    },
+    [appendTokenToField, tokenTargetField],
+  )
+
   const setActionType = useCallback(
     (actionType: string) => {
       if (!selectedId) return
@@ -582,6 +650,8 @@ function WorkflowFlowEditorInner({
         }),
       )
       setTokenTargetField(null)
+      setTokenSearch('')
+      setLastInsertedToken('')
     },
     [selectedId, selectedNode?.data.stepKey, setNodes, setEdges],
   )
@@ -836,60 +906,75 @@ function WorkflowFlowEditorInner({
                     </div>
                     <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#f8fafc' }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>Insertar variable (tipo n8n)</div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                        <select
-                          value={tokenTargetField || ''}
-                          onChange={(e) => setTokenTargetField(e.target.value || null)}
-                          style={{ ...inputBase, padding: '8px 10px', fontSize: 12 }}
-                        >
-                          <option value="">Selecciona campo destino</option>
-                          {selectedNode.data.actionType === 'SEND_WHATSAPP' && (
-                            <>
-                              <option value="waPhone">WhatsApp · Teléfono</option>
-                              <option value="waMessage">WhatsApp · Mensaje</option>
-                            </>
-                          )}
-                          {selectedNode.data.actionType === 'HTTP_REQUEST' && (
-                            <>
-                              <option value="httpUrl">HTTP · URL</option>
-                              <option value="httpBody">HTTP · Body</option>
-                              <option value="httpHeaders">HTTP · Headers JSON</option>
-                            </>
-                          )}
-                          {selectedNode.data.actionType === 'BRANCH_IF' && (
-                            <option value="ifValue">Condición · Valor comparado</option>
-                          )}
-                          {selectedNode.data.actionType === 'SET_MEMBER_CONTACT' && (
-                            <>
-                              <option value="email">Contacto · Email</option>
-                              <option value="phone">Contacto · Teléfono</option>
-                              <option value="address">Contacto · Dirección</option>
-                            </>
-                          )}
-                        </select>
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            const token = e.target.value
-                            if (!token || !tokenTargetField) return
-                            appendTokenToField(tokenTargetField, token)
-                            e.currentTarget.value = ''
-                          }}
-                          disabled={!tokenTargetField}
-                          style={{ ...inputBase, padding: '8px 10px', fontSize: 12 }}
-                        >
-                          <option value="">Selecciona variable para insertar</option>
-                          {availableTokenOptions.length === 0 && (
-                            <option value="" disabled>
-                              No hay nodos previos con variables
-                            </option>
-                          )}
-                          {availableTokenOptions.map((opt) => (
-                            <option key={`${opt.token}-${opt.label}`} value={opt.token}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                        {tokenTargets.length === 0 ? (
+                          <span style={{ fontSize: 11, color: '#64748b' }}>Este tipo de nodo no tiene campos con inserción rápida.</span>
+                        ) : (
+                          tokenTargets.map((t) => (
+                            <button
+                              key={t.key}
+                              type="button"
+                              onClick={() => setTokenTargetField(t.key)}
+                              style={{
+                                border: '1px solid',
+                                borderColor: tokenTargetField === t.key ? '#6366f1' : '#cbd5e1',
+                                background: tokenTargetField === t.key ? '#eef2ff' : '#fff',
+                                color: tokenTargetField === t.key ? '#3730a3' : '#334155',
+                                borderRadius: 999,
+                                padding: '4px 9px',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {t.label}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                      <input
+                        value={tokenSearch}
+                        onChange={(e) => setTokenSearch(e.target.value)}
+                        placeholder="Buscar variable..."
+                        style={{ ...inputBase, padding: '8px 10px', fontSize: 12, marginBottom: 8 }}
+                      />
+                      <div style={{ maxHeight: 170, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8, padding: 8, background: '#fff' }}>
+                        {!tokenTargetField ? (
+                          <div style={{ fontSize: 11, color: '#64748b' }}>Selecciona primero el campo destino.</div>
+                        ) : filteredTokenGroups.length === 0 ? (
+                          <div style={{ fontSize: 11, color: '#64748b' }}>No hay variables de nodos previos.</div>
+                        ) : (
+                          filteredTokenGroups.map((group) => (
+                            <div key={group.sourceLabel} style={{ marginBottom: 8 }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>{group.sourceLabel}</div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {group.options.map((opt) => (
+                                  <button
+                                    key={`${group.sourceLabel}-${opt.token}-${opt.label}`}
+                                    type="button"
+                                    onClick={() => insertToken(opt.token)}
+                                    style={{
+                                      border: '1px solid #cbd5e1',
+                                      background: '#f8fafc',
+                                      color: '#0f172a',
+                                      borderRadius: 8,
+                                      padding: '4px 8px',
+                                      fontSize: 11,
+                                      cursor: 'pointer',
+                                    }}
+                                    title={opt.token}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      <div style={{ marginTop: 8, fontSize: 11, color: '#64748b' }}>
+                        Destino: <strong>{selectedTargetLabel || '—'}</strong>
+                        {lastInsertedToken ? ` · Último insertado: ${lastInsertedToken}` : ''}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
