@@ -19,6 +19,57 @@ type WorkflowRunContext = {
   teamNameCache: Map<string, string>
 }
 
+function defaultWorkflowVariables() {
+  return {
+    stepActionType: '',
+    stepPosition: '',
+    stepLabel: '',
+    stepApplied: 'false',
+    stepError: '',
+    stepTargetTeamId: '',
+    stepTargetTeamName: '',
+    stepTargetStatus: '',
+    stepTargetSportPreference: '',
+    stepTargetEmail: '',
+    stepTargetPhone: '',
+    stepTargetAddress: '',
+    stepTargetDni: '',
+    stepTargetBirthDate: '',
+    stepCreatedPaymentId: '',
+    stepCreatedPaymentAmount: '',
+    stepCreatedPaymentMonth: '',
+    stepCreatedPaymentYear: '',
+    stepCreatedPaymentStatus: '',
+    stepCreatedSignupLinkId: '',
+    stepCreatedSignupLinkToken: '',
+    stepCreatedSignupLinkExpiresAt: '',
+    stepCreatedTransactionId: '',
+    stepCreatedTransactionType: '',
+    stepCreatedTransactionAmount: '',
+    stepCreatedTransactionDescription: '',
+    stepHttpStatus: '',
+    stepHttpOk: '',
+    stepHttpResponse: '',
+    stepSentWhatsAppPhone: '',
+    stepSentWhatsAppMessage: '',
+    stepSentWhatsAppSessionId: '',
+    stepWhatsAppSent: '',
+    stepWhatsAppError: '',
+    stepBranchResult: '',
+    assignedTeamId: '',
+    assignedTeamName: '',
+    teamAssignedId: '',
+    teamAssignedName: '',
+    assignmentApplied: 'false',
+  } satisfies Record<string, string>
+}
+
+function setStepActionBase(runContext: WorkflowRunContext, actionType: string) {
+  runContext.variables.stepActionType = actionType
+  runContext.variables.stepApplied = 'false'
+  runContext.variables.stepError = ''
+}
+
 function calculateAge(birthDate: Date, now = new Date()) {
   let age = now.getFullYear() - birthDate.getFullYear()
   const monthDiff = now.getMonth() - birthDate.getMonth()
@@ -66,6 +117,7 @@ function interpolateHttpTemplate(
   member: WorkflowMemberPayload,
   runContext?: WorkflowRunContext,
 ): string {
+  const memberAge = member.birthDate ? String(calculateAge(member.birthDate)) : ''
   const map: Record<string, string> = {
     memberId: member.id,
     memberName: member.name ?? '',
@@ -75,6 +127,7 @@ function interpolateHttpTemplate(
     memberDni: member.dni ?? '',
     memberStatus: member.status ?? '',
     memberSportPreference: member.sportPreference ?? '',
+    memberAge,
   }
   if (runContext) Object.assign(map, runContext.variables)
   // Accept multiple token styles so workflow configs are resilient:
@@ -144,10 +197,14 @@ function parseIsoDate(config: unknown, key: string): Date | null {
 function evalBranchCondition(
   config: unknown,
   member: WorkflowMemberPayload,
+  runContext?: WorkflowRunContext,
 ): boolean {
   const field = readString(config, 'ifField')
   const op = readString(config, 'ifOperator') || 'eq'
-  const compareRaw = readString(config, 'ifValue')
+  const compareRawBase = readString(config, 'ifValue')
+  const compareRaw = compareRawBase
+    ? interpolateHttpTemplate(compareRawBase, member, runContext)
+    : compareRawBase
   if (!field) return false
 
   let left: string | number | boolean | null = null
@@ -205,6 +262,16 @@ async function runMemberCreatedStepAction(
   member: WorkflowMemberPayload,
   runContext: WorkflowRunContext,
 ): Promise<void> {
+  function setStepError(message: string) {
+    runContext.variables.stepError = String(message || '').trim()
+    runContext.variables.stepApplied = 'false'
+  }
+
+  function setStepApplied() {
+    runContext.variables.stepApplied = 'true'
+    runContext.variables.stepError = ''
+  }
+
   async function resolveWorkflowWhatsAppSessionId(explicitSessionId?: string) {
     const explicit = String(explicitSessionId || '').trim()
     if (explicit) return explicit
@@ -229,11 +296,15 @@ async function runMemberCreatedStepAction(
     const cleanId = String(teamId || '').trim()
     const teamName = cleanId ? await resolveTeamName(cleanId) : ''
     const flag = applied ? 'true' : 'false'
+    runContext.variables.stepTargetTeamId = cleanId
+    runContext.variables.stepTargetTeamName = teamName
     runContext.variables.assignedTeamId = cleanId
     runContext.variables.assignedTeamName = teamName
     runContext.variables.teamAssignedId = cleanId
     runContext.variables.teamAssignedName = teamName
     runContext.variables.assignmentApplied = flag
+    runContext.variables.stepApplied = flag
+    if (applied) runContext.variables.stepError = ''
   }
 
   if (step.actionType === 'ASSIGN_TEAM_BY_AGE') {
@@ -341,7 +412,11 @@ async function runMemberCreatedStepAction(
 
   if (step.actionType === 'SET_MEMBER_STATUS') {
     const targetStatus = readString(step.config, 'targetStatus')
-    if (!targetStatus) return
+    if (!targetStatus) {
+      setStepError('targetStatus vacío')
+      return
+    }
+    runContext.variables.stepTargetStatus = targetStatus
 
     if (member.status !== targetStatus) {
       await prisma.member.update({
@@ -350,17 +425,23 @@ async function runMemberCreatedStepAction(
       })
       member.status = targetStatus
     }
+    setStepApplied()
     return
   }
 
   if (step.actionType === 'SET_MEMBER_SPORT_PREFERENCE') {
     const sportPreference = readString(step.config, 'sportPreference')
-    if (!sportPreference) return
+    if (!sportPreference) {
+      setStepError('sportPreference vacío')
+      return
+    }
+    runContext.variables.stepTargetSportPreference = sportPreference
     await prisma.member.update({
       where: { id: member.id },
       data: { sportPreference },
     })
     member.sportPreference = sportPreference
+    setStepApplied()
     return
   }
 
@@ -368,7 +449,13 @@ async function runMemberCreatedStepAction(
     const email = readString(step.config, 'email')
     const phone = readString(step.config, 'phone')
     const address = readString(step.config, 'address')
-    if (!email && !phone && !address) return
+    if (!email && !phone && !address) {
+      setStepError('sin datos de contacto')
+      return
+    }
+    runContext.variables.stepTargetEmail = email || ''
+    runContext.variables.stepTargetPhone = phone || ''
+    runContext.variables.stepTargetAddress = address || ''
     await prisma.member.update({
       where: { id: member.id },
       data: {
@@ -380,40 +467,54 @@ async function runMemberCreatedStepAction(
     if (email) member.email = email
     if (phone) member.phone = phone
     if (address) member.address = address
+    setStepApplied()
     return
   }
 
   if (step.actionType === 'SET_MEMBER_DNI') {
     const dni = readString(step.config, 'dni')
-    if (!dni) return
+    if (!dni) {
+      setStepError('dni vacío')
+      return
+    }
+    runContext.variables.stepTargetDni = dni
     await prisma.member.update({
       where: { id: member.id },
       data: { dni },
     })
     member.dni = dni
+    setStepApplied()
     return
   }
 
   if (step.actionType === 'SET_MEMBER_BIRTHDATE') {
     const birthDate = parseIsoDate(step.config, 'birthDate')
-    if (!birthDate) return
+    if (!birthDate) {
+      setStepError('birthDate inválida')
+      return
+    }
+    runContext.variables.stepTargetBirthDate = birthDate.toISOString()
     await prisma.member.update({
       where: { id: member.id },
       data: { birthDate },
     })
     member.birthDate = birthDate
+    setStepApplied()
     return
   }
 
   if (step.actionType === 'CREATE_PAYMENT') {
     const amount = readNumber(step.config, 'amount')
-    if (amount === null || amount <= 0) return
+    if (amount === null || amount <= 0) {
+      setStepError('amount inválido')
+      return
+    }
 
     const monthOffset = readNumber(step.config, 'monthOffset') ?? 0
     const { month, year } = toPeriodWithOffset(new Date(), Math.trunc(monthOffset))
     const paymentStatus = readString(step.config, 'paymentStatus') || 'PENDING'
 
-    await prisma.payment.create({
+    const createdPayment = await prisma.payment.create({
       data: {
         memberId: member.id,
         amount,
@@ -422,6 +523,12 @@ async function runMemberCreatedStepAction(
         status: paymentStatus,
       },
     })
+    runContext.variables.stepCreatedPaymentId = createdPayment.id
+    runContext.variables.stepCreatedPaymentAmount = String(createdPayment.amount)
+    runContext.variables.stepCreatedPaymentMonth = String(createdPayment.month)
+    runContext.variables.stepCreatedPaymentYear = String(createdPayment.year)
+    runContext.variables.stepCreatedPaymentStatus = createdPayment.status
+    setStepApplied()
     return
   }
 
@@ -429,7 +536,7 @@ async function runMemberCreatedStepAction(
     const maxUses = Math.max(1, Math.trunc(readNumber(step.config, 'maxUses') ?? 1))
     const expiresInDays = Math.max(1, Math.trunc(readNumber(step.config, 'expiresInDays') ?? 30))
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
-    await prisma.signupLink.create({
+    const link = await prisma.signupLink.create({
       data: {
         token: crypto.randomUUID().replace(/-/g, ''),
         maxUses,
@@ -437,6 +544,10 @@ async function runMemberCreatedStepAction(
         createdMemberId: member.id,
       },
     })
+    runContext.variables.stepCreatedSignupLinkId = link.id
+    runContext.variables.stepCreatedSignupLinkToken = link.token
+    runContext.variables.stepCreatedSignupLinkExpiresAt = link.expiresAt.toISOString()
+    setStepApplied()
     return
   }
 
@@ -444,8 +555,11 @@ async function runMemberCreatedStepAction(
     const amount = readNumber(step.config, 'amount')
     const description = readString(step.config, 'description')
     const type = (readString(step.config, 'type') || 'INCOME').toUpperCase()
-    if (amount === null || amount <= 0 || !description) return
-    await prisma.transaction.create({
+    if (amount === null || amount <= 0 || !description) {
+      setStepError('datos de transacción incompletos')
+      return
+    }
+    const tx = await prisma.transaction.create({
       data: {
         type: type === 'EXPENSE' ? 'EXPENSE' : 'INCOME',
         amount,
@@ -454,6 +568,11 @@ async function runMemberCreatedStepAction(
         source: 'MANUAL',
       },
     })
+    runContext.variables.stepCreatedTransactionId = tx.id
+    runContext.variables.stepCreatedTransactionType = tx.type
+    runContext.variables.stepCreatedTransactionAmount = String(tx.amount)
+    runContext.variables.stepCreatedTransactionDescription = tx.description
+    setStepApplied()
     return
   }
 
@@ -463,10 +582,25 @@ async function runMemberCreatedStepAction(
     const messageTpl = readString(step.config, 'waMessage') || ''
     const phone = interpolateHttpTemplate(phoneTpl, member, runContext).replace(/[^\d+]/g, '')
     const message = interpolateHttpTemplate(messageTpl, member, runContext)
-    if (!phone || !message.trim()) return
+    runContext.variables.stepSentWhatsAppPhone = phone
+    runContext.variables.stepSentWhatsAppMessage = message
+    runContext.variables.stepSentWhatsAppSessionId = String(sessionId || '')
+    if (!phone || !message.trim()) {
+      runContext.variables.stepWhatsAppSent = 'false'
+      runContext.variables.stepWhatsAppError = 'phone/message vacío'
+      setStepError('phone/message vacío')
+      return
+    }
     try {
       await sendApiWassText({ sessionId, phone, message })
+      runContext.variables.stepWhatsAppSent = 'true'
+      runContext.variables.stepWhatsAppError = ''
+      setStepApplied()
     } catch (e) {
+      const msg = e instanceof Error ? e.message : 'error whatsapp'
+      runContext.variables.stepWhatsAppSent = 'false'
+      runContext.variables.stepWhatsAppError = msg
+      setStepError(msg)
       console.warn('[workflow] SEND_WHATSAPP fallo:', e)
     }
     return
@@ -476,12 +610,14 @@ async function runMemberCreatedStepAction(
     const url = readString(step.config, 'httpUrl')
     const method = (readString(step.config, 'httpMethod') || 'GET').toUpperCase()
     if (!url || !isAllowedHttpUrl(url)) {
+      setStepError('url no permitida')
       console.warn('[workflow] HTTP_REQUEST URL no permitida:', url)
       return
     }
     const httpDisabled =
       process.env.WORKFLOW_HTTP_DISABLED === '1' || process.env.WORKFLOW_HTTP_DISABLED === 'true'
     if (httpDisabled) {
+      setStepError('http desactivado por env')
       console.warn('[workflow] HTTP desactivado por WORKFLOW_HTTP_DISABLED')
       return
     }
@@ -508,13 +644,24 @@ async function runMemberCreatedStepAction(
     const ac = new AbortController()
     const t = setTimeout(() => ac.abort(), 15_000)
     try {
-      await fetch(url, {
+      const response = await fetch(url, {
         method,
         headers,
         body: body ?? undefined,
         signal: ac.signal,
       })
+      runContext.variables.stepHttpStatus = String(response.status)
+      runContext.variables.stepHttpOk = response.ok ? 'true' : 'false'
+      const bodyText = await response.text().catch(() => '')
+      runContext.variables.stepHttpResponse = bodyText.slice(0, 500)
+      if (!response.ok) {
+        setStepError(`http ${response.status}`)
+      } else {
+        setStepApplied()
+      }
     } catch (e) {
+      const msg = e instanceof Error ? e.message : 'http error'
+      setStepError(msg)
       console.warn('[workflow] HTTP_REQUEST fallo:', e)
     } finally {
       clearTimeout(t)
@@ -527,13 +674,7 @@ async function runWorkflowStepsForMember(
   member: WorkflowMemberPayload,
 ) {
   const runContext: WorkflowRunContext = {
-    variables: {
-      assignedTeamId: '',
-      assignedTeamName: '',
-      teamAssignedId: '',
-      teamAssignedName: '',
-      assignmentApplied: 'false',
-    },
+    variables: defaultWorkflowVariables(),
     teamNameCache: new Map<string, string>(),
   }
   const sorted = [...steps].sort((a, b) => a.position - b.position)
@@ -543,9 +684,14 @@ async function runWorkflowStepsForMember(
 
   while (i < sorted.length && guard++ < maxIter) {
     const step = sorted[i]
+    runContext.variables.stepPosition = String(step.position)
+    runContext.variables.stepLabel = readString(step.config, 'label') || ''
+    setStepActionBase(runContext, step.actionType)
 
     if (step.actionType === 'BRANCH_IF') {
-      const ok = evalBranchCondition(step.config, member)
+      const ok = evalBranchCondition(step.config, member, runContext)
+      runContext.variables.stepApplied = 'true'
+      runContext.variables.stepBranchResult = ok ? 'then' : 'else'
       const thenRef = readString(step.config, 'thenTargetKey') || readString(step.config, 'thenGoToLabel')
       const elseRef = readString(step.config, 'elseTargetKey') || readString(step.config, 'elseGoToLabel')
       const targetRef = ok ? thenRef : elseRef

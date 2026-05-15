@@ -1093,7 +1093,9 @@ function WorkflowFlowEditorInner({
                         />
                         <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.45 }}>
                           Variables disponibles: {'{memberName}'}, {'{memberPhone}'}, {'{memberEmail}'}, {'{memberId}'},
-                          {'{assignedTeamName}'}, {'{assignedTeamId}'}
+                          {'{assignedTeamName}'}, {'{assignedTeamId}'}, {'{stepActionType}'}, {'{stepApplied}'},
+                          {'{stepError}'}, {'{stepCreatedPaymentId}'}, {'{stepCreatedTransactionId}'},
+                          {'{stepCreatedSignupLinkToken}'}, {'{stepTargetStatus}'}
                         </p>
                       </>
                     )}
@@ -1124,6 +1126,10 @@ function WorkflowFlowEditorInner({
                           rows={3}
                           style={{ ...inputBase, minHeight: 72 }}
                         />
+                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.45 }}>
+                          Puedes interpolar resultados previos: {'{stepActionType}'}, {'{stepApplied}'}, {'{stepError}'},
+                          {'{stepHttpStatus}'}, {'{assignedTeamName}'}, {'{stepCreatedPaymentId}'}
+                        </p>
                       </>
                     )}
 
