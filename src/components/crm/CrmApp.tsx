@@ -3983,6 +3983,7 @@ function CrmInner() {
   const searchParams = useSearchParams()
   const { loading, error, bundle } = useCrm()
   const [showNotifications, setShowNotifications] = useState(false)
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
 
   const tabRaw = searchParams.get('tab') ?? ''
   const normalizedTab = tabRaw === 'cobros' ? 'contabilidad' : tabRaw
@@ -4021,6 +4022,7 @@ function CrmInner() {
 
     const cobros = Array.isArray(bundle?.cobros) ? bundle.cobros : []
     const eventos = Array.isArray(bundle?.eventos) ? bundle.eventos : []
+    const socios = Array.isArray(bundle?.socios) ? bundle.socios : []
     const now = new Date()
     const addDays = (d: Date, days: number) => {
       const x = new Date(d)
@@ -4029,6 +4031,12 @@ function CrmInner() {
     }
     const inThreeDays = addDays(now, 3)
     const inSevenDays = addDays(now, 7)
+    const tomorrowStart = new Date(now)
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1)
+    tomorrowStart.setHours(0, 0, 0, 0)
+    const tomorrowEnd = new Date(tomorrowStart)
+    tomorrowEnd.setHours(23, 59, 59, 999)
+    const thirtyDaysAgo = addDays(now, -30)
 
     for (const c of cobros) {
       if (c?.estado === 'Vencido') {
@@ -4040,6 +4048,23 @@ function CrmInner() {
           priority: 'high',
         })
       }
+    }
+
+    const membersWithOverdue = new Map<string, number>()
+    for (const c of cobros) {
+      if (c?.estado !== 'Vencido' || !c?.memberId) continue
+      const prev = membersWithOverdue.get(c.memberId) || 0
+      membersWithOverdue.set(c.memberId, prev + 1)
+    }
+    for (const [memberId, count] of membersWithOverdue.entries()) {
+      const socio = socios.find((s) => s.id === memberId)
+      out.push({
+        id: `member-overdue-${memberId}`,
+        title: 'Socio con mensualidad impagada',
+        description: `${socio?.nombre || 'Socio'} · ${count} cuota(s) vencida(s)`,
+        tab: 'socios',
+        priority: 'high',
+      })
     }
 
     for (const c of cobros) {
@@ -4060,6 +4085,15 @@ function CrmInner() {
     for (const e of eventos) {
       const eventDate = new Date(String(e.fecha || ''))
       if (Number.isNaN(eventDate.getTime())) continue
+      if (eventDate >= tomorrowStart && eventDate <= tomorrowEnd) {
+        out.push({
+          id: `event-tomorrow-${e.id}`,
+          title: 'Evento mañana',
+          description: `${e.titulo} · ${eventDate.toLocaleDateString('es-AR')}`,
+          tab: 'calendario',
+          priority: 'high',
+        })
+      }
       if (eventDate >= now && eventDate <= inSevenDays) {
         out.push({
           id: `event-${e.id}`,
@@ -4071,12 +4105,54 @@ function CrmInner() {
       }
     }
 
+    for (const c of cobros) {
+      if (c?.estado !== 'Pendiente') continue
+      const reg = new Date(String(c.registro || ''))
+      if (Number.isNaN(reg.getTime())) continue
+      if (reg < thirtyDaysAgo) {
+        out.push({
+          id: `stale-pending-${c.id}`,
+          title: 'Cobro pendiente antiguo',
+          description: `${c.socio} · pendiente desde ${reg.toLocaleDateString('es-AR')}`,
+          tab: 'contabilidad',
+          priority: 'normal',
+        })
+      }
+    }
+
     return out
+      .filter((n) => !dismissedNotificationIds.includes(n.id))
       .sort((a, b) => (a.priority === 'high' ? -1 : 1) - (b.priority === 'high' ? -1 : 1))
-      .slice(0, 8)
-  }, [bundle])
+      .slice(0, 20)
+  }, [bundle, dismissedNotificationIds])
 
   const unreadCount = notifications.length
+
+  useEffect(() => {
+    if (!showNotifications || notifications.length === 0) return
+    const ids = notifications.map((n) => n.id)
+    const key = 'crm_notifications_seen'
+    try {
+      const raw = localStorage.getItem(key)
+      const seen = raw ? (JSON.parse(raw) as string[]) : []
+      const merged = Array.from(new Set([...seen, ...ids]))
+      localStorage.setItem(key, JSON.stringify(merged.slice(-500)))
+      setDismissedNotificationIds((prev) => Array.from(new Set([...prev, ...ids])))
+    } catch {
+      //
+    }
+  }, [showNotifications, notifications])
+
+  useEffect(() => {
+    const key = 'crm_notifications_seen'
+    try {
+      const raw = localStorage.getItem(key)
+      const seen = raw ? (JSON.parse(raw) as string[]) : []
+      setDismissedNotificationIds(Array.isArray(seen) ? seen : [])
+    } catch {
+      setDismissedNotificationIds([])
+    }
+  }, [])
 
   useEffect(() => {
     function onDocMouseDown(e: MouseEvent) {
@@ -4151,7 +4227,23 @@ function CrmInner() {
             }}>
               <div style={{padding:'10px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <span style={{fontSize:13,fontWeight:700,color:'#111827'}}>Notificaciones</span>
-                <span style={{fontSize:12,color:'#6b7280'}}>{unreadCount}</span>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontSize:12,color:'#6b7280'}}>{unreadCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDismissedNotificationIds([])
+                      try {
+                        localStorage.removeItem('crm_notifications_seen')
+                      } catch {
+                        //
+                      }
+                    }}
+                    style={{border:'none',background:'transparent',color:'#4f46e5',cursor:'pointer',fontSize:11,fontWeight:700,padding:0}}
+                  >
+                    Ver todas
+                  </button>
+                </div>
               </div>
               {notifications.length === 0 ? (
                 <div style={{padding:'14px 12px',fontSize:13,color:'#6b7280'}}>No hay novedades ahora mismo.</div>
