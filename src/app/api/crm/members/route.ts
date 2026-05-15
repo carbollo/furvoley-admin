@@ -57,17 +57,25 @@ export async function POST(request: Request) {
     if (!Number.isNaN(d.getTime())) joined = d
   }
 
-  const member = await createMember({
-    name: combined,
-    email: body.email?.trim() || undefined,
-    phone,
-    dni: body.dni?.trim() || undefined,
-    address: body.address?.trim() || undefined,
-    sportPreference: body.sportPreference?.trim() || undefined,
-    birthDate,
-    status: 'ACTIVE',
-    ...(joined !== undefined ? { joinedAt: joined } : {}),
-  })
+  let member
+  try {
+    member = await createMember({
+      name: combined,
+      email: body.email?.trim() || undefined,
+      phone,
+      dni: body.dni?.trim() || undefined,
+      address: body.address?.trim() || undefined,
+      sportPreference: body.sportPreference?.trim() || undefined,
+      birthDate,
+      status: 'ACTIVE',
+      ...(joined !== undefined ? { joinedAt: joined } : {}),
+    })
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message || 'No se pudo crear el socio' },
+      { status: 400 },
+    )
+  }
   const hasEmail = !!member.email?.trim()
   const defaultPasswordRaw = process.env.MEMBER_DEFAULT_PASSWORD || '12345678'
   return NextResponse.json({

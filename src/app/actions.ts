@@ -24,6 +24,8 @@ export async function createMember(data: {
   status?: string
 }) {
   const { joinedAt, ...rest } = data
+  const defaultPasswordRaw = process.env.MEMBER_DEFAULT_PASSWORD || '12345678'
+  const hashedDefaultPassword = await bcrypt.hash(defaultPasswordRaw, 10)
   const member = await prisma.$transaction(async (tx) => {
     const created = await tx.member.create({
       data: {
@@ -36,25 +38,26 @@ export async function createMember(data: {
     if (email) {
       const existing = await tx.user.findUnique({ where: { email } })
       if (!existing) {
-        const defaultPasswordRaw = process.env.MEMBER_DEFAULT_PASSWORD || '12345678'
-        const hashed = await bcrypt.hash(defaultPasswordRaw, 10)
         await tx.user.create({
           data: {
             name: created.name,
             email,
-            password: hashed,
+            password: hashedDefaultPassword,
             role: 'MEMBER',
             memberId: created.id,
           },
         })
-      } else if (!existing.memberId) {
+      } else if (existing.role === 'MEMBER' && (!existing.memberId || existing.memberId === created.id)) {
         await tx.user.update({
           where: { id: existing.id },
           data: {
             role: 'MEMBER',
             memberId: created.id,
+            password: hashedDefaultPassword,
           },
         })
+      } else {
+        throw new Error('El email ya está en uso por otra cuenta. Usa otro email para el socio.')
       }
     }
     return created

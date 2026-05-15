@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { deleteMember, updateMember } from '@/app/actions'
 import { requireRoles } from '@/lib/rbac-api'
+import { prisma } from '@/lib/prisma'
+import bcrypt from 'bcryptjs'
 
 export async function PATCH(
   request: Request,
@@ -69,4 +71,66 @@ export async function DELETE(
   } catch {
     return NextResponse.json({ error: 'No se pudo eliminar el socio' }, { status: 400 })
   }
+}
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireRoles(['ADMIN'])
+  if (!auth.ok) return auth.response
+
+  const url = new URL(request.url)
+  const action = String(url.searchParams.get('action') || '').trim()
+  if (action !== 'reset-portal-access') {
+    return NextResponse.json({ error: 'Acción no soportada' }, { status: 400 })
+  }
+
+  const { id } = await context.params
+  const member = await prisma.member.findUnique({
+    where: { id },
+    select: { id: true, email: true, name: true },
+  })
+  if (!member) {
+    return NextResponse.json({ error: 'Socio no encontrado' }, { status: 404 })
+  }
+  const email = member.email?.trim().toLowerCase()
+  if (!email) {
+    return NextResponse.json({ error: 'El socio no tiene email. No se puede crear acceso.' }, { status: 400 })
+  }
+  const defaultPassword = process.env.MEMBER_DEFAULT_PASSWORD || '12345678'
+  const password = await bcrypt.hash(defaultPassword, 10)
+
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.user.findUnique({ where: { email } })
+    if (!existing) {
+      await tx.user.create({
+        data: {
+          name: member.name,
+          email,
+          role: 'MEMBER',
+          memberId: member.id,
+          password,
+        },
+      })
+      return
+    }
+
+    if (existing.role !== 'MEMBER' && existing.memberId !== member.id) {
+      throw new Error('Ese email ya está asignado a una cuenta no MEMBER.')
+    }
+    await tx.user.update({
+      where: { id: existing.id },
+      data: {
+        role: 'MEMBER',
+        memberId: member.id,
+        password,
+      },
+    })
+  })
+
+  return NextResponse.json({
+    ok: true,
+    access: { email, defaultPassword },
+  })
 }

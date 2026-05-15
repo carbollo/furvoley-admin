@@ -837,6 +837,35 @@ function Socios() {
     await reload()
   }
 
+  async function resetPortalAccess(socio: any) {
+    if (!socio?.id) return
+    const ok = await showConfirm(`¿Resetear acceso del portal para "${socio.nombre}"?`)
+    if (!ok) return
+    const r = await fetch('/api/crm/members/' + encodeURIComponent(socio.id) + '?action=reset-portal-access', {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!r.ok) {
+      try {
+        const j = await r.json()
+        showAlert(j.error || 'No se pudo resetear el acceso del portal')
+      } catch {
+        showAlert('No se pudo resetear el acceso del portal')
+      }
+      return
+    }
+    try {
+      const j = await r.json()
+      if (j?.access?.email) {
+        showAlert(`Acceso portal actualizado: ${j.access.email} / ${j.access.defaultPassword}`)
+      } else {
+        showAlert('Acceso del portal actualizado.')
+      }
+    } catch {
+      showAlert('Acceso del portal actualizado.')
+    }
+  }
+
   const editInput = {
     width: '100%',
     padding: '11px 14px',
@@ -1100,6 +1129,24 @@ function Socios() {
             <button type="button" onClick={openEditSocioModal} style={{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#374151'}}>Editar datos</button>
             <button type="button" onClick={registrarPagoSocio} style={{flex:1,padding:'10px',borderRadius:12,border:'none',background:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#fff'}}>Registrar Pago</button>
           </div>
+          <button
+            type="button"
+            onClick={() => resetPortalAccess(selected)}
+            style={{
+              width:'100%',
+              padding:'10px',
+              borderRadius:12,
+              border:'1px solid var(--border)',
+              background:'#fff',
+              cursor:'pointer',
+              fontFamily:'inherit',
+              fontSize:13,
+              fontWeight:600,
+              color:'#374151'
+            }}
+          >
+            Resetear acceso portal
+          </button>
         </div>
       )}
       {showEditSocioModal && selected && (
