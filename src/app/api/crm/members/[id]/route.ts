@@ -69,6 +69,7 @@ export async function DELETE(
     await deleteMember(id)
     return NextResponse.json({ ok: true })
   } catch (e: any) {
+    console.error('[crm/members DELETE] failed', { id, error: e })
     return NextResponse.json({ error: e?.message || 'No se pudo eliminar el socio' }, { status: 400 })
   }
 }

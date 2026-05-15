@@ -104,11 +104,26 @@ export async function deleteMember(id: string) {
         role: { in: ['MEMBER', 'PLAYER'] },
       },
     })
-
     await tx.user.updateMany({
       where: { memberId: id },
       data: { memberId: null },
     })
+
+    await tx.signupLink.updateMany({
+      where: { createdMemberId: id },
+      data: { createdMemberId: null },
+    })
+    await tx.order.updateMany({
+      where: { memberId: id },
+      data: { memberId: null },
+    })
+
+    await tx.teamMember.deleteMany({ where: { memberId: id } })
+    await tx.attendance.deleteMany({ where: { memberId: id } })
+    await tx.payment.deleteMany({ where: { memberId: id } })
+    await tx.reminderLog.deleteMany({ where: { memberId: id } })
+    await tx.subscription.deleteMany({ where: { memberId: id } })
+    await tx.invoice.deleteMany({ where: { memberId: id } })
 
     await tx.member.delete({ where: { id } })
   })
