@@ -45,7 +45,7 @@ function CrmProvider({ children }: { children: ReactNode }) {
     onResolve?: (ok: boolean) => void
   } | null>(null)
   const reload = useCallback(async () => {
-    const r = await fetch('/api/crm/data', { credentials: 'include' });
+    const r = await fetch('/api/crm/data', { credentials: 'include', cache: 'no-store' });
     if (r.status === 401) {
       window.location.href = '/login?callbackUrl=' + encodeURIComponent('/');
       throw new Error('No autorizado');

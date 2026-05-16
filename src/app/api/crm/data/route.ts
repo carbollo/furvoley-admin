@@ -411,7 +411,7 @@ export async function GET() {
     authorName: post.author?.name || post.author?.email || '',
   }))
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     user: {
       name: displayName,
       email: sessionUser.email ?? '',
@@ -463,4 +463,6 @@ export async function GET() {
     users,
     newsPosts,
   })
+  res.headers.set('Cache-Control', 'no-store')
+  return res
 }
