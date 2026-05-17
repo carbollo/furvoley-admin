@@ -602,7 +602,8 @@ function Socios() {
   const { bundle, reload, fmtMoney, showAlert } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
   if (role !== 'ADMIN') return null
-  const SOCIOS_UI = bundle?.socios ?? [];
+  const [sociosDb, setSociosDb] = useState<any[]>([])
+  const SOCIOS_UI = sociosDb
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const teamFilterId = (searchParams.get('team') ?? '').trim();
   const equipoFiltrado = teamFilterId
@@ -645,6 +646,17 @@ function Socios() {
   useEffect(() => {
     if (!selected) setShowEditSocioModal(false);
   }, [selected]);
+
+  const loadSociosDb = useCallback(async () => {
+    const r = await fetch('/api/crm/members', { credentials: 'include', cache: 'no-store' })
+    if (!r.ok) throw new Error('No se pudo cargar la lista real de socios')
+    const j = await r.json()
+    setSociosDb(Array.isArray(j?.socios) ? j.socios : [])
+  }, [])
+
+  useEffect(() => {
+    loadSociosDb().catch(() => {})
+  }, [loadSociosDb])
 
   useEffect(() => {
     function closeMenu(e: MouseEvent) {
@@ -733,6 +745,7 @@ function Socios() {
       }
       setShowInscripcion(false);
       await reload();
+      await loadSociosDb()
     } finally {
       setInscripcionBusy(false);
     }
@@ -799,6 +812,7 @@ function Socios() {
       }
       setShowEditSocioModal(false);
       const j = await reload();
+      await loadSociosDb()
       const nextSoc = j?.socios?.find((x) => x.id === savedId);
       if (nextSoc) setSelected(nextSoc);
     } finally {
@@ -835,6 +849,7 @@ function Socios() {
       setSelected(null)
     }
     await reload()
+    await loadSociosDb()
   }
 
   async function resetPortalAccess(socio: any) {
@@ -1064,7 +1079,7 @@ function Socios() {
             <button
               type="button"
               onClick={() => {
-                const socio = filtered.find((x) => x.id === menuSocioId)
+                const socio = SOCIOS_UI.find((x) => x.id === menuSocioId)
                 if (!socio) return
                 setSelected(socio)
                 setMenuSocioId(null)
@@ -1079,7 +1094,7 @@ function Socios() {
             <button
               type="button"
               onClick={() => {
-                const socio = filtered.find((x) => x.id === menuSocioId)
+                const socio = SOCIOS_UI.find((x) => x.id === menuSocioId)
                 if (!socio) return
                 eliminarSocio(socio)
               }}

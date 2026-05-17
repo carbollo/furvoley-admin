@@ -2,6 +2,89 @@ import { NextResponse } from 'next/server'
 import { createMember } from '@/app/actions'
 import { requireRoles } from '@/lib/rbac-api'
 
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 3)
+}
+
+export async function GET() {
+  const auth = await requireRoles(['ADMIN'])
+  if (!auth.ok) return auth.response
+
+  const { prisma } = await import('@/lib/prisma')
+  const membersRaw = await prisma.member.findMany({
+    orderBy: { name: 'asc' },
+    include: {
+      subscriptions: {
+        where: { status: 'ACTIVE' },
+        include: { plan: true },
+        take: 1,
+        orderBy: { createdAt: 'desc' },
+      },
+      teamRoles: {
+        include: { team: true },
+        take: 3,
+      },
+    },
+  })
+  const invoicesRaw = await prisma.invoice.findMany({
+    include: { member: true },
+    orderBy: { dueDate: 'desc' },
+    take: 300,
+  })
+
+  const socios = membersRaw.map((m) => {
+    const sub = m.subscriptions[0]
+    const team = m.teamRoles[0]?.team
+    const unpaid = invoicesRaw.find(
+      (inv) =>
+        inv.memberId === m.id &&
+        inv.status !== 'PAID' &&
+        inv.status !== 'VOID' &&
+        Math.max(0, inv.totalAmount - inv.paidAmount) > 0,
+    )
+    const hasOverdue = invoicesRaw.some(
+      (inv) =>
+        inv.memberId === m.id &&
+        inv.status === 'OVERDUE' &&
+        Math.max(0, inv.totalAmount - inv.paidAmount) > 0,
+    )
+
+    return {
+      id: m.id,
+      nombre: m.name,
+      email: m.email || '',
+      telefono: m.phone ?? '',
+      dni: m.dni ?? '',
+      domicilio: m.address ?? '',
+      deporteInscripcion: m.sportPreference ?? '',
+      equipoNombre: team?.name ?? '',
+      fechaAlta: m.joinedAt.toISOString().slice(0, 10),
+      deporte: m.sportPreference?.trim() || team?.name || 'Club',
+      categoria: team?.category ?? '—',
+      estado: hasOverdue ? 'Moroso' : m.status === 'ACTIVE' ? 'Activo' : 'Inactivo',
+      cuota: sub?.plan?.amount ?? 0,
+      vencimiento: sub?.nextInvoiceDate
+        ? sub.nextInvoiceDate.toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+      avatar: initials(m.name),
+      pendingInvoiceId: unpaid?.id ?? null,
+      pendingInvoiceAmount: unpaid ? Math.max(0, unpaid.totalAmount - unpaid.paidAmount) : null,
+      membershipPlanName: sub?.plan?.name ?? '',
+    }
+  })
+
+  const res = NextResponse.json({ socios })
+  res.headers.set('Cache-Control', 'no-store')
+  return res
+}
+
 export async function POST(request: Request) {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
