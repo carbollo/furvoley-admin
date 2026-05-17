@@ -660,8 +660,9 @@ function Socios() {
 
   useEffect(() => {
     function closeMenu(e: MouseEvent) {
-      const el = e.target as HTMLElement | null
-      if (!el?.closest?.('[data-socio-menu]')) {
+      const target = e.target
+      if (!(target instanceof Element)) return
+      if (!target.closest('[data-socio-menu]')) {
         setMenuSocioId(null)
       }
     }
@@ -832,10 +833,12 @@ function Socios() {
     setMenuSocioId(null)
     const ok = await showConfirm(`¿Eliminar el socio "${socio.nombre}"? Esta acción no se puede deshacer.`)
     if (!ok) return
+    console.log('[Socios] deleting member', socio?.id, socio?.nombre)
     const r = await fetch('/api/crm/members/' + encodeURIComponent(socio.id), {
       method: 'DELETE',
       credentials: 'include',
     })
+    console.log('[Socios] delete status', r.status)
     if (!r.ok) {
       try {
         const j = await r.json()
@@ -1087,6 +1090,7 @@ function Socios() {
           >
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 const socio = SOCIOS_UI.find((x) => x.id === menuSocioId)
                 if (!socio) return
@@ -1102,6 +1106,7 @@ function Socios() {
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 const socio = SOCIOS_UI.find((x) => x.id === menuSocioId)
                 if (!socio) return
