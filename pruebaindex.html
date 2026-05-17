@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-header {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .card-shadow {
+            box-shadow: 0px 4px 20px rgba(30, 41, 59, 0.05);
+        }
+        .electric-gradient {
+            background: linear-gradient(180deg, #2170e4 0%, #0058be 100%);
+        }
+        .canvas-bg {
+            background-color: #F8FAFC;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary": "#091426",
+                        "on-surface-variant": "#45474c",
+                        "surface-container-highest": "#e0e3e5",
+                        "secondary-container": "#2170e4",
+                        "surface-variant": "#e0e3e5",
+                        "inverse-surface": "#2d3133",
+                        "outline-variant": "#c5c6cd",
+                        "primary-fixed": "#d8e3fb",
+                        "on-error": "#ffffff",
+                        "surface-container-high": "#e6e8ea",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#f2f4f6",
+                        "tertiary-fixed": "#6ffbbe",
+                        "on-tertiary-container": "#00a472",
+                        "on-tertiary-fixed": "#002113",
+                        "error": "#ba1a1a",
+                        "surface-dim": "#d8dadc",
+                        "outline": "#75777d",
+                        "surface-container": "#eceef0",
+                        "surface-tint": "#545f73",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "inverse-on-surface": "#eff1f3",
+                        "on-secondary-fixed-variant": "#004395",
+                        "on-secondary-container": "#fefcff",
+                        "tertiary": "#00190e",
+                        "on-primary-fixed-variant": "#3c475a",
+                        "surface-bright": "#f7f9fb",
+                        "on-secondary-fixed": "#001a42",
+                        "tertiary-container": "#00301e",
+                        "on-background": "#191c1e",
+                        "on-tertiary": "#ffffff",
+                        "primary-container": "#1e293b",
+                        "on-primary-container": "#8590a6",
+                        "on-primary-fixed": "#111c2d",
+                        "inverse-primary": "#bcc7de",
+                        "surface": "#f7f9fb",
+                        "error-container": "#ffdad6",
+                        "on-primary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "primary-fixed-dim": "#bcc7de",
+                        "tertiary-fixed-dim": "#4edea3",
+                        "secondary": "#0058be",
+                        "secondary-fixed": "#d8e2ff",
+                        "on-secondary": "#ffffff",
+                        "on-surface": "#191c1e",
+                        "background": "#f7f9fb"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sm": "12px",
+                        "margin": "32px",
+                        "lg": "40px",
+                        "xs": "4px",
+                        "xl": "64px",
+                        "md": "24px",
+                        "gutter": "24px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "700"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="canvas-bg font-body-md text-on-surface">
+<!-- SideNavBar Shell -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-primary dark:bg-primary-container shadow-md flex flex-col py-md z-50">
+<div class="px-md mb-xl flex items-center gap-sm">
+<div class="w-10 h-10 rounded-lg bg-secondary-container flex items-center justify-center overflow-hidden">
+<img alt="Furvoley Logo" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAl7gHApv13RvGsnhkyZK7z_eEo6JOFqLlvzmEKg6M-rtygcSomVmoH6ISGUPu67TI9fr-9uV8oeHoN6mTYKq8r2SsTg18tmJ-b-sM3ouX9A8UxjVlDNL2EgNsBr6DMOlcDDTwWz85wGRm_b1lI5dz39R9rHhl6l-_x-hRiNKIb0_nGsP_zNaEc8oyo5MD_I94NEZsqfpQQcl4S6H1pJtf_nrELSBnrlF9VzMsb-EzS9e6bkYpyvGO7xZJPu3f4DFifvsO354f6IAc"/>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-on-primary leading-tight">Furvoley</h1>
+<p class="text-on-primary-container text-[10px] uppercase tracking-widest font-bold">Club Management</p>
+</div>
+</div>
+<nav class="flex-grow space-y-xs">
+<!-- Active: Panel -->
+<a class="flex items-center gap-sm px-md py-sm bg-secondary-container text-on-secondary-container rounded-lg mx-sm my-xs transition-transform scale-98 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-body-md">Panel</span>
+</a>
+<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg mx-sm my-xs transition-colors scale-98 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-body-md">Contactos</span>
+</a>
+<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg mx-sm my-xs transition-colors scale-98 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="handshake">handshake</span>
+<span class="font-body-md">Oportunidades</span>
+</a>
+<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg mx-sm my-xs transition-colors scale-98 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="task_alt">task_alt</span>
+<span class="font-body-md">Tareas</span>
+</a>
+<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg mx-sm my-xs transition-colors scale-98 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-body-md">Calendario</span>
+</a>
+<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg mx-sm my-xs transition-colors scale-98 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="font-body-md">Reportes</span>
+</a>
+</nav>
+<div class="mt-auto px-sm border-t border-on-primary-fixed-variant/20 pt-md">
+<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-body-md">Configuración</span>
+</a>
+</div>
+</aside>
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 right-0 left-64 h-16 bg-surface/80 glass-header shadow-sm z-40 flex justify-between items-center px-margin">
+<div class="flex items-center gap-md flex-1">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-lg focus:ring-2 focus:ring-secondary-container transition-all text-body-sm" placeholder="Buscar jugadores, facturas o tareas..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-sm">
+<button class="hover:bg-surface-variant/50 rounded-full p-2 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="notifications">notifications</span>
+</button>
+<button class="hover:bg-surface-variant/50 rounded-full p-2 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="help_outline">help_outline</span>
+</button>
+<div class="h-8 w-[1px] bg-outline-variant mx-2"></div>
+<div class="flex items-center gap-sm pl-2">
+<div class="text-right">
+<p class="font-label-md text-on-surface">Administrador</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold">Socio Premium</p>
+</div>
+<img alt="User Avatar" class="w-10 h-10 rounded-full bg-surface-container-highest border border-outline-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKlLNEED0CI6nZMKno6yvi6kZfelTgGQdWcLWeOZgLz3tJuJyokBcW0qVO8meCxevzwErR-LHUgQQ1zZYk1DQ0xCeD0uFvjYo394y4BrhmgHuaRJpLBGB58OExqwMnIiofppQQblbxjHVxjejUN92Zo9ZVnFodf0uEGFUqiY7EuKGevjrv8yqxztFSKBvyP9ezIpUkYTiScnp3xlglh7_oR0tOcv-MDzzUcS9ZTVp2Yoj52bmH_zmJ8Vjitxl7UJETAaxziH9Y6_g"/>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-64 pt-16 p-margin min-h-screen">
+<!-- Welcome Header -->
+<header class="mb-lg">
+<h2 class="font-headline-lg text-headline-lg text-primary">Buenos días, Alejandro</h2>
+<p class="text-on-surface-variant font-body-md">Aquí tienes el resumen del club para hoy, 24 de Octubre.</p>
+</header>
+<!-- KPI Cards Grid -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-lg">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30 group hover:border-secondary transition-all">
+<div class="flex justify-between items-start mb-sm">
+<div class="w-12 h-12 rounded-lg bg-primary-fixed flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+</div>
+<span class="text-on-tertiary-container bg-tertiary-fixed/30 text-[11px] font-bold px-2 py-1 rounded-full">+12%</span>
+</div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-wider">Total Contactos</p>
+<p class="font-headline-lg text-headline-lg text-primary">1,248</p>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30 group hover:border-secondary transition-all">
+<div class="flex justify-between items-start mb-sm">
+<div class="w-12 h-12 rounded-lg bg-secondary-fixed flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="handshake">handshake</span>
+</div>
+<span class="text-on-secondary-fixed-variant bg-secondary-fixed/50 text-[11px] font-bold px-2 py-1 rounded-full">€12.5k</span>
+</div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-wider">Oportunidades Activas</p>
+<p class="font-headline-lg text-headline-lg text-primary">42</p>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30 group hover:border-secondary transition-all">
+<div class="flex justify-between items-start mb-sm">
+<div class="w-12 h-12 rounded-lg bg-tertiary-fixed/40 flex items-center justify-center text-on-tertiary-container">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+</div>
+<span class="text-on-tertiary-container font-bold text-label-md">Meta: 92%</span>
+</div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-wider">Ingresos Mensuales</p>
+<p class="font-headline-lg text-headline-lg text-primary">€8,420</p>
+</div>
+<!-- Card 4 -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30 group hover:border-secondary transition-all">
+<div class="flex justify-between items-start mb-sm">
+<div class="w-12 h-12 rounded-lg bg-error-container/40 flex items-center justify-center text-error">
+<span class="material-symbols-outlined" data-icon="task_alt">task_alt</span>
+</div>
+<span class="text-error font-bold text-label-md">Crítico</span>
+</div>
+<p class="text-on-surface-variant font-label-md uppercase tracking-wider">Tareas Pendientes</p>
+<p class="font-headline-lg text-headline-lg text-primary">15</p>
+</div>
+</section>
+<!-- Middle Section: Funnel & Activity -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-gutter mb-lg">
+<!-- Sales Funnel (2/3) -->
+<div class="lg:col-span-2 bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30">
+<div class="flex justify-between items-center mb-md">
+<h3 class="font-headline-sm text-headline-sm text-primary">Embudo de Ventas</h3>
+<button class="text-secondary font-label-md hover:underline">Ver detalle completo</button>
+</div>
+<div class="grid grid-cols-4 gap-sm h-64">
+<div class="flex flex-col justify-end gap-xs h-full">
+<div class="w-full bg-secondary/10 rounded-lg flex flex-col items-center justify-center p-sm transition-all hover:bg-secondary/20 h-[100%]">
+<span class="font-bold text-headline-sm text-secondary">85</span>
+<span class="text-[10px] font-bold uppercase text-on-surface-variant">Prospecto</span>
+</div>
+</div>
+<div class="flex flex-col justify-end gap-xs h-full">
+<div class="w-full bg-secondary/30 rounded-lg flex flex-col items-center justify-center p-sm transition-all hover:bg-secondary/40 h-[75%]">
+<span class="font-bold text-headline-sm text-secondary">52</span>
+<span class="text-[10px] font-bold uppercase text-on-surface-variant">Contactado</span>
+</div>
+</div>
+<div class="flex flex-col justify-end gap-xs h-full">
+<div class="w-full bg-secondary/60 rounded-lg flex flex-col items-center justify-center p-sm transition-all hover:bg-secondary/70 h-[45%]">
+<span class="font-bold text-headline-sm text-white">28</span>
+<span class="text-[10px] font-bold uppercase text-white/80">Negociación</span>
+</div>
+</div>
+<div class="flex flex-col justify-end gap-xs h-full">
+<div class="w-full bg-secondary rounded-lg flex flex-col items-center justify-center p-sm transition-all hover:shadow-lg h-[25%]">
+<span class="font-bold text-headline-sm text-white">12</span>
+<span class="text-[10px] font-bold uppercase text-white/80">Cerrado</span>
+</div>
+</div>
+</div>
+<div class="mt-md flex gap-md items-center justify-center text-on-surface-variant text-label-md">
+<span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-full bg-secondary/10"></span> Bajo Interés</span>
+<span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-full bg-secondary/60"></span> Hot Lead</span>
+<span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-full bg-secondary"></span> Conversión</span>
+</div>
+</div>
+<!-- Recent Activity (1/3) -->
+<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30 flex flex-col">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-md">Actividad Reciente</h3>
+<div class="flex-grow space-y-md">
+<div class="flex gap-sm items-start">
+<div class="w-8 h-8 rounded-full bg-tertiary-fixed/30 flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[18px] text-on-tertiary-container" data-icon="person_add">person_add</span>
+</div>
+<div>
+<p class="text-body-sm text-on-surface"><span class="font-bold">Nuevo registro:</span> Juan Pérez</p>
+<p class="text-[10px] text-on-surface-variant">Hace 12 minutos • Portal Web</p>
+</div>
+</div>
+<div class="flex gap-sm items-start">
+<div class="w-8 h-8 rounded-full bg-secondary-fixed flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[18px] text-secondary" data-icon="receipt_long">receipt_long</span>
+</div>
+<div>
+<p class="text-body-sm text-on-surface"><span class="font-bold">Pago recibido:</span> Club Voley Madrid</p>
+<p class="text-[10px] text-on-surface-variant">Hace 1 hora • Transferencia</p>
+</div>
+</div>
+<div class="flex gap-sm items-start">
+<div class="w-8 h-8 rounded-full bg-error-container/30 flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[18px] text-error" data-icon="emergency">emergency</span>
+</div>
+<div>
+<p class="text-body-sm text-on-surface"><span class="font-bold">Lesión reportada:</span> Maria Garcia</p>
+<p class="text-[10px] text-on-surface-variant">Hace 3 horas • Entrenamiento U18</p>
+</div>
+</div>
+<div class="flex gap-sm items-start">
+<div class="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[18px] text-on-primary-fixed-variant" data-icon="mail">mail</span>
+</div>
+<div>
+<p class="text-body-sm text-on-surface"><span class="font-bold">Campaña enviada:</span> Torneo Otoño</p>
+<p class="text-[10px] text-on-surface-variant">Hace 5 horas • 450 destinatarios</p>
+</div>
+</div>
+</div>
+<button class="w-full mt-md py-2 text-on-surface-variant font-label-md border border-outline-variant/50 rounded-lg hover:bg-surface-container transition-colors">
+                    Ver todo el historial
+                </button>
+</div>
+</section>
+<!-- Bottom Section: Tasks -->
+<section class="bg-surface-container-lowest rounded-xl card-shadow border border-outline-variant/30 overflow-hidden">
+<div class="px-md py-md border-b border-outline-variant/30 flex justify-between items-center">
+<h3 class="font-headline-sm text-headline-sm text-primary">Próximas Tareas</h3>
+<div class="flex gap-sm">
+<button class="electric-gradient text-white px-md py-2 rounded-lg font-label-md flex items-center gap-xs hover:shadow-md transition-all active:scale-95">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+                        Nueva Tarea
+                    </button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="px-md py-sm font-label-md text-on-surface-variant uppercase tracking-wider">Tarea</th>
+<th class="px-md py-sm font-label-md text-on-surface-variant uppercase tracking-wider">Prioridad</th>
+<th class="px-md py-sm font-label-md text-on-surface-variant uppercase tracking-wider">Fecha Límite</th>
+<th class="px-md py-sm font-label-md text-on-surface-variant uppercase tracking-wider">Asignado</th>
+<th class="px-md py-sm font-label-md text-on-surface-variant uppercase tracking-wider"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/20">
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="px-md py-md">
+<div class="flex items-center gap-sm">
+<input class="rounded border-outline text-secondary focus:ring-secondary" type="checkbox"/>
+<span class="font-body-md text-on-surface">Revisar inscripciones Torneo Playa</span>
+</div>
+</td>
+<td class="px-md py-md">
+<span class="bg-error-container/30 text-error text-[11px] font-bold px-3 py-1 rounded-full uppercase">Alta</span>
+</td>
+<td class="px-md py-md text-on-surface-variant font-body-sm">Mañana, 10:00 AM</td>
+<td class="px-md py-md">
+<div class="flex -space-x-2">
+<img alt="Avatar" class="w-8 h-8 rounded-full border-2 border-surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFgNQgdRVCfqhr0DGBeuwNnuK_k0G22ytSPC7_Jw2G2q6aKg3e27faN06mLXsklRxNKF3o9QqkQcdvY06yftExUwQAd3xXDXmZfqGWUhMHb0GC9FoqdBCgj_AbtSRFNRs_W0AGLIPiyDy4Hdkz1D78GJG7h0znPe7u2mYtcnOFL6pad7hPbsnnjGhAfB6OGa96Pog6MHQqkm-OoZM25QGvHn_k_uSGALyQ8yiI4ebYCqugkjmgNpJMN9doTosFEyWkdINwdZE2g2g"/>
+<img alt="Avatar" class="w-8 h-8 rounded-full border-2 border-surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuClUGxkh-CQ9notn2Q86JKusnGhOHoCXxs6plU6ZlwLZv_ubRkNCCzcoAvtqfheOh9x88fQo5K1K3uhnotWq6UQIvCAPAg1uIPqxsByJ1jRQW1mBHiL4wkNs_iRLHZ1JXj5A5X3UKpzrYF1Zol49OmrBBBjftkwCxrP560Nz8nTLgJSl17DSwYrYs4-u0qGLyZV-3-bscD--gqAGMNajXZ0-yas6rz4gOldj9ZHewwxdvEC2XlOn_1n2-ijFmY5kHyVXS2TjEpKDpo"/>
+</div>
+</td>
+<td class="px-md py-md text-right">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="px-md py-md">
+<div class="flex items-center gap-sm">
+<input class="rounded border-outline text-secondary focus:ring-secondary" type="checkbox"/>
+<span class="font-body-md text-on-surface">Enviar facturas cuotas Octubre</span>
+</div>
+</td>
+<td class="px-md py-md">
+<span class="bg-tertiary-fixed/30 text-on-tertiary-container text-[11px] font-bold px-3 py-1 rounded-full uppercase">Media</span>
+</td>
+<td class="px-md py-md text-on-surface-variant font-body-sm">26 Oct, 2023</td>
+<td class="px-md py-md">
+<img alt="Avatar" class="w-8 h-8 rounded-full border-2 border-surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAp1Tq2Zpjxt4Whig2q9M4sfsjzHU_560_mAjlXs6RdJlMLEIAGcHF-a9aTtDRlr9HXVLjjuw8c5qgRzqv9vQfPdOiPZTxXHMDLKNpw4y4yTKzJjN3_BqLFfwCcMXwKDUsHBfWQ1ZnQUvyFViWd9Lx6VHPRE231hCDoZ9Ii7v_zqP7XEaD2KnSGU1PEAQgvIDN97lU-38xBdGW_1bKqnWViy8SJytBGrAntAPVdC-GkR3uKQUgco1itx0aOvKy4J2CtHiS89YWuLAE"/>
+</td>
+<td class="px-md py-md text-right">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="px-md py-md">
+<div class="flex items-center gap-sm">
+<input class="rounded border-outline text-secondary focus:ring-secondary" type="checkbox"/>
+<span class="font-body-md text-on-surface">Reunión patrocinio Red Bull</span>
+</div>
+</td>
+<td class="px-md py-md">
+<span class="bg-secondary-fixed/50 text-on-secondary-fixed-variant text-[11px] font-bold px-3 py-1 rounded-full uppercase">Baja</span>
+</td>
+<td class="px-md py-md text-on-surface-variant font-body-sm">28 Oct, 16:30 PM</td>
+<td class="px-md py-md">
+<img alt="Avatar" class="w-8 h-8 rounded-full border-2 border-surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCljN5MQiALPAjyQN0y6RsSkIIRLOMHIT-GYmL5ceKQRdx6e8DsFULTb6R7QhjSRyYbUA--4cTAHhQKlGmFy_Bj3c3d371fnG43_Zzi4it5MkpMIwgC0tZ9trrOCkIddZHGL47LFOYvtXhSh7boLmhku2jxMaU71l6_TbQOl8rE8ytFS4mwrJ6eZcQa_l452aupQoDYhv8rGvQLcTd7wUcYSZj0tB8hHHYjy1o8B8PMt53GpP9I9xLWV5ibxRTk7NiczkH4UkrGU3E"/>
+</td>
+<td class="px-md py-md text-right">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="more_vert">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-md py-sm bg-surface-container-low/30 text-center">
+<button class="text-label-md text-on-surface-variant hover:text-secondary transition-colors uppercase font-bold">Ver todas las tareas (15)</button>
+</div>
+</section>
+<!-- Dynamic Grid Visualizer (Asymmetric Layout Example) -->
+<section class="mt-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+<div class="lg:col-span-2 relative h-48 rounded-2xl overflow-hidden shadow-lg group">
+<div class="absolute inset-0 electric-gradient opacity-90 transition-transform group-hover:scale-105 duration-700"></div>
+<div class="absolute inset-0 flex flex-col justify-center px-xl text-white z-10">
+<h4 class="font-headline-md text-headline-md mb-xs">Nuevas Equipaciones 2024</h4>
+<p class="opacity-80 max-w-md">El pedido de las nuevas camisetas para la sección juvenil ya ha sido procesado por el proveedor oficial.</p>
+<div class="mt-md flex gap-sm">
+<button class="bg-white text-secondary px-md py-2 rounded-lg font-bold text-label-md hover:bg-surface transition-all">Ver Pedido</button>
+</div>
+</div>
+<!-- Abstract Texture Overlay -->
+<div class="absolute top-0 right-0 w-1/2 h-full bg-no-repeat bg-right bg-contain opacity-20 pointer-events-none" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuB3f4084YfJABr2omDU9iHffWYeyTCFAuOtJWzeM4-SskBVPfHHPfdq_MRLcSfDpw3kec21qaSO_aeem7LS-UCCJiHFz2E3HD6q0tNTLzIFxgBTf-XOy242-pSLgPCFsGsxHkAeiSGrNs0LWBOGf3sQ-3Znu0-oQKIkayqfsp4AZNjdHaXasS_2zd9HURSaj9fJKThOG5-dqH-mNiG6pkdIIWuFzvZhBX67KGzAvO7haGJAwaO13BXq_Nw0a4-CeFSYY6MGVfhtwG8');"></div>
+</div>
+<div class="bg-tertiary-fixed h-48 rounded-2xl shadow-lg flex flex-col items-center justify-center text-on-tertiary-container p-md text-center">
+<span class="material-symbols-outlined text-[48px] mb-sm" data-icon="workspace_premium">workspace_premium</span>
+<p class="font-headline-sm text-headline-sm">Club Elite</p>
+<p class="text-body-sm opacity-80">Cumples con el 95% de los requisitos de calidad de la federación.</p>
+</div>
+</section>
+</main>
+<!-- Floating Action Button Contextual (Only on Home/Dash) -->
+<button class="fixed bottom-margin right-margin w-14 h-14 rounded-full bg-secondary text-white shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-90 z-50">
+<span class="material-symbols-outlined text-[28px]" data-icon="chat">chat</span>
+</button>
+<script>
+        // Micro-interactions for hover effects and dynamic UI elements
+        document.querySelectorAll('nav a').forEach(link => {
+            link.addEventListener('mouseenter', () => {
+                if (!link.classList.contains('bg-secondary-container')) {
+                    link.style.transform = 'translateX(4px)';
+                }
+            });
+            link.addEventListener('mouseleave', () => {
+                link.style.transform = 'translateX(0)';
+            });
+        });
+
+        // Simple dashboard notification animation mock
+        setTimeout(() => {
+            const notifyBtn = document.querySelector('[data-icon="notifications"]');
+            if (notifyBtn) {
+                notifyBtn.parentElement.classList.add('animate-pulse');
+                setTimeout(() => notifyBtn.parentElement.classList.remove('animate-pulse'), 2000);
+            }
+        }, 3000);
+    </script>
+</body></html>
