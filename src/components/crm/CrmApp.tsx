@@ -2459,8 +2459,9 @@ function Contabilidad({ setActive }) {
   if (!(role === 'ADMIN' || role === 'TREASURER')) return null
   const COBROS_UI = bundle?.cobros ?? [];
   const SOCIOS_UI = bundle?.socios ?? [];
-  const [contaTab, setContaTab] = useState('DIARIO');
+  const [contaTab, setContaTab] = useState('COBROS');
   const [tab, setTab] = useState('Todos');
+  const [tesoreriaRange, setTesoreriaRange] = useState<'semestre' | 'anual'>('semestre');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [menuCobroId, setMenuCobroId] = useState<string | null>(null);
@@ -2516,7 +2517,7 @@ function Contabilidad({ setActive }) {
     applyWithholdOnExpense: false,
   })
   const tabs = ['Todos','Pendiente','Pagado','Vencido'];
-  const contaTabs = ['DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES'];
+  const contaTabs = ['COBROS', 'DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES'];
   const cuentasTesoreria = ledgerData.accounts.filter((a) => String(a.code || '').startsWith('57') || String(a.code || '').startsWith('56'));
   const cuentasIngreso = ledgerData.accounts.filter((a) => a.nature === 'INCOME');
   const cuentasGasto = ledgerData.accounts.filter((a) => a.nature === 'EXPENSE');
@@ -2929,52 +2930,313 @@ function Contabilidad({ setActive }) {
     }
   }
 
+  // === Datos derivados para el resumen Stitch ===
+  const ingresosMesMov = movimientosEconomicos
+    .filter((m) => m.type === 'INCOME')
+    .reduce((a, m) => a + Number(m.amount || 0), 0)
+  const gastosMesMov = movimientosEconomicos
+    .filter((m) => m.type === 'EXPENSE')
+    .reduce((a, m) => a + Number(m.amount || 0), 0)
+  const balanceTotal = (bundle?.kpis?.ingresosMes ?? 0) + ingresosMesMov - gastosMesMov
+  const ingresosMesTotal = (bundle?.kpis?.ingresosMes ?? 0) + ingresosMesMov
+  const numFacturasGasto = movimientosEconomicos.filter((m) => m.type === 'EXPENSE').length
+  const sociosPendientes = new Set(
+    cobrosEnRango.filter((c) => c.estado === 'Pendiente' || c.estado === 'Vencido').map((c) => c.socio)
+  ).size
+  const ingresosMesArr: number[] = bundle?.ingresosMensual ?? Array(12).fill(0)
+  const semestreData = ingresosMesArr.slice(-6)
+  const tesoreriaData = tesoreriaRange === 'semestre' ? semestreData : ingresosMesArr
+  const tesoreriaLabels = tesoreriaRange === 'semestre'
+    ? Array.from({ length: 6 }, (_, i) => {
+        const today = new Date()
+        const d = new Date(today.getFullYear(), today.getMonth() - (5 - i), 1)
+        return d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '')
+      })
+    : ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+  // Distribución de gastos: agrupar por cuenta categoría
+  const expenseByCategory: Record<string, number> = {}
+  for (const m of movimientosEconomicos) {
+    if (m.type !== 'EXPENSE') continue
+    const key = m.categoryAccountName || m.categoryAccountCode || 'Sin categoría'
+    expenseByCategory[key] = (expenseByCategory[key] || 0) + Number(m.amount || 0)
+  }
+  const expenseDistribution = Object.entries(expenseByCategory)
+    .map(([label, val]) => ({ label, value: val }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 4)
+  const expenseTotal = expenseDistribution.reduce((a, x) => a + x.value, 0) || 1
+  const categoryColors = ['var(--accent)', 'var(--accent-soft)', 'var(--amber)', 'var(--green)']
+
   return (
-    <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Contabilidad</h1>
-          <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>Gestión contable PGC y cobros</p>
-        </div>
-        <div style={{display:'flex',gap:10}}>
-          <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'#374151'}}>
-            <Icon name="export" size={15}/>Exportar datos
-          </button>
-          <button type="button" onClick={() => openMovimientoModal('INCOME')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid rgba(16,185,129,0.35)',background:'#ecfdf5',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700,color:'#047857'}}>
-            <Icon name="plus" size={15}/>Crear ingreso
-          </button>
-          <button type="button" onClick={() => openMovimientoModal('EXPENSE')} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid rgba(239,68,68,0.25)',background:'#fef2f2',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:700,color:'#b91c1c'}}>
-            <Icon name="plus" size={15}/>Crear gasto
-          </button>
-        </div>
-      </div>
-      {/* Summary cards */}
-      <div style={{display:'flex',gap:12}}>
-        {[
-            {label:'Total facturado',value: fmtMoney(totales.total),color:'#3B82F6',bg:'#EFF6FF'},
-            {label:'Cobrado',value: fmtMoney(totales.pagado),color:'var(--green)',bg:'var(--green-light)'},
-            {label:'Pendiente',value: fmtMoney(totales.pendiente),color:'var(--amber)',bg:'var(--amber-light)'},
-            {label:'Deuda vencida',value: fmtMoney(totales.vencido),color:'var(--red)',bg:'var(--red-light)'},
-        ].map(({label,value,color,bg}) => (
-          <div key={label} style={{flex:1,background:bg,borderRadius:14,padding:'16px 20px',display:'flex',flexDirection:'column',gap:4}}>
-            <div style={{fontSize:12,color,fontWeight:600,opacity:0.8}}>{label}</div>
-            <div style={{fontSize:22,fontWeight:800,color,letterSpacing:'-0.5px'}}>{value}</div>
+    <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
+      <div style={{maxWidth:1440,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:32}}>
+        {/* Header con título accent + CTAs */}
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
+          <div>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Contabilidad</h1>
+            <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>Gestión contable PGC y cobros</p>
           </div>
-        ))}
-      </div>
-      {/* Tabs */}
-      <div style={{display:'flex',gap:2,background:'#fff',border:'1px solid var(--border)',borderRadius:12,padding:4,width:'fit-content'}}>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+            <button
+              type="button"
+              onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }}
+              style={{
+                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+                borderRadius:8,border:'1px solid var(--border-strong)',background:'var(--surface-card)',
+                cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'var(--text-primary)',
+                transition:'all 0.15s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-low)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)' }}
+            >
+              <Icon name="export" size={15}/>Exportar datos
+            </button>
+            <button
+              type="button"
+              onClick={() => openMovimientoModal('INCOME')}
+              style={{
+                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+                borderRadius:8,border:'1px solid rgba(5,150,105,0.35)',background:'var(--green-light)',
+                cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,color:'var(--green)',
+                transition:'all 0.15s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#d1fae5' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--green-light)' }}
+            >
+              <Icon name="plus" size={15}/>Crear ingreso
+            </button>
+            <button
+              type="button"
+              onClick={() => openMovimientoModal('EXPENSE')}
+              style={{
+                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+                borderRadius:8,border:'1px solid rgba(185,28,28,0.25)',background:'var(--red-light)',
+                cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,color:'var(--red)',
+                transition:'all 0.15s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--red-light)' }}
+            >
+              <Icon name="plus" size={15}/>Crear gasto
+            </button>
+          </div>
+        </div>
+
+        {/* KPI grid Stitch */}
+        <div style={{
+          display:'grid',
+          gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',
+          gap:24
+        }}>
+          <KPICard
+            label="Balance total"
+            value={fmtMoney(balanceTotal)}
+            sub="Ingresos − gastos del mes"
+            icon="billing"
+            color="var(--accent-soft)"
+            badge={balanceTotal >= 0 ? { kind:'success', text:'En positivo', icon:'trend_up' } : { kind:'danger', text:'En negativo', icon:'trend_down' }}
+          />
+          <KPICard
+            label="Ingresos (mes)"
+            value={fmtMoney(ingresosMesTotal)}
+            sub="Cuotas + cobros + ingresos manuales"
+            icon="reports"
+            color="var(--green)"
+            badge={ingresosMesTotal > 0 ? { kind:'success', text:'En curso', icon:'trend_up' } : null}
+          />
+          <KPICard
+            label="Gastos (mes)"
+            value={fmtMoney(gastosMesMov)}
+            sub={`${numFacturasGasto} ${numFacturasGasto === 1 ? 'factura' : 'facturas'}`}
+            icon="billing"
+            color="var(--red)"
+            badge={gastosMesMov > 0 ? { kind:'danger', text:'Salida' } : null}
+          />
+          {/* Card destacada accent: pendiente de cobro */}
+          <div style={{
+            background:'linear-gradient(135deg, var(--accent), #003ea8)',
+            color:'#fff',borderRadius:12,padding:24,
+            boxShadow:'0 10px 24px rgba(0,74,198,0.18)',
+            display:'flex',flexDirection:'column',gap:16,flex:'1 1 240px',minWidth:0,
+            border:'1px solid rgba(255,255,255,0.08)'
+          }}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+              <div style={{
+                width:40,height:40,borderRadius:10,
+                background:'rgba(255,255,255,0.18)',color:'#fff',
+                display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0
+              }}>
+                <Icon name="billing" size={20}/>
+              </div>
+              <button
+                type="button"
+                onClick={() => setContaTab('COBROS')}
+                style={{
+                  display:'inline-flex',alignItems:'center',gap:4,
+                  padding:'4px 10px',borderRadius:999,border:'none',cursor:'pointer',
+                  background:'rgba(255,255,255,0.18)',color:'#fff',
+                  fontSize:11,fontWeight:700,letterSpacing:'0.02em',fontFamily:'inherit'
+                }}
+              >Ver lista →</button>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              <span style={{
+                fontSize:11,color:'rgba(255,255,255,0.7)',fontWeight:700,
+                letterSpacing:'0.06em',textTransform:'uppercase'
+              }}>Pendiente de cobro</span>
+              <span style={{fontSize:30,fontWeight:700,letterSpacing:'-0.02em',color:'#fff',lineHeight:1.1}}>{fmtMoney(totales.pendiente + totales.vencido)}</span>
+              <span style={{fontSize:12,color:'rgba(255,255,255,0.75)',fontWeight:500}}>
+                {sociosPendientes} {sociosPendientes === 1 ? 'socio atrasado' : 'socios atrasados'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bento: Evolución de Tesorería + Acciones Rápidas/Distribución */}
+        <div style={{
+          display:'grid',
+          gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',
+          gap:24
+        }}>
+          {/* Evolución de Tesorería */}
+          <div style={{
+            background:'var(--surface-card)',borderRadius:12,padding:32,
+            boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
+            display:'flex',flexDirection:'column'
+          }}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:24,gap:12,flexWrap:'wrap'}}>
+              <div>
+                <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Evolución de Tesorería</div>
+                <div style={{fontSize:14,color:'var(--text-secondary)',marginTop:4}}>Comparativa {tesoreriaRange === 'semestre' ? 'semestral' : 'anual'} de flujo de caja</div>
+              </div>
+              <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:999,padding:4}}>
+                <button
+                  type="button"
+                  onClick={() => setTesoreriaRange('semestre')}
+                  style={{
+                    padding:'6px 14px',fontSize:12,fontWeight:700,borderRadius:999,border:'none',cursor:'pointer',
+                    background: tesoreriaRange === 'semestre' ? 'var(--surface-card)' : 'transparent',
+                    color: tesoreriaRange === 'semestre' ? 'var(--accent)' : 'var(--text-muted)',
+                    boxShadow: tesoreriaRange === 'semestre' ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
+                    fontFamily:'inherit'
+                  }}
+                >Semestre</button>
+                <button
+                  type="button"
+                  onClick={() => setTesoreriaRange('anual')}
+                  style={{
+                    padding:'6px 14px',fontSize:12,fontWeight:700,borderRadius:999,border:'none',cursor:'pointer',
+                    background: tesoreriaRange === 'anual' ? 'var(--surface-card)' : 'transparent',
+                    color: tesoreriaRange === 'anual' ? 'var(--accent)' : 'var(--text-muted)',
+                    boxShadow: tesoreriaRange === 'anual' ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
+                    fontFamily:'inherit'
+                  }}
+                >Anual</button>
+              </div>
+            </div>
+            <BarChart data={tesoreriaData} labels={tesoreriaLabels} color="var(--accent-soft)" height={220}/>
+          </div>
+
+          {/* Acciones rápidas + Distribución de gastos */}
+          <div style={{display:'flex',flexDirection:'column',gap:24}}>
+            <div style={{
+              background:'var(--surface-card)',borderRadius:12,padding:24,
+              boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
+            }}>
+              <div style={{fontWeight:600,fontSize:16,color:'var(--text-primary)',letterSpacing:'-0.01em',marginBottom:16}}>Acciones Rápidas</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                <button
+                  type="button"
+                  onClick={openNuevoCobroModal}
+                  style={{
+                    display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,
+                    padding:'18px 8px',borderRadius:12,border:'1px solid var(--border)',
+                    background:'var(--accent-pill)',cursor:'pointer',color:'var(--accent)',
+                    fontFamily:'inherit',fontSize:13,fontWeight:600,transition:'all 0.15s'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
+                >
+                  <div style={{
+                    width:36,height:36,borderRadius:'50%',background:'var(--accent)',color:'#fff',
+                    display:'flex',alignItems:'center',justifyContent:'center'
+                  }}>
+                    <Icon name="plus" size={18}/>
+                  </div>
+                  <span style={{textAlign:'center',lineHeight:1.2}}>Nueva Factura</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openMovimientoModal('EXPENSE')}
+                  style={{
+                    display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,
+                    padding:'18px 8px',borderRadius:12,border:'1px solid var(--border)',
+                    background:'var(--red-light)',cursor:'pointer',color:'var(--red)',
+                    fontFamily:'inherit',fontSize:13,fontWeight:600,transition:'all 0.15s'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--red)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
+                >
+                  <div style={{
+                    width:36,height:36,borderRadius:'50%',background:'var(--red)',color:'#fff',
+                    display:'flex',alignItems:'center',justifyContent:'center'
+                  }}>
+                    <Icon name="billing" size={18}/>
+                  </div>
+                  <span style={{textAlign:'center',lineHeight:1.2}}>Registrar Gasto</span>
+                </button>
+              </div>
+            </div>
+
+            <div style={{
+              background:'var(--surface-card)',borderRadius:12,padding:24,
+              boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
+            }}>
+              <div style={{fontWeight:600,fontSize:16,color:'var(--text-primary)',letterSpacing:'-0.01em',marginBottom:16}}>Distribución de Gastos</div>
+              {expenseDistribution.length === 0 ? (
+                <div style={{fontSize:13,color:'var(--text-muted)',padding:'12px 0'}}>Aún no hay gastos registrados.</div>
+              ) : (
+                <div style={{display:'flex',flexDirection:'column',gap:14}}>
+                  {expenseDistribution.map((d, i) => {
+                    const pct = Math.round((d.value / expenseTotal) * 100)
+                    const color = categoryColors[i % categoryColors.length]
+                    return (
+                      <div key={d.label}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                          <span style={{fontSize:13,color:'var(--text-primary)',fontWeight:500}}>{d.label}</span>
+                          <span style={{fontSize:13,fontWeight:700,color:'var(--text-secondary)'}}>{pct}%</span>
+                        </div>
+                        <div style={{height:8,background:'var(--surface-low)',borderRadius:999,overflow:'hidden'}}>
+                          <div style={{
+                            width:`${Math.max(pct, 2)}%`,height:'100%',
+                            background:color,borderRadius:999,transition:'width 0.4s'
+                          }}/>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      {/* Tabs PGC + Cobros */}
+      <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:999,padding:4,width:'fit-content'}}>
         {contaTabs.map((t) => (
-          <button key={t} onClick={() => setContaTab(t)} style={{
-            padding:'8px 14px',borderRadius:9,border:'none',cursor:'pointer',
-            background:contaTab===t?'#111827':'transparent',
-            color:contaTab===t?'#fff':'#6b7280',fontFamily:'inherit',fontSize:12,fontWeight:600
+          <button key={t} type="button" onClick={() => setContaTab(t)} style={{
+            padding:'8px 18px',borderRadius:999,border:'none',cursor:'pointer',
+            background:contaTab===t?'var(--surface-card)':'transparent',
+            color:contaTab===t?'var(--accent)':'var(--text-muted)',
+            fontFamily:'inherit',fontSize:12,fontWeight:700,letterSpacing:'0.02em',
+            boxShadow: contaTab===t ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
+            transition:'all 0.15s'
           }}>{t}</button>
         ))}
       </div>
 
-      <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px',display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
-        <div style={{fontSize:12,fontWeight:700,color:'#475569',minWidth:130}}>Configuración impuestos</div>
+      <div style={{background:'var(--surface-card)',border:'1px solid var(--border)',borderRadius:12,padding:'16px 20px',display:'flex',gap:14,alignItems:'center',flexWrap:'wrap',boxShadow:'var(--card-shadow)'}}>
+        <div style={{fontSize:12,fontWeight:700,color:'var(--text-primary)',minWidth:130,letterSpacing:'0.02em'}}>Configuración impuestos</div>
         <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
           IVA ingreso %
           <input type="number" min={0} step="0.01" value={taxConfigForm.vatRateIncome} onChange={(e)=>setTaxConfigForm((s)=>({...s,vatRateIncome:e.target.value}))} style={{width:78,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,fontFamily:'inherit'}} />
@@ -3015,12 +3277,13 @@ function Contabilidad({ setActive }) {
           <input type="checkbox" checked={taxConfigForm.applyWithholdOnExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyWithholdOnExpense:e.target.checked}))}/>
           Retención en gastos
         </label>
-        <button type="button" disabled={taxBusy} onClick={guardarConfigImpuestos} style={{marginLeft:'auto',padding:'8px 12px',borderRadius:10,border:'1px solid var(--border)',background:'#111827',color:'#fff',fontFamily:'inherit',fontSize:12,fontWeight:700,cursor:taxBusy?'not-allowed':'pointer',opacity:taxBusy?0.7:1}}>
+        <button type="button" disabled={taxBusy} onClick={guardarConfigImpuestos} style={{marginLeft:'auto',padding:'9px 16px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:12,fontWeight:700,cursor:taxBusy?'not-allowed':'pointer',opacity:taxBusy?0.7:1,letterSpacing:'0.02em'}}>
           {taxBusy ? 'Guardando…' : 'Guardar impuestos'}
         </button>
       </div>
 
-      <div style={{background:'#fff',borderRadius:16,padding:16,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)'}}>
+      {contaTab !== 'COBROS' && (
+      <div style={{background:'var(--surface-card)',borderRadius:12,padding:24,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)'}}>
         {ledgerBusy ? (
           <div style={{fontSize:13,color:'#64748b'}}>Cargando datos contables…</div>
         ) : contaTab === 'DIARIO' ? (
@@ -3117,82 +3380,87 @@ function Contabilidad({ setActive }) {
           </div>
         )}
       </div>
+      )}
 
+      {/* Table card: Facturación reciente */}
       {contaTab === 'COBROS' && (
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
-        <div style={{display:'flex',gap:2,background:'#fff',border:'1px solid var(--border)',borderRadius:12,padding:4,width:'fit-content'}}>
+      <div style={{background:'var(--surface-card)',borderRadius:12,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',overflow:'hidden'}}>
+        <div style={{padding:'24px 32px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center',gap:16,flexWrap:'wrap'}}>
+          <div>
+            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Facturación Reciente</div>
+            <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>Historial de pagos y cobros</div>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+            <input
+              type="date"
+              value={fechaDesde}
+              onChange={(e) => setFechaDesde(e.target.value)}
+              style={{padding:'8px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'var(--text-primary)',background:'var(--surface-card)'}}
+            />
+            <span style={{fontSize:12,color:'var(--text-muted)'}}>—</span>
+            <input
+              type="date"
+              value={fechaHasta}
+              onChange={(e) => setFechaHasta(e.target.value)}
+              style={{padding:'8px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'var(--text-primary)',background:'var(--surface-card)'}}
+            />
+            <button
+              type="button"
+              onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+              style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'var(--text-secondary)'}}
+            >Limpiar</button>
+          </div>
+        </div>
+        <div style={{padding:'14px 32px 0',display:'flex',gap:4,background:'var(--surface-card)'}}>
           {tabs.map(t => (
-            <button key={t} onClick={()=>setTab(t)} style={{
-              padding:'8px 20px',borderRadius:9,border:'none',cursor:'pointer',
-              background:tab===t?'#111827':'transparent',
-              color:tab===t?'#fff':'#6b7280',
-              fontFamily:'inherit',fontSize:13,fontWeight:tab===t?600:400
-            }}>{t} {t!=='Todos' && <span style={{opacity:0.7}}>({cobrosEnRango.filter(c=>c.estado===t).length})</span>}</button>
+            <button key={t} type="button" onClick={()=>setTab(t)} style={{
+              padding:'8px 16px',borderRadius:8,border:'none',cursor:'pointer',
+              background:tab===t?'var(--accent-pill)':'transparent',
+              color:tab===t?'var(--accent)':'var(--text-muted)',
+              fontFamily:'inherit',fontSize:12,fontWeight:700,letterSpacing:'0.02em'
+            }}>{t}{t!=='Todos' && ` (${cobrosEnRango.filter(c=>c.estado===t).length})`}</button>
           ))}
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <span style={{fontSize:12,fontWeight:700,color:'#64748b'}}>Rango (registro)</span>
-          <input
-            type="date"
-            value={fechaDesde}
-            onChange={(e) => setFechaDesde(e.target.value)}
-            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
-          />
-          <span style={{fontSize:12,color:'#9ca3af'}}>—</span>
-          <input
-            type="date"
-            value={fechaHasta}
-            onChange={(e) => setFechaHasta(e.target.value)}
-            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
-          />
-          <button
-            type="button"
-            onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
-            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#64748b'}}
-          >
-            Limpiar
-          </button>
-        </div>
-      </div>
-      )}
-      {/* Table */}
-      {contaTab === 'COBROS' && (
-      <div style={{background:'#fff',borderRadius:16,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',overflow:'hidden'}}>
-        <table style={{width:'100%',borderCollapse:'collapse'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',marginTop:8}}>
           <thead>
-            <tr style={{borderBottom:'1px solid var(--border)'}}>
-              {['Socio','Concepto','Deporte','Importe','Vencimiento','Estado','Acciones'].map(h => (
-                <th key={h} style={{padding:'14px 16px',textAlign:'left',fontSize:12,fontWeight:600,color:'#6b7280',textTransform:'uppercase',letterSpacing:0.5}}>{h}</th>
+            <tr style={{background:'var(--surface-low)'}}>
+              {['Socio','Concepto','Deporte','Importe','Vencimiento','Estado',''].map(h => (
+                <th key={h} style={{padding:'12px 32px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
+            {filtered.length === 0 && (
+              <tr><td colSpan={7} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>Sin facturas en el rango seleccionado.</td></tr>
+            )}
             {filtered.map((c, i) => (
-              <tr key={c.id} style={{borderBottom:'1px solid var(--border)',background:i%2===0?'#fff':'#fafafa'}}>
-                <td style={{padding:'14px 16px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <Avatar initials={c.socio.split(' ').map(w=>w[0]).join('').slice(0,2)} color="#3B82F6" size={32}/>
-                    <span style={{fontWeight:600,fontSize:14,color:'#111827'}}>{c.socio}</span>
+              <tr key={c.id} style={{borderTop:'1px solid var(--border)'}}>
+                <td style={{padding:'16px 32px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:12}}>
+                    <Avatar initials={c.socio.split(' ').map(w=>w[0]).join('').slice(0,2)} color="var(--accent-soft)" size={36}/>
+                    <span style={{fontWeight:600,fontSize:14,color:'var(--text-primary)'}}>{c.socio}</span>
                   </div>
                 </td>
-                <td style={{padding:'14px 16px',fontSize:14,color:'#374151'}}>{c.concepto}</td>
-                <td style={{padding:'14px 16px',fontSize:14,color:'#374151'}}>{c.deporte}</td>
-                <td style={{padding:'14px 16px'}}>
-                  <div style={{fontSize:14,fontWeight:800,color:'#111827'}}>{fmtMoney(c.monto)}</div>
-                  <div style={{fontSize:11,color:'#64748b',marginTop:3}}>
+                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{c.concepto}</td>
+                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{c.deporte}</td>
+                <td style={{padding:'16px 32px'}}>
+                  <div style={{fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(c.monto)}</div>
+                  <div style={{fontSize:11,color:'var(--text-muted)',marginTop:3}}>
                     Base {fmtMoney(Number(c.subtotal || 0))} · IVA {fmtMoney(Number(c.iva || 0))} · Ret. {fmtMoney(Number(c.retencion || 0))}
                   </div>
                 </td>
-                <td style={{padding:'14px 16px',fontSize:14,color:c.estado==='Vencido'?'var(--red)':'#374151',fontWeight:c.estado==='Vencido'?600:400}}>
-                  {new Date(c.vencimiento).toLocaleDateString('es-AR')}
+                <td style={{padding:'16px 32px',fontSize:13,color:c.estado==='Vencido'?'var(--red)':'var(--text-secondary)',fontWeight:c.estado==='Vencido'?600:400}}>
+                  {new Date(c.vencimiento).toLocaleDateString('es-ES')}
                 </td>
-                <td style={{padding:'14px 16px'}}><Badge status={c.estado}/></td>
-                <td style={{padding:'14px 16px'}}>
+                <td style={{padding:'16px 32px'}}><Badge status={c.estado}/></td>
+                <td style={{padding:'16px 32px'}}>
                   <div style={{display:'flex',justifyContent:'flex-end'}} data-cobro-menu>
                     <button
                       type="button"
                       onClick={(e) => toggleMenuCobro(e, c.id)}
-                      style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}}
+                      style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--text-muted)',transition:'all 0.15s'}}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
                     >
                       <Icon name="dots" size={14}/>
                     </button>
@@ -3601,6 +3869,7 @@ function Contabilidad({ setActive }) {
           </form>
         </div>
       )}
+      </div>
     </div>
   );
 }
