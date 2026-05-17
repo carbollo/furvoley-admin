@@ -342,23 +342,15 @@ export function WorkflowsSection({
   }
 
   return (
-    <div
-      style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '32px 36px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 24,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)' }}>
+      <div style={{ maxWidth: 1440, margin: '0 auto', padding: '32px 40px 56px', display: 'flex', flexDirection: 'column', gap: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 24 }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.1 }}>
             Flujos de trabajo
           </h1>
-          <p style={{ color: '#6b7280', fontSize: 14, marginTop: 4 }}>
-            Flujos activos: {activos} / {wfs.length || 0} · Se ejecutan al dar de alta un socio (inscripción / alta).
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 6, margin: 0 }}>
+            {activos} de {wfs.length || 0} activos · Se ejecutan al alta de socios
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -373,112 +365,87 @@ export function WorkflowsSection({
             type="button"
             onClick={() => exportWorkflows()}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 18px',
-              borderRadius: 12,
-              border: '1px solid var(--border)',
-              background: '#fff',
-              color: '#374151',
-              fontFamily: 'inherit',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 18px', borderRadius: 8,
+              border: '1px solid var(--border-strong)', background: 'var(--surface-card)',
+              color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', transition: 'all 0.15s'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-low)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)' }}
           >
-            <Download size={16} /> Exportar JSON
+            <Download size={15} /> Exportar JSON
           </button>
           <button
             type="button"
             disabled={importBusy}
             onClick={() => importInputRef.current?.click()}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 18px',
-              borderRadius: 12,
-              border: '1px solid var(--border)',
-              background: '#fff',
-              color: '#374151',
-              fontFamily: 'inherit',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: importBusy ? 'not-allowed' : 'pointer',
-              opacity: importBusy ? 0.7 : 1,
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 18px', borderRadius: 8,
+              border: '1px solid var(--border-strong)', background: 'var(--surface-card)',
+              color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+              cursor: importBusy ? 'not-allowed' : 'pointer', opacity: importBusy ? 0.7 : 1,
             }}
           >
-            <Upload size={16} /> {importBusy ? 'Importando…' : 'Importar JSON'}
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              window.alert(
-                'Cada flujo corre cuando se registra un nuevo socio. Conecta nodos desde Inicio; las ramas salen de «Condición». Puedes arrastrar los pasos y borrar conexiones con la tecla Supr o el menú del lienzo.',
-              )
-            }
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 18px',
-              borderRadius: 12,
-              border: '1px solid var(--border)',
-              background: '#fff',
-              color: '#64748b',
-              fontFamily: 'inherit',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Ayuda
+            <Upload size={15} /> {importBusy ? 'Importando…' : 'Importar JSON'}
           </button>
           <button
             type="button"
             onClick={openNuevo}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 18px',
-              borderRadius: 12,
-              border: 'none',
-              cursor: 'pointer',
-              background: 'var(--accent)',
-              color: '#fff',
-              fontFamily: 'inherit',
-              fontSize: 14,
-              fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 18px', borderRadius: 8, border: 'none',
+              cursor: 'pointer', background: 'var(--accent)', color: '#fff',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+              boxShadow: '0 1px 2px rgba(0,74,198,0.2)', transition: 'all 0.15s'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-strong)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)' }}
           >
-            <Plus size={16} strokeWidth={2.5} />
+            <Plus size={15} strokeWidth={2.5} />
             Nuevo flujo
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      {/* KPI grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24 }}>
         {[
-          { label: 'Flujos configurados', value: String(wfs.length), color: 'var(--accent)' },
-          { label: 'Activos', value: String(activos), color: 'var(--green)' },
-          { label: 'Pasos totales', value: String(totalPasos), color: '#8B5CF6' },
-        ].map(({ label, value, color }) => (
+          { label: 'Flujos configurados', value: String(wfs.length), color: 'var(--accent-soft)', sub: 'En el sistema', badge: { kind: 'info' as const, text: 'Total' } },
+          { label: 'Activos', value: String(activos), color: 'var(--green)', sub: 'En ejecución', badge: { kind: 'success' as const, text: 'Activos' } },
+          { label: 'Pasos totales', value: String(totalPasos), color: 'var(--amber)', sub: 'Suma de acciones', badge: null },
+        ].map(({ label, value, color, sub, badge }) => (
           <div
             key={label}
             style={{
-              flex: 1,
-              minWidth: 140,
-              background: '#fff',
-              borderRadius: 14,
-              padding: '16px 20px',
-              boxShadow: 'var(--card-shadow)',
-              border: '1px solid var(--border)',
+              background: 'var(--surface-card)', borderRadius: 12, padding: 24,
+              boxShadow: 'var(--card-shadow)', border: '1px solid var(--border)',
+              display: 'flex', flexDirection: 'column', gap: 16,
             }}
           >
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{label}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color, letterSpacing: '-1px' }}>{value}</div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 10,
+                background: `color-mix(in srgb, ${color} 15%, transparent)`, color,
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Zap size={20} />
+              </div>
+              {badge && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: 999,
+                  background: badge.kind === 'success' ? 'var(--green-soft)' : 'var(--accent-pill)',
+                  color: badge.kind === 'success' ? 'var(--green)' : 'var(--accent)',
+                  fontSize: 11, fontWeight: 700, letterSpacing: '0.02em'
+                }}>{badge.text}</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{label}</span>
+              <span style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)', lineHeight: 1.1 }}>{value}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>{sub}</span>
+            </div>
           </div>
         ))}
       </div>
@@ -487,13 +454,13 @@ export function WorkflowsSection({
         {wfs.length === 0 && (
           <div
             style={{
-              background: '#fff',
-              borderRadius: 16,
+              background: 'var(--surface-card)',
+              borderRadius: 12,
               padding: '48px 24px',
               textAlign: 'center',
-              border: '1px dashed var(--border)',
-              color: '#9ca3af',
-              fontSize: 15,
+              border: '1px dashed var(--border-strong)',
+              color: 'var(--text-muted)',
+              fontSize: 14,
             }}
           >
             No hay flujos todavía. Crea uno para automatizar tareas al registrar socios.
@@ -698,6 +665,7 @@ export function WorkflowsSection({
           saveBusy={saveBusy}
         />
       )}
+      </div>
     </div>
   )
 }

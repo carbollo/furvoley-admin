@@ -1154,61 +1154,117 @@ function Socios() {
     await reload();
   }
 
+  // KPIs Socios
+  const totalSocios = SOCIOS_UI.length
+  const sociosActivosN = SOCIOS_UI.filter(s => s.estado === 'Activo').length
+  const sociosMorososN = SOCIOS_UI.filter(s => s.estado === 'Moroso').length
+  const cuotaPromedio = totalSocios > 0
+    ? SOCIOS_UI.reduce((a, s) => a + Number(s.cuota || 0), 0) / totalSocios
+    : 0
+
   return (
-    <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
-      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
-        <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Socios</h1>
-          <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>
-            {teamFilterId && equipoFiltrado
-              ? `${filtered.length} de ${SOCIOS_UI.length} socios · equipo «${equipoFiltrado.nombre}»`
-              : `${SOCIOS_UI.length} socios registrados`}
-          </p>
+    <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
+      <div style={{maxWidth:1440,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:32}}>
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
+          <div>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Socios</h1>
+            <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>
+              {teamFilterId && equipoFiltrado
+                ? `${filtered.length} de ${SOCIOS_UI.length} socios · equipo «${equipoFiltrado.nombre}»`
+                : `${SOCIOS_UI.length} socios registrados en el club`}
+            </p>
+          </div>
+          <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',gap:10}}>
+            <InviteLinkButton />
+            <PaymentReminderButton />
+            <button
+              type="button"
+              onClick={abrirFormularioInscripcion}
+              style={{
+                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+                borderRadius:8,border:'none',cursor:'pointer',
+                background:'var(--accent)',color:'#fff',
+                fontFamily:'inherit',fontSize:13,fontWeight:700,
+                boxShadow:'0 1px 2px rgba(0,74,198,0.2)',transition:'all 0.15s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-strong)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)' }}
+            >
+              <Icon name="plus" size={15}/>Nuevo Socio
+            </button>
+          </div>
         </div>
-        <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',gap:12}}>
-          <InviteLinkButton />
-          <PaymentReminderButton />
-          <button type="button" onClick={abrirFormularioInscripcion} style={{
-          display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
-          borderRadius:12,border:'none',cursor:'pointer',
-          background:'var(--accent)',color:'#fff',
-          fontFamily:'inherit',fontSize:14,fontWeight:600
-        }}>
-          <Icon name="plus" size={15}/>Nuevo Socio
-          </button>
+
+        {/* KPI grid */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',gap:24}}>
+          <KPICard
+            label="Total socios"
+            value={String(totalSocios)}
+            sub={totalSocios > 0 ? 'En base de datos' : 'Sin socios todavía'}
+            icon="users"
+            color="var(--accent-soft)"
+            badge={{ kind:'info', text:'Directorio' }}
+          />
+          <KPICard
+            label="Socios activos"
+            value={String(sociosActivosN)}
+            sub={`${totalSocios > 0 ? Math.round((sociosActivosN / totalSocios) * 100) : 0}% del total`}
+            icon="users"
+            color="var(--green)"
+            badge={{ kind:'success', text:'Al día' }}
+          />
+          <KPICard
+            label="Morosos"
+            value={String(sociosMorososN)}
+            sub={sociosMorososN > 0 ? 'Requieren cobro' : 'Sin morosidad'}
+            icon="billing"
+            color="var(--red)"
+            badge={sociosMorososN > 0 ? { kind:'danger', text:'Atención' } : { kind:'success', text:'OK' }}
+          />
+          <KPICard
+            label="Cuota promedio"
+            value={fmtMoney(cuotaPromedio)}
+            sub="Cuota mensual media"
+            icon="reports"
+            color="var(--amber)"
+          />
         </div>
-      </div>
-      {/* Filters */}
-      <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
-        <div style={{position:'relative',flex:1,minWidth:200}}>
-          <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'#9ca3af'}}>
-            <Icon name="search" size={16}/>
-          </span>
-          <input value={search} onChange={e=>setSearch(e.target.value)}
-            placeholder="Buscar por nombre o correo electrónico…"
-            style={{
-              width:'100%',padding:'10px 12px 10px 38px',
-              borderRadius:12,border:'1px solid var(--border)',
-              fontFamily:'inherit',fontSize:14,background:'#fff',
-              outline:'none',color:'#111827'
-            }}/>
+
+        {/* Filters */}
+        <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+          <div style={{position:'relative',flex:1,minWidth:200}}>
+            <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--text-muted)'}}>
+              <Icon name="search" size={16}/>
+            </span>
+            <input value={search} onChange={e=>setSearch(e.target.value)}
+              placeholder="Buscar por nombre o correo electrónico…"
+              style={{
+                width:'100%',padding:'10px 12px 10px 38px',
+                borderRadius:8,border:'1px solid var(--border)',
+                fontFamily:'inherit',fontSize:14,background:'var(--surface-card)',
+                outline:'none',color:'var(--text-primary)'
+              }}/>
+          </div>
+          <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:999,padding:4}}>
+            {estados.map(e => (
+              <button key={e} type="button" onClick={() => setFilterEstado(e)} style={{
+                padding:'7px 14px',borderRadius:999,border:'none',cursor:'pointer',
+                fontFamily:'inherit',fontSize:12,fontWeight:700,letterSpacing:'0.02em',
+                background:filterEstado===e ? 'var(--surface-card)' : 'transparent',
+                color:filterEstado===e ? 'var(--accent)' : 'var(--text-muted)',
+                boxShadow: filterEstado===e ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
+                transition:'all 0.15s'
+              }}>{e}</button>
+            ))}
+          </div>
+          <select value={filterDeporte} onChange={e=>setFilterDeporte(e.target.value)} style={{
+            padding:'9px 14px',borderRadius:8,border:'1px solid var(--border)',
+            fontFamily:'inherit',fontSize:13,background:'var(--surface-card)',color:'var(--text-primary)',outline:'none',cursor:'pointer'
+          }}>
+            {deportes.map(d => <option key={d}>{d}</option>)}
+          </select>
         </div>
-        {estados.map(e => (
-          <button key={e} onClick={() => setFilterEstado(e)} style={{
-            padding:'8px 16px',borderRadius:999,border:'1.5px solid',
-            cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:500,
-            background:filterEstado===e ? '#111827' : '#fff',
-            color:filterEstado===e ? '#fff' : '#6b7280',
-            borderColor:filterEstado===e ? '#111827' : 'var(--border)'
-          }}>{e}</button>
-        ))}
-        <select value={filterDeporte} onChange={e=>setFilterDeporte(e.target.value)} style={{
-          padding:'9px 14px',borderRadius:12,border:'1px solid var(--border)',
-          fontFamily:'inherit',fontSize:13,background:'#fff',color:'#374151',outline:'none',cursor:'pointer'
-        }}>
-          {deportes.map(d => <option key={d}>{d}</option>)}
-        </select>
-      </div>
       {teamFilterId && (
         <div
           style={{
@@ -1249,52 +1305,69 @@ function Socios() {
           </button>
         </div>
       )}
-      {/* Table */}
-      <div style={{background:'#fff',borderRadius:16,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',overflow:'visible',position:'relative'}}>
+      {/* Table card: Directorio de socios */}
+      <div style={{background:'var(--surface-card)',borderRadius:12,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',overflow:'visible',position:'relative'}}>
+        <div style={{padding:'24px 32px',borderBottom:'1px solid var(--border)'}}>
+          <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Directorio de socios</div>
+          <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>
+            {filtered.length} {filtered.length === 1 ? 'resultado' : 'resultados'} en la vista actual
+          </div>
+        </div>
         <table style={{width:'100%',borderCollapse:'collapse'}}>
           <thead>
-            <tr style={{borderBottom:'1px solid var(--border)'}}>
+            <tr style={{background:'var(--surface-low)'}}>
               {['Socio','DNI','Deporte','Categoría','Cuota','Vencimiento','Estado',''].map(h => (
                 <th key={h} style={{
-                  padding:'14px 16px',textAlign:'left',fontSize:12,
-                  fontWeight:600,color:'#6b7280',textTransform:'uppercase',letterSpacing:0.5
+                  padding:'12px 32px',textAlign:'left',fontSize:11,
+                  fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'
                 }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map((s, i) => (
+            {filtered.length === 0 && (
+              <tr><td colSpan={8} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>No hay socios que coincidan con los filtros.</td></tr>
+            )}
+            {filtered.map((s) => (
               <tr key={s.id} onClick={() => setSelected(s)} style={{
-                borderBottom:'1px solid var(--border)',cursor:'pointer',
-                background:selected?.id===s.id ? 'var(--accent-light)' : i%2===0?'#fff':'#fafafa',
-                transition:'background 0.1s'
-              }}>
-                <td style={{padding:'14px 16px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <Avatar initials={s.avatar} color="#3B82F6" size={34}/>
+                borderTop:'1px solid var(--border)',cursor:'pointer',
+                background:selected?.id===s.id ? 'var(--accent-pill)' : 'transparent',
+                transition:'background 0.15s'
+              }}
+              onMouseEnter={(e) => { if (selected?.id !== s.id) e.currentTarget.style.background = 'var(--surface-low)' }}
+              onMouseLeave={(e) => { if (selected?.id !== s.id) e.currentTarget.style.background = 'transparent' }}
+              >
+                <td style={{padding:'16px 32px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:12}}>
+                    <Avatar initials={s.avatar} color="var(--accent-soft)" size={36}/>
                     <div>
-                      <div style={{fontWeight:600,fontSize:14,color:'#111827'}}>{s.nombre}</div>
-                      <div style={{fontSize:12,color:'#6b7280'}}>{s.email}</div>
+                      <div style={{fontWeight:600,fontSize:14,color:'var(--text-primary)'}}>{s.nombre}</div>
+                      <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{s.email}</div>
                     </div>
                   </div>
                 </td>
-                <td style={{padding:'14px 16px',fontSize:13,color:'#475569'}}>{s.dni || '—'}</td>
-                <td style={{padding:'14px 16px',fontSize:14,color:'#374151'}}>{s.deporte}</td>
-                <td style={{padding:'14px 16px',fontSize:14,color:'#374151'}}>{s.categoria}</td>
-                <td style={{padding:'14px 16px',fontSize:14,fontWeight:600,color:'#111827'}}>{fmtMoney(s.cuota)}</td>
-                <td style={{padding:'14px 16px',fontSize:14,color:'#374151'}}>{new Date(s.vencimiento).toLocaleDateString('es-AR')}</td>
-                <td style={{padding:'14px 16px'}}><Badge status={s.estado}/></td>
-                <td style={{padding:'14px 16px'}}>
-                  <div style={{display:'flex',gap:4}}>
-                    <button type="button" onClick={e=>{e.stopPropagation(); setSelected(s);}} style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}} title="Ver y editar"><Icon name="edit" size={14}/></button>
+                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{s.dni || '—'}</td>
+                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{s.deporte}</td>
+                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{s.categoria}</td>
+                <td style={{padding:'16px 32px',fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(s.cuota)}</td>
+                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{new Date(s.vencimiento).toLocaleDateString('es-ES')}</td>
+                <td style={{padding:'16px 32px'}}><Badge status={s.estado}/></td>
+                <td style={{padding:'16px 32px'}}>
+                  <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                    <button type="button" onClick={e=>{e.stopPropagation(); setSelected(s);}} style={{padding:7,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--text-muted)',transition:'all 0.15s'}} title="Ver y editar"
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+                    ><Icon name="edit" size={14}/></button>
                     <button
                       type="button"
                       onClick={async (e) => {
                         e.stopPropagation()
                         await eliminarSocio(s)
                       }}
-                      style={{padding:6,borderRadius:8,border:'1px solid #fecaca',background:'#fff',cursor:'pointer',color:'#b91c1c'}}
+                      style={{padding:7,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--red)',transition:'all 0.15s'}}
                       title="Eliminar socio"
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--red-light)'; e.currentTarget.style.borderColor = 'var(--red)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)'; e.currentTarget.style.borderColor = 'var(--border)' }}
                     >
                       <Icon name="trash" size={14}/>
                     </button>
@@ -1302,7 +1375,7 @@ function Socios() {
                       type="button"
                       onClick={(e)=>toggleSocioMenu(e, s)}
                       data-socio-menu
-                      style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}}
+                      style={{padding:7,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--text-muted)'}}
                     >
                       <Icon name="dots" size={14}/>
                     </button>
@@ -1779,6 +1852,7 @@ function Socios() {
           </form>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -2008,75 +2082,124 @@ function Equipos() {
       )
     : [];
 
+  // KPIs Equipos
+  const totalEquipos = EQUIPOS_UI.length
+  const totalJugadores = EQUIPOS_UI.reduce((a, e) => a + Number(e.jugadores || 0), 0)
+  const sinCoach = EQUIPOS_UI.filter(e => !e.coachMemberId).length
+  const categoriasUnicas = new Set(EQUIPOS_UI.map(e => e.categoria).filter(Boolean)).size
+
   return (
-    <div style={{flex:1,overflowY:'auto',padding:'24px',display:'flex',flexDirection:'column',gap:20}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Equipos</h1>
-          <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>{EQUIPOS_UI.length} equipos</p>
-        </div>
-        <div style={{display:'flex',gap:10}}>
-          <div style={{display:'flex',background:'#fff',border:'1px solid var(--border)',borderRadius:10,overflow:'hidden'}}>
-            {[['grid','⊞'],['list','☰']].map(([v,icon])=>(
-              <button key={v} onClick={()=>setView(v)} style={{
-                padding:'8px 14px',border:'none',cursor:'pointer',
-                background:view===v?'#111827':'transparent',
-                color:view===v?'#fff':'#6b7280',fontFamily:'inherit',fontSize:14
-              }}>{icon}</button>
-            ))}
+    <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
+      <div style={{maxWidth:1440,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:32}}>
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
+          <div>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Equipos</h1>
+            <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>{EQUIPOS_UI.length} equipos activos en el club</p>
           </div>
-          <button type="button" onClick={openNuevoEquipoModal} style={{
-            display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
-            borderRadius:12,border:'none',cursor:'pointer',
-            background:'var(--accent)',color:'#fff',
-            fontFamily:'inherit',fontSize:14,fontWeight:600
-          }}>
-            <Icon name="plus" size={15}/>Nuevo Equipo
-          </button>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+            <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:8,padding:4}}>
+              {[['grid','⊞'],['list','☰']].map(([v,icon])=>(
+                <button key={v} type="button" onClick={()=>setView(v)} style={{
+                  padding:'6px 12px',border:'none',cursor:'pointer',borderRadius:6,
+                  background:view===v?'var(--surface-card)':'transparent',
+                  color:view===v?'var(--accent)':'var(--text-muted)',
+                  fontFamily:'inherit',fontSize:14,fontWeight:700,
+                  boxShadow: view===v ? '0 1px 2px rgba(0,0,0,0.04)' : 'none'
+                }}>{icon}</button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={openNuevoEquipoModal}
+              style={{
+                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+                borderRadius:8,border:'none',cursor:'pointer',
+                background:'var(--accent)',color:'#fff',
+                fontFamily:'inherit',fontSize:13,fontWeight:700,
+                boxShadow:'0 1px 2px rgba(0,74,198,0.2)',transition:'all 0.15s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-strong)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)' }}
+            >
+              <Icon name="plus" size={15}/>Nuevo Equipo
+            </button>
+          </div>
         </div>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:16,width:'100%'}}>
-        {EQUIPOS_UI.map(eq => (
-          <div key={eq.id} style={{
-            background:'#fff',borderRadius:16,padding:16,
-            boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
-            cursor:'default',transition:'transform 0.15s,box-shadow 0.15s'
-          }}>
-            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:16,gap:6}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>
-                <div style={{
-                  width:40,height:40,borderRadius:12,flexShrink:0,
-                  background:`${eq.color}15`,
-                  display:'flex',alignItems:'center',justifyContent:'center',
-                  fontSize:20
-                }}>{eq.logo}</div>
-                <div style={{minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:14,color:'#111827',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{eq.nombre}</div>
-                  <div style={{fontSize:11,color:'#6b7280',marginTop:2}}>{eq.deporte} · {eq.categoria}</div>
+
+        {/* KPI grid */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',gap:24}}>
+          <KPICard label="Total equipos" value={String(totalEquipos)} sub="Plantillas registradas" icon="teams" color="var(--accent-soft)" badge={{ kind:'info', text:'Plantillas' }}/>
+          <KPICard label="Jugadores" value={String(totalJugadores)} sub="En todas las categorías" icon="users" color="var(--green)" badge={{ kind:'success', text:'Activos' }}/>
+          <KPICard label="Categorías" value={String(categoriasUnicas)} sub="Senior, juvenil, etc." icon="dashboard" color="var(--amber)"/>
+          <KPICard label="Sin entrenador" value={String(sinCoach)} sub={sinCoach > 0 ? 'Asignar coach' : 'Todos cubiertos'} icon="users" color="var(--red)" badge={sinCoach > 0 ? { kind:'warning', text:'Pendiente' } : { kind:'success', text:'OK' }}/>
+        </div>
+
+        {/* Grid de equipos */}
+        <div style={{
+          background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',
+          boxShadow:'var(--card-shadow)',padding:32
+        }}>
+          <div style={{marginBottom:20}}>
+            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Plantillas del club</div>
+            <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>Gestiona socios, entrenador y horarios de cada equipo.</div>
+          </div>
+          {EQUIPOS_UI.length === 0 ? (
+            <div style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
+              Todavía no hay equipos. Crea el primero con «Nuevo Equipo».
+            </div>
+          ) : (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:16,width:'100%'}}>
+              {EQUIPOS_UI.map(eq => (
+                <div key={eq.id} style={{
+                  background:'var(--surface-card)',borderRadius:12,padding:20,
+                  border:'1px solid var(--border)',
+                  cursor:'default',transition:'all 0.15s',
+                  display:'flex',flexDirection:'column',gap:14
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.boxShadow = 'var(--card-shadow-hover)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
+                >
+                  <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0}}>
+                      <div style={{
+                        width:44,height:44,borderRadius:12,flexShrink:0,
+                        background:`${eq.color}15`,
+                        display:'flex',alignItems:'center',justifyContent:'center',
+                        fontSize:20
+                      }}>{eq.logo}</div>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontWeight:600,fontSize:15,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{eq.nombre}</div>
+                        <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{eq.deporte} · {eq.categoria}</div>
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:999,flexShrink:0,
+                      background:`${eq.color}15`,color:eq.color,whiteSpace:'nowrap',letterSpacing:'0.02em'
+                    }}>{eq.jugadores}</span>
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:10,borderTop:'1px solid var(--border)',paddingTop:14}}>
+                    <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
+                      <span style={{fontSize:12,color:'var(--text-muted)',flexShrink:0}}>Entrenador</span>
+                      <span style={{fontSize:12,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textAlign:'right'}}>{eq.entrenador}</span>
+                    </div>
+                    <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
+                      <span style={{fontSize:12,color:'var(--text-muted)',flexShrink:0}}>Horario</span>
+                      <span style={{fontSize:12,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textAlign:'right'}}>{eq.horario}</span>
+                    </div>
+                  </div>
+                  <div style={{marginTop:'auto',display:'flex',flexWrap:'wrap',gap:8}}>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); openGestionar(eq); }} style={{flex:1,minWidth:88,padding:'9px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,color:'var(--text-primary)',transition:'all 0.15s'}}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-low)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)' }}
+                    >Gestionar</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); router.replace(`/?tab=socios&team=${encodeURIComponent(eq.id)}`, { scroll: false }); }} style={{flex:1,minWidth:88,padding:'9px',borderRadius:8,border:'none',background:'var(--accent-pill)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>Ver socios</button>
+                  </div>
                 </div>
-              </div>
-              <span style={{
-                fontSize:11,fontWeight:600,padding:'3px 7px',borderRadius:999,flexShrink:0,
-                background:`${eq.color}15`,color:eq.color,whiteSpace:'nowrap'
-              }}>{eq.jugadores}</span>
+              ))}
             </div>
-            <div style={{display:'flex',flexDirection:'column',gap:8,borderTop:'1px solid var(--border)',paddingTop:14}}>
-              <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
-                <span style={{fontSize:12,color:'#6b7280',flexShrink:0}}>Entrenador</span>
-                <span style={{fontSize:12,fontWeight:600,color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textAlign:'right'}}>{eq.entrenador}</span>
-              </div>
-              <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
-                <span style={{fontSize:12,color:'#6b7280',flexShrink:0}}>Horario</span>
-                <span style={{fontSize:12,fontWeight:600,color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textAlign:'right'}}>{eq.horario}</span>
-              </div>
-            </div>
-            <div style={{marginTop:14,display:'flex',flexWrap:'wrap',gap:8}}>
-              <button type="button" onClick={(e) => { e.stopPropagation(); openGestionar(eq); }} style={{flex:1,minWidth:88,padding:'8px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#374151'}}>Gestionar</button>
-              <button type="button" onClick={(e) => { e.stopPropagation(); router.replace(`/?tab=socios&team=${encodeURIComponent(eq.id)}`, { scroll: false }); }} style={{flex:1,minWidth:88,padding:'8px',borderRadius:10,border:'none',background:`${eq.color}15`,color:eq.color,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Ver socios</button>
-            </div>
-          </div>
-        ))}
-      </div>
+          )}
+        </div>
       {showNuevoEquipoModal && (
         <div
           role="presentation"
@@ -2448,6 +2571,7 @@ function Equipos() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -4018,130 +4142,177 @@ function Calendario({ setActive }) {
     todayRef.getDate()===d && todayRef.getMonth()===month && todayRef.getFullYear()===year
   );
 
+  // KPIs Calendario
+  const eventosMes = monthEvents.length
+  const partidosMes = monthEvents.filter(e => e.tipo === 'Partido' || e.tipo === 'Torneo').length
+  const entrenosMes = monthEvents.filter(e => e.tipo === 'Entrenamiento').length
+  const proximoEvento = [...EVENTOS_UI].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
+    .find(e => new Date(e.fecha) >= todayRef)
+
   return (
-    <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
-        <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Calendario</h1>
-          <p style={{color:'#6b7280',fontSize:14,marginTop:4,textTransform:'capitalize'}}>{monthTitle}</p>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',justifyContent:'flex-end'}}>
-          <span style={{fontSize:12,fontWeight:700,color:'#64748b'}}>Rango</span>
-          <input
-            type="date"
-            value={fechaDesde}
-            onChange={(e) => setFechaDesde(e.target.value)}
-            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
-          />
-          <span style={{fontSize:12,color:'#9ca3af'}}>—</span>
-          <input
-            type="date"
-            value={fechaHasta}
-            onChange={(e) => setFechaHasta(e.target.value)}
-            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
-          />
-          <button
-            type="button"
-            onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
-            style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#64748b'}}
-          >
-            Limpiar
-          </button>
-          <button type="button" onClick={() => setViewYm(prev => {
-            let m = prev.month - 1, y = prev.year;
-            if (m < 0) { m = 11; y--; }
-            return { year:y, month:m };
-          })} style={{padding:'8px 12px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit'}}>← Mes</button>
-          <button type="button" onClick={() => setViewYm(prev => {
-            let m = prev.month + 1, y = prev.year;
-            if (m > 11) { m = 0; y++; }
-            return { year:y, month:m };
-          })} style={{padding:'8px 12px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit'}}>Mes →</button>
-          <button type="button" onClick={openNuevoEventoModal} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:12,border:'none',cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontSize:14,fontWeight:600}}>
-            <Icon name="plus" size={15}/>Nuevo evento
-          </button>
-        </div>
-      </div>
-      <div style={{display:'flex',gap:20}}>
-        {/* Calendar grid */}
-        <div style={{flex:2,background:'#fff',borderRadius:16,padding:24,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:8}}>
-            {days.map(d => (
-              <div key={d} style={{textAlign:'center',fontSize:12,fontWeight:600,color:'#9ca3af',padding:'8px 0'}}>{d}</div>
-            ))}
+    <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
+      <div style={{maxWidth:1440,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:32}}>
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
+          <div>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Calendario</h1>
+            <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0,textTransform:'capitalize'}}>{monthTitle}</p>
           </div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
-            {Array(firstDay).fill(null).map((_,i)=><div key={`e${i}`}/>)}
-            {Array(daysInMonth).fill(null).map((_,i)=>{
-              const d = i+1;
-              const evts = dayEvents(d);
-              const isSelected = selectedDay === d;
-              const isToday = isTodayMarker(d);
-              return (
-                <div key={d} onClick={()=>setSelectedDay(d===selectedDay?null:d)} style={{
-                  minHeight:80,padding:'6px',borderRadius:10,cursor:'pointer',
-                  background:isSelected?'var(--accent-light)':isToday?'#FFF7ED':'#FAFAFA',
-                  border:`1.5px solid ${isSelected?'var(--accent)':isToday?'#FED7AA':'transparent'}`,
-                  transition:'all 0.1s'
-                }}>
-                  <div style={{
-                    width:26,height:26,borderRadius:'50%',
-                    background:isToday?'var(--accent)':'transparent',
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:13,fontWeight:isToday?700:500,
-                    color:isToday?'#fff':'#374151',marginBottom:4
-                  }}>{d}</div>
-                  {evts.map(e => {
-                    const tc = tipoColors[e.tipo] || '#64748b';
-                    return (
-                    <div key={e.id} style={{
-                      fontSize:10,fontWeight:600,padding:'2px 5px',borderRadius:4,marginBottom:2,
-                      background:`${tc}20`,color:tc,
-                      whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
-                    }}>{e.titulo}</div>
-                  );})}
-                </div>
-              );
-            })}
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
+            <input
+              type="date"
+              value={fechaDesde}
+              onChange={(e) => setFechaDesde(e.target.value)}
+              style={{padding:'8px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'var(--text-primary)',background:'var(--surface-card)'}}
+            />
+            <span style={{fontSize:12,color:'var(--text-muted)'}}>—</span>
+            <input
+              type="date"
+              value={fechaHasta}
+              onChange={(e) => setFechaHasta(e.target.value)}
+              style={{padding:'8px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'var(--text-primary)',background:'var(--surface-card)'}}
+            />
+            <button
+              type="button"
+              onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+              style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'var(--text-secondary)'}}
+            >Limpiar</button>
+            <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:8,padding:4}}>
+              <button type="button" onClick={() => setViewYm(prev => {
+                let m = prev.month - 1, y = prev.year;
+                if (m < 0) { m = 11; y--; }
+                return { year:y, month:m };
+              })} style={{padding:'6px 12px',borderRadius:6,border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,color:'var(--text-secondary)'}}>←</button>
+              <button type="button" onClick={() => setViewYm({ year: todayRef.getFullYear(), month: todayRef.getMonth() })} style={{padding:'6px 12px',borderRadius:6,border:'none',background:'var(--surface-card)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,color:'var(--accent)',boxShadow:'0 1px 2px rgba(0,0,0,0.04)'}}>Hoy</button>
+              <button type="button" onClick={() => setViewYm(prev => {
+                let m = prev.month + 1, y = prev.year;
+                if (m > 11) { m = 0; y++; }
+                return { year:y, month:m };
+              })} style={{padding:'6px 12px',borderRadius:6,border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,color:'var(--text-secondary)'}}>→</button>
+            </div>
+            <button
+              type="button"
+              onClick={openNuevoEventoModal}
+              style={{
+                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+                borderRadius:8,border:'none',cursor:'pointer',
+                background:'var(--accent)',color:'#fff',
+                fontFamily:'inherit',fontSize:13,fontWeight:700,
+                boxShadow:'0 1px 2px rgba(0,74,198,0.2)',transition:'all 0.15s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-strong)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)' }}
+            >
+              <Icon name="plus" size={15}/>Nuevo evento
+            </button>
           </div>
         </div>
-        {/* Events list */}
-        <div style={{flex:1,display:'flex',flexDirection:'column',gap:12}}>
-          <div style={{background:'#fff',borderRadius:16,padding:20,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-            <div style={{fontWeight:700,fontSize:14,color:'#111827',marginBottom:14}}>
+
+        {/* KPI grid */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',gap:24}}>
+          <KPICard label="Eventos del mes" value={String(eventosMes)} sub="Programados" icon="calendar" color="var(--accent-soft)" badge={{ kind:'info', text:'Mes' }}/>
+          <KPICard label="Partidos / torneos" value={String(partidosMes)} sub="En competición" icon="dashboard" color="var(--amber)"/>
+          <KPICard label="Entrenamientos" value={String(entrenosMes)} sub="Sesiones programadas" icon="users" color="var(--green)"/>
+          <KPICard
+            label="Próximo evento"
+            value={proximoEvento ? new Date(proximoEvento.fecha).toLocaleDateString('es-ES', { day:'2-digit', month:'short' }) : '—'}
+            sub={proximoEvento ? proximoEvento.titulo : 'Sin eventos futuros'}
+            icon="calendar"
+            color="var(--accent)"
+            badge={proximoEvento ? { kind:'success', text:'Agendado' } : null}
+          />
+        </div>
+
+        {/* Bento: calendar grid + eventos del día */}
+        <div style={{display:'grid',gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',gap:24}}>
+          {/* Calendar grid */}
+          <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4,marginBottom:8}}>
+              {days.map(d => (
+                <div key={d} style={{textAlign:'center',fontSize:11,fontWeight:700,color:'var(--text-muted)',padding:'8px 0',textTransform:'uppercase',letterSpacing:'0.06em'}}>{d}</div>
+              ))}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>
+              {Array(firstDay).fill(null).map((_,i)=><div key={`e${i}`}/>)}
+              {Array(daysInMonth).fill(null).map((_,i)=>{
+                const d = i+1;
+                const evts = dayEvents(d);
+                const isSelected = selectedDay === d;
+                const isToday = isTodayMarker(d);
+                return (
+                  <div key={d} onClick={()=>setSelectedDay(d===selectedDay?null:d)} style={{
+                    minHeight:90,padding:'8px',borderRadius:10,cursor:'pointer',
+                    background:isSelected?'var(--accent-pill)':'var(--surface-low)',
+                    border:`1px solid ${isSelected?'var(--accent)':'transparent'}`,
+                    transition:'all 0.15s'
+                  }}>
+                    <div style={{
+                      width:26,height:26,borderRadius:'50%',
+                      background:isToday?'var(--accent)':'transparent',
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      fontSize:13,fontWeight:isToday?700:600,
+                      color:isToday?'#fff':'var(--text-primary)',marginBottom:6
+                    }}>{d}</div>
+                    {evts.slice(0,3).map(e => {
+                      const tc = tipoColors[e.tipo] || 'var(--text-muted)';
+                      return (
+                      <div key={e.id} style={{
+                        fontSize:10,fontWeight:600,padding:'2px 6px',borderRadius:4,marginBottom:2,
+                        background:`${tc}20`,color:tc,
+                        whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
+                      }}>{e.titulo}</div>
+                    );})}
+                    {evts.length > 3 && (
+                      <div style={{fontSize:10,color:'var(--text-muted)',fontWeight:600,marginTop:2}}>+{evts.length - 3} más</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {/* Events list */}
+          <div style={{background:'var(--surface-card)',borderRadius:12,padding:24,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',display:'flex',flexDirection:'column'}}>
+            <div style={{fontWeight:600,fontSize:16,color:'var(--text-primary)',letterSpacing:'-0.01em',marginBottom:4}}>
               {selectedDay ? `Eventos del día ${selectedDay}` : 'Todos los eventos del mes'}
             </div>
-            <div style={{display:'flex',flexDirection:'column',gap:10,maxHeight:420,overflowY:'auto'}}>
+            <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>
+              {(selectedDay ? dayEvents(selectedDay) : monthEvents).length} {(selectedDay ? dayEvents(selectedDay) : monthEvents).length === 1 ? 'evento' : 'eventos'}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:10,maxHeight:520,overflowY:'auto'}}>
               {(selectedDay ? dayEvents(selectedDay) : monthEvents).map(e => {
-                const tc = tipoColors[e.tipo] || '#64748b';
+                const tc = tipoColors[e.tipo] || 'var(--text-muted)';
                 return (
-                <div key={e.id} style={{
-                  padding:14,borderRadius:12,
-                  background:`${tc}08`,
-                  borderLeft:`3px solid ${tc}`
-                }}>
-                  <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:4}}>{e.titulo}</div>
-                  <div style={{fontSize:12,color:'#6b7280',marginBottom:2}}>{new Date(e.fecha).toLocaleDateString('es-AR')} — {e.hora}</div>
-                  <div style={{fontSize:12,color:'#6b7280'}}>{e.lugar}</div>
-                  <div style={{display:'flex',gap:6,marginTop:8}}>
-                    <span style={{
-                      fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:999,
-                      background:`${tc}20`,color:tc
-                    }}>{e.tipo}</span>
-                    <span style={{
-                      fontSize:11,fontWeight:500,padding:'2px 8px',borderRadius:999,
-                      background:'#F1F5F9',color:'#64748b'
-                    }}>{e.equipo}</span>
+                  <div key={e.id} style={{
+                    padding:14,borderRadius:10,
+                    background:'var(--surface-low)',
+                    borderLeft:`3px solid ${tc}`
+                  }}>
+                    <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',marginBottom:4}}>{e.titulo}</div>
+                    <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:2}}>{new Date(e.fecha).toLocaleDateString('es-ES')} · {e.hora}</div>
+                    {e.lugar && <div style={{fontSize:12,color:'var(--text-muted)'}}>{e.lugar}</div>}
+                    <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}>
+                      <span style={{
+                        fontSize:11,fontWeight:700,padding:'3px 8px',borderRadius:999,
+                        background:`${tc}20`,color:tc,letterSpacing:'0.02em'
+                      }}>{e.tipo}</span>
+                      {e.equipo && (
+                        <span style={{
+                          fontSize:11,fontWeight:600,padding:'3px 8px',borderRadius:999,
+                          background:'var(--surface-card)',color:'var(--text-secondary)',border:'1px solid var(--border)'
+                        }}>{e.equipo}</span>
+                      )}
+                    </div>
                   </div>
+                );
+              })}
+              {(selectedDay ? dayEvents(selectedDay) : monthEvents).length === 0 && (
+                <div style={{textAlign:'center',padding:'24px 0',color:'var(--text-muted)',fontSize:13}}>
+                  {selectedDay ? 'Sin eventos este día' : 'Sin eventos este mes'}
                 </div>
-              );})}
-              {selectedDay && dayEvents(selectedDay).length === 0 && (
-                <div style={{textAlign:'center',padding:'24px 0',color:'#9ca3af',fontSize:14}}>Sin eventos este día</div>
               )}
             </div>
           </div>
         </div>
-      </div>
       {showNuevoEventoModal && (
         <div
           role="presentation"
@@ -4315,6 +4486,7 @@ function Calendario({ setActive }) {
           </form>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -4368,110 +4540,121 @@ function Informes({ setActive }) {
     ? conceptos
     : [{ label: 'Sin ingresos', value: 0, color: '#CBD5E1' }];
 
+  const morosos = SOCIOS_UI.filter(s => s.estado === 'Moroso')
+  const ratio = totIng > 0 ? Math.round(((totIng - totEgr) / totIng) * 100) : 0
+
   return (
-    <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Informes</h1>
-          <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>Resumen financiero y operacional</p>
-        </div>
-        <div style={{display:'flex',gap:10}}>
+    <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
+      <div style={{maxWidth:1440,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:32}}>
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
+          <div>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Informes</h1>
+            <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>Resumen financiero y operacional del club</p>
+          </div>
           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-            <span style={{fontSize:12,fontWeight:700,color:'#64748b'}}>Rango</span>
-            <input
-              type="date"
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
-              style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
-            />
-            <span style={{fontSize:12,color:'#9ca3af'}}>—</span>
-            <input
-              type="date"
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
-              style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'#374151'}}
-            />
-            <button
-              type="button"
-              onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
-              style={{padding:'8px 10px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'#64748b'}}
+            <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} style={{padding:'8px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'var(--text-primary)',background:'var(--surface-card)'}}/>
+            <span style={{fontSize:12,color:'var(--text-muted)'}}>—</span>
+            <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} style={{padding:'8px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'var(--text-primary)',background:'var(--surface-card)'}}/>
+            <button type="button" onClick={() => { setFechaDesde(''); setFechaHasta(''); }} style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'var(--text-secondary)'}}>Limpiar</button>
+            <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{
+              display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+              borderRadius:8,border:'none',cursor:'pointer',
+              background:'var(--accent)',color:'#fff',
+              fontFamily:'inherit',fontSize:13,fontWeight:700,
+              boxShadow:'0 1px 2px rgba(0,74,198,0.2)',transition:'all 0.15s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-strong)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)' }}
             >
-              Limpiar
+              <Icon name="export" size={15}/>Exportar CSV
             </button>
           </div>
-          <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderRadius:12,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:14,fontWeight:600,color:'#374151'}}>
-            <Icon name="export" size={15}/>Exportar datos CSV
-          </button>
         </div>
-      </div>
-      {/* Totales anuales */}
-      <div style={{display:'flex',gap:16}}>
-        {[
-          {label:'Ingresos totales',value: fmtMoney(totIng),color:'var(--green)',bg:'var(--green-light)',trend:'—'},
-          {label:'Gastos totales',value: fmtMoney(totEgr),color:'var(--red)',bg:'var(--red-light)',trend:'—'},
-          {label:'Resultado neto',value: fmtMoney(totIng - totEgr),color:'var(--accent)',bg:'var(--accent-light)',trend:'—'},
-        ].map(({label,value,color,bg,trend}) => (
-          <div key={label} style={{flex:1,background:bg,borderRadius:16,padding:'20px 24px'}}>
-            <div style={{fontSize:12,color,fontWeight:600,marginBottom:6}}>{label}</div>
-            <div style={{fontSize:26,fontWeight:800,color,letterSpacing:'-1px'}}>{value}</div>
-            <div style={{fontSize:12,color,marginTop:6,opacity:0.8}}>{trend}</div>
-          </div>
-        ))}
-      </div>
-      {/* Charts */}
-      <div style={{display:'flex',gap:16}}>
-        <div style={{flex:2,background:'#fff',borderRadius:16,padding:24,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{fontWeight:800,fontSize:16,color:'#0f172a',marginBottom:4,letterSpacing:'-0.2px'}}>Ingresos y gastos</div>
-          <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>Enero — Diciembre 2026</div>
-          <div style={{position:'relative'}}>
-            <BarChart data={ingresos} secondaryData={egresos} labels={meses} color="#3B82F6" secondaryColor="#EF4444" height={150}/>
-          </div>
-          <div style={{display:'flex',gap:16,marginTop:12}}>
-            <span style={{fontSize:12,display:'flex',alignItems:'center',gap:6,color:'#374151'}}>
-              <span style={{width:12,height:12,borderRadius:3,background:'#3B82F6',display:'inline-block'}}></span>Ingresos
-            </span>
-            <span style={{fontSize:12,display:'flex',alignItems:'center',gap:6,color:'#374151'}}>
-              <span style={{width:12,height:12,borderRadius:3,background:'#EF4444',display:'inline-block'}}></span>Gastos
-            </span>
-          </div>
+
+        {/* KPI grid */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',gap:24}}>
+          <KPICard label="Ingresos totales" value={fmtMoney(totIng)} sub="En el rango actual" icon="reports" color="var(--green)" badge={totIng > 0 ? { kind:'success', text:'+', icon:'trend_up' } : null}/>
+          <KPICard label="Gastos totales" value={fmtMoney(totEgr)} sub={`${txFiltradas.filter(t => t.type === 'EXPENSE').length} movimientos`} icon="billing" color="var(--red)" badge={totEgr > 0 ? { kind:'danger', text:'Salida' } : null}/>
+          <KPICard label="Resultado neto" value={fmtMoney(totIng - totEgr)} sub={`Margen ${ratio}%`} icon="dashboard" color="var(--accent-soft)" badge={(totIng - totEgr) >= 0 ? { kind:'success', text:'Positivo', icon:'trend_up' } : { kind:'danger', text:'Negativo', icon:'trend_down' }}/>
+          <KPICard label="Socios morosos" value={String(morosos.length)} sub={morosos.length > 0 ? 'Deuda vencida' : 'Sin morosidad'} icon="users" color="var(--amber)" badge={morosos.length > 0 ? { kind:'warning', text:'Atención' } : { kind:'success', text:'OK' }}/>
         </div>
-        <div style={{flex:1,background:'#fff',borderRadius:16,padding:24,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{fontWeight:700,fontSize:15,color:'#111827',marginBottom:4}}>Ingresos por concepto</div>
-          <div style={{fontSize:13,color:'#6b7280',marginBottom:16}}>Año 2026</div>
-          <DonutChart size={110} segments={donutSegments}/>
-          <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:16}}>
-            {conceptos.length === 0 ? (
-              <div style={{fontSize:12,color:'#6b7280'}}>Sin ingresos registrados.</div>
-            ) : conceptos.map((row) => (
-              <div key={row.label} style={{display:'flex',alignItems:'center',gap:8}}>
-                <span style={{width:8,height:8,borderRadius:2,background:row.color,flexShrink:0}}></span>
-                <span style={{fontSize:12,color:'#374151',flex:1}}>{row.label}</span>
-                <span style={{fontSize:12,fontWeight:700,color:'#111827'}}>
-                  {totalConceptos > 0 ? `${Math.round((row.value / totalConceptos) * 100)}%` : '0%'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      {/* Top deudores */}
-      <div style={{background:'#fff',borderRadius:16,padding:24,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-        <div style={{fontWeight:700,fontSize:15,color:'#111827',marginBottom:16}}>Socios con deuda vencida</div>
-        <div style={{display:'flex',flexDirection:'column',gap:10}}>
-          {SOCIOS_UI.filter(s=>s.estado==='Moroso').map(s => (
-            <div key={s.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
-              <Avatar initials={s.avatar} color="var(--red)" size={36}/>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:14,color:'#111827'}}>{s.nombre}</div>
-                <div style={{fontSize:12,color:'#6b7280'}}>{s.deporte} · Vence {new Date(s.vencimiento).toLocaleDateString('es-AR')}</div>
-              </div>
-              <div style={{textAlign:'right'}}>
-                <div style={{fontWeight:700,fontSize:14,color:'var(--red)'}}>{fmtMoney(s.cuota)}</div>
-                <Badge status="Moroso"/>
-              </div>
-              <button type="button" onClick={() => setActive('socios')} style={{padding:'7px 14px',borderRadius:8,border:'none',background:'var(--red-light)',color:'var(--red)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Ver en Socios</button>
+
+        {/* Bento charts */}
+        <div style={{display:'grid',gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',gap:24}}>
+          <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
+            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Ingresos y gastos</div>
+            <div style={{fontSize:14,color:'var(--text-secondary)',marginTop:4,marginBottom:24}}>Enero — Diciembre {new Date().getFullYear()}</div>
+            <BarChart data={ingresos} secondaryData={egresos} labels={meses} color="var(--accent-soft)" secondaryColor="var(--red)" height={200}/>
+            <div style={{display:'flex',gap:20,marginTop:16}}>
+              <span style={{fontSize:12,display:'flex',alignItems:'center',gap:8,color:'var(--text-secondary)',fontWeight:600}}>
+                <span style={{width:10,height:10,borderRadius:3,background:'var(--accent-soft)',display:'inline-block'}}></span>Ingresos
+              </span>
+              <span style={{fontSize:12,display:'flex',alignItems:'center',gap:8,color:'var(--text-secondary)',fontWeight:600}}>
+                <span style={{width:10,height:10,borderRadius:3,background:'var(--red)',display:'inline-block'}}></span>Gastos
+              </span>
             </div>
-          ))}
+          </div>
+          <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',display:'flex',flexDirection:'column'}}>
+            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Ingresos por concepto</div>
+            <div style={{fontSize:14,color:'var(--text-secondary)',marginTop:4,marginBottom:24}}>Distribución de origen</div>
+            <div style={{display:'flex',justifyContent:'center',marginBottom:24,position:'relative'}}>
+              <div style={{position:'relative',width:160,height:160}}>
+                <DonutChart size={160} segments={donutSegments}/>
+                <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
+                  <span style={{fontSize:18,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(totalConceptos)}</span>
+                  <span style={{fontSize:10,fontWeight:700,letterSpacing:'0.08em',color:'var(--text-muted)',textTransform:'uppercase'}}>Total</span>
+                </div>
+              </div>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:10,marginTop:'auto'}}>
+              {conceptos.length === 0 ? (
+                <div style={{fontSize:13,color:'var(--text-muted)'}}>Sin ingresos registrados.</div>
+              ) : conceptos.map((row) => (
+                <div key={row.label} style={{display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{width:10,height:10,borderRadius:'50%',background:row.color,flexShrink:0}}></span>
+                  <span style={{fontSize:13,color:'var(--text-primary)',flex:1}}>{row.label}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:'var(--text-secondary)'}}>
+                    {totalConceptos > 0 ? `${Math.round((row.value / totalConceptos) * 100)}%` : '0%'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Morosos */}
+        <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
+          <div style={{padding:'24px 32px',borderBottom:'1px solid var(--border)'}}>
+            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Socios con deuda vencida</div>
+            <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>{morosos.length} {morosos.length === 1 ? 'socio' : 'socios'} en mora</div>
+          </div>
+          {morosos.length === 0 ? (
+            <div style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
+              Sin morosidad. Todos los socios al día.
+            </div>
+          ) : (
+            morosos.map((s, i) => (
+              <div key={s.id} style={{
+                minHeight:64,padding:'16px 32px',display:'flex',alignItems:'center',gap:16,
+                borderTop: i === 0 ? 'none' : '1px solid var(--border)'
+              }}>
+                <Avatar initials={s.avatar} color="var(--red)" size={36}/>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:14,color:'var(--text-primary)'}}>{s.nombre}</div>
+                  <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{s.deporte} · Vence {new Date(s.vencimiento).toLocaleDateString('es-ES')}</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontWeight:700,fontSize:14,color:'var(--red)'}}>{fmtMoney(s.cuota)}</div>
+                </div>
+                <Badge status="Moroso"/>
+                <button type="button" onClick={() => setActive('socios')} style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,transition:'all 0.15s'}}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-pill)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)' }}
+                >Ver en socios</button>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -4673,127 +4856,156 @@ function Personal() {
     }
   }
 
+  // KPIs Personal
+  const numAdmins = users.filter((u: any) => u.role === 'ADMIN').length
+  const numCoaches = users.filter((u: any) => u.role === 'COACH').length
+  const numTreasurers = users.filter((u: any) => u.role === 'TREASURER').length
+  const numPublishedNews = newsPosts.filter((n: any) => n.isPublished).length
+  const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 10, color: 'var(--text-primary)', background: 'var(--surface-card)', outline: 'none' as const }
+
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '32px 36px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>Personal</h1>
-        <p style={{ color: '#6b7280', fontSize: 14, marginTop: 4 }}>Gestiona cuentas y accesos por rol del club.</p>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <form onSubmit={createUser} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, padding: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 10 }}>Crear cuenta de personal</div>
-          <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Nombre" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }} />
-          <input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} placeholder="Email" type="email" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }} />
-          <input value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} placeholder="Contraseña inicial" type="password" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }} />
-          <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }}>
-            <option value="COACH">Entrenador</option>
-            <option value="TREASURER">Tesorero</option>
-            <option value="ADMIN">Administrador</option>
-          </select>
-          <select value={form.memberId} onChange={(e) => setForm((p) => ({ ...p, memberId: e.target.value }))} style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 10 }}>
-            <option value="">Sin socio vinculado</option>
-            {members.map((m: any) => (
-              <option key={m.id} value={m.id}>{m.nombre}</option>
-            ))}
-          </select>
-          <button type="submit" disabled={busy} style={{ padding: '9px 12px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer' }}>
-            Crear cuenta
-          </button>
-        </form>
-
-        <form onSubmit={createNews} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, padding: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 10 }}>Publicar noticia</div>
-          <input value={newsForm.title} onChange={(e) => setNewsForm((p) => ({ ...p, title: e.target.value }))} placeholder="Título" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }} />
-          <textarea value={newsForm.content} onChange={(e) => setNewsForm((p) => ({ ...p, content: e.target.value }))} rows={4} placeholder="Contenido de la noticia" style={{ width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }} />
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-            <select value={newsForm.priority} onChange={(e) => setNewsForm((p) => ({ ...p, priority: e.target.value }))} style={{ flex: 1, padding: '9px 11px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13 }}>
-              <option value="NORMAL">Prioridad normal</option>
-              <option value="HIGH">Prioridad alta</option>
-            </select>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
-              <input type="checkbox" checked={newsForm.isPublished} onChange={(e) => setNewsForm((p) => ({ ...p, isPublished: e.target.checked }))} />
-              Publicada
-            </label>
-          </div>
-          <button type="submit" disabled={busy} style={{ padding: '9px 12px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer' }}>
-            Guardar noticia
-          </button>
-        </form>
-      </div>
-
-      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontWeight: 700, color: '#111827' }}>Cuentas de acceso</div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', color: '#64748b' }}>
-                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Nombre</th>
-                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Email</th>
-                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Rol</th>
-                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Socio vinculado</th>
-                <th style={{ textAlign: 'left', padding: '10px 12px' }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u: any) => (
-                <tr key={u.id} style={{ borderTop: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 12px', fontWeight: 600, color: '#111827' }}>{u.name || '—'}</td>
-                  <td style={{ padding: '10px 12px', color: '#475569' }}>{u.email || '—'}</td>
-                  <td style={{ padding: '10px 12px' }}>
-                    <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value)} disabled={busy} style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit' }}>
-                      <option value="ADMIN">ADMIN</option>
-                      <option value="COACH">COACH</option>
-                      <option value="TREASURER">TREASURER</option>
-                      <option value="MEMBER">MEMBER</option>
-                    </select>
-                  </td>
-                  <td style={{ padding: '10px 12px', color: '#475569' }}>{u.memberName || '—'}</td>
-                  <td style={{ padding: '10px 12px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button type="button" onClick={() => resetPassword(u.id)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Reset password</button>
-                    <button type="button" onClick={() => removeUser(u.id, u.name || u.email || u.id)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #fecaca', color: '#b91c1c', background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>Eliminar</button>
-                  </td>
-                </tr>
-              ))}
-              {users.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: 16, textAlign: 'center', color: '#94a3b8' }}>Sin cuentas registradas.</td></tr>
-              )}
-            </tbody>
-          </table>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)' }}>
+      <div style={{ maxWidth: 1440, margin: '0 auto', padding: '32px 40px 56px', display: 'flex', flexDirection: 'column', gap: 32 }}>
+        {/* Header */}
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.1 }}>Personal</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 6, margin: 0 }}>Cuentas, roles y comunicación interna del club</p>
         </div>
-      </div>
 
-      <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', fontWeight: 700, color: '#111827' }}>Mural de noticias</div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {newsPosts.map((post: any) => (
-            <div key={post.id} style={{ borderTop: '1px solid var(--border)', padding: '12px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{ fontWeight: 700, color: '#111827' }}>{post.title}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '2px 8px', background: post.priority === 'HIGH' ? '#fee2e2' : '#e2e8f0', color: post.priority === 'HIGH' ? '#b91c1c' : '#475569' }}>
-                  {post.priority === 'HIGH' ? 'Alta' : 'Normal'}
-                </span>
-                <span style={{ fontSize: 11, color: '#64748b' }}>{post.isPublished ? 'Publicada' : 'Borrador'}</span>
-              </div>
-              <div style={{ fontSize: 13, color: '#475569', whiteSpace: 'pre-wrap' }}>{post.content}</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                <span style={{ fontSize: 12, color: '#94a3b8' }}>
-                  {post.authorName || '—'} · {post.createdAt ? new Date(post.createdAt).toLocaleString('es-ES') : '—'}
-                </span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" onClick={() => togglePublish(post)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {post.isPublished ? 'Despublicar' : 'Publicar'}
-                  </button>
-                  <button type="button" onClick={() => removeNews(post)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #fecaca', color: '#b91c1c', background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Eliminar
-                  </button>
+        {/* KPI grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24 }}>
+          <KPICard label="Total cuentas" value={String(users.length)} sub="Personal con acceso" icon="users" color="var(--accent-soft)" badge={{ kind: 'info', text: 'Total' }}/>
+          <KPICard label="Administradores" value={String(numAdmins)} sub="Acceso completo" icon="users" color="var(--accent)" badge={{ kind: 'info', text: 'Admin' }}/>
+          <KPICard label="Entrenadores" value={String(numCoaches)} sub="Equipos y eventos" icon="teams" color="var(--green)"/>
+          <KPICard label="Tesoreros" value={String(numTreasurers)} sub="Contabilidad y cobros" icon="billing" color="var(--amber)"/>
+        </div>
+
+        {/* Forms: Crear cuenta + publicar noticia */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          <form onSubmit={createUser} style={{ background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, boxShadow: 'var(--card-shadow)' }}>
+            <div style={{ fontWeight: 600, fontSize: 16, color: 'var(--text-primary)', letterSpacing: '-0.01em', marginBottom: 6 }}>Crear cuenta de personal</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Asigna rol y, opcionalmente, vincula a un socio existente.</div>
+            <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Nombre" style={inputStyle} />
+            <input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} placeholder="Email" type="email" style={inputStyle} />
+            <input value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} placeholder="Contraseña inicial" type="password" style={inputStyle} />
+            <select value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} style={inputStyle}>
+              <option value="COACH">Entrenador</option>
+              <option value="TREASURER">Tesorero</option>
+              <option value="ADMIN">Administrador</option>
+            </select>
+            <select value={form.memberId} onChange={(e) => setForm((p) => ({ ...p, memberId: e.target.value }))} style={{ ...inputStyle, marginBottom: 16 }}>
+              <option value="">Sin socio vinculado</option>
+              {members.map((m: any) => (
+                <option key={m.id} value={m.id}>{m.nombre}</option>
+              ))}
+            </select>
+            <button type="submit" disabled={busy} style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontWeight: 700, fontSize: 13, cursor: busy ? 'not-allowed' : 'pointer', boxShadow: '0 1px 2px rgba(0,74,198,0.2)' }}>
+              Crear cuenta
+            </button>
+          </form>
+
+          <form onSubmit={createNews} style={{ background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, boxShadow: 'var(--card-shadow)' }}>
+            <div style={{ fontWeight: 600, fontSize: 16, color: 'var(--text-primary)', letterSpacing: '-0.01em', marginBottom: 6 }}>Publicar noticia</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>Aparecerá en el mural de socios cuando esté publicada.</div>
+            <input value={newsForm.title} onChange={(e) => setNewsForm((p) => ({ ...p, title: e.target.value }))} placeholder="Título" style={inputStyle} />
+            <textarea value={newsForm.content} onChange={(e) => setNewsForm((p) => ({ ...p, content: e.target.value }))} rows={5} placeholder="Contenido de la noticia" style={{ ...inputStyle, resize: 'vertical' }} />
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+              <select value={newsForm.priority} onChange={(e) => setNewsForm((p) => ({ ...p, priority: e.target.value }))} style={{ ...inputStyle, marginBottom: 0, flex: 1 }}>
+                <option value="NORMAL">Prioridad normal</option>
+                <option value="HIGH">Prioridad alta</option>
+              </select>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                <input type="checkbox" checked={newsForm.isPublished} onChange={(e) => setNewsForm((p) => ({ ...p, isPublished: e.target.checked }))} />
+                Publicada
+              </label>
+            </div>
+            <button type="submit" disabled={busy} style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontWeight: 700, fontSize: 13, cursor: busy ? 'not-allowed' : 'pointer', boxShadow: '0 1px 2px rgba(0,74,198,0.2)' }}>
+              Guardar noticia
+            </button>
+          </form>
+        </div>
+
+        {/* Tabla cuentas */}
+        <div style={{ background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--card-shadow)', overflow: 'hidden' }}>
+          <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontWeight: 600, fontSize: 18, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Cuentas de acceso</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>{users.length} {users.length === 1 ? 'cuenta' : 'cuentas'} registradas</div>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: 'var(--surface-low)' }}>
+                  <th style={{ textAlign: 'left', padding: '12px 32px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Nombre</th>
+                  <th style={{ textAlign: 'left', padding: '12px 32px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Email</th>
+                  <th style={{ textAlign: 'left', padding: '12px 32px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Rol</th>
+                  <th style={{ textAlign: 'left', padding: '12px 32px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Socio vinculado</th>
+                  <th style={{ textAlign: 'left', padding: '12px 32px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u: any) => (
+                  <tr key={u.id} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td style={{ padding: '16px 32px', fontWeight: 600, color: 'var(--text-primary)' }}>{u.name || '—'}</td>
+                    <td style={{ padding: '16px 32px', color: 'var(--text-secondary)' }}>{u.email || '—'}</td>
+                    <td style={{ padding: '16px 32px' }}>
+                      <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value)} disabled={busy} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', background: 'var(--surface-card)' }}>
+                        <option value="ADMIN">ADMIN</option>
+                        <option value="COACH">COACH</option>
+                        <option value="TREASURER">TREASURER</option>
+                        <option value="MEMBER">MEMBER</option>
+                      </select>
+                    </td>
+                    <td style={{ padding: '16px 32px', color: 'var(--text-secondary)' }}>{u.memberName || '—'}</td>
+                    <td style={{ padding: '16px 32px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button type="button" onClick={() => resetPassword(u.id)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Reset password</button>
+                      <button type="button" onClick={() => removeUser(u.id, u.name || u.email || u.id)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', color: 'var(--red)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Eliminar</button>
+                    </td>
+                  </tr>
+                ))}
+                {users.length === 0 && (
+                  <tr><td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>Sin cuentas registradas.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mural noticias */}
+        <div style={{ background: 'var(--surface-card)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: 'var(--card-shadow)', overflow: 'hidden' }}>
+          <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontWeight: 600, fontSize: 18, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Mural de noticias</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>{newsPosts.length} {newsPosts.length === 1 ? 'publicación' : 'publicaciones'} · {numPublishedNews} {numPublishedNews === 1 ? 'visible' : 'visibles'} para socios</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {newsPosts.map((post: any) => (
+              <div key={post.id} style={{ borderTop: '1px solid var(--border)', padding: '20px 32px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{post.title}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px', background: post.priority === 'HIGH' ? 'var(--red-soft)' : 'var(--surface-low)', color: post.priority === 'HIGH' ? 'var(--red)' : 'var(--text-secondary)', letterSpacing: '0.02em' }}>
+                    {post.priority === 'HIGH' ? 'Alta' : 'Normal'}
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 700, borderRadius: 999, padding: '3px 10px', background: post.isPublished ? 'var(--green-soft)' : 'var(--surface-low)', color: post.isPublished ? 'var(--green)' : 'var(--text-muted)', letterSpacing: '0.02em' }}>{post.isPublished ? 'Publicada' : 'Borrador'}</span>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{post.content}</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, gap: 12, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {post.authorName || '—'} · {post.createdAt ? new Date(post.createdAt).toLocaleString('es-ES') : '—'}
+                  </span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={() => togglePublish(post)} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {post.isPublished ? 'Despublicar' : 'Publicar'}
+                    </button>
+                    <button type="button" onClick={() => removeNews(post)} style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border)', color: 'var(--red)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-          {newsPosts.length === 0 && (
-            <div style={{ padding: 16, textAlign: 'center', color: '#94a3b8' }}>No hay noticias aún.</div>
-          )}
+            ))}
+            {newsPosts.length === 0 && (
+              <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>No hay noticias aún.</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -4945,75 +5157,109 @@ function WhatsAppSection() {
     }
   }
 
+  const statusColor = status === 'READY' ? 'var(--green)' : status === 'QR_READY' ? 'var(--amber)' : 'var(--text-muted)'
+  const statusBg = status === 'READY' ? 'var(--green-soft)' : status === 'QR_READY' ? 'var(--amber-soft)' : 'var(--surface-low)'
+  const inputStyle = { width:'100%', padding:'10px 12px', borderRadius:8, border:'1px solid var(--border)', fontFamily:'inherit', fontSize:13, color:'var(--text-primary)', background:'var(--surface-card)', outline:'none' as const }
+
   return (
-    <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:20}}>
-      <div>
-        <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Whatsapp</h1>
-        <p style={{color:'#6b7280',fontSize:14,marginTop:4}}>Conexión ApiWass y envío integrado con el CRM.</p>
-      </div>
-
-      <div style={{display:'grid',gridTemplateColumns:'1.2fr 1fr',gap:14}}>
-        <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:10}}>Sesión vinculada al CRM</div>
-          <div style={{display:'flex',gap:8,marginBottom:10}}>
-            <input value={createSessionId} onChange={(e)=>setCreateSessionId(e.target.value)} placeholder="session-id-crm" style={{flex:1,padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13}} />
-            <button type="button" onClick={createSession} disabled={busy || !!session} style={{padding:'9px 12px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer',opacity:(busy || !!session)?0.7:1}}>Crear sesión</button>
+    <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
+      <div style={{maxWidth:1440,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:32}}>
+        {/* Header */}
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
+          <div>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>WhatsApp</h1>
+            <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>Conexión ApiWass y envío integrado con el CRM</p>
           </div>
-          <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center',padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',background:'#fafafa'}}>
-            <span style={{fontSize:13,color:'#111827',fontWeight:600,flex:1}}>
-              {session ? `${session.id} · ${session.status || session.state || 'UNKNOWN'}` : 'Sin sesión vinculada'}
-            </span>
-          </div>
-          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            <button type="button" onClick={() => runSessionAction('restart')} disabled={busy || !activeSessionId} style={{padding:'8px 11px',borderRadius:9,border:'1px solid var(--border)',background:'#fff',fontFamily:'inherit',fontWeight:600,cursor:busy?'not-allowed':'pointer'}}>Reiniciar</button>
-            <button type="button" onClick={() => runSessionAction('delete')} disabled={busy || !activeSessionId} style={{padding:'8px 11px',borderRadius:9,border:'1px solid rgba(239,68,68,0.3)',background:'#fff',color:'#b91c1c',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Eliminar</button>
-            <span style={{fontSize:12,color:'#6b7280'}}>Esta es la única sesión vinculada y visible en este CRM.</span>
-            <span style={{marginLeft:'auto',fontSize:12,fontWeight:700,color:status==='READY'?'#047857':status==='QR_READY'?'#b45309':'#64748b'}}>Estado: {status}</span>
-          </div>
+          <span style={{
+            display:'inline-flex',alignItems:'center',gap:8,padding:'7px 14px',borderRadius:999,
+            background:statusBg,color:statusColor,fontSize:12,fontWeight:700,letterSpacing:'0.04em'
+          }}>
+            <span style={{width:8,height:8,borderRadius:'50%',background:statusColor}}/>
+            Estado: {status}
+          </span>
         </div>
 
-        <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14,display:'flex',alignItems:'center',justifyContent:'center',minHeight:180}}>
-          {qrImage ? (
-            <img
-              src={qrImage}
-              alt="QR WhatsApp"
-              style={{
-                width: 220,
-                height: 220,
-                maxWidth: '100%',
-                objectFit: 'contain',
-                imageRendering: 'pixelated',
-                borderRadius: 0,
-                border: '1px solid var(--border)',
-                background: '#fff',
-              }}
-            />
-          ) : (
-            <div style={{fontSize:12,color:'#6b7280'}}>Sin QR disponible (si estado es READY no hace falta escanear).</div>
-          )}
+        {/* KPI grid */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',gap:24}}>
+          <KPICard label="Sesión activa" value={session ? '1' : '0'} sub={session?.id || 'Sin sesión vinculada'} icon="dashboard" color="var(--green)" badge={session ? { kind:'success', text:'Conectado' } : { kind:'warning', text:'Sin conexión' }}/>
+          <KPICard label="Estado" value={status === 'READY' ? 'Listo' : status === 'QR_READY' ? 'QR' : status} sub={status === 'READY' ? 'Puede enviar mensajes' : status === 'QR_READY' ? 'Escanea el QR' : 'Sin estado'} icon="bell" color="var(--accent-soft)" badge={status === 'READY' ? { kind:'success', text:'OK' } : { kind:'warning', text:'Atención' }}/>
+          <KPICard label="Logs recientes" value={String(logs.length)} sub="Eventos registrados" icon="reports" color="var(--amber)"/>
         </div>
-      </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-        <form onSubmit={sendTextMessage} style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:10}}>Enviar mensaje manual</div>
-          <label style={{fontSize:12,fontWeight:600,color:'#64748b',display:'block',marginBottom:5}}>Teléfono (E.164 sin +)</label>
-          <input value={sendPhone} onChange={(e)=>setSendPhone(e.target.value)} placeholder="34666777888" style={{width:'100%',padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,marginBottom:10}} />
-          <label style={{fontSize:12,fontWeight:600,color:'#64748b',display:'block',marginBottom:5}}>Mensaje</label>
-          <textarea value={sendMessage} onChange={(e)=>setSendMessage(e.target.value)} rows={4} placeholder="Hola, este mensaje sale desde Furvoley CRM." style={{width:'100%',padding:'9px 11px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,marginBottom:10}} />
-          <button type="submit" disabled={busy || !activeSessionId} style={{padding:'9px 12px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Enviar WhatsApp</button>
-        </form>
+        {/* Bento: Sesión + QR */}
+        <div style={{display:'grid',gridTemplateColumns:'minmax(0, 1.2fr) minmax(0, 1fr)',gap:24}}>
+          <div style={{background:'var(--surface-card)',border:'1px solid var(--border)',borderRadius:12,padding:24,boxShadow:'var(--card-shadow)'}}>
+            <div style={{fontWeight:600,fontSize:16,color:'var(--text-primary)',letterSpacing:'-0.01em',marginBottom:6}}>Sesión vinculada al CRM</div>
+            <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>Solo se mantiene una sesión activa por club.</div>
+            <div style={{display:'flex',gap:8,marginBottom:14}}>
+              <input value={createSessionId} onChange={(e)=>setCreateSessionId(e.target.value)} placeholder="session-id-crm" style={{...inputStyle,flex:1}} />
+              <button type="button" onClick={createSession} disabled={busy || !!session} style={{
+                padding:'10px 16px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',
+                fontFamily:'inherit',fontWeight:700,fontSize:13,
+                cursor: busy ? 'not-allowed' : 'pointer',opacity:(busy || !!session)?0.7:1,
+                boxShadow:'0 1px 2px rgba(0,74,198,0.2)'
+              }}>Crear sesión</button>
+            </div>
+            <div style={{display:'flex',gap:8,marginBottom:14,alignItems:'center',padding:'12px 14px',borderRadius:10,border:'1px solid var(--border)',background:'var(--surface-low)'}}>
+              <span style={{fontSize:13,color:'var(--text-primary)',fontWeight:600,flex:1}}>
+                {session ? `${session.id}` : 'Sin sesión vinculada'}
+              </span>
+              {session && (
+                <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:999,background:statusBg,color:statusColor,letterSpacing:'0.02em'}}>
+                  {session.status || session.state || 'UNKNOWN'}
+                </span>
+              )}
+            </div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              <button type="button" onClick={() => runSessionAction('restart')} disabled={busy || !activeSessionId} style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',fontFamily:'inherit',fontSize:12,fontWeight:700,color:'var(--text-primary)',cursor:busy?'not-allowed':'pointer'}}>Reiniciar</button>
+              <button type="button" onClick={() => runSessionAction('delete')} disabled={busy || !activeSessionId} style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--red)',fontFamily:'inherit',fontSize:12,fontWeight:700,cursor:busy?'not-allowed':'pointer'}}>Eliminar</button>
+            </div>
+          </div>
 
-        <div style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,padding:14}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#111827',marginBottom:10}}>Logs de sesión</div>
-          <div style={{maxHeight:180,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
-            {logs.length === 0 ? (
-              <div style={{fontSize:12,color:'#6b7280'}}>Sin logs recientes.</div>
-            ) : logs.slice(0, 80).map((l:any, i:number) => (
-              <div key={i} style={{fontSize:12,color:'#374151',padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,background:'#fafafa'}}>
-                {typeof l === 'string' ? l : JSON.stringify(l)}
+          <div style={{background:'var(--surface-card)',border:'1px solid var(--border)',borderRadius:12,padding:24,boxShadow:'var(--card-shadow)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:240,gap:14}}>
+            <div style={{fontWeight:600,fontSize:14,color:'var(--text-primary)',alignSelf:'flex-start'}}>QR de vinculación</div>
+            {qrImage ? (
+              <img
+                src={qrImage}
+                alt="QR WhatsApp"
+                style={{
+                  width: 220, height: 220, maxWidth: '100%',
+                  objectFit: 'contain', imageRendering: 'pixelated',
+                  borderRadius: 10, border: '1px solid var(--border)', background: '#fff', padding: 6
+                }}
+              />
+            ) : (
+              <div style={{fontSize:12,color:'var(--text-muted)',textAlign:'center',padding:'20px 0'}}>
+                Sin QR disponible.<br/>Si el estado es <b>READY</b> no hace falta escanear.
               </div>
-            ))}
+            )}
+          </div>
+        </div>
+
+        {/* Enviar + Logs */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}}>
+          <form onSubmit={sendTextMessage} style={{background:'var(--surface-card)',border:'1px solid var(--border)',borderRadius:12,padding:24,boxShadow:'var(--card-shadow)'}}>
+            <div style={{fontWeight:600,fontSize:16,color:'var(--text-primary)',letterSpacing:'-0.01em',marginBottom:6}}>Enviar mensaje manual</div>
+            <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>Envío directo a un número desde el CRM.</div>
+            <label style={{fontSize:12,fontWeight:700,color:'var(--text-secondary)',display:'block',marginBottom:6,letterSpacing:'0.02em'}}>Teléfono (E.164 sin +)</label>
+            <input value={sendPhone} onChange={(e)=>setSendPhone(e.target.value)} placeholder="34666777888" style={{...inputStyle,marginBottom:14}} />
+            <label style={{fontSize:12,fontWeight:700,color:'var(--text-secondary)',display:'block',marginBottom:6,letterSpacing:'0.02em'}}>Mensaje</label>
+            <textarea value={sendMessage} onChange={(e)=>setSendMessage(e.target.value)} rows={4} placeholder="Hola, este mensaje sale desde Furvoley CRM." style={{...inputStyle,marginBottom:14,resize:'vertical'}} />
+            <button type="submit" disabled={busy || !activeSessionId} style={{padding:'10px 18px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontWeight:700,fontSize:13,cursor:busy?'not-allowed':'pointer',boxShadow:'0 1px 2px rgba(0,74,198,0.2)'}}>Enviar WhatsApp</button>
+          </form>
+
+          <div style={{background:'var(--surface-card)',border:'1px solid var(--border)',borderRadius:12,padding:24,boxShadow:'var(--card-shadow)'}}>
+            <div style={{fontWeight:600,fontSize:16,color:'var(--text-primary)',letterSpacing:'-0.01em',marginBottom:6}}>Logs de sesión</div>
+            <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>Últimos eventos de la integración.</div>
+            <div style={{maxHeight:240,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
+              {logs.length === 0 ? (
+                <div style={{fontSize:13,color:'var(--text-muted)'}}>Sin logs recientes.</div>
+              ) : logs.slice(0, 80).map((l:any, i:number) => (
+                <div key={i} style={{fontSize:12,color:'var(--text-secondary)',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:8,background:'var(--surface-low)',fontFamily:'ui-monospace, SFMono-Regular, monospace'}}>
+                  {typeof l === 'string' ? l : JSON.stringify(l)}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
