@@ -471,124 +471,229 @@ function Sidebar({ active, setActive }) {
 }
 
 // ── DASHBOARD ───────────────────────────────────────────────────────────────
-function ModernKpiCard({
+function SparkArea({
+  data,
+  color = '#3B82F6',
+  height = 64,
+}: {
+  data: number[]
+  color?: string
+  height?: number
+}) {
+  const d = data && data.length ? data : [0, 0]
+  const w = 240
+  const max = Math.max(...d, 1)
+  const min = Math.min(...d)
+  const range = max - min || 1
+  const step = w / (d.length - 1 || 1)
+  const points = d.map((v, i) => {
+    const x = i * step
+    const y = height - 6 - ((v - min) / range) * (height - 18)
+    return [x, y] as const
+  })
+  const path = points
+    .map((p, i) => (i === 0 ? `M ${p[0]} ${p[1]}` : `L ${p[0]} ${p[1]}`))
+    .join(' ')
+  const area = `${path} L ${w} ${height} L 0 ${height} Z`
+  const id = `spark-${color.replace(/[^a-z0-9]/gi, '')}`
+  return (
+    <svg
+      width="100%"
+      height={height}
+      viewBox={`0 0 ${w} ${height}`}
+      preserveAspectRatio="none"
+      style={{ display: 'block' }}
+    >
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${id})`} />
+      <path
+        d={path}
+        fill="none"
+        stroke={color}
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function StatCard({
   label,
   value,
+  delta,
+  deltaUp,
   hint,
   icon,
   color,
-  trend,
   spark,
 }: {
   label: string
   value: string
+  delta?: string
+  deltaUp?: boolean
   hint?: string
   icon: string
   color: string
-  trend?: { up?: boolean; label?: string }
   spark?: number[]
 }) {
   return (
     <div
       style={{
-        flex: '1 1 220px',
-        minWidth: 220,
+        position: 'relative',
         background: '#fff',
-        borderRadius: 18,
-        padding: '22px 24px',
-        boxShadow: '0 6px 18px rgba(15,23,42,0.05)',
+        borderRadius: 20,
+        padding: '22px 22px 0',
         border: '1px solid rgba(15,23,42,0.06)',
+        boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        gap: 18,
-        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        minWidth: 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span
-          style={{
-            fontSize: 12.5,
-            color: '#64748b',
-            fontWeight: 600,
-            letterSpacing: 0.2,
-            textTransform: 'uppercase',
-          }}
-        >
-          {label}
-        </span>
-        <div
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 12,
-            background: `${color}15`,
-            color,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <Icon name={icon} size={18} />
-        </div>
-      </div>
       <div
         style={{
-          fontSize: 30,
-          fontWeight: 800,
-          letterSpacing: '-0.6px',
-          color: '#0f172a',
-          lineHeight: 1,
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 4,
+          background: color,
+          opacity: 0.85,
         }}
-      >
-        {value}
-      </div>
+      />
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 12,
+          marginBottom: 14,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          {trend && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 3,
-                padding: '2px 8px',
-                borderRadius: 999,
-                background: trend.up ? 'var(--green-light)' : 'var(--red-light)',
-                color: trend.up ? 'var(--green)' : 'var(--red)',
-                fontSize: 11,
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
-            >
-              <Icon name={trend.up ? 'trend_up' : 'trend_down'} size={11} />
-              {trend.label || (trend.up ? '+' : '−')}
-            </span>
-          )}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            minWidth: 0,
+          }}
+        >
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: `${color}14`,
+              color,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Icon name={icon} size={17} />
+          </div>
           <span
             style={{
               fontSize: 12.5,
               color: '#64748b',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              fontWeight: 600,
+              letterSpacing: 0.2,
             }}
           >
-            {hint}
+            {label}
           </span>
         </div>
-        {spark && spark.length > 0 && (
-          <div style={{ flexShrink: 0 }}>
-            <MiniLineChart data={spark} color={color} width={84} height={30} />
-          </div>
+        {delta && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+              padding: '3px 9px',
+              borderRadius: 999,
+              background: deltaUp ? 'var(--green-light)' : 'var(--red-light)',
+              color: deltaUp ? 'var(--green)' : 'var(--red)',
+              fontSize: 11,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            <Icon name={deltaUp ? 'trend_up' : 'trend_down'} size={10} />
+            {delta}
+          </span>
         )}
       </div>
+      <div
+        style={{
+          fontSize: 32,
+          fontWeight: 800,
+          color: '#0f172a',
+          letterSpacing: '-0.7px',
+          lineHeight: 1,
+          marginBottom: 6,
+        }}
+      >
+        {value}
+      </div>
+      {hint && (
+        <div
+          style={{
+            fontSize: 12.5,
+            color: '#94a3b8',
+            marginBottom: 14,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {hint}
+        </div>
+      )}
+      <div style={{ marginLeft: -22, marginRight: -22, marginTop: 'auto' }}>
+        <SparkArea data={spark || [0, 0]} color={color} height={56} />
+      </div>
+    </div>
+  )
+}
+
+function ProgressBar({
+  value,
+  total,
+  color,
+}: {
+  value: number
+  total: number
+  color: string
+}) {
+  const pct = total > 0 ? Math.max(2, Math.min(100, (value / total) * 100)) : 0
+  return (
+    <div
+      style={{
+        position: 'relative',
+        height: 6,
+        background: '#f1f5f9',
+        borderRadius: 999,
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: `${pct}%`,
+          background: color,
+          borderRadius: 999,
+        }}
+      />
     </div>
   )
 }
@@ -607,184 +712,397 @@ function Dashboard({ setActive }) {
     year: 'numeric',
   })
   const dateStrPretty = dateStr.charAt(0).toUpperCase() + dateStr.slice(1)
-  const ingresosMes = bundle?.ingresosMensual ?? Array(12).fill(0);
+  const ingresosMes: number[] = bundle?.ingresosMensual ?? Array(12).fill(0);
   const kp = bundle?.kpis;
-  const donut = bundle?.sociosPorDeporte ?? [];
-  const EVENTOS_UI = bundle?.eventos ?? [];
-  const COBROS_UI = bundle?.cobros ?? [];
+  const donut: { label: string; value: number; color: string }[] = bundle?.sociosPorDeporte ?? [];
+  const EVENTOS_UI: any[] = bundle?.eventos ?? [];
+  const COBROS_UI: any[] = bundle?.cobros ?? [];
   const userName: string = bundle?.user?.name || 'Administrador'
   const firstName = String(userName).trim().split(/\s+/)[0]
   const totalAnual = ingresosMes.reduce((acc: number, v: number) => acc + (Number(v) || 0), 0)
   const maxMes = Math.max(0, ...ingresosMes.map((v: any) => Number(v) || 0))
   const promedio = ingresosMes.length ? totalAnual / 12 : 0
   const totalSocios = donut.reduce((a: number, d: any) => a + (Number(d.value) || 0), 0)
+  const sortedDonut = [...donut].sort((a, b) => (b.value || 0) - (a.value || 0))
+  const greeting = (() => {
+    const h = meta.getHours()
+    if (h < 6) return 'Buenas noches'
+    if (h < 13) return 'Buenos días'
+    if (h < 21) return 'Buenas tardes'
+    return 'Buenas noches'
+  })()
 
   return (
     <div
       style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '36px 40px 48px',
+        padding: '32px 36px 56px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 28,
-        background: '#f8fafc',
+        gap: 22,
+        background:
+          'radial-gradient(1200px 600px at -10% -20%, rgba(99,102,241,0.08), transparent 60%), radial-gradient(900px 500px at 110% -10%, rgba(236,72,153,0.06), transparent 55%), #f6f7fb',
       }}
     >
-      {/* HERO HEADER */}
+      {/* HERO PROFESIONAL */}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          gap: 24,
-          flexWrap: 'wrap',
+          position: 'relative',
+          borderRadius: 24,
+          padding: '34px 36px',
+          color: '#fff',
+          background:
+            'linear-gradient(135deg, #1e1b4b 0%, #312e81 35%, #4f46e5 70%, #7c3aed 100%)',
+          overflow: 'hidden',
+          boxShadow: '0 20px 50px -20px rgba(76,29,149,0.55)',
+          isolation: 'isolate',
         }}
       >
-        <div style={{ minWidth: 0 }}>
+        {/* Decoración SVG */}
+        <svg
+          width="520"
+          height="380"
+          viewBox="0 0 520 380"
+          style={{
+            position: 'absolute',
+            right: -80,
+            top: -80,
+            opacity: 0.5,
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        >
+          <defs>
+            <radialGradient id="hero-glow1" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#a5b4fc" stopOpacity="0.7" />
+              <stop offset="100%" stopColor="#a5b4fc" stopOpacity="0" />
+            </radialGradient>
+            <radialGradient id="hero-glow2" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#f472b6" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#f472b6" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <circle cx="180" cy="160" r="160" fill="url(#hero-glow1)" />
+          <circle cx="380" cy="220" r="180" fill="url(#hero-glow2)" />
+        </svg>
+        <svg
+          width="100%"
+          height="100%"
+          viewBox="0 0 800 300"
+          preserveAspectRatio="none"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            opacity: 0.18,
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        >
+          <defs>
+            <pattern id="hero-grid" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
+              <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#fff" strokeWidth="0.6" />
+            </pattern>
+          </defs>
+          <rect width="800" height="300" fill="url(#hero-grid)" />
+        </svg>
+
+        <div
+          style={{
+            position: 'relative',
+            zIndex: 1,
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1.6fr) minmax(280px, 1fr)',
+            gap: 28,
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '5px 12px',
+                borderRadius: 999,
+                background: 'rgba(255,255,255,0.12)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                fontSize: 11.5,
+                fontWeight: 700,
+                color: '#e0e7ff',
+                letterSpacing: 0.6,
+                textTransform: 'uppercase',
+                backdropFilter: 'blur(6px)',
+              }}
+            >
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: '#34d399',
+                  boxShadow: '0 0 0 4px rgba(52,211,153,0.25)',
+                }}
+              />
+              Panel del club · {dateStrPretty}
+            </span>
+            <h1
+              style={{
+                fontSize: 38,
+                fontWeight: 800,
+                margin: '14px 0 6px',
+                letterSpacing: '-1.1px',
+                lineHeight: 1.05,
+              }}
+            >
+              {greeting}, {firstName}.
+            </h1>
+            <p
+              style={{
+                fontSize: 15,
+                color: 'rgba(226,232,255,0.86)',
+                lineHeight: 1.55,
+                margin: 0,
+                maxWidth: 560,
+              }}
+            >
+              Tu club tiene{' '}
+              <strong style={{ color: '#fff' }}>{kp?.sociosActivos ?? 0} socios activos</strong>{' '}
+              y ha facturado{' '}
+              <strong style={{ color: '#fff' }}>{kp ? fmtMoney(kp.ingresosMes) : '€0'}</strong>{' '}
+              este mes. Aquí tienes el pulso de la temporada.
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                marginTop: 22,
+                flexWrap: 'wrap',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = '/api/billing/reports/invoices-csv'
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 20px',
+                  borderRadius: 14,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: '#fff',
+                  color: '#1e1b4b',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  fontWeight: 800,
+                  boxShadow: '0 12px 28px rgba(15,23,42,0.25)',
+                }}
+              >
+                <Icon name="export" size={15} /> Exportar datos
+              </button>
+              <button
+                type="button"
+                onClick={() => setActive('socios')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 18px',
+                  borderRadius: 14,
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  cursor: 'pointer',
+                  background: 'rgba(255,255,255,0.08)',
+                  color: '#fff',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                <Icon name="users" size={15} /> Gestionar socios
+              </button>
+              <button
+                type="button"
+                onClick={() => setActive('calendario')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 16px',
+                  borderRadius: 14,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: 'transparent',
+                  color: '#e0e7ff',
+                  fontFamily: 'inherit',
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                }}
+              >
+                Ver calendario <Icon name="arrow_right" size={13} />
+              </button>
+            </div>
+          </div>
+
           <div
             style={{
-              fontSize: 12.5,
-              fontWeight: 700,
-              letterSpacing: 1.2,
-              textTransform: 'uppercase',
-              color: 'var(--accent)',
-              marginBottom: 8,
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.18)',
+              borderRadius: 20,
+              padding: 18,
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
             }}
           >
-            Panel principal
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: 'rgba(226,232,255,0.8)' }}>
+                Ingresos del mes
+              </span>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '3px 9px',
+                  borderRadius: 999,
+                  background: 'rgba(52,211,153,0.18)',
+                  color: '#6ee7b7',
+                  fontSize: 11,
+                  fontWeight: 700,
+                }}
+              >
+                <Icon name="trend_up" size={11} /> {totalAnual > 0 ? 'En marcha' : 'Sin datos'}
+              </span>
+            </div>
+            <div
+              style={{
+                fontSize: 34,
+                fontWeight: 800,
+                letterSpacing: '-0.8px',
+                lineHeight: 1,
+              }}
+            >
+              {kp ? fmtMoney(kp.ingresosMes) : '€0'}
+            </div>
+            <div style={{ marginTop: -4 }}>
+              <SparkArea
+                data={ingresosMes.length ? ingresosMes : [0, 0]}
+                color="#a5b4fc"
+                height={64}
+              />
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 12,
+                paddingTop: 8,
+                borderTop: '1px solid rgba(255,255,255,0.16)',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 11, color: 'rgba(226,232,255,0.7)', fontWeight: 600 }}>
+                  Acumulado año
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 800, marginTop: 2 }}>
+                  {fmtMoney(totalAnual)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'rgba(226,232,255,0.7)', fontWeight: 600 }}>
+                  Pendiente
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 800, marginTop: 2, color: '#fde68a' }}>
+                  {kp ? fmtMoney(kp.cobrosPendientesMonto || 0) : '€0'}
+                </div>
+              </div>
+            </div>
           </div>
-          <h1
-            style={{
-              fontSize: 32,
-              fontWeight: 800,
-              color: '#0f172a',
-              letterSpacing: '-0.8px',
-              margin: 0,
-            }}
-          >
-            Hola, {firstName}
-          </h1>
-          <p
-            style={{
-              color: '#64748b',
-              fontSize: 14.5,
-              marginTop: 6,
-              maxWidth: 560,
-              lineHeight: 1.5,
-            }}
-          >
-            Aquí tienes un resumen del club. <span style={{ color: '#0f172a', fontWeight: 600 }}>{dateStrPretty}</span>.
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => setActive('socios')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '11px 18px',
-              borderRadius: 12,
-              border: '1px solid rgba(15,23,42,0.1)',
-              cursor: 'pointer',
-              background: '#fff',
-              color: '#0f172a',
-              fontFamily: 'inherit',
-              fontSize: 14,
-              fontWeight: 600,
-            }}
-          >
-            <Icon name="users" size={15} /> Ver socios
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href = '/api/billing/reports/invoices-csv'
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '11px 18px',
-              borderRadius: 12,
-              border: 'none',
-              cursor: 'pointer',
-              background: 'var(--accent)',
-              color: '#fff',
-              fontFamily: 'inherit',
-              fontSize: 14,
-              fontWeight: 700,
-              boxShadow: '0 8px 20px rgba(59,130,246,0.25)',
-            }}
-          >
-            <Icon name="export" size={15} /> Exportar datos
-          </button>
         </div>
       </div>
 
-      {/* KPI ROW */}
+      {/* STATS ROW */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 18,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+          gap: 16,
         }}
       >
-        <ModernKpiCard
+        <StatCard
           label="Socios activos"
           value={String(kp?.sociosActivos ?? 0)}
-          hint="altas activas en el club"
+          delta={(kp?.sociosActivos ?? 0) > 0 ? 'Estable' : 'Sin altas'}
+          deltaUp={(kp?.sociosActivos ?? 0) > 0}
+          hint="Altas activas en el club"
           icon="users"
-          color="#3B82F6"
-          trend={{ up: true, label: 'Hoy' }}
-          spark={ingresosMes.slice(-7)}
+          color="#6366F1"
+          spark={ingresosMes.length ? ingresosMes : [0, 0]}
         />
-        <ModernKpiCard
+        <StatCard
           label="Cobros pendientes"
           value={String(kp?.cobrosPendientes ?? 0)}
-          hint={kp ? `${fmtMoney(kp.cobrosPendientesMonto)} en espera` : '—'}
+          delta={
+            (kp?.cobrosPendientes ?? 0) > 0
+              ? `${fmtMoney(kp?.cobrosPendientesMonto || 0)}`
+              : 'Sin pendientes'
+          }
+          deltaUp={(kp?.cobrosPendientes ?? 0) === 0}
+          hint="Esperando cobro"
           icon="billing"
           color="#F59E0B"
-          trend={(kp?.cobrosPendientes ?? 0) > 0 ? { up: false, label: 'A revisar' } : undefined}
-          spark={ingresosMes.slice(-7).map((v: number) => v * 0.6)}
+          spark={ingresosMes.slice(-7).map((v: number) => v * 0.55)}
         />
-        <ModernKpiCard
+        <StatCard
           label="Ingresos del mes"
-          value={kp ? fmtMoney(kp.ingresosMes) : '—'}
-          hint="cobros registrados este mes"
+          value={kp ? fmtMoney(kp.ingresosMes) : '€0'}
+          delta={(kp?.ingresosMes ?? 0) > 0 ? 'Mes' : 'Sin ingresos'}
+          deltaUp={(kp?.ingresosMes ?? 0) > 0}
+          hint="Cobros registrados"
           icon="reports"
           color="#10B981"
-          trend={{ up: true, label: 'Mes' }}
           spark={ingresosMes.slice(-7)}
         />
-        <ModernKpiCard
+        <StatCard
           label="Facturas vencidas"
           value={String(kp?.facturasVencidas ?? 0)}
-          hint="requieren tu atención"
-          icon="billing"
+          delta={(kp?.facturasVencidas ?? 0) > 0 ? 'Alerta' : 'Limpio'}
+          deltaUp={(kp?.facturasVencidas ?? 0) === 0}
+          hint="Requieren tu atención"
+          icon="bell"
           color="#EF4444"
-          trend={(kp?.facturasVencidas ?? 0) > 0 ? { up: false, label: 'Alerta' } : { up: true, label: 'Ok' }}
           spark={[1, 2, 1, 3, 2, kp?.facturasVencidas ?? 0, kp?.facturasVencidas ?? 0]}
         />
       </div>
 
-      {/* INCOME CHART + DONUT */}
+      {/* CHART + TEAMS */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 2.1fr) minmax(280px, 1fr)',
+          gridTemplateColumns: 'minmax(0, 2.1fr) minmax(300px, 1fr)',
           gap: 18,
         }}
       >
         <div
           style={{
             background: '#fff',
-            borderRadius: 18,
+            borderRadius: 22,
             padding: '26px 28px',
-            boxShadow: '0 6px 18px rgba(15,23,42,0.05)',
             border: '1px solid rgba(15,23,42,0.06)',
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
             display: 'flex',
             flexDirection: 'column',
             gap: 22,
@@ -796,106 +1114,170 @@ function Dashboard({ setActive }) {
               display: 'flex',
               flexWrap: 'wrap',
               gap: 16,
-              justifyContent: 'space-between',
               alignItems: 'flex-start',
+              justifyContent: 'space-between',
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>
+              <div style={{ fontWeight: 800, fontSize: 17, color: '#0f172a', letterSpacing: '-0.3px' }}>
                 Ingresos del año
               </div>
-              <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+              <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
                 Cuotas y cobros registrados mes a mes
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                background: '#f1f5f9',
+                borderRadius: 12,
+                padding: 4,
+                gap: 2,
+              }}
+            >
+              {['Año', 'Mes', 'Semana'].map((label, i) => (
                 <span
+                  key={label}
                   style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 3,
-                    background: 'var(--accent)',
-                    display: 'inline-block',
+                    padding: '6px 14px',
+                    borderRadius: 9,
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: i === 0 ? '#0f172a' : '#94a3b8',
+                    background: i === 0 ? '#fff' : 'transparent',
+                    boxShadow: i === 0 ? '0 1px 2px rgba(15,23,42,0.08)' : 'none',
+                    cursor: i === 0 ? 'default' : 'not-allowed',
                   }}
-                />
-                <span style={{ fontSize: 12.5, color: '#475569', fontWeight: 600 }}>
-                  Ingresos
+                >
+                  {label}
                 </span>
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(99,102,241,0.10), rgba(99,102,241,0.02))',
+                borderRadius: 14,
+                padding: '14px 16px',
+                border: '1px solid rgba(99,102,241,0.15)',
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: '#6366F1', fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                Total
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  paddingLeft: 14,
-                  borderLeft: '1px solid rgba(15,23,42,0.08)',
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 11.5, color: '#94a3b8', fontWeight: 600 }}>Total</div>
-                  <div style={{ fontSize: 15, color: '#0f172a', fontWeight: 800 }}>
-                    {fmtMoney(totalAnual)}
-                  </div>
-                </div>
-                <div style={{ paddingLeft: 12 }}>
-                  <div style={{ fontSize: 11.5, color: '#94a3b8', fontWeight: 600 }}>
-                    Promedio
-                  </div>
-                  <div style={{ fontSize: 15, color: '#0f172a', fontWeight: 800 }}>
-                    {fmtMoney(Math.round(promedio))}
-                  </div>
-                </div>
-                <div style={{ paddingLeft: 12 }}>
-                  <div style={{ fontSize: 11.5, color: '#94a3b8', fontWeight: 600 }}>Máximo</div>
-                  <div style={{ fontSize: 15, color: '#0f172a', fontWeight: 800 }}>
-                    {fmtMoney(Math.round(maxMes))}
-                  </div>
-                </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
+                {fmtMoney(totalAnual)}
+              </div>
+            </div>
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.10), rgba(16,185,129,0.02))',
+                borderRadius: 14,
+                padding: '14px 16px',
+                border: '1px solid rgba(16,185,129,0.15)',
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: '#10B981', fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                Promedio
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
+                {fmtMoney(Math.round(promedio))}
+              </div>
+            </div>
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(245,158,11,0.10), rgba(245,158,11,0.02))',
+                borderRadius: 14,
+                padding: '14px 16px',
+                border: '1px solid rgba(245,158,11,0.18)',
+              }}
+            >
+              <div style={{ fontSize: 11.5, color: '#F59E0B', fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                Mejor mes
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>
+                {fmtMoney(Math.round(maxMes))}
               </div>
             </div>
           </div>
-          <BarChart
-            data={ingresosMes}
-            labels={['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']}
-            color="var(--accent)"
-            height={210}
-          />
+
+          <div style={{ marginLeft: -8, marginRight: -8 }}>
+            <BarChart
+              data={ingresosMes}
+              labels={['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']}
+              color="#6366F1"
+              height={230}
+            />
+          </div>
         </div>
 
         <div
           style={{
             background: '#fff',
-            borderRadius: 18,
+            borderRadius: 22,
             padding: '26px 28px',
-            boxShadow: '0 6px 18px rgba(15,23,42,0.05)',
             border: '1px solid rgba(15,23,42,0.06)',
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
             display: 'flex',
             flexDirection: 'column',
             gap: 18,
           }}
         >
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>
-              Socios por deporte
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 17, color: '#0f172a', letterSpacing: '-0.3px' }}>
+                Reparto por deporte
+              </div>
+              <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
+                Distribución de los {totalSocios || 0} socios
+              </div>
             </div>
-            <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
-              Distribución entre {totalSocios || 0} socios activos
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                background: 'rgba(99,102,241,0.12)',
+                color: '#6366F1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Icon name="teams" size={17} />
             </div>
           </div>
+
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '4px 0',
+              padding: '6px 0 4px',
+              position: 'relative',
             }}
           >
             <DonutChart
-              size={150}
+              size={170}
               segments={
-                donut.length
-                  ? donut.map((d: any) => ({
+                sortedDonut.length
+                  ? sortedDonut.map((d) => ({
                       label: d.label,
                       value: Math.max(d.value, 1),
                       color: d.color,
@@ -903,31 +1285,75 @@ function Dashboard({ setActive }) {
                   : [{ label: '—', value: 1, color: '#e5e7eb' }]
               }
             />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {donut.map((d: any) => (
-              <div
-                key={d.label}
-                style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-              >
-                <span
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 3,
-                    background: d.color,
-                    flexShrink: 0,
-                  }}
-                />
-                <span style={{ fontSize: 13, color: '#334155', flex: 1, minWidth: 0 }}>
-                  {d.label}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
-                  {d.value}
-                </span>
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center',
+                pointerEvents: 'none',
+              }}
+            >
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
+                {totalSocios}
               </div>
-            ))}
-            {donut.length === 0 && (
+              <div
+                style={{
+                  fontSize: 10.5,
+                  color: '#64748b',
+                  fontWeight: 700,
+                  letterSpacing: 0.6,
+                  textTransform: 'uppercase',
+                  marginTop: 4,
+                }}
+              >
+                Socios
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {sortedDonut.slice(0, 5).map((d) => {
+              const pct = totalSocios > 0 ? Math.round((d.value / totalSocios) * 100) : 0
+              return (
+                <div key={d.label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 3,
+                        background: d.color,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 13,
+                        color: '#334155',
+                        flex: 1,
+                        minWidth: 0,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {d.label}
+                    </span>
+                    <span style={{ fontSize: 12.5, color: '#64748b', fontWeight: 600 }}>
+                      {pct}%
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', minWidth: 18, textAlign: 'right' }}>
+                      {d.value}
+                    </span>
+                  </div>
+                  <ProgressBar value={d.value} total={totalSocios || 1} color={d.color} />
+                </div>
+              )
+            })}
+            {sortedDonut.length === 0 && (
               <div
                 style={{
                   fontSize: 13,
@@ -943,7 +1369,7 @@ function Dashboard({ setActive }) {
         </div>
       </div>
 
-      {/* FEEDS: PRÓXIMOS EVENTOS + COBROS RECIENTES */}
+      {/* FEEDS */}
       <div
         style={{
           display: 'grid',
@@ -951,14 +1377,13 @@ function Dashboard({ setActive }) {
           gap: 18,
         }}
       >
-        {/* Próximos eventos */}
         <div
           style={{
             background: '#fff',
-            borderRadius: 18,
+            borderRadius: 22,
             padding: '26px 28px',
-            boxShadow: '0 6px 18px rgba(15,23,42,0.05)',
             border: '1px solid rgba(15,23,42,0.06)',
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
             display: 'flex',
             flexDirection: 'column',
             gap: 18,
@@ -967,16 +1392,33 @@ function Dashboard({ setActive }) {
           <div
             style={{
               display: 'flex',
-              justifyContent: 'space-between',
               alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
             }}
           >
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>
-                Próximos eventos
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  background: 'rgba(99,102,241,0.12)',
+                  color: '#6366F1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Icon name="calendar" size={18} />
               </div>
-              <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
-                Partidos, entrenamientos y torneos
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a', letterSpacing: '-0.2px' }}>
+                  Próximos eventos
+                </div>
+                <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>
+                  Partidos, entrenamientos y torneos
+                </div>
               </div>
             </div>
             <button
@@ -987,8 +1429,8 @@ function Dashboard({ setActive }) {
                 alignItems: 'center',
                 gap: 4,
                 fontSize: 12.5,
-                color: 'var(--accent)',
-                background: 'var(--accent-light)',
+                color: '#6366F1',
+                background: 'rgba(99,102,241,0.10)',
                 border: 'none',
                 cursor: 'pointer',
                 fontWeight: 700,
@@ -1000,144 +1442,190 @@ function Dashboard({ setActive }) {
               Ver todos <Icon name="arrow_right" size={12} />
             </button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {EVENTOS_UI.slice(0, 4).map((e: any, idx: number) => (
-              <div
-                key={e.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  padding: '14px 0',
-                  borderBottom:
-                    idx < Math.min(EVENTOS_UI.length, 4) - 1
-                      ? '1px solid rgba(15,23,42,0.06)'
-                      : 'none',
-                }}
-              >
-                <div
-                  style={{
-                    width: 52,
-                    flexShrink: 0,
-                    textAlign: 'center',
-                    background: 'var(--accent-light)',
-                    borderRadius: 12,
-                    padding: '8px 6px',
-                    border: '1px solid rgba(59,130,246,0.18)',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 800,
-                      color: 'var(--accent)',
-                      lineHeight: 1,
-                    }}
-                  >
-                    {new Date(e.fecha).getDate()}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--accent)',
-                      textTransform: 'uppercase',
-                      fontWeight: 700,
-                      marginTop: 4,
-                      letterSpacing: 0.4,
-                    }}
-                  >
-                    {new Date(e.fecha).toLocaleString('es', { month: 'short' })}
-                  </div>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: '#0f172a',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {e.titulo}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>
-                    {e.hora} · {e.lugar || 'Sin ubicación'}
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    padding: '4px 10px',
-                    borderRadius: 999,
-                    background: 'var(--accent-light)',
-                    color: 'var(--accent)',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {e.tipo}
-                </span>
-              </div>
-            ))}
-            {EVENTOS_UI.length === 0 && (
+          <div style={{ position: 'relative' }}>
+            {EVENTOS_UI.length > 0 && (
               <div
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '36px 12px',
-                  gap: 10,
-                  color: '#94a3b8',
+                  position: 'absolute',
+                  left: 25,
+                  top: 14,
+                  bottom: 14,
+                  width: 2,
+                  background:
+                    'linear-gradient(to bottom, rgba(99,102,241,0.35), rgba(99,102,241,0.05))',
+                  borderRadius: 2,
+                  zIndex: 0,
                 }}
-              >
+              />
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
+              {EVENTOS_UI.slice(0, 4).map((e: any) => {
+                const dt = new Date(e.fecha)
+                const tipoColor =
+                  e.tipo === 'Partido'
+                    ? '#EF4444'
+                    : e.tipo === 'Entrenamiento'
+                    ? '#3B82F6'
+                    : e.tipo === 'Torneo'
+                    ? '#F59E0B'
+                    : '#6366F1'
+                return (
+                  <div
+                    key={e.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                      padding: '12px 14px',
+                      borderRadius: 14,
+                      border: '1px solid rgba(15,23,42,0.06)',
+                      background: '#fff',
+                      position: 'relative',
+                      zIndex: 1,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 50,
+                        height: 50,
+                        flexShrink: 0,
+                        textAlign: 'center',
+                        background: `${tipoColor}15`,
+                        borderRadius: 12,
+                        padding: '6px 4px',
+                        border: `1px solid ${tipoColor}33`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <div style={{ fontSize: 18, fontWeight: 800, color: tipoColor, lineHeight: 1 }}>
+                        {dt.getDate()}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 9.5,
+                          color: tipoColor,
+                          textTransform: 'uppercase',
+                          fontWeight: 800,
+                          marginTop: 3,
+                          letterSpacing: 0.5,
+                        }}
+                      >
+                        {dt.toLocaleString('es', { month: 'short' }).replace('.', '')}
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {e.titulo}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          color: '#64748b',
+                          marginTop: 3,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <span>{e.hora}</span>
+                        <span style={{ width: 3, height: 3, background: '#cbd5e1', borderRadius: '50%' }} />
+                        <span
+                          style={{
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {e.lugar || 'Sin ubicación'}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 800,
+                        padding: '5px 10px',
+                        borderRadius: 999,
+                        background: `${tipoColor}15`,
+                        color: tipoColor,
+                        whiteSpace: 'nowrap',
+                        letterSpacing: 0.3,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {e.tipo}
+                    </span>
+                  </div>
+                )
+              })}
+              {EVENTOS_UI.length === 0 && (
                 <div
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 14,
-                    background: 'var(--accent-light)',
-                    color: 'var(--accent)',
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    padding: '36px 12px',
+                    gap: 10,
+                    color: '#94a3b8',
                   }}
                 >
-                  <Icon name="calendar" size={22} />
+                  <div
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: 16,
+                      background: 'rgba(99,102,241,0.12)',
+                      color: '#6366F1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Icon name="calendar" size={22} />
+                  </div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: '#475569' }}>
+                    No hay eventos próximos
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActive('calendario')}
+                    style={{
+                      fontSize: 12.5,
+                      color: '#6366F1',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    Crear evento →
+                  </button>
                 </div>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: '#475569' }}>
-                  No hay eventos próximos
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActive('calendario')}
-                  style={{
-                    fontSize: 12.5,
-                    color: 'var(--accent)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: 700,
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  Crear evento →
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Cobros recientes */}
         <div
           style={{
             background: '#fff',
-            borderRadius: 18,
+            borderRadius: 22,
             padding: '26px 28px',
-            boxShadow: '0 6px 18px rgba(15,23,42,0.05)',
             border: '1px solid rgba(15,23,42,0.06)',
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
             display: 'flex',
             flexDirection: 'column',
             gap: 18,
@@ -1146,16 +1634,33 @@ function Dashboard({ setActive }) {
           <div
             style={{
               display: 'flex',
-              justifyContent: 'space-between',
               alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
             }}
           >
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>
-                Cobros recientes
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  background: 'rgba(16,185,129,0.12)',
+                  color: '#10B981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Icon name="billing" size={18} />
               </div>
-              <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
-                Últimas facturas y pagos del club
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: '#0f172a', letterSpacing: '-0.2px' }}>
+                  Cobros recientes
+                </div>
+                <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>
+                  Últimas facturas y pagos del club
+                </div>
               </div>
             </div>
             <button
@@ -1166,8 +1671,8 @@ function Dashboard({ setActive }) {
                 alignItems: 'center',
                 gap: 4,
                 fontSize: 12.5,
-                color: 'var(--accent)',
-                background: 'var(--accent-light)',
+                color: '#10B981',
+                background: 'rgba(16,185,129,0.10)',
                 border: 'none',
                 cursor: 'pointer',
                 fontWeight: 700,
@@ -1179,7 +1684,7 @@ function Dashboard({ setActive }) {
               Ver todos <Icon name="arrow_right" size={12} />
             </button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {COBROS_UI.slice(0, 4).map((c: any, idx: number) => (
               <div
                 key={c.id}
@@ -1187,7 +1692,7 @@ function Dashboard({ setActive }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 14,
-                  padding: '14px 0',
+                  padding: '12px 6px',
                   borderBottom:
                     idx < Math.min(COBROS_UI.length, 4) - 1
                       ? '1px solid rgba(15,23,42,0.06)'
@@ -1200,14 +1705,14 @@ function Dashboard({ setActive }) {
                     .map((w: string) => w[0])
                     .join('')
                     .slice(0, 2)}
-                  color="#3B82F6"
+                  color="#6366F1"
                   size={42}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
                       fontSize: 14,
-                      fontWeight: 600,
+                      fontWeight: 700,
                       color: '#0f172a',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
@@ -1216,7 +1721,16 @@ function Dashboard({ setActive }) {
                   >
                     {c.socio}
                   </div>
-                  <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      color: '#64748b',
+                      marginTop: 2,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
                     {c.concepto}
                   </div>
                 </div>
@@ -1250,11 +1764,11 @@ function Dashboard({ setActive }) {
               >
                 <div
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 14,
-                    background: 'var(--green-light)',
-                    color: 'var(--green)',
+                    width: 52,
+                    height: 52,
+                    borderRadius: 16,
+                    background: 'rgba(16,185,129,0.12)',
+                    color: '#10B981',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1262,7 +1776,7 @@ function Dashboard({ setActive }) {
                 >
                   <Icon name="billing" size={22} />
                 </div>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: '#475569' }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#475569' }}>
                   Aún no hay cobros registrados
                 </div>
                 <button
@@ -1270,7 +1784,7 @@ function Dashboard({ setActive }) {
                   onClick={() => setActive('contabilidad')}
                   style={{
                     fontSize: 12.5,
-                    color: 'var(--accent)',
+                    color: '#10B981',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
