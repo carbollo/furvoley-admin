@@ -1,688 +1,448 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Furvoley — Panel Socio</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --sidebar-bg: #111827;
-      --sidebar-text: rgba(255, 255, 255, 0.65);
-      --accent: #3b82f6;
-      --accent-light: #eff6ff;
-      --green: #10b981;
-      --green-light: #ecfdf5;
-      --amber: #f59e0b;
-      --amber-light: #fffbeb;
-      --red: #ef4444;
-      --red-light: #fef2f2;
-      --purple: #8b5cf6;
-      --purple-light: #f5f3ff;
-      --border: rgba(15, 23, 42, 0.07);
-      --card-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-      background: #f8fafc;
-      color: #111827;
-      min-height: 100vh;
-      display: flex;
-    }
-    button, input { font-family: inherit; }
-    .app { display: flex; width: 100%; min-height: 100vh; }
-    .sidebar {
-      width: 220px; background: var(--sidebar-bg);
-      display: flex; flex-direction: column; flex-shrink: 0;
-      height: 100vh; position: sticky; top: 0;
-    }
-    .sidebar-logo { padding: 24px 20px 20px; border-bottom: 1px solid rgba(255,255,255,0.07); }
-    .logo-row { display: flex; align-items: center; gap: 10px; }
-    .logo-mark {
-      width: 34px; height: 34px; border-radius: 10px;
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; font-weight: 800; color: #fff;
-    }
-    .logo-title { color: #fff; font-weight: 700; font-size: 14px; line-height: 1.2; }
-    .logo-sub { color: rgba(255,255,255,0.4); font-size: 11px; }
-    .sidebar-user {
-      padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.07);
-      display: flex; align-items: center; gap: 10px;
-    }
-    .avatar {
-      border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      font-weight: 700; flex-shrink: 0;
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: #fff;
-    }
-    .avatar.sm { width: 32px; height: 32px; font-size: 13px; }
-    .avatar.team {
-      width: 36px; height: 36px; font-size: 13px;
-      background: rgba(139,92,246,0.15); color: var(--purple);
-    }
-    .avatar.invoice {
-      width: 36px; height: 36px; border-radius: 10px;
-      background: var(--accent-light); color: var(--accent);
-    }
-    .user-name { color: #fff; font-weight: 600; font-size: 13px; }
-    .role-badge {
-      display: inline-block; background: rgba(99,102,241,0.3);
-      color: #a5b4fc; font-size: 9px; font-weight: 700;
-      padding: 1px 7px; border-radius: 999px; letter-spacing: 1px; margin-top: 2px;
-    }
-    .sidebar-nav { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-    .nav-label {
-      color: rgba(255,255,255,0.3); font-size: 10px; font-weight: 700;
-      letter-spacing: 1.5px; padding: 8px 8px 4px; text-transform: uppercase;
-    }
-    .nav-btn {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px 12px; border-radius: 10px; border: none; cursor: pointer;
-      background: transparent; color: var(--sidebar-text);
-      font-size: 13.5px; font-weight: 400; text-align: left; width: 100%;
-      transition: all 0.15s;
-    }
-    .nav-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
-    .nav-btn.active { background: rgba(255,255,255,0.1); color: #fff; font-weight: 600; }
-    .nav-btn svg { opacity: 0.7; flex-shrink: 0; }
-    .nav-btn.active svg { opacity: 1; }
-    .sidebar-footer { padding: 12px; border-top: 1px solid rgba(255,255,255,0.07); }
-    .logout-btn {
-      display: flex; align-items: center; gap: 10px; width: 100%;
-      padding: 9px 12px; border-radius: 10px; border: none; cursor: pointer;
-      background: transparent; color: rgba(255,255,255,0.4); font-size: 13px;
-    }
-    .main-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 36px; background: rgba(255,255,255,0.9);
-      backdrop-filter: blur(12px); border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; z-index: 10;
-    }
-    .demo-banner {
-      background: linear-gradient(135deg, #ecfdf5, #eff6ff);
-      border: 1px solid #a7f3d0; border-radius: 12px; padding: 12px 16px;
-      font-size: 13px; color: #047857; display: flex; align-items: center; gap: 10px;
-    }
-    .demo-banner strong { font-weight: 700; }
-    .content {
-      flex: 1; overflow-y: auto; padding: 32px 36px 56px;
-      display: flex; flex-direction: column; gap: 24px;
-    }
-    .section { display: none; flex-direction: column; gap: 24px; }
-    .section.active { display: flex; }
-    h1.page-title { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
-    .page-sub { color: #6b7280; font-size: 14px; margin-top: 4px; text-transform: capitalize; }
-    .page-header {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 16px; flex-wrap: wrap;
-    }
-    .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-    .btn-primary {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 10px 18px; border-radius: 12px; border: none; cursor: pointer;
-      background: var(--accent); color: #fff; font-size: 14px; font-weight: 600;
-    }
-    .btn-secondary {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 10px 16px; border-radius: 12px; border: 1px solid var(--border);
-      background: #fff; color: #111827; font-size: 14px; font-weight: 600; cursor: pointer;
-    }
-    .kpi-grid { display: flex; gap: 16px; flex-wrap: wrap; }
-    .kpi-card {
-      background: #fff; border-radius: 16px; padding: 20px 24px;
-      box-shadow: var(--card-shadow); border: 1px solid var(--border);
-      flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 12px;
-    }
-    .kpi-top { display: flex; justify-content: space-between; align-items: flex-start; }
-    .kpi-label { font-size: 13px; color: #6b7280; font-weight: 500; }
-    .kpi-value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
-    .kpi-icon {
-      width: 40px; height: 40px; border-radius: 12px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .kpi-sub { font-size: 12px; color: #6b7280; }
-    .sparkline {
-      width: 86px; height: 34px; flex-shrink: 0;
-      background: linear-gradient(180deg, rgba(59,130,246,0.12) 0%, transparent 100%);
-      border-radius: 4px; position: relative; overflow: hidden;
-    }
-    .sparkline::after {
-      content: ''; position: absolute; bottom: 6px; left: 4px; right: 4px; height: 2px;
-      background: currentColor; border-radius: 2px; opacity: 0.6;
-    }
-    .card {
-      background: #fff; border-radius: 16px; padding: 24px;
-      box-shadow: var(--card-shadow); border: 1px solid var(--border);
-    }
-    .card-title { font-weight: 700; font-size: 15px; }
-    .card-sub { font-size: 13px; color: #6b7280; margin-top: 2px; }
-    .card-head {
-      display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
-    }
-    .row-2 { display: flex; gap: 16px; flex-wrap: wrap; }
-    .col-2 { flex: 2; min-width: 320px; }
-    .col-1 { flex: 1; min-width: 280px; }
-    .list-row {
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 0; border-bottom: 1px solid var(--border);
-    }
-    .list-row:last-child { border-bottom: none; }
-    .date-box {
-      width: 44px; text-align: center; border-radius: 10px; padding: 6px 4px; flex-shrink: 0;
-    }
-    .date-day { font-size: 16px; font-weight: 800; line-height: 1; }
-    .date-mon { font-size: 9px; text-transform: uppercase; font-weight: 700; margin-top: 3px; letter-spacing: 0.4px; }
-    .type-pill {
-      font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap;
-    }
-    .link-btn {
-      font-size: 12px; color: var(--accent); background: none; border: none;
-      cursor: pointer; font-weight: 600;
-    }
-    .team-card-item {
-      display: flex; align-items: center; gap: 12px; padding: 10px 12px;
-      border-radius: 12px; background: var(--purple-light); border: 1px solid var(--border);
-    }
-    .team-role {
-      font-size: 11.5px; color: var(--purple); font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.4px;
-    }
-    .badge {
-      font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
-    }
-    .badge.pagada { background: var(--green-light); color: var(--green); }
-    .badge.pendiente { background: var(--amber-light); color: var(--amber); }
-    .badge.vencida { background: var(--red-light); color: var(--red); }
-    .badge.parcial { background: var(--amber-light); color: var(--amber); }
-    .news-item {
-      padding: 12px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid var(--border);
-    }
-    .news-title { font-size: 13.5px; font-weight: 700; }
-    .news-body { font-size: 12.5px; color: #475569; line-height: 1.5; margin-top: 6px; }
-    .news-date { font-size: 11px; color: #9ca3af; margin-top: 8px; }
-    .badge-destacada {
-      font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
-      background: var(--red-light); color: var(--red); text-transform: uppercase; letter-spacing: 0.4px;
-    }
-    .public-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;
-    }
-    .public-card {
-      padding: 14px 16px; border-radius: 12px; background: #f8fafc;
-      border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px;
-    }
-    .debt-banner {
-      background: #fff; border-radius: 16px; padding: 24px;
-      box-shadow: var(--card-shadow); border: 1px solid var(--border);
-    }
-    .debt-label { font-size: 14px; color: #6b7280; }
-    .debt-value { font-size: 32px; font-weight: 800; margin-top: 4px; }
-    table { width: 100%; border-collapse: collapse; }
-    th {
-      padding: 14px 16px; text-align: left; font-size: 12px; font-weight: 600;
-      color: #6b7280; background: #f8fafc; border-bottom: 1px solid var(--border);
-    }
-    td { padding: 14px 16px; font-size: 14px; border-bottom: 1px solid var(--border); }
-    tr:hover td { background: #fafafa; }
-    .btn-pay {
-      padding: 7px 14px; border-radius: 8px; border: none; cursor: pointer;
-      background: var(--accent); color: #fff; font-size: 12px; font-weight: 600;
-    }
-    .calendar-list { display: flex; flex-direction: column; gap: 12px; }
-    .calendar-item {
-      display: flex; gap: 16px; padding: 16px; border-radius: 12px;
-      background: #fff; border: 1px solid var(--border); box-shadow: var(--card-shadow);
-    }
-    @media (max-width: 900px) {
-      .sidebar { width: 72px; }
-      .sidebar .logo-text, .sidebar .user-text, .sidebar .nav-label,
-      .sidebar .nav-label-text, .logout-text { display: none; }
-      .content { padding: 20px 16px 40px; }
-    }
-  </style>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9f9ff;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed": "#d3e4fe",
+                        "error-container": "#ffdad6",
+                        "error": "#ba1a1a",
+                        "surface-bright": "#f9f9ff",
+                        "surface-tint": "#005ac2",
+                        "on-primary-fixed-variant": "#004395",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed-dim": "#c0c6db",
+                        "on-error": "#ffffff",
+                        "on-background": "#191b23",
+                        "surface-variant": "#e1e2ec",
+                        "surface-dim": "#d8d9e3",
+                        "surface-container-highest": "#e1e2ec",
+                        "surface": "#f9f9ff",
+                        "on-secondary-fixed": "#141b2b",
+                        "surface-container": "#ecedf7",
+                        "secondary-fixed": "#dce2f7",
+                        "on-secondary": "#ffffff",
+                        "tertiary-container": "#66768d",
+                        "inverse-surface": "#2e3038",
+                        "on-primary": "#ffffff",
+                        "on-surface": "#191b23",
+                        "on-primary-container": "#fefcff",
+                        "surface-container-high": "#e6e7f2",
+                        "on-secondary-container": "#5c6274",
+                        "on-error-container": "#93000a",
+                        "secondary-container": "#d9dff5",
+                        "on-tertiary-fixed": "#0b1c30",
+                        "outline": "#727785",
+                        "background": "#f9f9ff",
+                        "on-tertiary-fixed-variant": "#38485d",
+                        "inverse-primary": "#adc6ff",
+                        "tertiary-fixed-dim": "#b7c8e1",
+                        "tertiary": "#4d5d73",
+                        "on-primary-fixed": "#001a42",
+                        "on-tertiary": "#ffffff",
+                        "on-surface-variant": "#424754",
+                        "inverse-on-surface": "#eff0fa",
+                        "outline-variant": "#c2c6d6",
+                        "surface-container-low": "#f2f3fd",
+                        "secondary": "#575e70",
+                        "primary-container": "#2170e4",
+                        "primary-fixed": "#d8e2ff",
+                        "on-tertiary-container": "#fdfcff",
+                        "primary-fixed-dim": "#adc6ff",
+                        "primary": "#0058be",
+                        "on-secondary-fixed-variant": "#404758"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-mobile": "1rem",
+                        "stack-md": "1rem",
+                        "stack-lg": "2rem",
+                        "margin-desktop": "2.5rem",
+                        "container-max-width": "1200px",
+                        "sidebar-width": "280px",
+                        "gutter": "1.5rem",
+                        "stack-sm": "0.5rem"
+                    },
+                    "fontFamily": {
+                        "headline-sm": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "1", "fontWeight": "500"}],
+                        "headline-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "label-md": ["14px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
 </head>
-<body>
-  <div class="app">
-    <aside class="sidebar">
-      <div class="sidebar-logo">
-        <div class="logo-row">
-          <div class="logo-mark">F</div>
-          <div class="logo-text">
-            <div class="logo-title">Furvoley</div>
-            <div class="logo-sub">Club Multideporte</div>
-          </div>
-        </div>
-      </div>
-      <div class="sidebar-user">
-        <div class="avatar sm">JP</div>
-        <div class="user-text">
-          <div class="user-name">Juan Pérez</div>
-          <span class="role-badge">SOCIO</span>
-        </div>
-      </div>
-      <nav class="sidebar-nav">
-        <div class="nav-label">Menú</div>
-        <button class="nav-btn active" data-tab="inicio" type="button">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12L12 3l9 9"/><path d="M5 10v10h14V10"/></svg>
-          <span class="nav-label-text">Inicio</span>
-        </button>
-        <button class="nav-btn" data-tab="calendario" type="button">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <span class="nav-label-text">Calendario</span>
-        </button>
-        <button class="nav-btn" data-tab="pagos" type="button">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-          <span class="nav-label-text">Mis Pagos</span>
-        </button>
-        <button class="nav-btn" data-tab="mural" type="button">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h13a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4z"/><line x1="8" y1="8" x2="15" y2="8"/><line x1="8" y1="12" x2="15" y2="12"/></svg>
-          <span class="nav-label-text">Mural</span>
-        </button>
-      </nav>
-      <div class="sidebar-footer">
-        <button class="logout-btn" type="button">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          <span class="logout-text">Cerrar sesión</span>
-        </button>
-      </div>
-    </aside>
-
-    <div class="main-wrap">
-      <header class="topbar">
-        <div class="demo-banner">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span><strong>Vista previa — Panel Socio</strong> Maqueta estática del home de socio (<code>/</code> con rol MEMBER). Sin conexión a la app.</span>
-        </div>
-      </header>
-
-      <main class="content">
-        <!-- INICIO -->
-        <section id="inicio" class="section active">
-          <div class="page-header">
-            <div>
-              <h1 class="page-title">Hola, Juan</h1>
-              <p class="page-sub" id="fecha-hoy"></p>
-            </div>
-            <div class="header-actions">
-              <button class="btn-secondary" type="button" data-goto="calendario">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                Ver calendario
-              </button>
-              <button class="btn-primary" type="button" data-goto="pagos">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                Mis Pagos
-              </button>
-            </div>
-          </div>
-
-          <div class="kpi-grid">
-            <div class="kpi-card">
-              <div class="kpi-top">
-                <div>
-                  <div class="kpi-label">Deuda actual</div>
-                  <div class="kpi-value" style="color:#f59e0b">€ 90,00</div>
-                </div>
-                <div class="kpi-icon" style="background:#f59e0b15;color:#f59e0b">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                </div>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <span class="kpi-sub" style="color:#f59e0b">2 factura(s) por pagar</span>
-                <div class="sparkline" style="color:#f59e0b"></div>
-              </div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-top">
-                <div>
-                  <div class="kpi-label">Próximos eventos</div>
-                  <div class="kpi-value">3</div>
-                </div>
-                <div class="kpi-icon" style="background:#3b82f615;color:#3b82f6">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                </div>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <span class="kpi-sub">Partidos y entrenos</span>
-                <div class="sparkline" style="color:#3b82f6"></div>
-              </div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-top">
-                <div>
-                  <div class="kpi-label">Mis equipos</div>
-                  <div class="kpi-value">2</div>
-                </div>
-                <div class="kpi-icon" style="background:#8b5cf615;color:#8b5cf6">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                </div>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <span class="kpi-sub">Femenino Senior, Mixto Juvenil</span>
-                <div class="sparkline" style="color:#8b5cf6"></div>
-              </div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-top">
-                <div>
-                  <div class="kpi-label">Facturas vencidas</div>
-                  <div class="kpi-value" style="color:#ef4444">1</div>
-                </div>
-                <div class="kpi-icon" style="background:#ef444415;color:#ef4444">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                </div>
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <span class="kpi-sub" style="color:#ef4444">Requieren tu atención</span>
-                <div class="sparkline" style="color:#ef4444"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="row-2">
-            <div class="card col-2">
-              <div class="card-head">
-                <div class="card-title">Próximos eventos</div>
-                <button class="link-btn" type="button" data-goto="calendario">Ver todos →</button>
-              </div>
-              <div class="list-row">
-                <div class="date-box" style="background:#3b82f615">
-                  <div class="date-day" style="color:#3b82f6">18</div>
-                  <div class="date-mon" style="color:#3b82f6">may</div>
-                </div>
-                <div style="flex:1;min-width:0">
-                  <div style="font-size:13.5px;font-weight:600">Entrenamiento Fem. Senior</div>
-                  <div style="font-size:12px;color:#6b7280">19:00 — Polideportivo Norte · Femenino Senior</div>
-                </div>
-                <span class="type-pill" style="background:#3b82f615;color:#3b82f6">Entrenamiento</span>
-              </div>
-              <div class="list-row">
-                <div class="date-box" style="background:#ef444415">
-                  <div class="date-day" style="color:#ef4444">20</div>
-                  <div class="date-mon" style="color:#ef4444">may</div>
-                </div>
-                <div style="flex:1">
-                  <div style="font-size:13.5px;font-weight:600">Partido vs Club Voley Madrid</div>
-                  <div style="font-size:12px;color:#6b7280">11:00 — Pabellón Central · Femenino Senior</div>
-                </div>
-                <span class="type-pill" style="background:#ef444415;color:#ef4444">Partido</span>
-              </div>
-              <div class="list-row">
-                <div class="date-box" style="background:#f59e0b15">
-                  <div class="date-day" style="color:#f59e0b">24</div>
-                  <div class="date-mon" style="color:#f59e0b">may</div>
-                </div>
-                <div style="flex:1">
-                  <div style="font-size:13.5px;font-weight:600">Torneo Regional Sub-18</div>
-                  <div style="font-size:12px;color:#6b7280">09:00 — Complejo Deportivo · Mixto Juvenil</div>
-                </div>
-                <span class="type-pill" style="background:#f59e0b15;color:#f59e0b">Torneo</span>
-              </div>
-            </div>
-
-            <div class="card col-1">
-              <div class="card-title">Mis equipos</div>
-              <div class="card-sub">2 asignación(es)</div>
-              <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
-                <div class="team-card-item">
-                  <div class="avatar team">FS</div>
-                  <div style="flex:1;min-width:0">
-                    <div style="font-size:13.5px;font-weight:700">Femenino Senior</div>
-                    <div class="team-role">Jugador</div>
-                  </div>
-                </div>
-                <div class="team-card-item">
-                  <div class="avatar team">MJ</div>
-                  <div style="flex:1">
-                    <div style="font-size:13.5px;font-weight:700">Mixto Juvenil</div>
-                    <div class="team-role">Jugador</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="row-2">
-            <div class="card col-1">
-              <div class="card-head">
-                <div class="card-title">Mis facturas recientes</div>
-                <button class="link-btn" type="button" data-goto="pagos">Ver todas →</button>
-              </div>
-              <div class="list-row">
-                <div class="avatar invoice">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                </div>
-                <div style="flex:1">
-                  <div style="font-size:13.5px;font-weight:600">FV-2026-0042</div>
-                  <div style="font-size:12px;color:#6b7280">Vence 15 may</div>
-                </div>
-                <div style="text-align:right">
-                  <div style="font-size:13.5px;font-weight:700">€ 45,00</div>
-                  <span class="badge pagada">Pagada</span>
-                </div>
-              </div>
-              <div class="list-row">
-                <div class="avatar invoice">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                </div>
-                <div style="flex:1">
-                  <div style="font-size:13.5px;font-weight:600">FV-2026-0051</div>
-                  <div style="font-size:12px;color:#6b7280">Vence 10 may</div>
-                </div>
-                <div style="text-align:right">
-                  <div style="font-size:13.5px;font-weight:700">€ 45,00</div>
-                  <span class="badge pendiente">Pendiente</span>
-                </div>
-              </div>
-              <div class="list-row">
-                <div class="avatar invoice">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                </div>
-                <div style="flex:1">
-                  <div style="font-size:13.5px;font-weight:600">FV-2026-0038</div>
-                  <div style="font-size:12px;color:#6b7280">Vence 1 abr</div>
-                </div>
-                <div style="text-align:right">
-                  <div style="font-size:13.5px;font-weight:700">€ 45,00</div>
-                  <span class="badge vencida">Vencida</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="card col-1">
-              <div class="card-head">
-                <div class="card-title">Mural de noticias</div>
-                <span style="font-size:12px;color:#9ca3af">3 publicación(es)</span>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:12px">
-                <article class="news-item">
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                    <div class="news-title" style="flex:1">Torneo de verano — inscripciones abiertas</div>
-                    <span class="badge-destacada">Destacada</span>
-                  </div>
-                  <p class="news-body">Ya puedes apuntarte al torneo amistoso de julio. Plazas limitadas por categoría.</p>
-                  <div class="news-date">12 may 2026</div>
-                </article>
-                <article class="news-item">
-                  <div class="news-title">Cambio de horario entrenamientos miércoles</div>
-                  <p class="news-body">A partir del 20 de mayo el entreno de Femenino Senior será a las 20:00.</p>
-                  <div class="news-date">8 may 2026</div>
-                </article>
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-head">
-              <div class="card-title">Eventos públicos del club</div>
-              <span style="font-size:12px;color:#9ca3af">2 próximos</span>
-            </div>
-            <div class="public-grid">
-              <article class="public-card">
-                <span class="type-pill" style="background:#f59e0b15;color:#f59e0b;align-self:flex-start">Torneo</span>
-                <div style="font-size:13.5px;font-weight:700">Clinic de saque — abierto al público</div>
-                <div style="font-size:12px;color:#6b7280">25 may · 10:00</div>
-                <div style="font-size:12px;color:#9ca3af">Polideportivo Municipal</div>
-              </article>
-              <article class="public-card">
-                <span class="type-pill" style="background:#3b82f615;color:#3b82f6;align-self:flex-start">Entrenamiento</span>
-                <div style="font-size:13.5px;font-weight:700">Jornada puertas abiertas</div>
-                <div style="font-size:12px;color:#6b7280">1 jun · 17:00</div>
-                <div style="font-size:12px;color:#9ca3af">Sede del club</div>
-              </article>
-            </div>
-          </div>
-        </section>
-
-        <!-- CALENDARIO -->
-        <section id="calendario" class="section">
-          <div class="page-header">
-            <div>
-              <h1 class="page-title">Calendario</h1>
-              <p class="page-sub" style="text-transform:none">Eventos de tus equipos · ruta <code>/calendar</code></p>
-            </div>
-          </div>
-          <div class="calendar-list">
-            <article class="calendar-item">
-              <div class="date-box" style="background:#3b82f615;width:52px">
-                <div class="date-day" style="color:#3b82f6">18</div>
-                <div class="date-mon" style="color:#3b82f6">may</div>
-              </div>
-              <div style="flex:1">
-                <div style="font-weight:700;font-size:15px">Entrenamiento Fem. Senior</div>
-                <div style="font-size:13px;color:#6b7280;margin-top:4px">19:00 · Polideportivo Norte</div>
-                <div style="font-size:12px;color:#9ca3af;margin-top:2px">Femenino Senior</div>
-              </div>
-              <span class="type-pill" style="background:#3b82f615;color:#3b82f6">Entrenamiento</span>
-            </article>
-            <article class="calendar-item">
-              <div class="date-box" style="background:#ef444415;width:52px">
-                <div class="date-day" style="color:#ef4444">20</div>
-                <div class="date-mon" style="color:#ef4444">may</div>
-              </div>
-              <div style="flex:1">
-                <div style="font-weight:700;font-size:15px">Partido vs Club Voley Madrid</div>
-                <div style="font-size:13px;color:#6b7280;margin-top:4px">11:00 · Pabellón Central</div>
-                <div style="font-size:12px;color:#9ca3af;margin-top:2px">Femenino Senior</div>
-              </div>
-              <span class="type-pill" style="background:#ef444415;color:#ef4444">Partido</span>
-            </article>
-            <article class="calendar-item">
-              <div class="date-box" style="background:#f59e0b15;width:52px">
-                <div class="date-day" style="color:#f59e0b">24</div>
-                <div class="date-mon" style="color:#f59e0b">may</div>
-              </div>
-              <div style="flex:1">
-                <div style="font-weight:700;font-size:15px">Torneo Regional Sub-18</div>
-                <div style="font-size:13px;color:#6b7280;margin-top:4px">09:00 · Complejo Deportivo</div>
-                <div style="font-size:12px;color:#9ca3af;margin-top:2px">Mixto Juvenil</div>
-              </div>
-              <span class="type-pill" style="background:#f59e0b15;color:#f59e0b">Torneo</span>
-            </article>
-          </div>
-        </section>
-
-        <!-- MIS PAGOS -->
-        <section id="pagos" class="section">
-          <div class="page-header">
-            <div>
-              <h1 class="page-title">Mis Pagos</h1>
-              <p class="page-sub" style="text-transform:none">Facturas y pagos con Stripe · ruta <code>/my-billing</code></p>
-            </div>
-          </div>
-          <div class="debt-banner">
-            <div class="debt-label">Deuda actual</div>
-            <div class="debt-value" style="color:#f59e0b">€ 90,00</div>
-          </div>
-          <div class="card" style="padding:0;overflow:hidden">
-            <table>
-              <thead>
-                <tr>
-                  <th>Factura</th>
-                  <th>Vencimiento</th>
-                  <th>Estado</th>
-                  <th>Pendiente</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>FV-2026-0042</td>
-                  <td>15/05/2026</td>
-                  <td><span class="badge pagada">Pagada</span></td>
-                  <td>€ 0,00</td>
-                  <td style="color:#9ca3af;font-size:13px">Pagada</td>
-                </tr>
-                <tr>
-                  <td>FV-2026-0051</td>
-                  <td>10/05/2026</td>
-                  <td><span class="badge pendiente">Pendiente</span></td>
-                  <td style="font-weight:600">€ 45,00</td>
-                  <td><button class="btn-pay" type="button">Pagar</button></td>
-                </tr>
-                <tr>
-                  <td>FV-2026-0038</td>
-                  <td>01/04/2026</td>
-                  <td><span class="badge vencida">Vencida</span></td>
-                  <td style="font-weight:600">€ 45,00</td>
-                  <td><button class="btn-pay" type="button">Pagar</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- MURAL -->
-        <section id="mural" class="section">
-          <div class="page-header">
-            <div>
-              <h1 class="page-title">Mural</h1>
-              <p class="page-sub" style="text-transform:none">Noticias publicadas por el club · <code>NewsPost</code></p>
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:16px;max-width:720px">
-            <article class="news-item">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                <div class="news-title" style="flex:1">Torneo de verano — inscripciones abiertas</div>
-                <span class="badge-destacada">Destacada</span>
-              </div>
-              <p class="news-body">Ya puedes apuntarte al torneo amistoso de julio. Plazas limitadas por categoría. Consulta con tu entrenador si tienes dudas sobre la categoría adecuada.</p>
-              <div class="news-date">12 de mayo de 2026</div>
-            </article>
-            <article class="news-item">
-              <div class="news-title" style="margin-bottom:6px">Cambio de horario entrenamientos miércoles</div>
-              <p class="news-body">A partir del 20 de mayo el entreno de Femenino Senior será a las 20:00 en el Polideportivo Norte.</p>
-              <div class="news-date">8 de mayo de 2026</div>
-            </article>
-            <article class="news-item">
-              <div class="news-title" style="margin-bottom:6px">Nueva equipación temporada 2026/27</div>
-              <p class="news-body">El club presentará el nuevo diseño de camisetas en la asamblea del 30 de mayo. Tallas disponibles en secretaría.</p>
-              <div class="news-date">2 de mayo de 2026</div>
-            </article>
-          </div>
-        </section>
-      </main>
-    </div>
-  </div>
-
-  <script>
-    document.getElementById('fecha-hoy').textContent = new Date().toLocaleDateString('es-ES', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-    }).replace(/^\w/, c => c.toUpperCase());
-
-    function setTab(tabId) {
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
-      document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === tabId));
-    }
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-      btn.addEventListener('click', () => setTab(btn.dataset.tab));
-    });
-    document.querySelectorAll('[data-goto]').forEach(btn => {
-      btn.addEventListener('click', () => setTab(btn.dataset.goto));
-    });
-  </script>
-</body>
-</html>
+<body class="bg-surface text-on-surface">
+<!-- SideNavBar -->
+<aside class="h-screen w-[280px] fixed left-0 top-0 bg-on-secondary-fixed dark:bg-on-secondary-fixed shadow-2xl flex flex-col py-6 z-50">
+<div class="px-6 mb-10">
+<h1 class="font-headline-lg text-headline-lg font-black tracking-tighter text-surface-container-lowest">FURVOLEY</h1>
+<p class="text-outline-variant font-label-sm text-label-sm tracking-widest mt-1">CLUB DE DEPORTES</p>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-3 px-6 py-3 border-l-4 border-primary bg-surface-container-highest/10 text-surface-container-lowest font-bold transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-label-md">Inicio</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-outline-variant hover:text-surface-container-lowest hover:bg-white/5 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-label-md text-label-md">Calendario</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-outline-variant hover:text-surface-container-lowest hover:bg-white/5 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Mis Pagos</span>
+</a>
+<a class="flex items-center gap-3 px-6 py-3 text-outline-variant hover:text-surface-container-lowest hover:bg-white/5 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="grid_view">grid_view</span>
+<span class="font-label-md text-label-md">Mural</span>
+</a>
+</nav>
+<div class="px-6 mt-auto space-y-2 border-t border-white/10 pt-6">
+<a class="flex items-center gap-3 py-2 text-outline-variant hover:text-surface-container-lowest transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Ajustes</span>
+</a>
+<a class="flex items-center gap-3 py-2 text-error-container hover:text-error transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label-md text-label-md">Cerrar Sesión</span>
+</a>
+<div class="mt-6 p-4 rounded-xl bg-white/5 border border-white/10">
+<div class="flex items-center gap-3">
+<img alt="Juan Perez" class="w-10 h-10 rounded-full border border-primary/50" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQF9KzeoMKi7Cr9TQmoCKIPWRQH1LHfF8EUBWYoSUGjW_w8uEk_O0dgnfFaaGO4WQNadehDgB6_CyNxR-lKenVtEgh8Kus-1A8dAOBJRYX-5XkFwgnRIZzgo3SqnmzSKaMKuB3uRYurT4CxuUQOsmdFj0kkSh_wBdQtCnip-Iivm0EBj_ocj4WgbOKrWbfO9EcPHcWxiWbq34QJ4ItZo1kU4qwpTFjcTAjzBozNLq5Ydw1H8mwz0fAD3u2YUKbY0w1vcoKeF5Nvcai"/>
+<div class="overflow-hidden">
+<p class="text-surface-container-lowest font-bold text-label-md truncate">Juan Perez</p>
+<p class="text-primary text-[10px] font-black tracking-widest uppercase">Socio Activo</p>
+</div>
+</div>
+<button class="w-full mt-4 py-2 bg-primary text-white font-bold rounded-lg text-label-sm hover:brightness-110 transition-all">
+                    Ver Perfil
+                </button>
+</div>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="w-[calc(100%-280px)] ml-[280px] h-16 fixed top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant/30 flex justify-between items-center px-margin-desktop">
+<div class="flex items-center gap-4 flex-1 max-w-md">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant" data-icon="search">search</span>
+<input class="w-full bg-surface-container-low border-none rounded-full py-2 pl-10 pr-4 text-body-sm font-body-sm focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Buscar..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-full active:scale-95">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low transition-colors rounded-full active:scale-95">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+</div>
+<div class="flex items-center gap-3 pl-6 border-l border-outline-variant/30">
+<div class="text-right hidden sm:block">
+<p class="font-bold text-label-md text-on-surface">Juan Perez</p>
+<span class="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px] font-black tracking-widest">SOCIO</span>
+</div>
+<img alt="Juan Perez" class="w-10 h-10 rounded-full border-2 border-surface-container-high cursor-pointer active:scale-95 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGrhMc7-XfSwXnkKmje9zTH2qjLSVbguCVHgnTbfX-2tPo2NT1dSdbVMTTC5mCrRKOGYiIT8g7kN1_AOeWCH0oqmRMzNAaL01O9aTXteas1dfzj3RUgujiV_0Y_sg0KvuQyhG9_2gBVyD1s5dzfp9mZVuIrpJYUIt3qF8I6z7haBFZFM5CP1bYR2aof69EOHey5c_yqVV2sd9TSXbmxmlR-rj4-hUljnYp8r79DWT-wl0q6HRa05lFVRethqDBsfWIJqCHD6xra3Rz"/>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-[280px] pt-24 pb-12 px-margin-desktop min-h-screen">
+<!-- Greeting Section -->
+<header class="mb-stack-lg">
+<h2 class="font-headline-md text-headline-md text-on-surface">¡Hola Juan!</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Bienvenido de nuevo a tu panel de socio.</p>
+</header>
+<!-- KPI Row -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-stack-lg">
+<!-- KPI 1 -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.04)] border border-outline-variant/20 flex flex-col justify-between">
+<div class="flex justify-between items-start">
+<span class="text-outline font-label-md text-label-md tracking-wider uppercase">Deuda Actual</span>
+<div class="p-2 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+</div>
+<div class="mt-4">
+<p class="font-headline-lg text-headline-lg text-on-surface">90€</p>
+<p class="text-label-sm text-outline flex items-center gap-1 mt-1">
+<span class="text-error font-bold">Vence en 3 días</span>
+</p>
+</div>
+</div>
+<!-- KPI 2 -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.04)] border border-outline-variant/20 flex flex-col justify-between">
+<div class="flex justify-between items-start">
+<span class="text-outline font-label-md text-label-md tracking-wider uppercase">Próximos Eventos</span>
+<div class="p-2 bg-tertiary-fixed/50 rounded-lg text-tertiary">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+</div>
+</div>
+<div class="mt-4">
+<p class="font-headline-lg text-headline-lg text-on-surface">3</p>
+<p class="text-label-sm text-outline mt-1">Esta semana</p>
+</div>
+</div>
+<!-- KPI 3 -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.04)] border border-outline-variant/20 flex flex-col justify-between">
+<div class="flex justify-between items-start">
+<span class="text-outline font-label-md text-label-md tracking-wider uppercase">Mis Equipos</span>
+<div class="p-2 bg-secondary-container rounded-lg text-secondary">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+</div>
+</div>
+<div class="mt-4">
+<p class="font-headline-lg text-headline-lg text-on-surface">2</p>
+<p class="text-label-sm text-outline mt-1">Federados</p>
+</div>
+</div>
+<!-- KPI 4 -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.04)] border border-outline-variant/20 flex flex-col justify-between border-l-4 border-l-error">
+<div class="flex justify-between items-start">
+<span class="text-outline font-label-md text-label-md tracking-wider uppercase text-error">Facturas Vencidas</span>
+<div class="p-2 bg-error-container rounded-lg text-error">
+<span class="material-symbols-outlined" data-icon="warning" data-weight="fill" style="font-variation-settings: 'FILL' 1;">warning</span>
+</div>
+</div>
+<div class="mt-4">
+<p class="font-headline-lg text-headline-lg text-error">1</p>
+<p class="text-label-sm text-error font-medium mt-1">Requiere atención inmediata</p>
+</div>
+</div>
+</section>
+<!-- Main Layout Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column (Wide) -->
+<div class="lg:col-span-8 space-y-gutter">
+<!-- Upcoming Events Section -->
+<section class="bg-white rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.04)] border border-outline-variant/20 overflow-hidden">
+<div class="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Próximos Eventos de Equipo</h3>
+<button class="text-primary font-label-md text-label-md hover:underline">Ver calendario completo</button>
+</div>
+<div class="divide-y divide-outline-variant/10">
+<!-- Event 1 -->
+<div class="p-6 flex items-center gap-6 hover:bg-surface-container-low transition-colors">
+<div class="flex flex-col items-center justify-center min-w-[64px] h-[64px] bg-surface-container rounded-lg">
+<span class="text-[10px] font-black uppercase text-outline-variant">OCT</span>
+<span class="text-headline-sm font-bold text-primary">24</span>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-body-lg text-on-surface">Entrenamiento Táctico</h4>
+<div class="flex gap-4 mt-1 text-on-surface-variant font-body-sm">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[18px]" data-icon="schedule">schedule</span> 18:30</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[18px]" data-icon="location_on">location_on</span> Pabellón Municipal</span>
+</div>
+</div>
+<button class="px-4 py-2 border border-primary text-primary font-bold rounded-lg hover:bg-primary/5 transition-all text-label-md">Detalles</button>
+</div>
+<!-- Event 2 -->
+<div class="p-6 flex items-center gap-6 hover:bg-surface-container-low transition-colors">
+<div class="flex flex-col items-center justify-center min-w-[64px] h-[64px] bg-surface-container rounded-lg">
+<span class="text-[10px] font-black uppercase text-outline-variant">OCT</span>
+<span class="text-headline-sm font-bold text-primary">27</span>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-body-lg text-on-surface">Partido de Liga</h4>
+<div class="flex gap-4 mt-1 text-on-surface-variant font-body-sm">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[18px]" data-icon="schedule">schedule</span> 10:00</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[18px]" data-icon="location_on">location_on</span> Polideportivo Sur</span>
+</div>
+</div>
+<button class="px-4 py-2 border border-primary text-primary font-bold rounded-lg hover:bg-primary/5 transition-all text-label-md">Detalles</button>
+</div>
+</div>
+</section>
+<!-- Recent Invoices -->
+<section class="bg-white rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.04)] border border-outline-variant/20 overflow-hidden">
+<div class="p-6 border-b border-outline-variant/10">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Facturas Recientes</h3>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-low/50 text-outline text-label-sm uppercase tracking-wider">
+<tr>
+<th class="px-6 py-4 font-bold">Concepto</th>
+<th class="px-6 py-4 font-bold">Monto</th>
+<th class="px-6 py-4 font-bold">Fecha</th>
+<th class="px-6 py-4 font-bold">Estado</th>
+<th class="px-6 py-4 font-bold"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10 text-body-sm">
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-6 py-4 font-medium text-on-surface">Cuota Octubre 2024</td>
+<td class="px-6 py-4">45,00€</td>
+<td class="px-6 py-4">01/10/2024</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 font-bold text-[11px] uppercase tracking-wide">Pagada</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-outline-variant hover:text-primary" data-icon="download">download</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-6 py-4 font-medium text-on-surface">Inscripción Torneo Playa</td>
+<td class="px-6 py-4">25,00€</td>
+<td class="px-6 py-4">20/09/2024</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 font-bold text-[11px] uppercase tracking-wide">Pendiente</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-outline-variant hover:text-primary" data-icon="download">download</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-6 py-4 font-medium text-on-surface">Equipación Oficial 2024</td>
+<td class="px-6 py-4">65,00€</td>
+<td class="px-6 py-4">15/08/2024</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 rounded-full bg-red-500/10 text-red-600 font-bold text-[11px] uppercase tracking-wide">Vencida</span>
+</td>
+<td class="px-6 py-4 text-right">
+<button class="material-symbols-outlined text-outline-variant hover:text-primary" data-icon="download">download</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- My Teams Section -->
+<section>
+<div class="mb-4 flex justify-between items-center">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Mis Equipos</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<!-- Team Card 1 -->
+<div class="bg-white rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.04)] border border-outline-variant/20 p-6 flex items-center gap-4 hover:border-primary transition-all group">
+<div class="w-16 h-16 rounded-lg bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[32px]" data-icon="volleyball">sports_volleyball</span>
+</div>
+<div>
+<h4 class="font-bold text-body-lg text-on-surface">Senior Masculino A</h4>
+<p class="text-on-surface-variant font-body-sm flex items-center gap-2">
+                                    Pabellón • 14 miembros
+                                </p>
+</div>
+</div>
+<!-- Team Card 2 -->
+<div class="bg-white rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.04)] border border-outline-variant/20 p-6 flex items-center gap-4 hover:border-primary transition-all group">
+<div class="w-16 h-16 rounded-lg bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[32px]" data-icon="beach_access">beach_access</span>
+</div>
+<div>
+<h4 class="font-bold text-body-lg text-on-surface">Voley Playa Parejas</h4>
+<p class="text-on-surface-variant font-body-sm flex items-center gap-2">
+                                    Voley Playa • 2 miembros
+                                </p>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Column (Narrow) -->
+<div class="lg:col-span-4 space-y-gutter">
+<!-- Mural de Noticias -->
+<section class="bg-white rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.04)] border border-outline-variant/20 overflow-hidden">
+<div class="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Mural de Noticias</h3>
+</div>
+<div class="p-6 space-y-6">
+<!-- News 1 -->
+<div class="group cursor-pointer">
+<div class="aspect-video w-full rounded-xl overflow-hidden mb-3 bg-surface-container">
+<img alt="Nuevo equipamiento" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A professional flat-lay photograph of high-end athletic volleyball jerseys and shorts in navy blue and white, laid out on a polished gym floor. The lighting is crisp and cinematic, highlighting the fabric textures and club branding. The overall aesthetic is energetic, corporate, and clean with a premium sports feel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBU30EfeKyyNBsREhxvbP2ejJnFcJXrt8OcgdkiGIwjt2NdHAcJNYGuz0FPEUasmIzuP9PlA6io39Iuek6fKLtJCrf-k5ON3G1rXtoNxZB6hOHB5riTROkh-vBtmuQD3u5pVm85xIKI0oTfQTsBOl_Qm1wJfG5SddSXqZpgh2HZxl8C25j43L4BiQM3UvfCp9i0OO72QWEkt6_k8G0UOwstP5ACyZu49xVQ61hv_6uwPoEUw5yYxqP_xpImiUQyn5Sx2RUFO_xTIzmG"/>
+</div>
+<h4 class="font-bold text-body-md text-on-surface group-hover:text-primary transition-colors line-clamp-1">Nuevo equipamiento 2024</h4>
+<p class="text-body-sm text-on-surface-variant line-clamp-2 mt-1">Descubre la nueva piel de nuestros equipos para esta temporada con tejidos de alta tecnología.</p>
+</div>
+<!-- News 2 -->
+<div class="group cursor-pointer">
+<div class="aspect-video w-full rounded-xl overflow-hidden mb-3 bg-surface-container">
+<img alt="Voley Playa Open" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A wide cinematic shot of a golden sand beach volleyball court at sunset. The lighting is warm and golden, casting long shadows across the court where several players are seen in silhouettes. The atmosphere is vibrant, inviting, and professional, reflecting an exclusive beach club open event under a clear sky." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxodX2p2sln1M1tARQnJFRdybWA_JNwMdPrx_zMOa3rA1NeX6ZqjYVi8vXfT_C9qQophUPnCL6j9DLOCW-tK2Ffz53DNzt9Hoh5PjCI9juy1H0ruRJ5tE1pHK0ltMa0q6IfQqX4_MHKW47CQnHwiF-qhlno9-AFfP2wI2udQS4w8WUotDTRAAXVEXWUk1JSfo3lDBINwRIheLCPqYJH2-OdUsqo0N_42upNdGq3B9ifBlHgJcUKxrv0CORHKAO_wXyuWEjx1amhkLu"/>
+</div>
+<h4 class="font-bold text-body-md text-on-surface group-hover:text-primary transition-colors line-clamp-1">Abiertas inscripciones: Voley Playa Open</h4>
+<p class="text-body-sm text-on-surface-variant line-clamp-2 mt-1">Ya puedes apuntarte al torneo de verano más esperado. Plazas limitadas por categoría.</p>
+</div>
+</div>
+</section>
+<!-- Eventos Públicos -->
+<section class="bg-white rounded-xl shadow-[0_4px_10px_rgba(0,0,0,0.04)] border border-outline-variant/20 overflow-hidden">
+<div class="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Eventos Públicos</h3>
+</div>
+<div class="p-6 space-y-4">
+<div class="flex items-center gap-4 p-3 rounded-lg hover:bg-surface-container-low transition-colors">
+<div class="w-12 h-12 flex-shrink-0 bg-tertiary-fixed rounded-full flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" data-icon="sports_volleyball">sports_volleyball</span>
+</div>
+<div class="flex-1">
+<p class="font-bold text-body-sm text-on-surface">Introducción al Voley</p>
+<p class="text-label-sm text-outline">Sáb, 2 Nov • 10:00</p>
+</div>
+</div>
+<div class="flex items-center gap-4 p-3 rounded-lg hover:bg-surface-container-low transition-colors">
+<div class="w-12 h-12 flex-shrink-0 bg-secondary-fixed rounded-full flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="celebration">celebration</span>
+</div>
+<div class="flex-1">
+<p class="font-bold text-body-sm text-on-surface">Cena de Convivencia</p>
+<p class="text-label-sm text-outline">Vie, 15 Nov • 21:00</p>
+</div>
+</div>
+<button class="w-full mt-2 py-3 border-2 border-dashed border-outline-variant rounded-xl text-outline font-bold text-label-md hover:border-primary hover:text-primary transition-all">
+                            Inscribirse a otro evento
+                        </button>
+</div>
+</section>
+</div>
+</div>
+</main>
+</body></html>
