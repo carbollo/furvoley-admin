@@ -4570,6 +4570,18 @@ function WhatsAppSection() {
 const CRM_SECTION_IDS = ['dashboard','socios','equipos','contabilidad','calendario','informes','workflows','whatsapp','personal'] as const;
 type SectionId = (typeof CRM_SECTION_IDS)[number]
 
+const SECTION_TITLES: Record<SectionId, string> = {
+  dashboard: 'Inicio',
+  socios: 'Socios',
+  equipos: 'Equipos',
+  contabilidad: 'Contabilidad',
+  calendario: 'Calendario',
+  informes: 'Informes',
+  workflows: 'Flujos',
+  whatsapp: 'WhatsApp',
+  personal: 'Personal',
+}
+
 function CrmInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -4795,21 +4807,45 @@ function CrmInner() {
       <Sidebar active={safeActive} setActive={setActive}/>
       <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',minWidth:0}}>
         <div style={{
-          height:56,background:'#fff',borderBottom:'1px solid var(--border)',
-          display:'flex',alignItems:'center',justifyContent:'flex-end',
-          padding:'0 28px',gap:12,flexShrink:0
+          background:'rgba(255,255,255,0.85)',
+          backdropFilter:'blur(12px)',
+          WebkitBackdropFilter:'blur(12px)',
+          borderBottom:'1px solid var(--border)',
+          display:'flex',alignItems:'center',justifyContent:'space-between',
+          padding:'14px 36px',gap:12,flexShrink:0,
+          position:'sticky',top:0,zIndex:10,
         }}>
+          <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0}}>
+            <span style={{
+              fontSize:10,fontWeight:800,color:'#6b7280',letterSpacing:1.5,
+              textTransform:'uppercase',padding:'4px 10px',borderRadius:999,
+              background:'rgba(0,0,0,0.04)',flexShrink:0
+            }}>Panel CRM</span>
+            <span style={{color:'#cbd5e1',fontSize:14}}>›</span>
+            <span style={{
+              fontSize:14,fontWeight:700,color:'#111827',lineHeight:1.2,
+              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
+            }}>{SECTION_TITLES[safeActive] || 'Inicio'}</span>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:12}}>
           <div data-crm-notifications style={{position:'relative'}}>
           <button
             type="button"
             title="Notificaciones"
             aria-label="Notificaciones"
             onClick={() => setShowNotifications((v) => !v)}
-            style={{padding:8,borderRadius:10,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280',position:'relative'}}
+            style={{
+              position:'relative',
+              width:40,height:40,borderRadius:12,
+              border:'1px solid var(--border)',background:'#fff',
+              cursor:'pointer',color:'#6b7280',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              transition:'all 0.15s'
+            }}
           >
             <Icon name="bell" size={18}/>
             {unreadCount > 0 && (
-              <span style={{position:'absolute',top:5,right:5,width:8,height:8,borderRadius:'50%',background:'var(--red)',border:'2px solid #fff'}}></span>
+              <span style={{position:'absolute',top:8,right:8,width:8,height:8,borderRadius:'50%',background:'var(--red)',border:'2px solid #fff'}}></span>
             )}
           </button>
           {showNotifications && (
@@ -4879,14 +4915,23 @@ function CrmInner() {
             </div>
           )}
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,paddingLeft:14,borderLeft:'1px solid var(--border)'}}>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',lineHeight:1.2}}>
+              <span style={{fontSize:13,fontWeight:700,color:'#111827'}}>{bundle?.user?.name || 'Administrador'}</span>
+              <span style={{
+                fontSize:9,fontWeight:800,color:'var(--accent)',
+                background:'rgba(59,130,246,0.1)',padding:'2px 8px',borderRadius:999,
+                letterSpacing:1.2,textTransform:'uppercase',marginTop:2
+              }}>{ROLE_LABEL[role] || 'Socio'}</span>
+            </div>
             <div style={{
-              width:32,height:32,borderRadius:'50%',
+              width:40,height:40,borderRadius:'50%',
               background:'linear-gradient(135deg,#3B82F6,#8B5CF6)',
               display:'flex',alignItems:'center',justifyContent:'center',
-              fontSize:13,fontWeight:700,color:'#fff'
+              fontSize:14,fontWeight:700,color:'#fff',
+              boxShadow:'0 2px 8px rgba(59,130,246,0.25)'
             }}>{bundle?.user?.initials || '—'}</div>
-            <span style={{fontSize:13,fontWeight:600,color:'#374151'}}>{bundle?.user?.name || 'Administrador'}</span>
+          </div>
           </div>
         </div>
         <div style={{flex:1,overflow:'hidden',display:'flex',minWidth:0}}>
