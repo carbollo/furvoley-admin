@@ -833,12 +833,10 @@ function Socios() {
     setMenuSocioId(null)
     const ok = await showConfirm(`¿Eliminar el socio "${socio.nombre}"? Esta acción no se puede deshacer.`)
     if (!ok) return
-    console.log('[Socios] deleting member', socio?.id, socio?.nombre)
     const r = await fetch('/api/crm/members/' + encodeURIComponent(socio.id), {
       method: 'DELETE',
       credentials: 'include',
     })
-    console.log('[Socios] delete status', r.status)
     if (!r.ok) {
       try {
         const j = await r.json()
@@ -1060,6 +1058,17 @@ function Socios() {
                     <button type="button" onClick={e=>{e.stopPropagation(); setSelected(s);}} style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}} title="Ver y editar"><Icon name="edit" size={14}/></button>
                     <button
                       type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        await eliminarSocio(s)
+                      }}
+                      style={{padding:6,borderRadius:8,border:'1px solid #fecaca',background:'#fff',cursor:'pointer',color:'#b91c1c'}}
+                      title="Eliminar socio"
+                    >
+                      <Icon name="trash" size={14}/>
+                    </button>
+                    <button
+                      type="button"
                       onClick={(e)=>toggleSocioMenu(e, s)}
                       data-socio-menu
                       style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',color:'#6b7280'}}
@@ -1175,6 +1184,24 @@ function Socios() {
             }}
           >
             Resetear acceso portal
+          </button>
+          <button
+            type="button"
+            onClick={() => eliminarSocio(selected)}
+            style={{
+              width:'100%',
+              padding:'10px',
+              borderRadius:12,
+              border:'1px solid #fecaca',
+              background:'#fff',
+              cursor:'pointer',
+              fontFamily:'inherit',
+              fontSize:13,
+              fontWeight:700,
+              color:'#b91c1c'
+            }}
+          >
+            Eliminar socio
           </button>
         </div>
       )}
