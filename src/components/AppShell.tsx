@@ -1,6 +1,8 @@
-'use client'
-
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { Sidebar } from '@/components/Sidebar'
+import { MemberShell } from '@/components/member/MemberShell'
+import { normalizeRole } from '@/lib/rbac'
 
 import type { CSSProperties, ReactNode } from 'react'
 
@@ -26,15 +28,25 @@ const mainStyleNoPad: CSSProperties = {
   boxSizing: 'border-box',
 }
 
-/** Sidebar + área principal compartida por las rutas (panel). */
-export function AppShell({
+/**
+ * Layout principal del panel. Server component que decide el shell
+ * según el rol de la sesión: socios usan `MemberShell` (diseño Stitch),
+ * staff (ADMIN/COACH/TREASURER) usa el sidebar clásico.
+ */
+export async function AppShell({
   children,
   flush = false,
 }: {
   children: ReactNode
-  /** Si true, el área principal no tiene padding (la página gestiona el suyo). */
   flush?: boolean
 }) {
+  const session = await getServerSession(authOptions)
+  const role = normalizeRole(session?.user?.role)
+
+  if (role === 'MEMBER') {
+    return <MemberShell>{children}</MemberShell>
+  }
+
   return (
     <>
       <Sidebar />

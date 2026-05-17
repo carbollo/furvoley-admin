@@ -204,10 +204,10 @@ export function Sidebar() {
           active: pathname === '/my-billing' || pathname.startsWith('/my-billing/'),
         },
         {
-          href: '/?section=mural',
+          href: '/mural',
           icon: 'newspaper' as IconName,
           label: 'Mural',
-          active: false,
+          active: pathname === '/mural' || pathname.startsWith('/mural/'),
         },
       ],
     [pathname],

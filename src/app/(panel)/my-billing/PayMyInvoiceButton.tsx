@@ -8,17 +8,28 @@ export function PayMyInvoiceButton({ invoiceId }: { invoiceId: string }) {
 
   return (
     <button
+      type="button"
       onClick={() =>
         startTransition(async () => {
           const url = await createInvoiceStripeLink(invoiceId)
           if (url) window.open(url, '_blank')
         })
       }
-      className="px-3 py-1 text-sm bg-indigo-600 text-white rounded"
       disabled={pending}
+      style={{
+        padding: '6px 14px',
+        background: '#0058be',
+        color: '#fff',
+        border: 'none',
+        borderRadius: 8,
+        fontSize: 13,
+        fontWeight: 700,
+        cursor: pending ? 'not-allowed' : 'pointer',
+        opacity: pending ? 0.7 : 1,
+        boxShadow: '0 1px 2px rgba(0,88,190,0.2)',
+      }}
     >
       {pending ? 'Generando…' : 'Pagar'}
     </button>
   )
 }
-
