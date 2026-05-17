@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { deleteMember, updateMember } from '@/app/actions'
+import { updateMember } from '@/app/actions'
 import { requireRoles } from '@/lib/rbac-api'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
@@ -66,7 +66,36 @@ export async function DELETE(
 
   const { id } = await context.params
   try {
-    await deleteMember(id)
+    await prisma.$transaction(async (tx) => {
+      await tx.user.deleteMany({
+        where: {
+          memberId: id,
+          role: { in: ['MEMBER', 'PLAYER'] },
+        },
+      })
+      await tx.user.updateMany({
+        where: { memberId: id },
+        data: { memberId: null },
+      })
+
+      await tx.signupLink.updateMany({
+        where: { createdMemberId: id },
+        data: { createdMemberId: null },
+      })
+      await tx.order.updateMany({
+        where: { memberId: id },
+        data: { memberId: null },
+      })
+
+      await tx.teamMember.deleteMany({ where: { memberId: id } })
+      await tx.attendance.deleteMany({ where: { memberId: id } })
+      await tx.payment.deleteMany({ where: { memberId: id } })
+      await tx.reminderLog.deleteMany({ where: { memberId: id } })
+      await tx.subscription.deleteMany({ where: { memberId: id } })
+      await tx.invoice.deleteMany({ where: { memberId: id } })
+
+      await tx.member.delete({ where: { id } })
+    })
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     console.error('[crm/members DELETE] failed', { id, error: e })
