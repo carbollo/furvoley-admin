@@ -1,31 +1,52 @@
-/* Tokens del CRM Stitch (panel admin). Hex exactos del mockup `pruebaindex.html`. */
+/* Tokens del CRM "Elite Club Operations" (Stitch v2).
+   Identidad B2B/SaaS para Furvoley admin: sidebar deep slate,
+   accent azul corporativo, badges status, generous whitespace. */
 :root {
-  --sidebar-bg: #111827;
-  --sidebar-text: rgba(255, 255, 255, 0.65);
+  /* Sidebar */
+  --sidebar-bg: #0f172a;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-text: #94a3b8;
+  --sidebar-text-hover: #ffffff;
   --sidebar-active: #ffffff;
+  --sidebar-active-bg: rgba(0, 74, 198, 0.14);
 
-  --accent: #3b82f6;
-  --accent-light: #eff6ff;
-  --accent-strong: #2563eb;
+  /* Brand / accent */
+  --accent: #004ac6;
+  --accent-strong: #003ea8;
+  --accent-soft: #2563eb;
+  --accent-light: #eff4ff;
+  --accent-pill: rgba(0, 74, 198, 0.1);
 
-  --green: #10b981;
-  --green-light: #ecfdf5;
-
-  --amber: #f59e0b;
-  --amber-light: #fffbeb;
-
-  --red: #ef4444;
-  --red-light: #fef2f2;
-
-  --violet: #8b5cf6;
-
-  --surface: #f8f7f5;
+  /* Surfaces */
+  --surface: #f8f9ff;
   --surface-card: #ffffff;
-  --text-primary: #111827;
-  --text-secondary: #6b7280;
+  --surface-low: #eff4ff;
+  --surface-mid: #e5eeff;
+  --surface-high: #dce9ff;
+  --surface-tint: #0053db;
 
-  --border: rgba(0, 0, 0, 0.07);
-  --border-strong: rgba(0, 0, 0, 0.12);
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  /* Text */
+  --text-primary: #0b1c30;
+  --text-secondary: #434655;
+  --text-muted: #737686;
+
+  /* Status */
+  --green: #059669;
+  --green-light: #ecfdf5;
+  --green-soft: rgba(5, 150, 105, 0.1);
+
+  --amber: #b45309;
+  --amber-light: #fffbeb;
+  --amber-soft: rgba(245, 158, 11, 0.14);
+
+  --red: #b91c1c;
+  --red-light: #fef2f2;
+  --red-soft: rgba(186, 26, 26, 0.1);
+
+  /* Lines / shadows */
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --card-shadow-hover: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   --card-shadow-lg: 0 10px 30px rgba(15, 23, 42, 0.08);
 }

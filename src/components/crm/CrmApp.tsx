@@ -345,34 +345,69 @@ function Avatar({ initials, color = '#3B82F6', size = 36 }) {
   );
 }
 
-const KPICard = ({ label, value, sub, icon, color, trend, chart }) => (
-  <div style={{
-    background:'#fff',borderRadius:16,padding:'20px 24px',
-    boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
-    display:'flex',flexDirection:'column',gap:12,flex:1,minWidth:0
-  }}>
-    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between'}}>
-      <div style={{display:'flex',flexDirection:'column',gap:4}}>
-        <span style={{fontSize:13,color:'#6b7280',fontWeight:500}}>{label}</span>
-        <span style={{fontSize:28,fontWeight:800,letterSpacing:'-0.5px',color:'#111827'}}>{value}</span>
+const KPICard = ({ label, value, sub, icon, color, trend, badge, chart }) => {
+  // badge: { kind: 'success' | 'warning' | 'danger' | 'info', text: string }
+  const badgeStyles = {
+    success: { bg: 'var(--green-soft)', color: 'var(--green)' },
+    warning: { bg: 'var(--amber-soft)', color: 'var(--amber)' },
+    danger:  { bg: 'var(--red-soft)',   color: 'var(--red)' },
+    info:    { bg: 'var(--accent-pill)',color: 'var(--accent)' },
+  }
+  const trendBadge = trend ? {
+    kind: trend.up ? 'success' : 'danger',
+    text: trend.text || (trend.up ? '+' : '-'),
+    icon: trend.up ? 'trend_up' : 'trend_down',
+  } : null
+  const showBadge = badge || trendBadge
+  const bStyle = showBadge ? (badgeStyles[showBadge.kind] || badgeStyles.info) : null
+  return (
+    <div style={{
+      background:'var(--surface-card)',borderRadius:12,padding:'24px',
+      boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
+      display:'flex',flexDirection:'column',gap:16,flex:'1 1 240px',minWidth:0,
+      transition:'all 0.2s ease',
+    }}>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+        <div style={{
+          width:40,height:40,borderRadius:10,
+          background:`${color}15`,color,
+          display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0
+        }}>
+          <Icon name={icon} size={20}/>
+        </div>
+        {showBadge && (
+          <span style={{
+            display:'inline-flex',alignItems:'center',gap:4,
+            padding:'4px 10px',borderRadius:999,
+            background:bStyle.bg,color:bStyle.color,
+            fontSize:11,fontWeight:700,letterSpacing:'0.02em',whiteSpace:'nowrap'
+          }}>
+            {(showBadge.icon || (trendBadge && trendBadge.icon)) && <Icon name={showBadge.icon || trendBadge.icon} size={12}/>}
+            {showBadge.text}
+          </span>
+        )}
       </div>
-      <div style={{
-        width:40,height:40,borderRadius:12,
-        background:`${color}15`,color,
-        display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0
-      }}>
-        <Icon name={icon} size={20}/>
+      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+        <span style={{
+          fontSize:11,color:'var(--text-muted)',fontWeight:700,
+          letterSpacing:'0.05em',textTransform:'uppercase'
+        }}>{label}</span>
+        <span style={{
+          fontSize:30,fontWeight:700,letterSpacing:'-0.02em',
+          color:'var(--text-primary)',lineHeight:1.1
+        }}>{value}</span>
+        {sub && (
+          <span style={{fontSize:12,color:'var(--text-muted)',fontWeight:500}}>{sub}</span>
+        )}
       </div>
+      {chart && (
+        <div style={{marginTop:'auto',opacity:0.85}}>
+          <MiniLineChart data={chart} color={color} width={120} height={32}/>
+        </div>
+      )}
     </div>
-    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-      <span style={{fontSize:12,color:trend?.up ? 'var(--green)' : '#6b7280',display:'flex',alignItems:'center',gap:4}}>
-        {trend && <Icon name={trend.up ? 'trend_up' : 'trend_down'} size={13}/>}
-        {sub}
-      </span>
-      {chart && <MiniLineChart data={chart} color={color} width={80} height={32}/>}
-    </div>
-  </div>
-);
+  )
+};
 
 // ── SIDEBAR ─────────────────────────────────────────────────────────────────
 const NAV = [
@@ -394,76 +429,112 @@ function Sidebar({ active, setActive }) {
   const pending = bundle?.kpis?.cobrosPendientes ?? 0;
   return (
     <div className="sidebar" style={{
-      width:220,background:'var(--sidebar-bg)',display:'flex',flexDirection:'column',
-      flexShrink:0,height:'100vh',overflow:'hidden',transition:'width 0.2s'
+      width:280,background:'var(--sidebar-bg)',display:'flex',flexDirection:'column',
+      flexShrink:0,height:'100vh',overflow:'hidden',
+      borderRight:'1px solid var(--sidebar-border)',
+      boxShadow:'4px 0 24px rgba(15,23,42,0.04)'
     }}>
-      {/* Logo */}
-      <div style={{padding:'24px 20px 20px',borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{
-            width:34,height:34,borderRadius:10,
-            background:'linear-gradient(135deg, #3B82F6, #8B5CF6)',
-            display:'flex',alignItems:'center',justifyContent:'center',
-            fontSize:16,fontWeight:800,color:'#fff',flexShrink:0
-          }}>F</div>
-          <div>
-            <div className="sidebar-logo-text" style={{color:'#fff',fontWeight:700,fontSize:14,lineHeight:1.2}}>Furvoley</div>
-            <div className="sidebar-logo-text" style={{color:'rgba(255,255,255,0.4)',fontSize:11}}>Club Multideporte</div>
-          </div>
-        </div>
+      {/* Brand */}
+      <div style={{padding:'28px 24px 24px'}}>
+        <div style={{
+          color:'#ffffff',fontWeight:700,fontSize:22,letterSpacing:'-0.02em',lineHeight:1.1
+        }}>Furvoley</div>
+        <div style={{
+          color:'#64748b',fontSize:11,fontWeight:700,
+          letterSpacing:'0.08em',marginTop:6,textTransform:'uppercase'
+        }}>Sistema de gestión</div>
       </div>
-      {/* User */}
-      <div style={{padding:'14px 20px',borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{
-            width:32,height:32,borderRadius:'50%',
-            background:'linear-gradient(135deg, #3B82F6, #8B5CF6)',
-            display:'flex',alignItems:'center',justifyContent:'center',
-            fontSize:13,fontWeight:700,color:'#fff',flexShrink:0
-          }}>{bundle?.user?.initials || '—'}</div>
-          <div>
-            <div style={{color:'#fff',fontWeight:600,fontSize:13}}>{bundle?.user?.name || 'Administrador'}</div>
-            <div style={{
-              display:'inline-block',background:'rgba(99,102,241,0.3)',
-              color:'#a5b4fc',fontSize:9,fontWeight:700,padding:'1px 7px',
-              borderRadius:999,letterSpacing:1
-            }}>{ROLE_LABEL[role] || 'Socio'}</div>
-          </div>
-        </div>
-      </div>
+
       {/* Nav */}
-      <nav style={{flex:1,padding:'12px 12px',overflowY:'auto',display:'flex',flexDirection:'column',gap:2}}>
-        <div className="sidebar-section-label" style={{color:'rgba(255,255,255,0.3)',fontSize:10,fontWeight:700,letterSpacing:1.5,padding:'8px 8px 4px',textTransform:'uppercase'}}>Menú</div>
+      <nav style={{flex:1,padding:'4px 0 12px',overflowY:'auto',display:'flex',flexDirection:'column',gap:2}}>
         {visibleNav.map(item => {
           const isActive = active === item.id;
           return (
-            <button key={item.id} onClick={() => setActive(item.id)} title={item.label} style={{
-              display:'flex',alignItems:'center',gap:10,
-              padding:'9px 12px',borderRadius:10,border:'none',cursor:'pointer',
-              background:isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
-              color:isActive ? '#fff' : 'var(--sidebar-text)',
-              fontFamily:'inherit',fontSize:13.5,fontWeight:isActive ? 600 : 400,
-              textAlign:'left',width:'100%',transition:'all 0.15s',
-            }}>
-              <span style={{opacity:isActive ? 1 : 0.7,flexShrink:0}}><Icon name={item.icon} size={16}/></span>
-              <span className="sidebar-label">{item.label}</span>
-              {item.id === 'contabilidad' && pending > 0 && <span className="sidebar-badge" style={{
-                marginLeft:'auto',background:'var(--red)',color:'#fff',
-                fontSize:10,fontWeight:700,padding:'1px 7px',borderRadius:999
-              }}>{pending > 99 ? '99+' : pending}</span>}
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setActive(item.id)}
+              title={item.label}
+              style={{
+                display:'flex',alignItems:'center',gap:12,
+                padding:'12px 24px',
+                border:'none',cursor:'pointer',
+                borderLeft: isActive ? '4px solid var(--accent)' : '4px solid transparent',
+                background:isActive ? 'var(--sidebar-active-bg)' : 'transparent',
+                color:isActive ? 'var(--sidebar-active)' : 'var(--sidebar-text)',
+                fontFamily:'inherit',fontSize:14,fontWeight:isActive ? 600 : 500,
+                textAlign:'left',width:'100%',transition:'all 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                  e.currentTarget.style.color = 'var(--sidebar-text-hover)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = 'transparent'
+                  e.currentTarget.style.color = 'var(--sidebar-text)'
+                }
+              }}
+            >
+              <span style={{
+                opacity:isActive ? 1 : 0.9,flexShrink:0,display:'inline-flex'
+              }}>
+                <Icon name={item.icon} size={18}/>
+              </span>
+              <span style={{flex:1}}>{item.label}</span>
+              {item.id === 'contabilidad' && pending > 0 && (
+                <span style={{
+                  background:'var(--red)',color:'#fff',
+                  fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:999
+                }}>{pending > 99 ? '99+' : pending}</span>
+              )}
             </button>
           );
         })}
       </nav>
-      {/* Logout */}
-      <div style={{padding:'12px',borderTop:'1px solid rgba(255,255,255,0.07)'}}>
-        <button type="button" onClick={() => { window.location.href = '/api/auth/signout?callbackUrl=' + encodeURIComponent('/login'); }} style={{
-          display:'flex',alignItems:'center',gap:10,width:'100%',
-          padding:'9px 12px',borderRadius:10,border:'none',cursor:'pointer',
-          background:'transparent',color:'rgba(255,255,255,0.4)',
-          fontFamily:'inherit',fontSize:13,fontWeight:400,transition:'all 0.15s'
-        }}>
-          <Icon name="logout" size={16}/>Cerrar sesión
+
+      {/* User block + actions */}
+      <div style={{
+        marginTop:'auto',borderTop:'1px solid var(--sidebar-border)',
+        padding:'16px 0 12px',display:'flex',flexDirection:'column'
+      }}>
+        <div style={{padding:'8px 24px 12px',display:'flex',alignItems:'center',gap:12}}>
+          <div style={{
+            width:40,height:40,borderRadius:'50%',
+            background:'linear-gradient(135deg, #2563eb, #004ac6)',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            fontSize:14,fontWeight:700,color:'#fff',flexShrink:0,
+            border:'1px solid rgba(255,255,255,0.08)'
+          }}>{bundle?.user?.initials || '—'}</div>
+          <div style={{minWidth:0,flex:1}}>
+            <div style={{
+              color:'#ffffff',fontWeight:600,fontSize:14,lineHeight:1.2,
+              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
+            }}>{bundle?.user?.name || 'Administrador'}</div>
+            <div style={{
+              color:'#64748b',fontSize:11,fontWeight:700,
+              letterSpacing:'0.06em',textTransform:'uppercase',marginTop:2
+            }}>{ROLE_LABEL[role] || 'Socio'}</div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => { window.location.href = '/api/auth/signout?callbackUrl=' + encodeURIComponent('/login'); }}
+          style={{
+            display:'flex',alignItems:'center',gap:12,width:'100%',
+            padding:'12px 24px',border:'none',cursor:'pointer',
+            background:'transparent',color:'var(--sidebar-text)',
+            fontFamily:'inherit',fontSize:14,fontWeight:500,textAlign:'left',
+            transition:'all 0.15s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#fca5a5' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--sidebar-text)' }}
+        >
+          <Icon name="logout" size={18}/>
+          <span>Cerrar sesión</span>
         </button>
       </div>
     </div>
@@ -478,116 +549,231 @@ function Dashboard({ setActive }) {
     return null
   }
   const meta = bundle?.meta?.today ? new Date(bundle.meta.today) : new Date();
-  const dateStr = meta.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const ingresosMes = bundle?.ingresosMensual ?? Array(12).fill(0);
   const kp = bundle?.kpis;
   const donut = bundle?.sociosPorDeporte ?? [];
   const EVENTOS_UI = bundle?.eventos ?? [];
   const COBROS_UI = bundle?.cobros ?? [];
 
+  const ACCENT_SOFT = '#2563eb';
+  const AMBER = '#f59e0b';
+  const GREEN = '#059669';
+  const RED = '#e11d48';
+  const cobrosPendMonto = kp?.cobrosPendientesMonto ?? 0
   return (
-    <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Inicio</h1>
-          <p style={{color:'#6b7280',fontSize:14,marginTop:4,textTransform:'capitalize'}}>{dateStr}</p>
-        </div>
-        <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{
-          display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
-          borderRadius:12,border:'none',cursor:'pointer',
-          background:'var(--accent)',color:'#fff',
-          fontFamily:'inherit',fontSize:14,fontWeight:600
+    <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
+      <div style={{maxWidth:1440,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:32}}>
+        {/* KPI Grid */}
+        <div style={{
+          display:'grid',
+          gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',
+          gap:24
         }}>
-          <Icon name="export" size={15}/>Exportar datos
-        </button>
-      </div>
-      <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
-        <KPICard label="Socios activos" value={String(kp?.sociosActivos ?? 0)} sub="Altas activas en el club" icon="users" color="#3B82F6" trend={{up:true}} chart={ingresosMes.slice(-7).length ? ingresosMes.slice(-7) : [0,0,0]}/>
-        <KPICard label="Cobros pendientes" value={String(kp?.cobrosPendientes ?? 0)} sub={kp ? fmtMoney(kp.cobrosPendientesMonto) + ' en espera' : '—'} icon="billing" color="#F59E0B" chart={[2,4,3,5,4,6, kp?.cobrosPendientes ?? 0]}/>
-        <KPICard label="Ingresos del mes" value={kp ? fmtMoney(kp.ingresosMes) : '—'} sub="Ingresos registrados" icon="reports" color="#10B981" trend={{up:true}} chart={ingresosMes.slice(-7)}/>
-        <KPICard label="Facturas vencidas" value={String(kp?.facturasVencidas ?? 0)} sub="Requieren atención" icon="billing" color="#EF4444" chart={[1,2,1,3,2, kp?.facturasVencidas ?? 0, kp?.facturasVencidas ?? 0]}/>
-      </div>
-      <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
-        <div style={{flex:2,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
-            <div>
-              <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>Ingresos del Año</div>
-              <div style={{fontSize:13,color:'#6b7280',marginTop:2}}>Cuotas + cobros registrados</div>
-            </div>
-          </div>
-          <BarChart data={ingresosMes} labels={['E','F','M','A','M','J','J','A','S','O','N','D']} color="#3B82F6" height={120}/>
+          <KPICard
+            label="Socios activos"
+            value={String(kp?.sociosActivos ?? 0)}
+            sub="Altas activas en el club"
+            icon="users"
+            color={ACCENT_SOFT}
+            badge={{ kind:'success', text:'Activo', icon:'trend_up' }}
+            chart={ingresosMes.slice(-7).length ? ingresosMes.slice(-7) : [0,0,0]}
+          />
+          <KPICard
+            label="Cobros pendientes"
+            value={kp ? fmtMoney(cobrosPendMonto) : '—'}
+            sub={`${kp?.cobrosPendientes ?? 0} factura(s) por cobrar`}
+            icon="billing"
+            color={AMBER}
+            badge={(kp?.cobrosPendientes ?? 0) > 0 ? { kind:'warning', text:'En espera' } : null}
+            chart={[2,4,3,5,4,6, kp?.cobrosPendientes ?? 0]}
+          />
+          <KPICard
+            label="Ingresos del mes"
+            value={kp ? fmtMoney(kp.ingresosMes) : '—'}
+            sub="Ingresos registrados"
+            icon="reports"
+            color={GREEN}
+            badge={(kp?.ingresosMes ?? 0) > 0 ? { kind:'success', text:'+', icon:'trend_up' } : null}
+            chart={ingresosMes.slice(-7)}
+          />
+          <KPICard
+            label="Facturas vencidas"
+            value={String(kp?.facturasVencidas ?? 0)}
+            sub={(kp?.facturasVencidas ?? 0) > 0 ? 'Requieren atención' : 'Todo en orden'}
+            icon="billing"
+            color={RED}
+            badge={(kp?.facturasVencidas ?? 0) > 0 ? { kind:'danger', text:'Crítico' } : { kind:'success', text:'OK' }}
+            chart={[1,2,1,3,2, kp?.facturasVencidas ?? 0, kp?.facturasVencidas ?? 0]}
+          />
         </div>
-        <div style={{flex:1,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{fontWeight:700,fontSize:15,color:'#111827',marginBottom:4}}>Socios por Equipo</div>
-          <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>{kp?.sociosActivos ?? 0} socios activos</div>
-          <div style={{display:'flex',alignItems:'center',gap:20}}>
-            <DonutChart size={90} segments={donut.length ? donut.map(d => ({ label: d.label, value: Math.max(d.value, 1), color: d.color })) : [{ label: '—', value: 1, color: '#e5e7eb' }]}/>
-            <div style={{display:'flex',flexDirection:'column',gap:8,flex:1}}>
-              {donut.map(d => (
-                <div key={d.label} style={{display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{width:8,height:8,borderRadius:2,background:d.color,flexShrink:0}}></span>
-                  <span style={{fontSize:12,color:'#374151',flex:1}}>{d.label}</span>
-                  <span style={{fontSize:12,fontWeight:600,color:'#111827'}}>{d.value}</span>
-                </div>
-              ))}
-              {donut.length === 0 && <div style={{fontSize:13,color:'#9ca3af'}}>Sin datos de equipos</div>}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
-        <div style={{flex:1,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>Próximos eventos</div>
-            <button type="button" onClick={() => setActive('calendario')} style={{fontSize:12,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>Ver todos →</button>
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
-            {(EVENTOS_UI.slice(0,4)).map(e => (
-              <div key={e.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
-                <div style={{
-                  width:40,flexShrink:0,textAlign:'center',
-                  background:'var(--accent-light)',borderRadius:10,padding:'6px 4px'
-                }}>
-                  <div style={{fontSize:16,fontWeight:800,color:'var(--accent)',lineHeight:1}}>
-                    {new Date(e.fecha).getDate()}
-                  </div>
-                  <div style={{fontSize:9,color:'var(--accent)',textTransform:'uppercase',fontWeight:600}}>
-                    {new Date(e.fecha).toLocaleString('es',{month:'short'})}
-                  </div>
-                </div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#111827',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.titulo}</div>
-                  <div style={{fontSize:12,color:'#6b7280'}}>{e.hora} — {e.lugar}</div>
-                </div>
-                <span style={{
-                  fontSize:11,fontWeight:600,padding:'3px 8px',borderRadius:999,
-                  background:'var(--accent-light)',color:'var(--accent)',whiteSpace:'nowrap'
-                }}>{e.tipo}</span>
+
+        {/* Bento: chart (8) + donut (4) */}
+        <div style={{
+          display:'grid',
+          gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',
+          gap:24
+        }}>
+          <div style={{
+            background:'var(--surface-card)',borderRadius:12,padding:32,
+            boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
+            display:'flex',flexDirection:'column'
+          }}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:24,gap:12,flexWrap:'wrap'}}>
+              <div>
+                <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Ingresos del año</div>
+                <div style={{fontSize:14,color:'var(--text-secondary)',marginTop:4}}>Resumen mensual de facturación</div>
               </div>
-            ))}
-            {EVENTOS_UI.length === 0 && <div style={{fontSize:13,color:'#9ca3af'}}>No hay eventos próximos</div>}
+              <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:999,padding:4}}>
+                <span style={{padding:'6px 14px',fontSize:12,fontWeight:700,borderRadius:999,background:'var(--surface-card)',color:'var(--accent)',boxShadow:'0 1px 2px rgba(0,0,0,0.04)'}}>{meta.getFullYear()}</span>
+              </div>
+            </div>
+            <BarChart data={ingresosMes} labels={['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']} color={ACCENT_SOFT} height={220}/>
+          </div>
+          <div style={{
+            background:'var(--surface-card)',borderRadius:12,padding:32,
+            boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',
+            display:'flex',flexDirection:'column'
+          }}>
+            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Socios por equipo</div>
+            <div style={{fontSize:14,color:'var(--text-secondary)',marginTop:4,marginBottom:24}}>Distribución por categorías</div>
+            <div style={{display:'flex',justifyContent:'center',marginBottom:24,position:'relative'}}>
+              <div style={{position:'relative',width:170,height:170}}>
+                <DonutChart
+                  size={170}
+                  segments={donut.length ? donut.map(d => ({ label: d.label, value: Math.max(d.value, 1), color: d.color })) : [{ label: '—', value: 1, color: '#e2e8f0' }]}
+                />
+                <div style={{
+                  position:'absolute',inset:0,display:'flex',flexDirection:'column',
+                  alignItems:'center',justifyContent:'center',pointerEvents:'none'
+                }}>
+                  <span style={{fontSize:24,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em'}}>{kp?.sociosActivos ?? 0}</span>
+                  <span style={{fontSize:10,fontWeight:700,letterSpacing:'0.08em',color:'var(--text-muted)',textTransform:'uppercase',marginTop:2}}>Total</span>
+                </div>
+              </div>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:12,marginTop:'auto'}}>
+              {donut.map(d => {
+                const total = donut.reduce((a, x) => a + (x.value || 0), 0) || 1
+                const pct = Math.round(((d.value || 0) / total) * 100)
+                return (
+                  <div key={d.label} style={{display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{width:10,height:10,borderRadius:'50%',background:d.color,flexShrink:0}}></span>
+                    <span style={{fontSize:13,color:'var(--text-primary)',flex:1}}>{d.label}</span>
+                    <span style={{fontSize:13,fontWeight:600,color:'var(--text-secondary)'}}>{d.value} <span style={{color:'var(--text-muted)',fontWeight:500}}>({pct}%)</span></span>
+                  </div>
+                )
+              })}
+              {donut.length === 0 && <div style={{fontSize:13,color:'var(--text-muted)'}}>Sin datos de equipos</div>}
+            </div>
           </div>
         </div>
-        <div style={{flex:1,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>Cobros Recientes</div>
-            <button type="button" onClick={() => setActive('contabilidad')} style={{fontSize:12,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>Ver todos →</button>
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
-            {(COBROS_UI.slice(0,4)).map(c => (
-              <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
-                <Avatar initials={c.socio.split(' ').map(w=>w[0]).join('').slice(0,2)} color="#3B82F6" size={34}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#111827',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.socio}</div>
-                  <div style={{fontSize:12,color:'#6b7280'}}>{c.concepto}</div>
+
+        {/* Bento: próximos eventos (5) + cobros recientes (7) */}
+        <div style={{
+          display:'grid',
+          gridTemplateColumns:'minmax(0, 5fr) minmax(0, 7fr)',
+          gap:24
+        }}>
+          {/* Próximos eventos */}
+          <div style={{
+            background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',
+            boxShadow:'var(--card-shadow)',overflow:'hidden',display:'flex',flexDirection:'column'
+          }}>
+            <div style={{padding:'24px 32px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Próximos eventos</div>
+              <button
+                type="button"
+                onClick={() => setActive('calendario')}
+                style={{
+                  fontSize:13,color:'var(--accent)',background:'transparent',
+                  border:'none',cursor:'pointer',fontWeight:600,fontFamily:'inherit',padding:0
+                }}
+              >Ver calendario →</button>
+            </div>
+            <div style={{flex:1}}>
+              {EVENTOS_UI.length === 0 && (
+                <div style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
+                  No hay eventos próximos.
                 </div>
-                <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:13,fontWeight:700,color:'#111827'}}>{fmtMoney(c.monto)}</div>
+              )}
+              {EVENTOS_UI.slice(0,4).map((e, i) => {
+                const dt = new Date(e.fecha)
+                const month = dt.toLocaleString('es', { month: 'short' }).replace('.','').toUpperCase()
+                return (
+                  <div key={e.id} style={{
+                    minHeight:64,padding:'16px 32px',display:'flex',alignItems:'center',gap:16,
+                    borderTop: i === 0 ? 'none' : '1px solid var(--border)'
+                  }}>
+                    <div style={{
+                      width:44,height:44,flexShrink:0,
+                      background:'var(--accent-pill)',borderRadius:8,
+                      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'
+                    }}>
+                      <span style={{fontSize:15,fontWeight:700,color:'var(--accent)',lineHeight:1}}>{dt.getDate()}</span>
+                      <span style={{fontSize:9,fontWeight:700,color:'var(--accent)',marginTop:2,letterSpacing:'0.04em'}}>{month}</span>
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{
+                        fontSize:14,fontWeight:600,color:'var(--text-primary)',
+                        whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
+                      }}>{e.titulo}</div>
+                      <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>
+                        {e.hora}{e.lugar ? ` · ${e.lugar}` : ''}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:999,
+                      background:'var(--accent-pill)',color:'var(--accent)',whiteSpace:'nowrap',
+                      letterSpacing:'0.02em'
+                    }}>{e.tipo}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Cobros recientes */}
+          <div style={{
+            background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',
+            boxShadow:'var(--card-shadow)',overflow:'hidden',display:'flex',flexDirection:'column'
+          }}>
+            <div style={{padding:'24px 32px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Cobros recientes</div>
+              <button
+                type="button"
+                onClick={() => setActive('contabilidad')}
+                style={{
+                  fontSize:13,color:'var(--accent)',background:'transparent',
+                  border:'none',cursor:'pointer',fontWeight:600,fontFamily:'inherit',padding:0
+                }}
+              >Gestionar pagos →</button>
+            </div>
+            <div style={{flex:1}}>
+              {COBROS_UI.length === 0 && (
+                <div style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
+                  Sin facturas registradas.
+                </div>
+              )}
+              {COBROS_UI.slice(0,5).map((c, i) => (
+                <div key={c.id} style={{
+                  minHeight:64,padding:'16px 32px',display:'flex',alignItems:'center',gap:16,
+                  borderTop: i === 0 ? 'none' : '1px solid var(--border)'
+                }}>
+                  <Avatar initials={c.socio.split(' ').map(w=>w[0]).join('').slice(0,2)} color={ACCENT_SOFT} size={36}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{
+                      fontSize:14,fontWeight:600,color:'var(--text-primary)',
+                      whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
+                    }}>{c.socio}</div>
+                    <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{c.concepto}</div>
+                  </div>
+                  <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',minWidth:80,textAlign:'right'}}>
+                    {fmtMoney(c.monto)}
+                  </div>
                   <Badge status={c.estado}/>
                 </div>
-              </div>
-            ))}
-            {COBROS_UI.length === 0 && <div style={{fontSize:13,color:'#9ca3af'}}>Sin facturas</div>}
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -4788,6 +4974,11 @@ function CrmInner() {
   };
   const Screen = screens[safeActive] || Dashboard;
 
+  const todayStr = new Date().toLocaleDateString('es-ES', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
+  const topDateStr = todayStr.charAt(0).toUpperCase() + todayStr.slice(1)
+
   if (error) {
     return (
       <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',padding:24,flexDirection:'column',gap:12}}>
@@ -4798,56 +4989,84 @@ function CrmInner() {
   }
 
   return (
-    <div style={{display:'flex',height:'100vh',overflow:'hidden',position:'relative'}}>
+    <div style={{display:'flex',height:'100vh',overflow:'hidden',position:'relative',background:'var(--surface)'}}>
       {loading && (
-        <div style={{position:'absolute',inset:0,background:'rgba(248,247,245,0.85)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,fontWeight:600,color:'#374151'}}>
+        <div style={{position:'absolute',inset:0,background:'rgba(248,249,255,0.85)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:600,color:'var(--text-secondary)'}}>
           Cargando CRM…
         </div>
       )}
       <Sidebar active={safeActive} setActive={setActive}/>
-      <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',minWidth:0}}>
+      <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',minWidth:0,background:'var(--surface)'}}>
         <div style={{
-          background:'rgba(255,255,255,0.85)',
-          backdropFilter:'blur(12px)',
-          WebkitBackdropFilter:'blur(12px)',
+          height:72,background:'var(--surface-card)',
           borderBottom:'1px solid var(--border)',
           display:'flex',alignItems:'center',justifyContent:'space-between',
-          padding:'14px 36px',gap:12,flexShrink:0,
+          padding:'0 40px',gap:24,flexShrink:0,
           position:'sticky',top:0,zIndex:10,
         }}>
-          <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0}}>
+          {/* Section title + date */}
+          <div style={{display:'flex',alignItems:'center',gap:16,minWidth:0}}>
+            <h2 style={{
+              fontSize:24,fontWeight:600,letterSpacing:'-0.01em',
+              color:'var(--text-primary)',margin:0,lineHeight:1.2,
+              whiteSpace:'nowrap'
+            }}>{SECTION_TITLES[safeActive] || 'Inicio'}</h2>
+            <span style={{width:1,height:20,background:'var(--border)'}}></span>
             <span style={{
-              fontSize:10,fontWeight:800,color:'#6b7280',letterSpacing:1.5,
-              textTransform:'uppercase',padding:'4px 10px',borderRadius:999,
-              background:'rgba(0,0,0,0.04)',flexShrink:0
-            }}>Panel CRM</span>
-            <span style={{color:'#cbd5e1',fontSize:14}}>›</span>
-            <span style={{
-              fontSize:14,fontWeight:700,color:'#111827',lineHeight:1.2,
-              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
-            }}>{SECTION_TITLES[safeActive] || 'Inicio'}</span>
+              fontSize:13,color:'var(--text-secondary)',
+              textTransform:'capitalize',whiteSpace:'nowrap',
+              overflow:'hidden',textOverflow:'ellipsis'
+            }}>{topDateStr}</span>
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <div data-crm-notifications style={{position:'relative'}}>
-          <button
-            type="button"
-            title="Notificaciones"
-            aria-label="Notificaciones"
-            onClick={() => setShowNotifications((v) => !v)}
-            style={{
-              position:'relative',
-              width:40,height:40,borderRadius:12,
-              border:'1px solid var(--border)',background:'#fff',
-              cursor:'pointer',color:'#6b7280',
-              display:'flex',alignItems:'center',justifyContent:'center',
-              transition:'all 0.15s'
-            }}
-          >
-            <Icon name="bell" size={18}/>
-            {unreadCount > 0 && (
-              <span style={{position:'absolute',top:8,right:8,width:8,height:8,borderRadius:'50%',background:'var(--red)',border:'2px solid #fff'}}></span>
+
+          {/* Right cluster: search + actions + user */}
+          <div style={{display:'flex',alignItems:'center',gap:16}}>
+            <div style={{position:'relative',display:'none'}} className="crm-topbar-search">
+              {/* Search reserved for future */}
+            </div>
+            {(safeActive === 'dashboard' && role === 'ADMIN') && (
+              <button
+                type="button"
+                onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }}
+                title="Exportar facturas (CSV)"
+                style={{
+                  display:'flex',alignItems:'center',gap:8,
+                  padding:'9px 18px',borderRadius:8,border:'none',cursor:'pointer',
+                  background:'var(--accent)',color:'#fff',
+                  fontFamily:'inherit',fontSize:13,fontWeight:600,
+                  boxShadow:'0 1px 2px rgba(0,74,198,0.2)',
+                  transition:'all 0.15s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-strong)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)' }}
+              >
+                <Icon name="export" size={16}/>
+                <span>Exportar</span>
+              </button>
             )}
-          </button>
+
+            <div data-crm-notifications style={{position:'relative'}}>
+              <button
+                type="button"
+                title="Notificaciones"
+                aria-label="Notificaciones"
+                onClick={() => setShowNotifications((v) => !v)}
+                style={{
+                  position:'relative',
+                  width:40,height:40,borderRadius:'50%',
+                  border:'none',background:'transparent',
+                  cursor:'pointer',color:'var(--text-secondary)',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  transition:'all 0.15s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-low)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <Icon name="bell" size={20}/>
+                {unreadCount > 0 && (
+                  <span style={{position:'absolute',top:8,right:8,width:8,height:8,borderRadius:'50%',background:'var(--red)',border:'2px solid var(--surface-card)'}}></span>
+                )}
+              </button>
           {showNotifications && (
             <div style={{
               position:'absolute',
@@ -4915,23 +5134,29 @@ function CrmInner() {
             </div>
           )}
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:10,paddingLeft:14,borderLeft:'1px solid var(--border)'}}>
-            <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',lineHeight:1.2}}>
-              <span style={{fontSize:13,fontWeight:700,color:'#111827'}}>{bundle?.user?.name || 'Administrador'}</span>
-              <span style={{
-                fontSize:9,fontWeight:800,color:'var(--accent)',
-                background:'rgba(59,130,246,0.1)',padding:'2px 8px',borderRadius:999,
-                letterSpacing:1.2,textTransform:'uppercase',marginTop:2
-              }}>{ROLE_LABEL[role] || 'Socio'}</span>
-            </div>
             <div style={{
-              width:40,height:40,borderRadius:'50%',
-              background:'linear-gradient(135deg,#3B82F6,#8B5CF6)',
-              display:'flex',alignItems:'center',justifyContent:'center',
-              fontSize:14,fontWeight:700,color:'#fff',
-              boxShadow:'0 2px 8px rgba(59,130,246,0.25)'
-            }}>{bundle?.user?.initials || '—'}</div>
-          </div>
+              display:'flex',alignItems:'center',gap:10,
+              paddingLeft:16,marginLeft:4,borderLeft:'1px solid var(--border)'
+            }}>
+              <div style={{
+                display:'flex',flexDirection:'column',alignItems:'flex-end',lineHeight:1.2
+              }} className="crm-topbar-user-text">
+                <span style={{fontSize:13,fontWeight:600,color:'var(--text-primary)'}}>{bundle?.user?.name || 'Administrador'}</span>
+                <span style={{
+                  fontSize:10,fontWeight:700,color:'var(--accent)',
+                  background:'var(--accent-pill)',padding:'2px 8px',borderRadius:999,
+                  letterSpacing:'0.06em',textTransform:'uppercase',marginTop:2
+                }}>{ROLE_LABEL[role] || 'Socio'}</span>
+              </div>
+              <div style={{
+                width:40,height:40,borderRadius:'50%',
+                background:'linear-gradient(135deg, #2563eb, #004ac6)',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                fontSize:14,fontWeight:700,color:'#fff',
+                boxShadow:'0 2px 8px rgba(0,74,198,0.2)',
+                border:'2px solid var(--surface-card)'
+              }}>{bundle?.user?.initials || '—'}</div>
+            </div>
           </div>
         </div>
         <div style={{flex:1,overflow:'hidden',display:'flex',minWidth:0}}>
@@ -4950,7 +5175,8 @@ const plusJakarta = Plus_Jakarta_Sans({
 export default function CrmApp() {
   return (
     <div
-      className={`${plusJakarta.className} min-h-screen w-full bg-[#F8F7F5] text-[#1a1a1a]`}
+      className={`${plusJakarta.className} min-h-screen w-full`}
+      style={{ background: 'var(--surface)', color: 'var(--text-primary)' }}
     >
       <CrmProvider>
         <CrmInner />
