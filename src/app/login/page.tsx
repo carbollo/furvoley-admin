@@ -13,9 +13,10 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    
+
+    const cleanEmail = email.trim().toLowerCase()
     const res = await signIn('credentials', {
-      email,
+      email: cleanEmail,
       password,
       redirect: false,
     })

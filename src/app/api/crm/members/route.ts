@@ -159,14 +159,15 @@ export async function POST(request: Request) {
       { status: 400 },
     )
   }
-  const hasEmail = !!member.email?.trim()
+  const portalEmail = member.email?.trim().toLowerCase() || ''
+  const hasEmail = !!portalEmail
   const defaultPasswordRaw = process.env.MEMBER_DEFAULT_PASSWORD || '12345678'
   return NextResponse.json({
     ok: true,
     id: member.id,
     memberAccount: hasEmail
       ? {
-          email: member.email,
+          email: portalEmail,
           role: 'MEMBER',
           defaultPassword: defaultPasswordRaw,
         }
