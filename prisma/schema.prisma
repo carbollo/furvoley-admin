@@ -43,6 +43,7 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
+  mustChangePassword Boolean @default(false) // Si true, fuerza al usuario a cambiar la contraseña en el próximo login
   role          String    @default("MEMBER") // ADMIN, COACH, TREASURER, MEMBER (PLAYER legacy)
   accounts      Account[]
   sessions      Session[]

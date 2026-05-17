@@ -18,6 +18,20 @@ export default withAuth(
     const path = req.nextUrl.pathname
     const role = normalizeRole(token?.role)
 
+    // Si el usuario tiene marcado el cambio obligatorio de contraseña,
+    // lo retenemos en /change-password hasta que la actualice.
+    const mustChange = (token as { mustChangePassword?: boolean } | null)?.mustChangePassword === true
+    const isChangePasswordRoute =
+      path === "/change-password" || path.startsWith("/change-password/")
+    const isChangePasswordApi = path.startsWith("/api/account/change-password")
+
+    if (token && mustChange && !isChangePasswordRoute && !isChangePasswordApi) {
+      const url = req.nextUrl.clone()
+      url.pathname = "/change-password"
+      url.search = ""
+      return NextResponse.redirect(url)
+    }
+
     if (path === "/crm") {
       const dest = new URL(req.url)
       dest.pathname = "/"

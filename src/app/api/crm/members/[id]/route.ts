@@ -167,6 +167,7 @@ export async function POST(
           role: 'MEMBER',
           memberId: member.id,
           password,
+          mustChangePassword: true,
         },
       })
       return
@@ -181,6 +182,7 @@ export async function POST(
         role: 'MEMBER',
         memberId: member.id,
         password,
+        mustChangePassword: true,
       },
     })
   })

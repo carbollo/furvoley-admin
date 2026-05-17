@@ -45,6 +45,7 @@ export async function createMember(data: {
             password: hashedDefaultPassword,
             role: 'MEMBER',
             memberId: created.id,
+            mustChangePassword: true,
           },
         })
       } else if (existing.role === 'MEMBER' && (!existing.memberId || existing.memberId === created.id)) {
@@ -54,6 +55,7 @@ export async function createMember(data: {
             role: 'MEMBER',
             memberId: created.id,
             password: hashedDefaultPassword,
+            mustChangePassword: true,
           },
         })
       } else {

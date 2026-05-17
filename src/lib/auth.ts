@@ -53,6 +53,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: normalizeRole(user.role),
           memberId: user.memberId,
+          mustChangePassword: user.mustChangePassword === true,
         }
       }
     })
@@ -61,19 +62,41 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt"
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.role = normalizeRole(user.role)
         token.id = user.id
-        token.memberId = user.memberId
+        token.memberId = user.memberId ?? null
+        token.mustChangePassword = (user as { mustChangePassword?: boolean }).mustChangePassword === true
+      }
+
+      // Refresca campos sensibles desde la DB cuando el cliente llama
+      // a `update()` (p. ej. tras cambiar la contraseña).
+      if (trigger === 'update' && token.id) {
+        const fresh = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { mustChangePassword: true, role: true, memberId: true },
+        })
+        if (fresh) {
+          token.mustChangePassword = fresh.mustChangePassword === true
+          token.role = normalizeRole(fresh.role)
+          token.memberId = fresh.memberId ?? null
+        }
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).role = token.role
-        ;(session.user as any).id = token.id
-        ;(session.user as any).memberId = token.memberId
+        const u = session.user as {
+          id?: string
+          role?: string
+          memberId?: string | null
+          mustChangePassword?: boolean
+        }
+        u.role = normalizeRole(token.role)
+        u.id = token.id as string
+        u.memberId = (token.memberId as string | null | undefined) ?? null
+        u.mustChangePassword = token.mustChangePassword === true
       }
       return session
     }
