@@ -471,6 +471,128 @@ function Sidebar({ active, setActive }) {
 }
 
 // ── DASHBOARD ───────────────────────────────────────────────────────────────
+function ModernKpiCard({
+  label,
+  value,
+  hint,
+  icon,
+  color,
+  trend,
+  spark,
+}: {
+  label: string
+  value: string
+  hint?: string
+  icon: string
+  color: string
+  trend?: { up?: boolean; label?: string }
+  spark?: number[]
+}) {
+  return (
+    <div
+      style={{
+        flex: '1 1 220px',
+        minWidth: 220,
+        background: '#fff',
+        borderRadius: 18,
+        padding: '22px 24px',
+        boxShadow: '0 6px 18px rgba(15,23,42,0.05)',
+        border: '1px solid rgba(15,23,42,0.06)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 18,
+        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span
+          style={{
+            fontSize: 12.5,
+            color: '#64748b',
+            fontWeight: 600,
+            letterSpacing: 0.2,
+            textTransform: 'uppercase',
+          }}
+        >
+          {label}
+        </span>
+        <div
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            background: `${color}15`,
+            color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Icon name={icon} size={18} />
+        </div>
+      </div>
+      <div
+        style={{
+          fontSize: 30,
+          fontWeight: 800,
+          letterSpacing: '-0.6px',
+          color: '#0f172a',
+          lineHeight: 1,
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          {trend && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 3,
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: trend.up ? 'var(--green-light)' : 'var(--red-light)',
+                color: trend.up ? 'var(--green)' : 'var(--red)',
+                fontSize: 11,
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+            >
+              <Icon name={trend.up ? 'trend_up' : 'trend_down'} size={11} />
+              {trend.label || (trend.up ? '+' : '−')}
+            </span>
+          )}
+          <span
+            style={{
+              fontSize: 12.5,
+              color: '#64748b',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {hint}
+          </span>
+        </div>
+        {spark && spark.length > 0 && (
+          <div style={{ flexShrink: 0 }}>
+            <MiniLineChart data={spark} color={color} width={84} height={30} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Dashboard({ setActive }) {
   const { bundle, fmtMoney } = useCrm();
   const userRole = normalizeRole(bundle?.user?.role)
@@ -478,116 +600,688 @@ function Dashboard({ setActive }) {
     return null
   }
   const meta = bundle?.meta?.today ? new Date(bundle.meta.today) : new Date();
-  const dateStr = meta.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const dateStr = meta.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+  const dateStrPretty = dateStr.charAt(0).toUpperCase() + dateStr.slice(1)
   const ingresosMes = bundle?.ingresosMensual ?? Array(12).fill(0);
   const kp = bundle?.kpis;
   const donut = bundle?.sociosPorDeporte ?? [];
   const EVENTOS_UI = bundle?.eventos ?? [];
   const COBROS_UI = bundle?.cobros ?? [];
+  const userName: string = bundle?.user?.name || 'Administrador'
+  const firstName = String(userName).trim().split(/\s+/)[0]
+  const totalAnual = ingresosMes.reduce((acc: number, v: number) => acc + (Number(v) || 0), 0)
+  const maxMes = Math.max(0, ...ingresosMes.map((v: any) => Number(v) || 0))
+  const promedio = ingresosMes.length ? totalAnual / 12 : 0
+  const totalSocios = donut.reduce((a: number, d: any) => a + (Number(d.value) || 0), 0)
 
   return (
-    <div style={{flex:1,overflowY:'auto',padding:'32px 36px',display:'flex',flexDirection:'column',gap:24}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div>
-          <h1 style={{fontSize:26,fontWeight:800,color:'#111827',letterSpacing:'-0.5px'}}>Inicio</h1>
-          <p style={{color:'#6b7280',fontSize:14,marginTop:4,textTransform:'capitalize'}}>{dateStr}</p>
-        </div>
-        <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{
-          display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
-          borderRadius:12,border:'none',cursor:'pointer',
-          background:'var(--accent)',color:'#fff',
-          fontFamily:'inherit',fontSize:14,fontWeight:600
-        }}>
-          <Icon name="export" size={15}/>Exportar datos
-        </button>
-      </div>
-      <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
-        <KPICard label="Socios activos" value={String(kp?.sociosActivos ?? 0)} sub="Altas activas en el club" icon="users" color="#3B82F6" trend={{up:true}} chart={ingresosMes.slice(-7).length ? ingresosMes.slice(-7) : [0,0,0]}/>
-        <KPICard label="Cobros pendientes" value={String(kp?.cobrosPendientes ?? 0)} sub={kp ? fmtMoney(kp.cobrosPendientesMonto) + ' en espera' : '—'} icon="billing" color="#F59E0B" chart={[2,4,3,5,4,6, kp?.cobrosPendientes ?? 0]}/>
-        <KPICard label="Ingresos del mes" value={kp ? fmtMoney(kp.ingresosMes) : '—'} sub="Ingresos registrados" icon="reports" color="#10B981" trend={{up:true}} chart={ingresosMes.slice(-7)}/>
-        <KPICard label="Facturas vencidas" value={String(kp?.facturasVencidas ?? 0)} sub="Requieren atención" icon="billing" color="#EF4444" chart={[1,2,1,3,2, kp?.facturasVencidas ?? 0, kp?.facturasVencidas ?? 0]}/>
-      </div>
-      <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
-        <div style={{flex:2,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20}}>
-            <div>
-              <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>Ingresos del Año</div>
-              <div style={{fontSize:13,color:'#6b7280',marginTop:2}}>Cuotas + cobros registrados</div>
-            </div>
+    <div
+      style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '36px 40px 48px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 28,
+        background: '#f8fafc',
+      }}
+    >
+      {/* HERO HEADER */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          gap: 24,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 12.5,
+              fontWeight: 700,
+              letterSpacing: 1.2,
+              textTransform: 'uppercase',
+              color: 'var(--accent)',
+              marginBottom: 8,
+            }}
+          >
+            Panel principal
           </div>
-          <BarChart data={ingresosMes} labels={['E','F','M','A','M','J','J','A','S','O','N','D']} color="#3B82F6" height={120}/>
+          <h1
+            style={{
+              fontSize: 32,
+              fontWeight: 800,
+              color: '#0f172a',
+              letterSpacing: '-0.8px',
+              margin: 0,
+            }}
+          >
+            Hola, {firstName}
+          </h1>
+          <p
+            style={{
+              color: '#64748b',
+              fontSize: 14.5,
+              marginTop: 6,
+              maxWidth: 560,
+              lineHeight: 1.5,
+            }}
+          >
+            Aquí tienes un resumen del club. <span style={{ color: '#0f172a', fontWeight: 600 }}>{dateStrPretty}</span>.
+          </p>
         </div>
-        <div style={{flex:1,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{fontWeight:700,fontSize:15,color:'#111827',marginBottom:4}}>Socios por Equipo</div>
-          <div style={{fontSize:13,color:'#6b7280',marginBottom:20}}>{kp?.sociosActivos ?? 0} socios activos</div>
-          <div style={{display:'flex',alignItems:'center',gap:20}}>
-            <DonutChart size={90} segments={donut.length ? donut.map(d => ({ label: d.label, value: Math.max(d.value, 1), color: d.color })) : [{ label: '—', value: 1, color: '#e5e7eb' }]}/>
-            <div style={{display:'flex',flexDirection:'column',gap:8,flex:1}}>
-              {donut.map(d => (
-                <div key={d.label} style={{display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{width:8,height:8,borderRadius:2,background:d.color,flexShrink:0}}></span>
-                  <span style={{fontSize:12,color:'#374151',flex:1}}>{d.label}</span>
-                  <span style={{fontSize:12,fontWeight:600,color:'#111827'}}>{d.value}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setActive('socios')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '11px 18px',
+              borderRadius: 12,
+              border: '1px solid rgba(15,23,42,0.1)',
+              cursor: 'pointer',
+              background: '#fff',
+              color: '#0f172a',
+              fontFamily: 'inherit',
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
+            <Icon name="users" size={15} /> Ver socios
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = '/api/billing/reports/invoices-csv'
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '11px 18px',
+              borderRadius: 12,
+              border: 'none',
+              cursor: 'pointer',
+              background: 'var(--accent)',
+              color: '#fff',
+              fontFamily: 'inherit',
+              fontSize: 14,
+              fontWeight: 700,
+              boxShadow: '0 8px 20px rgba(59,130,246,0.25)',
+            }}
+          >
+            <Icon name="export" size={15} /> Exportar datos
+          </button>
+        </div>
+      </div>
+
+      {/* KPI ROW */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 18,
+        }}
+      >
+        <ModernKpiCard
+          label="Socios activos"
+          value={String(kp?.sociosActivos ?? 0)}
+          hint="altas activas en el club"
+          icon="users"
+          color="#3B82F6"
+          trend={{ up: true, label: 'Hoy' }}
+          spark={ingresosMes.slice(-7)}
+        />
+        <ModernKpiCard
+          label="Cobros pendientes"
+          value={String(kp?.cobrosPendientes ?? 0)}
+          hint={kp ? `${fmtMoney(kp.cobrosPendientesMonto)} en espera` : '—'}
+          icon="billing"
+          color="#F59E0B"
+          trend={(kp?.cobrosPendientes ?? 0) > 0 ? { up: false, label: 'A revisar' } : undefined}
+          spark={ingresosMes.slice(-7).map((v: number) => v * 0.6)}
+        />
+        <ModernKpiCard
+          label="Ingresos del mes"
+          value={kp ? fmtMoney(kp.ingresosMes) : '—'}
+          hint="cobros registrados este mes"
+          icon="reports"
+          color="#10B981"
+          trend={{ up: true, label: 'Mes' }}
+          spark={ingresosMes.slice(-7)}
+        />
+        <ModernKpiCard
+          label="Facturas vencidas"
+          value={String(kp?.facturasVencidas ?? 0)}
+          hint="requieren tu atención"
+          icon="billing"
+          color="#EF4444"
+          trend={(kp?.facturasVencidas ?? 0) > 0 ? { up: false, label: 'Alerta' } : { up: true, label: 'Ok' }}
+          spark={[1, 2, 1, 3, 2, kp?.facturasVencidas ?? 0, kp?.facturasVencidas ?? 0]}
+        />
+      </div>
+
+      {/* INCOME CHART + DONUT */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 2.1fr) minmax(280px, 1fr)',
+          gap: 18,
+        }}
+      >
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 18,
+            padding: '26px 28px',
+            boxShadow: '0 6px 18px rgba(15,23,42,0.05)',
+            border: '1px solid rgba(15,23,42,0.06)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 22,
+            minWidth: 0,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 16,
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>
+                Ingresos del año
+              </div>
+              <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+                Cuotas y cobros registrados mes a mes
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 3,
+                    background: 'var(--accent)',
+                    display: 'inline-block',
+                  }}
+                />
+                <span style={{ fontSize: 12.5, color: '#475569', fontWeight: 600 }}>
+                  Ingresos
+                </span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  paddingLeft: 14,
+                  borderLeft: '1px solid rgba(15,23,42,0.08)',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 11.5, color: '#94a3b8', fontWeight: 600 }}>Total</div>
+                  <div style={{ fontSize: 15, color: '#0f172a', fontWeight: 800 }}>
+                    {fmtMoney(totalAnual)}
+                  </div>
                 </div>
-              ))}
-              {donut.length === 0 && <div style={{fontSize:13,color:'#9ca3af'}}>Sin datos de equipos</div>}
+                <div style={{ paddingLeft: 12 }}>
+                  <div style={{ fontSize: 11.5, color: '#94a3b8', fontWeight: 600 }}>
+                    Promedio
+                  </div>
+                  <div style={{ fontSize: 15, color: '#0f172a', fontWeight: 800 }}>
+                    {fmtMoney(Math.round(promedio))}
+                  </div>
+                </div>
+                <div style={{ paddingLeft: 12 }}>
+                  <div style={{ fontSize: 11.5, color: '#94a3b8', fontWeight: 600 }}>Máximo</div>
+                  <div style={{ fontSize: 15, color: '#0f172a', fontWeight: 800 }}>
+                    {fmtMoney(Math.round(maxMes))}
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
+          <BarChart
+            data={ingresosMes}
+            labels={['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D']}
+            color="var(--accent)"
+            height={210}
+          />
+        </div>
+
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 18,
+            padding: '26px 28px',
+            boxShadow: '0 6px 18px rgba(15,23,42,0.05)',
+            border: '1px solid rgba(15,23,42,0.06)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 18,
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>
+              Socios por deporte
+            </div>
+            <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+              Distribución entre {totalSocios || 0} socios activos
+            </div>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '4px 0',
+            }}
+          >
+            <DonutChart
+              size={150}
+              segments={
+                donut.length
+                  ? donut.map((d: any) => ({
+                      label: d.label,
+                      value: Math.max(d.value, 1),
+                      color: d.color,
+                    }))
+                  : [{ label: '—', value: 1, color: '#e5e7eb' }]
+              }
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {donut.map((d: any) => (
+              <div
+                key={d.label}
+                style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+              >
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 3,
+                    background: d.color,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ fontSize: 13, color: '#334155', flex: 1, minWidth: 0 }}>
+                  {d.label}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                  {d.value}
+                </span>
+              </div>
+            ))}
+            {donut.length === 0 && (
+              <div
+                style={{
+                  fontSize: 13,
+                  color: '#94a3b8',
+                  textAlign: 'center',
+                  padding: '12px 0',
+                }}
+              >
+                Sin datos de equipos
+              </div>
+            )}
           </div>
         </div>
       </div>
-      <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
-        <div style={{flex:1,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>Próximos eventos</div>
-            <button type="button" onClick={() => setActive('calendario')} style={{fontSize:12,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>Ver todos →</button>
+
+      {/* FEEDS: PRÓXIMOS EVENTOS + COBROS RECIENTES */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+          gap: 18,
+        }}
+      >
+        {/* Próximos eventos */}
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 18,
+            padding: '26px 28px',
+            boxShadow: '0 6px 18px rgba(15,23,42,0.05)',
+            border: '1px solid rgba(15,23,42,0.06)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 18,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>
+                Próximos eventos
+              </div>
+              <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+                Partidos, entrenamientos y torneos
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActive('calendario')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 12.5,
+                color: 'var(--accent)',
+                background: 'var(--accent-light)',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                padding: '6px 12px',
+                borderRadius: 999,
+              }}
+            >
+              Ver todos <Icon name="arrow_right" size={12} />
+            </button>
           </div>
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
-            {(EVENTOS_UI.slice(0,4)).map(e => (
-              <div key={e.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
-                <div style={{
-                  width:40,flexShrink:0,textAlign:'center',
-                  background:'var(--accent-light)',borderRadius:10,padding:'6px 4px'
-                }}>
-                  <div style={{fontSize:16,fontWeight:800,color:'var(--accent)',lineHeight:1}}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {EVENTOS_UI.slice(0, 4).map((e: any, idx: number) => (
+              <div
+                key={e.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  padding: '14px 0',
+                  borderBottom:
+                    idx < Math.min(EVENTOS_UI.length, 4) - 1
+                      ? '1px solid rgba(15,23,42,0.06)'
+                      : 'none',
+                }}
+              >
+                <div
+                  style={{
+                    width: 52,
+                    flexShrink: 0,
+                    textAlign: 'center',
+                    background: 'var(--accent-light)',
+                    borderRadius: 12,
+                    padding: '8px 6px',
+                    border: '1px solid rgba(59,130,246,0.18)',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 800,
+                      color: 'var(--accent)',
+                      lineHeight: 1,
+                    }}
+                  >
                     {new Date(e.fecha).getDate()}
                   </div>
-                  <div style={{fontSize:9,color:'var(--accent)',textTransform:'uppercase',fontWeight:600}}>
-                    {new Date(e.fecha).toLocaleString('es',{month:'short'})}
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: 'var(--accent)',
+                      textTransform: 'uppercase',
+                      fontWeight: 700,
+                      marginTop: 4,
+                      letterSpacing: 0.4,
+                    }}
+                  >
+                    {new Date(e.fecha).toLocaleString('es', { month: 'short' })}
                   </div>
                 </div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#111827',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.titulo}</div>
-                  <div style={{fontSize:12,color:'#6b7280'}}>{e.hora} — {e.lugar}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {e.titulo}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>
+                    {e.hora} · {e.lugar || 'Sin ubicación'}
+                  </div>
                 </div>
-                <span style={{
-                  fontSize:11,fontWeight:600,padding:'3px 8px',borderRadius:999,
-                  background:'var(--accent-light)',color:'var(--accent)',whiteSpace:'nowrap'
-                }}>{e.tipo}</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    background: 'var(--accent-light)',
+                    color: 'var(--accent)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {e.tipo}
+                </span>
               </div>
             ))}
-            {EVENTOS_UI.length === 0 && <div style={{fontSize:13,color:'#9ca3af'}}>No hay eventos próximos</div>}
+            {EVENTOS_UI.length === 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '36px 12px',
+                  gap: 10,
+                  color: '#94a3b8',
+                }}
+              >
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    background: 'var(--accent-light)',
+                    color: 'var(--accent)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Icon name="calendar" size={22} />
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: '#475569' }}>
+                  No hay eventos próximos
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActive('calendario')}
+                  style={{
+                    fontSize: 12.5,
+                    color: 'var(--accent)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Crear evento →
+                </button>
+              </div>
+            )}
           </div>
         </div>
-        <div style={{flex:1,background:'#fff',borderRadius:16,padding:'24px',boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:15,color:'#111827'}}>Cobros Recientes</div>
-            <button type="button" onClick={() => setActive('contabilidad')} style={{fontSize:12,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:600,fontFamily:'inherit'}}>Ver todos →</button>
+
+        {/* Cobros recientes */}
+        <div
+          style={{
+            background: '#fff',
+            borderRadius: 18,
+            padding: '26px 28px',
+            boxShadow: '0 6px 18px rgba(15,23,42,0.05)',
+            border: '1px solid rgba(15,23,42,0.06)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 18,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>
+                Cobros recientes
+              </div>
+              <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+                Últimas facturas y pagos del club
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActive('contabilidad')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 12.5,
+                color: 'var(--accent)',
+                background: 'var(--accent-light)',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontFamily: 'inherit',
+                padding: '6px 12px',
+                borderRadius: 999,
+              }}
+            >
+              Ver todos <Icon name="arrow_right" size={12} />
+            </button>
           </div>
-          <div style={{display:'flex',flexDirection:'column',gap:10}}>
-            {(COBROS_UI.slice(0,4)).map(c => (
-              <div key={c.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
-                <Avatar initials={c.socio.split(' ').map(w=>w[0]).join('').slice(0,2)} color="#3B82F6" size={34}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:13,fontWeight:600,color:'#111827',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.socio}</div>
-                  <div style={{fontSize:12,color:'#6b7280'}}>{c.concepto}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {COBROS_UI.slice(0, 4).map((c: any, idx: number) => (
+              <div
+                key={c.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  padding: '14px 0',
+                  borderBottom:
+                    idx < Math.min(COBROS_UI.length, 4) - 1
+                      ? '1px solid rgba(15,23,42,0.06)'
+                      : 'none',
+                }}
+              >
+                <Avatar
+                  initials={c.socio
+                    .split(' ')
+                    .map((w: string) => w[0])
+                    .join('')
+                    .slice(0, 2)}
+                  color="#3B82F6"
+                  size={42}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {c.socio}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: '#64748b', marginTop: 2 }}>
+                    {c.concepto}
+                  </div>
                 </div>
-                <div style={{textAlign:'right'}}>
-                  <div style={{fontSize:13,fontWeight:700,color:'#111827'}}>{fmtMoney(c.monto)}</div>
-                  <Badge status={c.estado}/>
+                <div
+                  style={{
+                    textAlign: 'right',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                    alignItems: 'flex-end',
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>
+                    {fmtMoney(c.monto)}
+                  </div>
+                  <Badge status={c.estado} />
                 </div>
               </div>
             ))}
-            {COBROS_UI.length === 0 && <div style={{fontSize:13,color:'#9ca3af'}}>Sin facturas</div>}
+            {COBROS_UI.length === 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '36px 12px',
+                  gap: 10,
+                  color: '#94a3b8',
+                }}
+              >
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    background: 'var(--green-light)',
+                    color: 'var(--green)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Icon name="billing" size={22} />
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: '#475569' }}>
+                  Aún no hay cobros registrados
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActive('contabilidad')}
+                  style={{
+                    fontSize: 12.5,
+                    color: 'var(--accent)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Ir a contabilidad →
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
