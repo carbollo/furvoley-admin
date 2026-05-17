@@ -599,7 +599,7 @@ function Dashboard({ setActive }) {
 function Socios() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { bundle, reload, fmtMoney, showAlert } = useCrm();
+  const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
   if (role !== 'ADMIN') return null
   const [sociosDb, setSociosDb] = useState<any[]>([])
@@ -830,36 +830,81 @@ function Socios() {
   }
 
   async function eliminarSocio(socio: any) {
-    setMenuSocioId(null)
-    const ok = await showConfirm(`¿Eliminar el socio "${socio.nombre}"? Esta acción no se puede deshacer.`)
-    if (!ok) return
-    const r = await fetch('/api/crm/members/' + encodeURIComponent(socio.id), {
-      method: 'DELETE',
-      credentials: 'include',
-    })
-    if (!r.ok) {
+    try {
+      console.log('[eliminarSocio] click', socio?.id, socio?.nombre)
+      setMenuSocioId(null)
+      if (!socio?.id) {
+        showAlert('Socio inválido (sin id).')
+        return
+      }
+      let ok = false
+      try {
+        ok = await showConfirm(
+          `¿Eliminar el socio "${socio.nombre}"? Esta acción no se puede deshacer.`,
+        )
+      } catch (err) {
+        console.warn('[eliminarSocio] showConfirm falló, usando window.confirm', err)
+        ok = typeof window !== 'undefined'
+          ? window.confirm(`¿Eliminar el socio "${socio.nombre}"?`)
+          : true
+      }
+      console.log('[eliminarSocio] confirmación', ok)
+      if (!ok) return
+
+      const url = '/api/crm/members/' + encodeURIComponent(socio.id)
+      console.log('[eliminarSocio] DELETE ->', url)
+      let r: Response
+      try {
+        r = await fetch(url, {
+          method: 'DELETE',
+          credentials: 'include',
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        })
+      } catch (netErr: any) {
+        console.error('[eliminarSocio] error de red', netErr)
+        showAlert(`Error de red al eliminar: ${netErr?.message || netErr}`)
+        return
+      }
+      console.log('[eliminarSocio] status', r.status)
+
+      if (!r.ok) {
+        let msg = `No se pudo eliminar el socio (HTTP ${r.status})`
+        try {
+          const j = await r.json()
+          if (j?.error) msg = j.error
+        } catch {
+          //
+        }
+        showAlert(msg)
+        return
+      }
+
+      let result: any = null
       try {
         const j = await r.json()
-        showAlert(j.error || 'No se pudo eliminar el socio')
+        result = j?.result || null
       } catch {
-        showAlert('No se pudo eliminar el socio')
+        //
       }
-      return
+      const deleted = Number(result?.memberDeleted || 0)
+      console.log('[eliminarSocio] eliminado', { deleted, result })
+
+      setSociosDb((prev) => prev.filter((x) => x.id !== socio.id))
+      if (selected?.id === socio.id) setSelected(null)
+
+      try { await reload() } catch (err) { console.warn('[eliminarSocio] reload error', err) }
+      try { await loadSociosDb() } catch (err) { console.warn('[eliminarSocio] loadSociosDb error', err) }
+
+      showAlert(
+        deleted > 0
+          ? `Socio "${socio.nombre}" eliminado de la base de datos.`
+          : `El socio ya no existía en la base de datos. Lista actualizada.`,
+      )
+    } catch (err: any) {
+      console.error('[eliminarSocio] excepción', err)
+      showAlert(`Error inesperado al eliminar: ${err?.message || err}`)
     }
-    try {
-      const j = await r.json()
-      if (j?.result?.memberDeleted) {
-        showAlert(`Socio eliminado en base de datos (${j.result.memberDeleted}).`)
-      }
-    } catch {
-      //
-    }
-    setSociosDb((prev) => prev.filter((x) => x.id !== socio.id))
-    if (selected?.id === socio.id) {
-      setSelected(null)
-    }
-    await reload()
-    await loadSociosDb()
   }
 
   async function resetPortalAccess(socio: any) {
