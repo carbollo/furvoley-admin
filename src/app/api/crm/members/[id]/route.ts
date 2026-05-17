@@ -66,37 +66,63 @@ export async function DELETE(
 
   const { id } = await context.params
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.user.deleteMany({
+    const result = await prisma.$transaction(async (tx) => {
+      const member = await tx.member.findUnique({
+        where: { id },
+        select: { id: true, email: true, name: true },
+      })
+      if (!member) {
+        return { memberDeleted: 0 }
+      }
+
+      const deletedMemberUsers = await tx.user.deleteMany({
         where: {
           memberId: id,
           role: { in: ['MEMBER', 'PLAYER'] },
         },
       })
-      await tx.user.updateMany({
+      const unlinkedUsers = await tx.user.updateMany({
         where: { memberId: id },
         data: { memberId: null },
       })
 
-      await tx.signupLink.updateMany({
+      const unlinkedSignupLinks = await tx.signupLink.updateMany({
         where: { createdMemberId: id },
         data: { createdMemberId: null },
       })
-      await tx.order.updateMany({
+      const unlinkedOrders = await tx.order.updateMany({
         where: { memberId: id },
         data: { memberId: null },
       })
 
-      await tx.teamMember.deleteMany({ where: { memberId: id } })
-      await tx.attendance.deleteMany({ where: { memberId: id } })
-      await tx.payment.deleteMany({ where: { memberId: id } })
-      await tx.reminderLog.deleteMany({ where: { memberId: id } })
-      await tx.subscription.deleteMany({ where: { memberId: id } })
-      await tx.invoice.deleteMany({ where: { memberId: id } })
+      const deletedTeamMembers = await tx.teamMember.deleteMany({ where: { memberId: id } })
+      const deletedAttendances = await tx.attendance.deleteMany({ where: { memberId: id } })
+      const deletedPayments = await tx.payment.deleteMany({ where: { memberId: id } })
+      const deletedReminderLogs = await tx.reminderLog.deleteMany({ where: { memberId: id } })
+      const deletedSubscriptions = await tx.subscription.deleteMany({ where: { memberId: id } })
+      const deletedInvoices = await tx.invoice.deleteMany({ where: { memberId: id } })
 
-      await tx.member.delete({ where: { id } })
+      const deletedMember = await tx.member.deleteMany({ where: { id } })
+      return {
+        memberDeleted: deletedMember.count,
+        deletedMemberUsers: deletedMemberUsers.count,
+        unlinkedUsers: unlinkedUsers.count,
+        unlinkedSignupLinks: unlinkedSignupLinks.count,
+        unlinkedOrders: unlinkedOrders.count,
+        deletedTeamMembers: deletedTeamMembers.count,
+        deletedAttendances: deletedAttendances.count,
+        deletedPayments: deletedPayments.count,
+        deletedReminderLogs: deletedReminderLogs.count,
+        deletedSubscriptions: deletedSubscriptions.count,
+        deletedInvoices: deletedInvoices.count,
+      }
     })
-    return NextResponse.json({ ok: true })
+
+    if (!result.memberDeleted) {
+      return NextResponse.json({ error: 'El socio no existe en esta base de datos.' }, { status: 404 })
+    }
+
+    return NextResponse.json({ ok: true, result })
   } catch (e: any) {
     console.error('[crm/members DELETE] failed', { id, error: e })
     return NextResponse.json({ error: e?.message || 'No se pudo eliminar el socio' }, { status: 400 })

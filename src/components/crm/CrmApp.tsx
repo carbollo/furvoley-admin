@@ -845,6 +845,15 @@ function Socios() {
       }
       return
     }
+    try {
+      const j = await r.json()
+      if (j?.result?.memberDeleted) {
+        showAlert(`Socio eliminado en base de datos (${j.result.memberDeleted}).`)
+      }
+    } catch {
+      //
+    }
+    setSociosDb((prev) => prev.filter((x) => x.id !== socio.id))
     if (selected?.id === socio.id) {
       setSelected(null)
     }
