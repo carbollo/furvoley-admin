@@ -1,475 +1,741 @@
 <!DOCTYPE html>
-
-<html class="light" lang="es"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<style>
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
-        .glass-header {
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-        }
-        .card-shadow {
-            box-shadow: 0px 4px 20px rgba(30, 41, 59, 0.05);
-        }
-        .electric-gradient {
-            background: linear-gradient(180deg, #2170e4 0%, #0058be 100%);
-        }
-        .canvas-bg {
-            background-color: #F8FAFC;
-        }
-    </style>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "primary": "#091426",
-                        "on-surface-variant": "#45474c",
-                        "surface-container-highest": "#e0e3e5",
-                        "secondary-container": "#2170e4",
-                        "surface-variant": "#e0e3e5",
-                        "inverse-surface": "#2d3133",
-                        "outline-variant": "#c5c6cd",
-                        "primary-fixed": "#d8e3fb",
-                        "on-error": "#ffffff",
-                        "surface-container-high": "#e6e8ea",
-                        "surface-container-lowest": "#ffffff",
-                        "surface-container-low": "#f2f4f6",
-                        "tertiary-fixed": "#6ffbbe",
-                        "on-tertiary-container": "#00a472",
-                        "on-tertiary-fixed": "#002113",
-                        "error": "#ba1a1a",
-                        "surface-dim": "#d8dadc",
-                        "outline": "#75777d",
-                        "surface-container": "#eceef0",
-                        "surface-tint": "#545f73",
-                        "secondary-fixed-dim": "#adc6ff",
-                        "inverse-on-surface": "#eff1f3",
-                        "on-secondary-fixed-variant": "#004395",
-                        "on-secondary-container": "#fefcff",
-                        "tertiary": "#00190e",
-                        "on-primary-fixed-variant": "#3c475a",
-                        "surface-bright": "#f7f9fb",
-                        "on-secondary-fixed": "#001a42",
-                        "tertiary-container": "#00301e",
-                        "on-background": "#191c1e",
-                        "on-tertiary": "#ffffff",
-                        "primary-container": "#1e293b",
-                        "on-primary-container": "#8590a6",
-                        "on-primary-fixed": "#111c2d",
-                        "inverse-primary": "#bcc7de",
-                        "surface": "#f7f9fb",
-                        "error-container": "#ffdad6",
-                        "on-primary": "#ffffff",
-                        "on-error-container": "#93000a",
-                        "on-tertiary-fixed-variant": "#005236",
-                        "primary-fixed-dim": "#bcc7de",
-                        "tertiary-fixed-dim": "#4edea3",
-                        "secondary": "#0058be",
-                        "secondary-fixed": "#d8e2ff",
-                        "on-secondary": "#ffffff",
-                        "on-surface": "#191c1e",
-                        "background": "#f7f9fb"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.25rem",
-                        "lg": "0.5rem",
-                        "xl": "0.75rem",
-                        "full": "9999px"
-                    },
-                    "spacing": {
-                        "sm": "12px",
-                        "margin": "32px",
-                        "lg": "40px",
-                        "xs": "4px",
-                        "xl": "64px",
-                        "md": "24px",
-                        "gutter": "24px",
-                        "base": "8px"
-                    },
-                    "fontFamily": {
-                        "body-md": ["Inter"],
-                        "label-md": ["Inter"],
-                        "display-lg": ["Inter"],
-                        "headline-lg-mobile": ["Inter"],
-                        "body-sm": ["Inter"],
-                        "headline-lg": ["Inter"],
-                        "headline-md": ["Inter"],
-                        "headline-sm": ["Inter"],
-                        "body-lg": ["Inter"]
-                    },
-                    "fontSize": {
-                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
-                        "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
-                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
-                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "700"}],
-                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
-                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
-                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
-                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
-                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
-                    }
-                },
-            },
-        }
-    </script>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Furvoley — Panel CRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --sidebar-bg: #111827;
+      --sidebar-text: rgba(255, 255, 255, 0.65);
+      --accent: #3b82f6;
+      --accent-light: #eff6ff;
+      --green: #10b981;
+      --green-light: #ecfdf5;
+      --amber: #f59e0b;
+      --amber-light: #fffbeb;
+      --red: #ef4444;
+      --red-light: #fef2f2;
+      --border: rgba(0, 0, 0, 0.07);
+      --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: #f8f7f5;
+      color: #111827;
+      min-height: 100vh;
+      display: flex;
+    }
+    button, input, select { font-family: inherit; }
+    .app { display: flex; width: 100%; min-height: 100vh; }
+    .sidebar {
+      width: 220px;
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+    }
+    .sidebar-logo {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .logo-row { display: flex; align-items: center; gap: 10px; }
+    .logo-mark {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 800; color: #fff;
+    }
+    .logo-title { color: #fff; font-weight: 700; font-size: 14px; line-height: 1.2; }
+    .logo-sub { color: rgba(255,255,255,0.4); font-size: 11px; }
+    .sidebar-user {
+      padding: 14px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .avatar {
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; color: #fff; flex-shrink: 0;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    }
+    .avatar.sm { width: 32px; height: 32px; font-size: 13px; }
+    .avatar.md { width: 34px; height: 34px; font-size: 12px; }
+    .avatar.lg { width: 36px; height: 36px; font-size: 13px; background: rgba(59,130,246,0.12); color: var(--accent); }
+    .user-name { color: #fff; font-weight: 600; font-size: 13px; }
+    .role-badge {
+      display: inline-block; background: rgba(99,102,241,0.3);
+      color: #a5b4fc; font-size: 9px; font-weight: 700;
+      padding: 1px 7px; border-radius: 999px; letter-spacing: 1px;
+      margin-top: 2px;
+    }
+    .sidebar-nav { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+    .nav-label {
+      color: rgba(255,255,255,0.3); font-size: 10px; font-weight: 700;
+      letter-spacing: 1.5px; padding: 8px 8px 4px; text-transform: uppercase;
+    }
+    .nav-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 10px; border: none; cursor: pointer;
+      background: transparent; color: var(--sidebar-text);
+      font-size: 13.5px; font-weight: 400; text-align: left; width: 100%;
+      transition: all 0.15s;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    .nav-btn.active { background: rgba(255,255,255,0.1); color: #fff; font-weight: 600; }
+    .nav-btn svg { opacity: 0.7; flex-shrink: 0; }
+    .nav-btn.active svg { opacity: 1; }
+    .nav-badge {
+      margin-left: auto; background: var(--red); color: #fff;
+      font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+    }
+    .sidebar-footer {
+      padding: 12px; border-top: 1px solid rgba(255,255,255,0.07);
+    }
+    .logout-btn {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      padding: 9px 12px; border-radius: 10px; border: none; cursor: pointer;
+      background: transparent; color: rgba(255,255,255,0.4); font-size: 13px;
+    }
+    .main-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 36px; background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(12px); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .notif-btn {
+      position: relative; width: 40px; height: 40px; border-radius: 12px;
+      border: 1px solid var(--border); background: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; color: #6b7280;
+    }
+    .notif-dot {
+      position: absolute; top: 8px; right: 8px; width: 8px; height: 8px;
+      background: var(--red); border-radius: 50%; border: 2px solid #fff;
+    }
+    .content {
+      flex: 1; overflow-y: auto; padding: 32px 36px;
+      display: flex; flex-direction: column; gap: 24px;
+    }
+    .section { display: none; flex-direction: column; gap: 24px; }
+    .section.active { display: flex; }
+    h1.page-title { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+    .page-sub { color: #6b7280; font-size: 14px; margin-top: 4px; text-transform: capitalize; }
+    .page-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 12px; border: none; cursor: pointer;
+      background: var(--accent); color: #fff; font-size: 14px; font-weight: 600;
+    }
+    .btn-primary:hover { filter: brightness(1.05); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 12px; border: 1px solid var(--border);
+      background: #fff; color: #374151; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .kpi-grid { display: flex; gap: 16px; flex-wrap: wrap; }
+    .kpi-card {
+      background: #fff; border-radius: 16px; padding: 20px 24px;
+      box-shadow: var(--card-shadow); border: 1px solid var(--border);
+      flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .kpi-top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .kpi-label { font-size: 13px; color: #6b7280; font-weight: 500; }
+    .kpi-value { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+    .kpi-icon {
+      width: 40px; height: 40px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .kpi-sub { font-size: 12px; color: var(--green); }
+    .card {
+      background: #fff; border-radius: 16px; padding: 24px;
+      box-shadow: var(--card-shadow); border: 1px solid var(--border);
+    }
+    .card-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+    .card-sub { font-size: 13px; color: #6b7280; margin-bottom: 20px; }
+    .charts-row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .chart-wide { flex: 2; min-width: 280px; }
+    .chart-narrow { flex: 1; min-width: 240px; }
+    .bar-chart {
+      display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 8px;
+    }
+    .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .bar {
+      width: 100%; border-radius: 6px 6px 2px 2px;
+      background: linear-gradient(180deg, #60a5fa, #3b82f6); min-height: 4px;
+    }
+    .bar-label { font-size: 10px; color: #9ca3af; font-weight: 600; }
+    .donut-wrap { display: flex; align-items: center; gap: 20px; }
+    .donut {
+      width: 90px; height: 90px; border-radius: 50%;
+      background: conic-gradient(#3b82f6 0 35%, #10b981 35% 58%, #f59e0b 58% 78%, #8b5cf6 78% 100%);
+      position: relative; flex-shrink: 0;
+    }
+    .donut::after {
+      content: ''; position: absolute; inset: 22px; background: #fff; border-radius: 50%;
+    }
+    .legend { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+    .list-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+    }
+    .list-row:last-child { border-bottom: none; }
+    .date-box {
+      width: 40px; text-align: center; background: var(--accent-light);
+      border-radius: 10px; padding: 6px 4px; flex-shrink: 0;
+    }
+    .date-day { font-size: 16px; font-weight: 800; color: var(--accent); line-height: 1; }
+    .date-mon { font-size: 9px; color: var(--accent); text-transform: uppercase; font-weight: 600; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    }
+    .badge::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+    }
+    .badge.activo { background: var(--green-light); color: var(--green); }
+    .badge.moroso { background: var(--red-light); color: var(--red); }
+    .badge.inactivo { background: #f3f4f6; color: #6b7280; }
+    .badge.pagado { background: var(--green-light); color: var(--green); }
+    .badge.pendiente { background: var(--amber-light); color: var(--amber); }
+    .badge.vencido { background: var(--red-light); color: var(--red); }
+    .type-pill {
+      font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+      background: var(--accent-light); color: var(--accent); white-space: nowrap;
+    }
+    .link-btn {
+      font-size: 12px; color: var(--accent); background: none; border: none;
+      cursor: pointer; font-weight: 600;
+    }
+    .filters { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .search-wrap { position: relative; flex: 1; min-width: 200px; }
+    .search-wrap svg {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: #9ca3af;
+    }
+    .search-input {
+      width: 100%; padding: 10px 12px 10px 38px; border-radius: 12px;
+      border: 1px solid var(--border); font-size: 14px; background: #fff; outline: none;
+    }
+    .filter-pill {
+      padding: 8px 16px; border-radius: 999px; border: 1.5px solid var(--border);
+      background: #fff; color: #6b7280; font-size: 13px; font-weight: 500; cursor: pointer;
+    }
+    .filter-pill.active { background: #111827; color: #fff; border-color: #111827; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      padding: 14px 16px; text-align: left; font-size: 12px;
+      font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 14px 16px; font-size: 14px; border-bottom: 1px solid var(--border); }
+    tr:hover td { background: #fafafa; }
+    .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .team-card {
+      background: #fff; border-radius: 16px; padding: 20px;
+      box-shadow: var(--card-shadow); border: 1px solid var(--border);
+      border-top: 4px solid var(--team-color, #3b82f6);
+    }
+    .team-name { font-weight: 700; font-size: 16px; }
+    .team-meta { font-size: 13px; color: #6b7280; margin-top: 4px; }
+    .team-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+    .team-btn {
+      flex: 1; min-width: 88px; padding: 8px; border-radius: 10px; border: none;
+      cursor: pointer; font-size: 12px; font-weight: 600;
+    }
+    .tabs-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tab-btn {
+      padding: 9px 16px; border-radius: 10px; border: 1px solid var(--border);
+      background: #fff; font-size: 13px; font-weight: 500; cursor: pointer; color: #6b7280;
+    }
+    .tab-btn.active { background: #111827; color: #fff; border-color: #111827; }
+    .placeholder-panel {
+      text-align: center; padding: 48px 24px; color: #6b7280;
+    }
+    .placeholder-panel h2 { font-size: 18px; color: #111827; margin-bottom: 8px; }
+    .placeholder-panel p { font-size: 14px; max-width: 420px; margin: 0 auto 16px; line-height: 1.6; }
+    .feature-tags { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .feature-tag {
+      font-size: 12px; padding: 6px 12px; border-radius: 999px;
+      background: var(--accent-light); color: var(--accent); font-weight: 600;
+    }
+    .demo-banner {
+      background: linear-gradient(135deg, #eff6ff, #f5f3ff);
+      border: 1px solid #bfdbfe; border-radius: 12px; padding: 12px 16px;
+      font-size: 13px; color: #1e40af; display: flex; align-items: center; gap: 10px;
+    }
+    .demo-banner strong { font-weight: 700; }
+    @media (max-width: 900px) {
+      .sidebar { width: 72px; }
+      .sidebar .logo-text, .sidebar .user-text, .sidebar .nav-label,
+      .sidebar .nav-label-text, .logout-text { display: none; }
+      .sidebar-logo, .sidebar-user { justify-content: center; padding-left: 12px; padding-right: 12px; }
+      .nav-btn { justify-content: center; padding: 10px; }
+      .content { padding: 20px 16px; }
+    }
+  </style>
 </head>
-<body class="canvas-bg font-body-md text-on-surface">
-<!-- SideNavBar Shell -->
-<aside class="h-screen w-64 fixed left-0 top-0 bg-primary dark:bg-primary-container shadow-md flex flex-col py-md z-50">
-<div class="px-md mb-xl flex items-center gap-sm">
-<div class="w-10 h-10 rounded-lg bg-secondary-container flex items-center justify-center overflow-hidden">
-<img alt="Furvoley Logo" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAl7gHApv13RvGsnhkyZK7z_eEo6JOFqLlvzmEKg6M-rtygcSomVmoH6ISGUPu67TI9fr-9uV8oeHoN6mTYKq8r2SsTg18tmJ-b-sM3ouX9A8UxjVlDNL2EgNsBr6DMOlcDDTwWz85wGRm_b1lI5dz39R9rHhl6l-_x-hRiNKIb0_nGsP_zNaEc8oyo5MD_I94NEZsqfpQQcl4S6H1pJtf_nrELSBnrlF9VzMsb-EzS9e6bkYpyvGO7xZJPu3f4DFifvsO354f6IAc"/>
-</div>
-<div>
-<h1 class="font-headline-md text-headline-md font-bold text-on-primary leading-tight">Furvoley</h1>
-<p class="text-on-primary-container text-[10px] uppercase tracking-widest font-bold">Club Management</p>
-</div>
-</div>
-<nav class="flex-grow space-y-xs">
-<!-- Active: Panel -->
-<a class="flex items-center gap-sm px-md py-sm bg-secondary-container text-on-secondary-container rounded-lg mx-sm my-xs transition-transform scale-98 active:scale-95" href="#">
-<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
-<span class="font-body-md">Panel</span>
-</a>
-<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg mx-sm my-xs transition-colors scale-98 active:scale-95" href="#">
-<span class="material-symbols-outlined" data-icon="group">group</span>
-<span class="font-body-md">Contactos</span>
-</a>
-<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg mx-sm my-xs transition-colors scale-98 active:scale-95" href="#">
-<span class="material-symbols-outlined" data-icon="handshake">handshake</span>
-<span class="font-body-md">Oportunidades</span>
-</a>
-<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg mx-sm my-xs transition-colors scale-98 active:scale-95" href="#">
-<span class="material-symbols-outlined" data-icon="task_alt">task_alt</span>
-<span class="font-body-md">Tareas</span>
-</a>
-<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg mx-sm my-xs transition-colors scale-98 active:scale-95" href="#">
-<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
-<span class="font-body-md">Calendario</span>
-</a>
-<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg mx-sm my-xs transition-colors scale-98 active:scale-95" href="#">
-<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
-<span class="font-body-md">Reportes</span>
-</a>
-</nav>
-<div class="mt-auto px-sm border-t border-on-primary-fixed-variant/20 pt-md">
-<a class="flex items-center gap-sm px-md py-sm text-on-primary-container hover:bg-on-primary-fixed-variant/10 rounded-lg transition-colors" href="#">
-<span class="material-symbols-outlined" data-icon="settings">settings</span>
-<span class="font-body-md">Configuración</span>
-</a>
-</div>
-</aside>
-<!-- TopAppBar Shell -->
-<header class="fixed top-0 right-0 left-64 h-16 bg-surface/80 glass-header shadow-sm z-40 flex justify-between items-center px-margin">
-<div class="flex items-center gap-md flex-1">
-<div class="relative w-full max-w-md">
-<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" data-icon="search">search</span>
-<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-lg focus:ring-2 focus:ring-secondary-container transition-all text-body-sm" placeholder="Buscar jugadores, facturas o tareas..." type="text"/>
-</div>
-</div>
-<div class="flex items-center gap-sm">
-<button class="hover:bg-surface-variant/50 rounded-full p-2 transition-all">
-<span class="material-symbols-outlined text-on-surface-variant" data-icon="notifications">notifications</span>
-</button>
-<button class="hover:bg-surface-variant/50 rounded-full p-2 transition-all">
-<span class="material-symbols-outlined text-on-surface-variant" data-icon="help_outline">help_outline</span>
-</button>
-<div class="h-8 w-[1px] bg-outline-variant mx-2"></div>
-<div class="flex items-center gap-sm pl-2">
-<div class="text-right">
-<p class="font-label-md text-on-surface">Administrador</p>
-<p class="text-[10px] text-on-surface-variant uppercase font-bold">Socio Premium</p>
-</div>
-<img alt="User Avatar" class="w-10 h-10 rounded-full bg-surface-container-highest border border-outline-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKlLNEED0CI6nZMKno6yvi6kZfelTgGQdWcLWeOZgLz3tJuJyokBcW0qVO8meCxevzwErR-LHUgQQ1zZYk1DQ0xCeD0uFvjYo394y4BrhmgHuaRJpLBGB58OExqwMnIiofppQQblbxjHVxjejUN92Zo9ZVnFodf0uEGFUqiY7EuKGevjrv8yqxztFSKBvyP9ezIpUkYTiScnp3xlglh7_oR0tOcv-MDzzUcS9ZTVp2Yoj52bmH_zmJ8Vjitxl7UJETAaxziH9Y6_g"/>
-</div>
-</div>
-</header>
-<!-- Main Content -->
-<main class="ml-64 pt-16 p-margin min-h-screen">
-<!-- Welcome Header -->
-<header class="mb-lg">
-<h2 class="font-headline-lg text-headline-lg text-primary">Buenos días, Alejandro</h2>
-<p class="text-on-surface-variant font-body-md">Aquí tienes el resumen del club para hoy, 24 de Octubre.</p>
-</header>
-<!-- KPI Cards Grid -->
-<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter mb-lg">
-<!-- Card 1 -->
-<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30 group hover:border-secondary transition-all">
-<div class="flex justify-between items-start mb-sm">
-<div class="w-12 h-12 rounded-lg bg-primary-fixed flex items-center justify-center text-secondary">
-<span class="material-symbols-outlined" data-icon="group">group</span>
-</div>
-<span class="text-on-tertiary-container bg-tertiary-fixed/30 text-[11px] font-bold px-2 py-1 rounded-full">+12%</span>
-</div>
-<p class="text-on-surface-variant font-label-md uppercase tracking-wider">Total Contactos</p>
-<p class="font-headline-lg text-headline-lg text-primary">1,248</p>
-</div>
-<!-- Card 2 -->
-<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30 group hover:border-secondary transition-all">
-<div class="flex justify-between items-start mb-sm">
-<div class="w-12 h-12 rounded-lg bg-secondary-fixed flex items-center justify-center text-secondary">
-<span class="material-symbols-outlined" data-icon="handshake">handshake</span>
-</div>
-<span class="text-on-secondary-fixed-variant bg-secondary-fixed/50 text-[11px] font-bold px-2 py-1 rounded-full">€12.5k</span>
-</div>
-<p class="text-on-surface-variant font-label-md uppercase tracking-wider">Oportunidades Activas</p>
-<p class="font-headline-lg text-headline-lg text-primary">42</p>
-</div>
-<!-- Card 3 -->
-<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30 group hover:border-secondary transition-all">
-<div class="flex justify-between items-start mb-sm">
-<div class="w-12 h-12 rounded-lg bg-tertiary-fixed/40 flex items-center justify-center text-on-tertiary-container">
-<span class="material-symbols-outlined" data-icon="payments">payments</span>
-</div>
-<span class="text-on-tertiary-container font-bold text-label-md">Meta: 92%</span>
-</div>
-<p class="text-on-surface-variant font-label-md uppercase tracking-wider">Ingresos Mensuales</p>
-<p class="font-headline-lg text-headline-lg text-primary">€8,420</p>
-</div>
-<!-- Card 4 -->
-<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30 group hover:border-secondary transition-all">
-<div class="flex justify-between items-start mb-sm">
-<div class="w-12 h-12 rounded-lg bg-error-container/40 flex items-center justify-center text-error">
-<span class="material-symbols-outlined" data-icon="task_alt">task_alt</span>
-</div>
-<span class="text-error font-bold text-label-md">Crítico</span>
-</div>
-<p class="text-on-surface-variant font-label-md uppercase tracking-wider">Tareas Pendientes</p>
-<p class="font-headline-lg text-headline-lg text-primary">15</p>
-</div>
-</section>
-<!-- Middle Section: Funnel & Activity -->
-<section class="grid grid-cols-1 lg:grid-cols-3 gap-gutter mb-lg">
-<!-- Sales Funnel (2/3) -->
-<div class="lg:col-span-2 bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30">
-<div class="flex justify-between items-center mb-md">
-<h3 class="font-headline-sm text-headline-sm text-primary">Embudo de Ventas</h3>
-<button class="text-secondary font-label-md hover:underline">Ver detalle completo</button>
-</div>
-<div class="grid grid-cols-4 gap-sm h-64">
-<div class="flex flex-col justify-end gap-xs h-full">
-<div class="w-full bg-secondary/10 rounded-lg flex flex-col items-center justify-center p-sm transition-all hover:bg-secondary/20 h-[100%]">
-<span class="font-bold text-headline-sm text-secondary">85</span>
-<span class="text-[10px] font-bold uppercase text-on-surface-variant">Prospecto</span>
-</div>
-</div>
-<div class="flex flex-col justify-end gap-xs h-full">
-<div class="w-full bg-secondary/30 rounded-lg flex flex-col items-center justify-center p-sm transition-all hover:bg-secondary/40 h-[75%]">
-<span class="font-bold text-headline-sm text-secondary">52</span>
-<span class="text-[10px] font-bold uppercase text-on-surface-variant">Contactado</span>
-</div>
-</div>
-<div class="flex flex-col justify-end gap-xs h-full">
-<div class="w-full bg-secondary/60 rounded-lg flex flex-col items-center justify-center p-sm transition-all hover:bg-secondary/70 h-[45%]">
-<span class="font-bold text-headline-sm text-white">28</span>
-<span class="text-[10px] font-bold uppercase text-white/80">Negociación</span>
-</div>
-</div>
-<div class="flex flex-col justify-end gap-xs h-full">
-<div class="w-full bg-secondary rounded-lg flex flex-col items-center justify-center p-sm transition-all hover:shadow-lg h-[25%]">
-<span class="font-bold text-headline-sm text-white">12</span>
-<span class="text-[10px] font-bold uppercase text-white/80">Cerrado</span>
-</div>
-</div>
-</div>
-<div class="mt-md flex gap-md items-center justify-center text-on-surface-variant text-label-md">
-<span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-full bg-secondary/10"></span> Bajo Interés</span>
-<span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-full bg-secondary/60"></span> Hot Lead</span>
-<span class="flex items-center gap-xs"><span class="w-3 h-3 rounded-full bg-secondary"></span> Conversión</span>
-</div>
-</div>
-<!-- Recent Activity (1/3) -->
-<div class="bg-surface-container-lowest p-md rounded-xl card-shadow border border-outline-variant/30 flex flex-col">
-<h3 class="font-headline-sm text-headline-sm text-primary mb-md">Actividad Reciente</h3>
-<div class="flex-grow space-y-md">
-<div class="flex gap-sm items-start">
-<div class="w-8 h-8 rounded-full bg-tertiary-fixed/30 flex items-center justify-center flex-shrink-0">
-<span class="material-symbols-outlined text-[18px] text-on-tertiary-container" data-icon="person_add">person_add</span>
-</div>
-<div>
-<p class="text-body-sm text-on-surface"><span class="font-bold">Nuevo registro:</span> Juan Pérez</p>
-<p class="text-[10px] text-on-surface-variant">Hace 12 minutos • Portal Web</p>
-</div>
-</div>
-<div class="flex gap-sm items-start">
-<div class="w-8 h-8 rounded-full bg-secondary-fixed flex items-center justify-center flex-shrink-0">
-<span class="material-symbols-outlined text-[18px] text-secondary" data-icon="receipt_long">receipt_long</span>
-</div>
-<div>
-<p class="text-body-sm text-on-surface"><span class="font-bold">Pago recibido:</span> Club Voley Madrid</p>
-<p class="text-[10px] text-on-surface-variant">Hace 1 hora • Transferencia</p>
-</div>
-</div>
-<div class="flex gap-sm items-start">
-<div class="w-8 h-8 rounded-full bg-error-container/30 flex items-center justify-center flex-shrink-0">
-<span class="material-symbols-outlined text-[18px] text-error" data-icon="emergency">emergency</span>
-</div>
-<div>
-<p class="text-body-sm text-on-surface"><span class="font-bold">Lesión reportada:</span> Maria Garcia</p>
-<p class="text-[10px] text-on-surface-variant">Hace 3 horas • Entrenamiento U18</p>
-</div>
-</div>
-<div class="flex gap-sm items-start">
-<div class="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center flex-shrink-0">
-<span class="material-symbols-outlined text-[18px] text-on-primary-fixed-variant" data-icon="mail">mail</span>
-</div>
-<div>
-<p class="text-body-sm text-on-surface"><span class="font-bold">Campaña enviada:</span> Torneo Otoño</p>
-<p class="text-[10px] text-on-surface-variant">Hace 5 horas • 450 destinatarios</p>
-</div>
-</div>
-</div>
-<button class="w-full mt-md py-2 text-on-surface-variant font-label-md border border-outline-variant/50 rounded-lg hover:bg-surface-container transition-colors">
-                    Ver todo el historial
-                </button>
-</div>
-</section>
-<!-- Bottom Section: Tasks -->
-<section class="bg-surface-container-lowest rounded-xl card-shadow border border-outline-variant/30 overflow-hidden">
-<div class="px-md py-md border-b border-outline-variant/30 flex justify-between items-center">
-<h3 class="font-headline-sm text-headline-sm text-primary">Próximas Tareas</h3>
-<div class="flex gap-sm">
-<button class="electric-gradient text-white px-md py-2 rounded-lg font-label-md flex items-center gap-xs hover:shadow-md transition-all active:scale-95">
-<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
-                        Nueva Tarea
-                    </button>
-</div>
-</div>
-<div class="overflow-x-auto">
-<table class="w-full text-left">
-<thead>
-<tr class="bg-surface-container-low">
-<th class="px-md py-sm font-label-md text-on-surface-variant uppercase tracking-wider">Tarea</th>
-<th class="px-md py-sm font-label-md text-on-surface-variant uppercase tracking-wider">Prioridad</th>
-<th class="px-md py-sm font-label-md text-on-surface-variant uppercase tracking-wider">Fecha Límite</th>
-<th class="px-md py-sm font-label-md text-on-surface-variant uppercase tracking-wider">Asignado</th>
-<th class="px-md py-sm font-label-md text-on-surface-variant uppercase tracking-wider"></th>
-</tr>
-</thead>
-<tbody class="divide-y divide-outline-variant/20">
-<tr class="hover:bg-surface-container-low/50 transition-colors group">
-<td class="px-md py-md">
-<div class="flex items-center gap-sm">
-<input class="rounded border-outline text-secondary focus:ring-secondary" type="checkbox"/>
-<span class="font-body-md text-on-surface">Revisar inscripciones Torneo Playa</span>
-</div>
-</td>
-<td class="px-md py-md">
-<span class="bg-error-container/30 text-error text-[11px] font-bold px-3 py-1 rounded-full uppercase">Alta</span>
-</td>
-<td class="px-md py-md text-on-surface-variant font-body-sm">Mañana, 10:00 AM</td>
-<td class="px-md py-md">
-<div class="flex -space-x-2">
-<img alt="Avatar" class="w-8 h-8 rounded-full border-2 border-surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFgNQgdRVCfqhr0DGBeuwNnuK_k0G22ytSPC7_Jw2G2q6aKg3e27faN06mLXsklRxNKF3o9QqkQcdvY06yftExUwQAd3xXDXmZfqGWUhMHb0GC9FoqdBCgj_AbtSRFNRs_W0AGLIPiyDy4Hdkz1D78GJG7h0znPe7u2mYtcnOFL6pad7hPbsnnjGhAfB6OGa96Pog6MHQqkm-OoZM25QGvHn_k_uSGALyQ8yiI4ebYCqugkjmgNpJMN9doTosFEyWkdINwdZE2g2g"/>
-<img alt="Avatar" class="w-8 h-8 rounded-full border-2 border-surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuClUGxkh-CQ9notn2Q86JKusnGhOHoCXxs6plU6ZlwLZv_ubRkNCCzcoAvtqfheOh9x88fQo5K1K3uhnotWq6UQIvCAPAg1uIPqxsByJ1jRQW1mBHiL4wkNs_iRLHZ1JXj5A5X3UKpzrYF1Zol49OmrBBBjftkwCxrP560Nz8nTLgJSl17DSwYrYs4-u0qGLyZV-3-bscD--gqAGMNajXZ0-yas6rz4gOldj9ZHewwxdvEC2XlOn_1n2-ijFmY5kHyVXS2TjEpKDpo"/>
-</div>
-</td>
-<td class="px-md py-md text-right">
-<button class="opacity-0 group-hover:opacity-100 transition-opacity">
-<span class="material-symbols-outlined text-on-surface-variant" data-icon="more_vert">more_vert</span>
-</button>
-</td>
-</tr>
-<tr class="hover:bg-surface-container-low/50 transition-colors group">
-<td class="px-md py-md">
-<div class="flex items-center gap-sm">
-<input class="rounded border-outline text-secondary focus:ring-secondary" type="checkbox"/>
-<span class="font-body-md text-on-surface">Enviar facturas cuotas Octubre</span>
-</div>
-</td>
-<td class="px-md py-md">
-<span class="bg-tertiary-fixed/30 text-on-tertiary-container text-[11px] font-bold px-3 py-1 rounded-full uppercase">Media</span>
-</td>
-<td class="px-md py-md text-on-surface-variant font-body-sm">26 Oct, 2023</td>
-<td class="px-md py-md">
-<img alt="Avatar" class="w-8 h-8 rounded-full border-2 border-surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAp1Tq2Zpjxt4Whig2q9M4sfsjzHU_560_mAjlXs6RdJlMLEIAGcHF-a9aTtDRlr9HXVLjjuw8c5qgRzqv9vQfPdOiPZTxXHMDLKNpw4y4yTKzJjN3_BqLFfwCcMXwKDUsHBfWQ1ZnQUvyFViWd9Lx6VHPRE231hCDoZ9Ii7v_zqP7XEaD2KnSGU1PEAQgvIDN97lU-38xBdGW_1bKqnWViy8SJytBGrAntAPVdC-GkR3uKQUgco1itx0aOvKy4J2CtHiS89YWuLAE"/>
-</td>
-<td class="px-md py-md text-right">
-<button class="opacity-0 group-hover:opacity-100 transition-opacity">
-<span class="material-symbols-outlined text-on-surface-variant" data-icon="more_vert">more_vert</span>
-</button>
-</td>
-</tr>
-<tr class="hover:bg-surface-container-low/50 transition-colors group">
-<td class="px-md py-md">
-<div class="flex items-center gap-sm">
-<input class="rounded border-outline text-secondary focus:ring-secondary" type="checkbox"/>
-<span class="font-body-md text-on-surface">Reunión patrocinio Red Bull</span>
-</div>
-</td>
-<td class="px-md py-md">
-<span class="bg-secondary-fixed/50 text-on-secondary-fixed-variant text-[11px] font-bold px-3 py-1 rounded-full uppercase">Baja</span>
-</td>
-<td class="px-md py-md text-on-surface-variant font-body-sm">28 Oct, 16:30 PM</td>
-<td class="px-md py-md">
-<img alt="Avatar" class="w-8 h-8 rounded-full border-2 border-surface" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCljN5MQiALPAjyQN0y6RsSkIIRLOMHIT-GYmL5ceKQRdx6e8DsFULTb6R7QhjSRyYbUA--4cTAHhQKlGmFy_Bj3c3d371fnG43_Zzi4it5MkpMIwgC0tZ9trrOCkIddZHGL47LFOYvtXhSh7boLmhku2jxMaU71l6_TbQOl8rE8ytFS4mwrJ6eZcQa_l452aupQoDYhv8rGvQLcTd7wUcYSZj0tB8hHHYjy1o8B8PMt53GpP9I9xLWV5ibxRTk7NiczkH4UkrGU3E"/>
-</td>
-<td class="px-md py-md text-right">
-<button class="opacity-0 group-hover:opacity-100 transition-opacity">
-<span class="material-symbols-outlined text-on-surface-variant" data-icon="more_vert">more_vert</span>
-</button>
-</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="px-md py-sm bg-surface-container-low/30 text-center">
-<button class="text-label-md text-on-surface-variant hover:text-secondary transition-colors uppercase font-bold">Ver todas las tareas (15)</button>
-</div>
-</section>
-<!-- Dynamic Grid Visualizer (Asymmetric Layout Example) -->
-<section class="mt-lg grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
-<div class="lg:col-span-2 relative h-48 rounded-2xl overflow-hidden shadow-lg group">
-<div class="absolute inset-0 electric-gradient opacity-90 transition-transform group-hover:scale-105 duration-700"></div>
-<div class="absolute inset-0 flex flex-col justify-center px-xl text-white z-10">
-<h4 class="font-headline-md text-headline-md mb-xs">Nuevas Equipaciones 2024</h4>
-<p class="opacity-80 max-w-md">El pedido de las nuevas camisetas para la sección juvenil ya ha sido procesado por el proveedor oficial.</p>
-<div class="mt-md flex gap-sm">
-<button class="bg-white text-secondary px-md py-2 rounded-lg font-bold text-label-md hover:bg-surface transition-all">Ver Pedido</button>
-</div>
-</div>
-<!-- Abstract Texture Overlay -->
-<div class="absolute top-0 right-0 w-1/2 h-full bg-no-repeat bg-right bg-contain opacity-20 pointer-events-none" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuB3f4084YfJABr2omDU9iHffWYeyTCFAuOtJWzeM4-SskBVPfHHPfdq_MRLcSfDpw3kec21qaSO_aeem7LS-UCCJiHFz2E3HD6q0tNTLzIFxgBTf-XOy242-pSLgPCFsGsxHkAeiSGrNs0LWBOGf3sQ-3Znu0-oQKIkayqfsp4AZNjdHaXasS_2zd9HURSaj9fJKThOG5-dqH-mNiG6pkdIIWuFzvZhBX67KGzAvO7haGJAwaO13BXq_Nw0a4-CeFSYY6MGVfhtwG8');"></div>
-</div>
-<div class="bg-tertiary-fixed h-48 rounded-2xl shadow-lg flex flex-col items-center justify-center text-on-tertiary-container p-md text-center">
-<span class="material-symbols-outlined text-[48px] mb-sm" data-icon="workspace_premium">workspace_premium</span>
-<p class="font-headline-sm text-headline-sm">Club Elite</p>
-<p class="text-body-sm opacity-80">Cumples con el 95% de los requisitos de calidad de la federación.</p>
-</div>
-</section>
-</main>
-<!-- Floating Action Button Contextual (Only on Home/Dash) -->
-<button class="fixed bottom-margin right-margin w-14 h-14 rounded-full bg-secondary text-white shadow-xl flex items-center justify-center transition-all hover:scale-110 active:scale-90 z-50">
-<span class="material-symbols-outlined text-[28px]" data-icon="chat">chat</span>
-</button>
-<script>
-        // Micro-interactions for hover effects and dynamic UI elements
-        document.querySelectorAll('nav a').forEach(link => {
-            link.addEventListener('mouseenter', () => {
-                if (!link.classList.contains('bg-secondary-container')) {
-                    link.style.transform = 'translateX(4px)';
-                }
-            });
-            link.addEventListener('mouseleave', () => {
-                link.style.transform = 'translateX(0)';
-            });
-        });
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-row">
+          <div class="logo-mark">F</div>
+          <div class="logo-text">
+            <div class="logo-title">Furvoley</div>
+            <div class="logo-sub">Club Multideporte</div>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-user">
+        <div class="avatar sm">AC</div>
+        <div class="user-text">
+          <div class="user-name">Ana García</div>
+          <span class="role-badge">ADMINISTRADOR</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-label">Menú</div>
+        <button class="nav-btn active" data-tab="dashboard" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <span class="nav-label-text">Inicio</span>
+        </button>
+        <button class="nav-btn" data-tab="socios" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span class="nav-label-text">Socios</span>
+        </button>
+        <button class="nav-btn" data-tab="equipos" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <span class="nav-label-text">Equipos</span>
+        </button>
+        <button class="nav-btn" data-tab="contabilidad" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          <span class="nav-label-text">Contabilidad</span>
+          <span class="nav-badge">15</span>
+        </button>
+        <button class="nav-btn" data-tab="calendario" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span class="nav-label-text">Calendario</span>
+        </button>
+        <button class="nav-btn" data-tab="informes" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span class="nav-label-text">Informes</span>
+        </button>
+        <button class="nav-btn" data-tab="workflows" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span class="nav-label-text">Flujos</span>
+        </button>
+        <button class="nav-btn" data-tab="whatsapp" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          <span class="nav-label-text">Whatsapp</span>
+        </button>
+        <button class="nav-btn" data-tab="personal" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="nav-label-text">Personal</span>
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="logout-btn" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span class="logout-text">Cerrar sesión</span>
+        </button>
+      </div>
+    </aside>
 
-        // Simple dashboard notification animation mock
-        setTimeout(() => {
-            const notifyBtn = document.querySelector('[data-icon="notifications"]');
-            if (notifyBtn) {
-                notifyBtn.parentElement.classList.add('animate-pulse');
-                setTimeout(() => notifyBtn.parentElement.classList.remove('animate-pulse'), 2000);
-            }
-        }, 3000);
-    </script>
-</body></html>
+    <div class="main-wrap">
+      <header class="topbar">
+        <div class="demo-banner">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span><strong>Vista previa estática</strong> — Maqueta alineada con el CRM real de Furvoley (socios, equipos, cobros, calendario). Sin conexión a la app.</span>
+        </div>
+        <button class="notif-btn" type="button" aria-label="Notificaciones">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-dot"></span>
+        </button>
+      </header>
+
+      <main class="content">
+        <!-- INICIO -->
+        <section id="dashboard" class="section active">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Inicio</h1>
+              <p class="page-sub" id="fecha-hoy"></p>
+            </div>
+            <button class="btn-primary" type="button">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Exportar datos
+            </button>
+          </div>
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-top">
+                <div><div class="kpi-label">Socios activos</div><div class="kpi-value">128</div></div>
+                <div class="kpi-icon" style="background:#3b82f615;color:#3b82f6"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+              </div>
+              <span class="kpi-sub">Altas activas en el club</span>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-top">
+                <div><div class="kpi-label">Cobros pendientes</div><div class="kpi-value">15</div></div>
+                <div class="kpi-icon" style="background:#f59e0b15;color:#f59e0b"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+              </div>
+              <span class="kpi-sub" style="color:#f59e0b">€ 4.250 en espera</span>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-top">
+                <div><div class="kpi-label">Ingresos del mes</div><div class="kpi-value">€ 8.420</div></div>
+                <div class="kpi-icon" style="background:#10b98115;color:#10b981"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+              </div>
+              <span class="kpi-sub">Ingresos registrados</span>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-top">
+                <div><div class="kpi-label">Facturas vencidas</div><div class="kpi-value">4</div></div>
+                <div class="kpi-icon" style="background:#ef444415;color:#ef4444"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
+              </div>
+              <span class="kpi-sub" style="color:#ef4444">Requieren atención</span>
+            </div>
+          </div>
+          <div class="charts-row">
+            <div class="card chart-wide">
+              <div class="card-title">Ingresos del Año</div>
+              <div class="card-sub">Cuotas + cobros registrados</div>
+              <div class="bar-chart" id="bar-chart"></div>
+            </div>
+            <div class="card chart-narrow">
+              <div class="card-title">Socios por Equipo</div>
+              <div class="card-sub">128 socios activos</div>
+              <div class="donut-wrap">
+                <div class="donut"></div>
+                <div class="legend">
+                  <div class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span><span style="flex:1">Femenino Senior</span><strong>45</strong></div>
+                  <div class="legend-item"><span class="legend-dot" style="background:#10b981"></span><span style="flex:1">Mixto Juvenil</span><strong>38</strong></div>
+                  <div class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span><span style="flex:1">Masculino A</span><strong>28</strong></div>
+                  <div class="legend-item"><span class="legend-dot" style="background:#8b5cf6"></span><span style="flex:1">Escuela</span><strong>17</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="charts-row">
+            <div class="card chart-narrow">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div class="card-title" style="margin:0">Próximos eventos</div>
+                <button class="link-btn" type="button" data-goto="calendario">Ver todos →</button>
+              </div>
+              <div class="list-row">
+                <div class="date-box"><div class="date-day">18</div><div class="date-mon">may</div></div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Entrenamiento Fem. Senior</div>
+                  <div style="font-size:12px;color:#6b7280">19:00 — Polideportivo Norte</div>
+                </div>
+                <span class="type-pill">Entrenamiento</span>
+              </div>
+              <div class="list-row">
+                <div class="date-box"><div class="date-day">20</div><div class="date-mon">may</div></div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600">Partido vs Club Voley Madrid</div>
+                  <div style="font-size:12px;color:#6b7280">11:00 — Pabellón Central</div>
+                </div>
+                <span class="type-pill">Partido</span>
+              </div>
+              <div class="list-row">
+                <div class="date-box"><div class="date-day">24</div><div class="date-mon">may</div></div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600">Torneo Regional Sub-18</div>
+                  <div style="font-size:12px;color:#6b7280">09:00 — Complejo Deportivo</div>
+                </div>
+                <span class="type-pill">Torneo</span>
+              </div>
+            </div>
+            <div class="card chart-narrow">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div class="card-title" style="margin:0">Cobros Recientes</div>
+                <button class="link-btn" type="button" data-goto="contabilidad">Ver todos →</button>
+              </div>
+              <div class="list-row">
+                <div class="avatar lg">JP</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600">Juan Pérez</div>
+                  <div style="font-size:12px;color:#6b7280">Cuota mensual — Mayo</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:13px;font-weight:700">€ 45</div>
+                  <span class="badge pagado">Pagado</span>
+                </div>
+              </div>
+              <div class="list-row">
+                <div class="avatar lg">ML</div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600">María López</div>
+                  <div style="font-size:12px;color:#6b7280">Inscripción temporada</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:13px;font-weight:700">€ 120</div>
+                  <span class="badge pendiente">Pendiente</span>
+                </div>
+              </div>
+              <div class="list-row">
+                <div class="avatar lg">CR</div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:600">Carlos Ruiz</div>
+                  <div style="font-size:12px;color:#6b7280">Cuota mensual — Abril</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:13px;font-weight:700">€ 45</div>
+                  <span class="badge vencido">Vencido</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SOCIOS -->
+        <section id="socios" class="section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Socios</h1>
+              <p class="page-sub" style="text-transform:none">128 socios registrados</p>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <button class="btn-secondary" type="button">Enlace de inscripción</button>
+              <button class="btn-secondary" type="button">Recordatorio WhatsApp</button>
+              <button class="btn-primary" type="button">+ Nuevo Socio</button>
+            </div>
+          </div>
+          <div class="filters">
+            <div class="search-wrap">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input class="search-input" type="search" placeholder="Buscar por nombre o correo electrónico…" />
+            </div>
+            <button class="filter-pill active" type="button">Todos</button>
+            <button class="filter-pill" type="button">Activo</button>
+            <button class="filter-pill" type="button">Inactivo</button>
+            <button class="filter-pill" type="button">Moroso</button>
+            <select class="search-input" style="width:auto;padding-left:14px">
+              <option>Todos los deportes</option>
+              <option>Voleibol</option>
+              <option>Beach vóley</option>
+            </select>
+          </div>
+          <div class="card" style="padding:0;overflow:hidden">
+            <table>
+              <thead>
+                <tr>
+                  <th>Socio</th><th>DNI</th><th>Deporte</th><th>Categoría</th>
+                  <th>Cuota</th><th>Vencimiento</th><th>Estado</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar lg">JP</div><div><div style="font-weight:600">Juan Pérez</div><div style="font-size:12px;color:#6b7280">juan@email.com</div></div></div></td>
+                  <td style="color:#475569;font-size:13px">12345678A</td>
+                  <td>Voleibol</td><td>Senior</td><td style="font-weight:600">€ 45</td><td>15/06/2026</td>
+                  <td><span class="badge activo">Activo</span></td><td></td>
+                </tr>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar lg">ML</div><div><div><div style="font-weight:600">María López</div><div style="font-size:12px;color:#6b7280">maria@email.com</div></div></div></td>
+                  <td style="color:#475569;font-size:13px">87654321B</td>
+                  <td>Voleibol</td><td>Juvenil</td><td style="font-weight:600">€ 38</td><td>10/05/2026</td>
+                  <td><span class="badge moroso">Moroso</span></td><td></td>
+                </tr>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar lg">CR</div><div><div style="font-weight:600">Carlos Ruiz</div><div style="font-size:12px;color:#6b7280">carlos@email.com</div></div></div></td>
+                  <td style="color:#475569;font-size:13px">11223344C</td>
+                  <td>Beach vóley</td><td>Open</td><td style="font-weight:600">€ 50</td><td>01/06/2026</td>
+                  <td><span class="badge activo">Activo</span></td><td></td>
+                </tr>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar lg">SF</div><div><div style="font-weight:600">Sofía Fernández</div><div style="font-size:12px;color:#6b7280">sofia@email.com</div></div></div></td>
+                  <td style="color:#475569;font-size:13px">99887766D</td>
+                  <td>Voleibol</td><td>Cadete</td><td style="font-weight:600">€ 35</td><td>20/06/2026</td>
+                  <td><span class="badge inactivo">Inactivo</span></td><td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- EQUIPOS -->
+        <section id="equipos" class="section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Equipos</h1>
+              <p class="page-sub" style="text-transform:none">4 equipos</p>
+            </div>
+            <button class="btn-primary" type="button">+ Crear equipo</button>
+          </div>
+          <div class="team-grid">
+            <article class="team-card" style="--team-color:#3b82f6">
+              <div class="team-name">Femenino Senior</div>
+              <div class="team-meta">45 jugadoras · Entrenadora: Laura M.</div>
+              <div class="team-actions">
+                <button class="team-btn" style="background:#3b82f615;color:#3b82f6" type="button">Gestionar</button>
+                <button class="team-btn" style="background:#3b82f615;color:#3b82f6" type="button" data-goto="socios">Ver socios</button>
+              </div>
+            </article>
+            <article class="team-card" style="--team-color:#10b981">
+              <div class="team-name">Mixto Juvenil</div>
+              <div class="team-meta">38 jugadores · Entrenador: Pedro S.</div>
+              <div class="team-actions">
+                <button class="team-btn" style="background:#10b98115;color:#10b981" type="button">Gestionar</button>
+                <button class="team-btn" style="background:#10b98115;color:#10b981" type="button">Ver socios</button>
+              </div>
+            </article>
+            <article class="team-card" style="--team-color:#f59e0b">
+              <div class="team-name">Masculino A</div>
+              <div class="team-meta">28 jugadores · Entrenador: Miguel R.</div>
+              <div class="team-actions">
+                <button class="team-btn" style="background:#f59e0b15;color:#f59e0b" type="button">Gestionar</button>
+                <button class="team-btn" style="background:#f59e0b15;color:#f59e0b" type="button">Ver socios</button>
+              </div>
+            </article>
+            <article class="team-card" style="--team-color:#8b5cf6">
+              <div class="team-name">Escuela de vóley</div>
+              <div class="team-meta">17 alumnos · Entrenadora: Ana G.</div>
+              <div class="team-actions">
+                <button class="team-btn" style="background:#8b5cf615;color:#8b5cf6" type="button">Gestionar</button>
+                <button class="team-btn" style="background:#8b5cf615;color:#8b5cf6" type="button">Ver socios</button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- CONTABILIDAD -->
+        <section id="contabilidad" class="section">
+          <div class="page-header">
+            <div>
+              <h1 class="page-title">Contabilidad</h1>
+              <p class="page-sub" style="text-transform:none">Cobros, ingresos/gastos y libro diario PGC</p>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <button class="btn-secondary" type="button">Crear ingreso</button>
+              <button class="btn-secondary" type="button">Crear gasto</button>
+              <button class="btn-primary" type="button">+ Crear cobro</button>
+            </div>
+          </div>
+          <div class="tabs-row">
+            <button class="tab-btn active" type="button">Cobros</button>
+            <button class="tab-btn" type="button">DIARIO</button>
+            <button class="tab-btn" type="button">MAYOR</button>
+            <button class="tab-btn" type="button">CUENTAS</button>
+            <button class="tab-btn" type="button">BALANCES</button>
+          </div>
+          <div class="filters">
+            <button class="filter-pill active" type="button">Todos</button>
+            <button class="filter-pill" type="button">Pendiente</button>
+            <button class="filter-pill" type="button">Pagado</button>
+            <button class="filter-pill" type="button">Vencido</button>
+          </div>
+          <div class="card" style="padding:0;overflow:hidden">
+            <table>
+              <thead>
+                <tr><th>Socio</th><th>Concepto</th><th>Monto</th><th>Vencimiento</th><th>Estado</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar lg">JP</div><div style="font-weight:600">Juan Pérez</div></div></td>
+                  <td>Cuota mensual — Mayo 2026</td><td style="font-weight:700">€ 45</td><td>15/05/2026</td>
+                  <td><span class="badge pagado">Pagado</span></td>
+                </tr>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar lg">ML</div><div style="font-weight:600">María López</div></div></td>
+                  <td>Inscripción temporada 2025/26</td><td style="font-weight:700">€ 120</td><td>10/05/2026</td>
+                  <td><span class="badge pendiente">Pendiente</span></td>
+                </tr>
+                <tr>
+                  <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar lg">CR</div><div style="font-weight:600">Carlos Ruiz</div></div></td>
+                  <td>Cuota mensual — Abril 2026</td><td style="font-weight:700">€ 45</td><td>01/04/2026</td>
+                  <td><span class="badge vencido">Vencido</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Placeholders: Calendario, Informes, Flujos, WhatsApp, Personal -->
+        <section id="calendario" class="section">
+          <div class="placeholder-panel card">
+            <h2>Calendario</h2>
+            <p>Gestión de eventos del club: entrenamientos, partidos, torneos y reuniones. Integrado con <code>/?tab=calendario</code> y la ruta <code>/calendar</code>.</p>
+            <div class="feature-tags">
+              <span class="feature-tag">Partido</span>
+              <span class="feature-tag">Entrenamiento</span>
+              <span class="feature-tag">Torneo</span>
+              <span class="feature-tag">Reunión</span>
+            </div>
+          </div>
+        </section>
+        <section id="informes" class="section">
+          <div class="placeholder-panel card">
+            <h2>Informes</h2>
+            <p>Reportes financieros y socios con deuda vencida. Acceso para Administrador y Tesorero.</p>
+            <div class="feature-tags"><span class="feature-tag">Deuda vencida</span><span class="feature-tag">Exportar CSV</span></div>
+          </div>
+        </section>
+        <section id="workflows" class="section">
+          <div class="placeholder-panel card">
+            <h2>Flujos</h2>
+            <p>Automatizaciones: alta de socio, asignar equipo, enviar WhatsApp, crear enlace de inscripción. Editor visual con React Flow.</p>
+            <div class="feature-tags"><span class="feature-tag">Alta de socio</span><span class="feature-tag">WhatsApp</span><span class="feature-tag">Enlace inscripción</span></div>
+          </div>
+        </section>
+        <section id="whatsapp" class="section">
+          <div class="placeholder-panel card">
+            <h2>Whatsapp</h2>
+            <p>Sesiones ApiWass, envío manual, recordatorios de pago y logs de mensajes.</p>
+            <div class="feature-tags"><span class="feature-tag">Recordatorio cobro</span><span class="feature-tag">QR sesión</span></div>
+          </div>
+        </section>
+        <section id="personal" class="section">
+          <div class="placeholder-panel card">
+            <h2>Personal</h2>
+            <p>Usuarios del sistema (ADMIN, COACH, TREASURER) y mural de noticias para socios.</p>
+            <div class="feature-tags"><span class="feature-tag">Roles RBAC</span><span class="feature-tag">Mural noticias</span></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const months = ['E','F','M','A','M','J','J','A','S','O','N','D'];
+    const values = [4200, 5100, 4800, 6200, 5800, 7100, 6900, 8420, 0, 0, 0, 0];
+    const max = Math.max(...values, 1);
+    const chart = document.getElementById('bar-chart');
+    values.forEach((v, i) => {
+      const col = document.createElement('div');
+      col.className = 'bar-col';
+      col.innerHTML = `<div class="bar" style="height:${Math.max(4, (v / max) * 100)}px"></div><span class="bar-label">${months[i]}</span>`;
+      chart.appendChild(col);
+    });
+
+    document.getElementById('fecha-hoy').textContent = new Date().toLocaleDateString('es-AR', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+
+    function setTab(tabId) {
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
+      document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === tabId));
+    }
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => setTab(btn.dataset.tab));
+    });
+    document.querySelectorAll('[data-goto]').forEach(btn => {
+      btn.addEventListener('click', () => setTab(btn.dataset.goto));
+    });
+  </script>
+</body>
+</html>
