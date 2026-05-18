@@ -2,13 +2,10 @@
 
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,8 +25,9 @@ export default function LoginPage() {
       const next = params.get('callbackUrl')
       const safe =
         next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
-      router.push(safe)
-      router.refresh()
+      // Recarga completa: con router.push la cookie de sesión a veces no llega
+      // a tiempo al Server Component de "/" y aparece decryption failed / 500.
+      window.location.assign(safe)
     }
   }
 

@@ -1,12 +1,11 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSafeServerSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { ChangePasswordForm } from './ChangePasswordForm'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ChangePasswordPage() {
-  const session = await getServerSession(authOptions)
+  const session = await getSafeServerSession()
   if (!session?.user) {
     redirect('/login')
   }

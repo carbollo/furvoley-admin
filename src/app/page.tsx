@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSafeServerSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import CrmApp from '@/components/crm/CrmApp'
@@ -11,7 +10,7 @@ import { normalizeRole } from '@/lib/rbac'
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
-  const session = await getServerSession(authOptions)
+  const session = await getSafeServerSession()
 
   if (!session) {
     redirect('/login')
