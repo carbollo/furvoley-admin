@@ -124,6 +124,8 @@ export function ClubSettingsModal({
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [portalBusy, setPortalBusy] = useState(false)
+  const [connectBusy, setConnectBusy] = useState(false)
+  const [webhookBusy, setWebhookBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [form, setForm] = useState<Settings>(EMPTY)
@@ -288,7 +290,6 @@ export function ClubSettingsModal({
     }
   }
 
-  const [connectBusy, setConnectBusy] = useState(false)
   async function startConnectOnboarding() {
     if (connectBusy) return
     setConnectBusy(true)
@@ -359,7 +360,6 @@ export function ClubSettingsModal({
     }
   }
 
-  const [webhookBusy, setWebhookBusy] = useState(false)
   async function resyncWebhooks() {
     if (webhookBusy) return
     setWebhookBusy(true)
