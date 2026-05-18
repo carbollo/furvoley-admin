@@ -3,6 +3,7 @@ import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import { createInvoiceForSubscription, recordInvoicePayment } from '@/app/actions/billing'
 import { getPersistedWebhookSecrets } from '@/lib/stripe-bootstrap'
+import { getStripeConnectConfig } from '@/lib/club-settings'
 import type Stripe from 'stripe'
 
 /**
@@ -17,6 +18,12 @@ import type Stripe from 'stripe'
  *  - `STRIPE_WEBHOOK_SECRET` — eventos de la cuenta de la plataforma.
  *  - `STRIPE_CONNECT_WEBHOOK_SECRET` — eventos de cuentas conectadas
  *    (Direct Charges, donde `event.account` viene poblado).
+ *
+ * Multi-deploy (varios clones en Railway, misma cuenta plataforma): Stripe
+ * puede entregar cada evento Connect a **todos** los webhook endpoints Connect
+ * dados de alta en el Dashboard/API. Este handler ignora (`200`) cualquier
+ * evento cuyo `event.account` no sea el `acct_…` configurado para **este**
+ * servicio (env var o BD), para no mezclar clubes ni devolver `500` por factura inexistente.
  */
 export async function POST(req: Request) {
   const body = await req.text()
@@ -54,10 +61,33 @@ export async function POST(req: Request) {
 
   // Para llamar a APIs de Stripe sobre la cuenta conectada (p.ej. recuperar
   // un payment_intent), reutilizamos `event.account` como stripeAccount.
-  const stripeAccount = event.account
+  const stripeAccount =
+    typeof (event as { account?: string | null }).account === 'string'
+      ? ((event as { account: string }).account)
+      : null
   const requestOptions: Stripe.RequestOptions | undefined = stripeAccount
     ? { stripeAccount }
     : undefined
+
+  const connectCfg = await getStripeConnectConfig()
+  if (stripeAccount) {
+    const ours =
+      connectCfg.hasConnectedAccount && connectCfg.connectedAccountId === stripeAccount
+    if (!ours) {
+      console.info(
+        '[stripe webhook] ignored Connect event for other account:',
+        stripeAccount,
+        'this service:',
+        connectCfg.connectedAccountId || '(none)'
+      )
+      return Response.json({
+        received: true,
+        ignored: true,
+        reason: 'connect_account_not_this_service',
+        type: event.type,
+      })
+    }
+  }
 
   try {
     switch (event.type) {
