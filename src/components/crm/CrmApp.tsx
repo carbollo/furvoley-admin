@@ -5345,6 +5345,12 @@ function CrmInner() {
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
   const [showClubSettings, setShowClubSettings] = useState(false)
 
+  const tabRaw = searchParams.get('tab') ?? ''
+  const normalizedTab = tabRaw === 'cobros' ? 'contabilidad' : tabRaw
+  // Debe declararse antes de cualquier hook que liste `role` en dependencias
+  // (evita ReferenceError: Cannot access ... before initialization en SSR/client).
+  const role = normalizeRole(bundle?.user?.role)
+
   // Si volvemos del onboarding de Stripe Connect (?stripeConnect=connected|refresh)
   // abrimos automáticamente el modal en la pestaña Suscripción y limpiamos el query.
   useEffect(() => {
@@ -5358,10 +5364,6 @@ function CrmInner() {
     const qs = params.toString()
     router.replace(qs ? `/?${qs}` : '/', { scroll: false })
   }, [searchParams, router, role])
-
-  const tabRaw = searchParams.get('tab') ?? ''
-  const normalizedTab = tabRaw === 'cobros' ? 'contabilidad' : tabRaw
-  const role = normalizeRole(bundle?.user?.role)
   const active: SectionId = CRM_SECTION_IDS.includes(normalizedTab as SectionId)
     ? (normalizedTab as SectionId)
     : 'dashboard'
