@@ -116,6 +116,10 @@ export async function POST() {
         error =
           'Connect no está activado para esta cuenta. En Stripe Dashboard → Connect, completa el registro de plataforma (mismo modo Test/Live que tu clave).'
       }
+      if (/responsibilities of managing losses|platform-profile/i.test(detail)) {
+        error =
+          'Falta definir en Stripe quién asume pérdidas/disputas de las cuentas conectadas. Abre Stripe → Settings → Connect → Platform profile (o el enlace del propio error) y guarda las responsabilidades; luego prueba de nuevo.'
+      }
       if (code === 'invalid_request_error' && detail.includes('capabilities')) {
         error =
           'Stripe rechazó las capacidades pedidas para este país/modalidad. Revisa Connect Settings o prueba en modo Test.'
