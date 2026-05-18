@@ -60,11 +60,25 @@ function isActiveItem(item: NavItem, pathname: string) {
   return pathname === item.href || pathname.startsWith(`${item.href}/`)
 }
 
-export function MemberShell({ children }: { children: ReactNode }) {
+export type MemberShellBranding = {
+  name: string
+  logoUrl: string | null
+  primaryColor: string | null
+}
+
+export function MemberShell({
+  children,
+  branding,
+}: {
+  children: ReactNode
+  branding?: MemberShellBranding
+}) {
   const pathname = usePathname() || ''
   const { data: session } = useSession()
   const userName = session?.user?.name || session?.user?.email || 'Socio'
   const initials = initialsFromName(session?.user?.name || session?.user?.email || '')
+  const clubName = (branding?.name || 'Furvoley').trim() || 'Furvoley'
+  const clubLogo = branding?.logoUrl || null
 
   return (
     <div
@@ -81,24 +95,55 @@ export function MemberShell({ children }: { children: ReactNode }) {
           boxShadow: '0 10px 30px rgba(0,0,0,0.18)',
         }}
       >
-        <div className="px-6 mb-10">
-          <h1
-            className="font-black tracking-tighter"
-            style={{ color: '#fff', fontSize: 32, lineHeight: 1.1, letterSpacing: '-0.02em' }}
-          >
-            FURVOLEY
-          </h1>
-          <p
-            className="mt-1"
-            style={{
-              color: 'rgba(255,255,255,0.55)',
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: '0.18em',
-            }}
-          >
-            CLUB DE DEPORTES
-          </p>
+        <div className="px-6 mb-10" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {clubLogo ? (
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                overflow: 'hidden',
+                background: '#fff',
+                border: '1px solid rgba(255,255,255,0.12)',
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={clubLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }} />
+            </div>
+          ) : null}
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h1
+              className="font-black tracking-tighter"
+              style={{
+                color: '#fff',
+                fontSize: 28,
+                lineHeight: 1.05,
+                letterSpacing: '-0.02em',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                textTransform: 'uppercase',
+              }}
+              title={clubName}
+            >
+              {clubName}
+            </h1>
+            <p
+              className="mt-1"
+              style={{
+                color: 'rgba(255,255,255,0.55)',
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.18em',
+              }}
+            >
+              CLUB DE DEPORTES
+            </p>
+          </div>
         </div>
 
         <nav className="flex-1 flex flex-col gap-1">

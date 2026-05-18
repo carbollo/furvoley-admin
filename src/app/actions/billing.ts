@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getStripe } from '@/lib/stripe'
 import { createJournalEntry } from '@/lib/accounting/engine'
 import { ensureBasePgcAccounts } from '@/lib/accounting/pgc'
+import { getClubIssuer } from '@/lib/club-settings'
 
 function startOfDay(date: Date) {
   const d = new Date(date)
@@ -356,6 +357,9 @@ export async function createInvoiceStripeLink(invoiceId: string) {
   const pendingAmount = Math.max(0, invoice.totalAmount - invoice.paidAmount)
   if (pendingAmount <= 0) return null
 
+  const issuer = await getClubIssuer()
+  const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
+
   const stripe = getStripe()
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ['card'],
@@ -364,7 +368,10 @@ export async function createInvoiceStripeLink(invoiceId: string) {
     metadata: {
       invoiceId: invoice.id,
       memberId: invoice.memberId,
-      clubId: 'furvoley',
+      clubId: clubSlug,
+      clubName: issuer.name,
+      clubLegalName: issuer.legalName || '',
+      clubTaxId: issuer.taxId || '',
     },
     line_items: [
       {
@@ -373,7 +380,7 @@ export async function createInvoiceStripeLink(invoiceId: string) {
           currency: invoice.currency.toLowerCase(),
           unit_amount: Math.round(pendingAmount * 100),
           product_data: {
-            name: `Factura ${invoice.invoiceNumber}`,
+            name: `${issuer.name} · Factura ${invoice.invoiceNumber}`,
             description: `Socio: ${invoice.member.name}`,
           },
         },
@@ -402,6 +409,9 @@ export async function createSubscriptionStripeLink(subscriptionId: string) {
   if (!subscription) throw new Error('Subscription not found')
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const issuer = await getClubIssuer()
+  const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
+
   const stripe = getStripe()
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -409,7 +419,10 @@ export async function createSubscriptionStripeLink(subscriptionId: string) {
     metadata: {
       subscriptionId: subscription.id,
       memberId: subscription.memberId,
-      clubId: 'furvoley',
+      clubId: clubSlug,
+      clubName: issuer.name,
+      clubLegalName: issuer.legalName || '',
+      clubTaxId: issuer.taxId || '',
     },
     line_items: [
       {
@@ -427,7 +440,8 @@ export async function createSubscriptionStripeLink(subscriptionId: string) {
             interval_count: subscription.plan.billingPeriod === 'QUARTERLY' ? 3 : 1,
           },
           product_data: {
-            name: `${subscription.plan.name} - ${subscription.member.name}`,
+            name: `${issuer.name} · ${subscription.plan.name}`,
+            description: `Socio: ${subscription.member.name}`,
           },
         },
       },

@@ -59,6 +59,11 @@ function CrmProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     reload().catch((e: Error) => setError(e.message)).finally(() => setLoading(false));
   }, [reload]);
+  useEffect(() => {
+    function onUpdated() { reload().catch(() => {}) }
+    window.addEventListener('club-settings-updated', onUpdated)
+    return () => window.removeEventListener('club-settings-updated', onUpdated)
+  }, [reload]);
   const fmtMoney = useCallback((n: number) => {
     const cur = String(bundle?.currency ?? 'EUR')
     try {
@@ -436,14 +441,27 @@ function Sidebar({ active, setActive, onOpenClubSettings }) {
       boxShadow:'4px 0 24px rgba(15,23,42,0.04)'
     }}>
       {/* Brand */}
-      <div style={{padding:'28px 24px 24px'}}>
-        <div style={{
-          color:'#ffffff',fontWeight:700,fontSize:22,letterSpacing:'-0.02em',lineHeight:1.1
-        }}>Furvoley</div>
-        <div style={{
-          color:'#64748b',fontSize:11,fontWeight:700,
-          letterSpacing:'0.08em',marginTop:6,textTransform:'uppercase'
-        }}>Sistema de gestión</div>
+      <div style={{padding:'28px 24px 24px',display:'flex',alignItems:'center',gap:12}}>
+        {bundle?.club?.logoUrl ? (
+          <div style={{
+            width:42,height:42,borderRadius:10,overflow:'hidden',flexShrink:0,
+            background:'#ffffff',border:'1px solid rgba(255,255,255,0.08)',
+            display:'flex',alignItems:'center',justifyContent:'center',
+          }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={bundle.club.logoUrl} alt="" style={{width:'100%',height:'100%',objectFit:'contain',padding:4}} />
+          </div>
+        ) : null}
+        <div style={{minWidth:0,flex:1}}>
+          <div style={{
+            color:'#ffffff',fontWeight:700,fontSize:22,letterSpacing:'-0.02em',lineHeight:1.1,
+            whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
+          }}>{bundle?.club?.name || 'Furvoley'}</div>
+          <div style={{
+            color:'#64748b',fontSize:11,fontWeight:700,
+            letterSpacing:'0.08em',marginTop:6,textTransform:'uppercase'
+          }}>Sistema de gestión</div>
+        </div>
       </div>
 
       {/* Nav */}

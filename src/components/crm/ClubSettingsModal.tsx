@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+type StripeConfig = {
+  source: 'env'
+  hasCustomerId: boolean
+  customerIdMasked: string
+  dashboardUrl: string
+}
+
 type Settings = {
   id?: string
   name: string
@@ -17,8 +24,14 @@ type Settings = {
   contactPhone: string
   website: string
   primaryColor: string
-  stripeCustomerId: string
-  stripeDashboardUrl: string
+  stripe: StripeConfig
+}
+
+const EMPTY_STRIPE: StripeConfig = {
+  source: 'env',
+  hasCustomerId: false,
+  customerIdMasked: '',
+  dashboardUrl: 'https://dashboard.stripe.com/',
 }
 
 const EMPTY: Settings = {
@@ -35,8 +48,7 @@ const EMPTY: Settings = {
   contactPhone: '',
   website: '',
   primaryColor: '',
-  stripeCustomerId: '',
-  stripeDashboardUrl: '',
+  stripe: EMPTY_STRIPE,
 }
 
 type Tab = 'identity' | 'legal' | 'subscription'
@@ -71,7 +83,12 @@ export function ClubSettingsModal({
         return
       }
       const j = await r.json()
-      const s: Settings = { ...EMPTY, ...(j.settings || {}) }
+      const incoming = (j.settings || {}) as Partial<Settings>
+      const s: Settings = {
+        ...EMPTY,
+        ...incoming,
+        stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
+      }
       setForm(s)
       setLogoPreview(s.logoUrl)
     } finally {
@@ -137,21 +154,29 @@ export function ClubSettingsModal({
     setError(null)
     setInfo(null)
     try {
+      // No enviamos `stripe`: es read-only desde Railway env vars.
+      const { stripe: _s, ...editable } = form
       const r = await fetch('/api/crm/club-settings', {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(editable),
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) {
         setError(j.error || 'No se pudo guardar la configuración')
         return
       }
-      const s: Settings = { ...EMPTY, ...(j.settings || {}) }
+      const incoming = (j.settings || {}) as Partial<Settings>
+      const s: Settings = {
+        ...EMPTY,
+        ...incoming,
+        stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
+      }
       setForm(s)
       setLogoPreview(s.logoUrl)
       setInfo('Cambios guardados correctamente.')
+      window.dispatchEvent(new CustomEvent('club-settings-updated'))
       window.setTimeout(() => setInfo(null), 2400)
     } finally {
       setBusy(false)
@@ -330,8 +355,7 @@ export function ClubSettingsModal({
               {tab === 'legal' && <LegalTab form={form} update={update} />}
               {tab === 'subscription' && (
                 <SubscriptionTab
-                  form={form}
-                  update={update}
+                  stripe={form.stripe}
                   onOpenPortal={openStripePortal}
                   portalBusy={portalBusy}
                 />
@@ -623,16 +647,31 @@ function LegalTab({
 
 // ─── TAB: Suscripción Stripe ───────────────────────────────────────────────
 function SubscriptionTab({
-  form, update, onOpenPortal, portalBusy,
+  stripe, onOpenPortal, portalBusy,
 }: {
-  form: Settings
-  update: <K extends keyof Settings>(k: K, v: Settings[K]) => void
+  stripe: StripeConfig
   onOpenPortal: () => void
   portalBusy: boolean
 }) {
-  const hasCustomerId = !!form.stripeCustomerId.trim()
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div
+        style={{
+          padding: '12px 16px', borderRadius: 10,
+          background: 'var(--accent-pill)',
+          border: '1px solid rgba(0,74,198,0.18)',
+          display: 'flex', alignItems: 'flex-start', gap: 12,
+          color: 'var(--accent-strong)',
+        }}
+      >
+        <span aria-hidden style={{ fontSize: 16, lineHeight: 1, marginTop: 2 }}>ⓘ</span>
+        <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.5 }}>
+          Los datos de Stripe se configuran como <b>variables de entorno en Railway</b>
+          {' '}(<code style={codeStyle}>STRIPE_CLUB_CUSTOMER_ID</code> y{' '}
+          <code style={codeStyle}>STRIPE_DASHBOARD_URL</code>). Desde aquí solo puedes consultar y abrir el portal.
+        </div>
+      </div>
+
       <Section title="Portal del cliente Stripe" subtitle="Gestiona la suscripción del club al servicio (cambiar tarjeta, ver facturas y plan).">
         <div
           style={{
@@ -643,34 +682,32 @@ function SubscriptionTab({
           }}
         >
           <Field label="Stripe Customer ID del club">
-            <input
-              type="text"
-              value={form.stripeCustomerId}
-              onChange={(e) => update('stripeCustomerId', e.target.value)}
-              placeholder="cus_XxxxxXxxxxXxxx"
-              style={inputStyle}
-              autoComplete="off"
+            <ReadonlyValue
+              value={stripe.hasCustomerId ? stripe.customerIdMasked : 'No configurado'}
+              mono
+              tone={stripe.hasCustomerId ? 'default' : 'warning'}
             />
             <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-              Empieza por <code style={{ background: 'var(--surface-low)', padding: '1px 6px', borderRadius: 6 }}>cus_</code>. Lo encuentras en el Dashboard de Stripe &gt; Customers.
+              Configurado vía <code style={codeStyle}>STRIPE_CLUB_CUSTOMER_ID</code> en Railway.
+              {' '}Debe empezar por <code style={codeStyle}>cus_</code>.
             </div>
           </Field>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              {hasCustomerId
-                ? 'Recuerda guardar los cambios antes de abrir el portal.'
-                : 'Introduce el Customer ID y guarda para poder abrir el portal.'}
+              {stripe.hasCustomerId
+                ? 'Abre el portal de cliente en una pestaña nueva.'
+                : 'Configura STRIPE_CLUB_CUSTOMER_ID en Railway para activar el portal.'}
             </div>
             <button
               type="button"
               onClick={onOpenPortal}
-              disabled={portalBusy || !hasCustomerId}
+              disabled={portalBusy || !stripe.hasCustomerId}
               style={{
                 padding: '10px 18px', borderRadius: 8, border: 'none',
                 background: 'var(--accent)', color: '#fff',
                 fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-                cursor: (portalBusy || !hasCustomerId) ? 'not-allowed' : 'pointer',
-                opacity: (portalBusy || !hasCustomerId) ? 0.65 : 1,
+                cursor: (portalBusy || !stripe.hasCustomerId) ? 'not-allowed' : 'pointer',
+                opacity: (portalBusy || !stripe.hasCustomerId) ? 0.65 : 1,
                 boxShadow: '0 1px 2px rgba(0,74,198,0.2)',
               }}
             >
@@ -689,22 +726,15 @@ function SubscriptionTab({
             display: 'flex', flexDirection: 'column', gap: 16,
           }}
         >
-          <Field label="URL personalizada del dashboard (opcional)">
-            <input
-              type="text"
-              value={form.stripeDashboardUrl}
-              onChange={(e) => update('stripeDashboardUrl', e.target.value)}
-              placeholder="https://dashboard.stripe.com/login"
-              style={inputStyle}
-              autoComplete="off"
-            />
+          <Field label="URL del dashboard">
+            <ReadonlyValue value={stripe.dashboardUrl} mono />
             <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-              Por defecto se abre <b>dashboard.stripe.com</b> en una pestaña nueva.
+              Configurada vía <code style={codeStyle}>STRIPE_DASHBOARD_URL</code> (por defecto <b>dashboard.stripe.com</b>).
             </div>
           </Field>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <a
-              href={form.stripeDashboardUrl.trim() || 'https://dashboard.stripe.com/login'}
+              href={stripe.dashboardUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -722,6 +752,33 @@ function SubscriptionTab({
       </Section>
     </div>
   )
+}
+
+function ReadonlyValue({ value, mono, tone = 'default' }: { value: string; mono?: boolean; tone?: 'default' | 'warning' }) {
+  return (
+    <div
+      style={{
+        width: '100%',
+        padding: '10px 12px',
+        borderRadius: 8,
+        border: '1px solid var(--border)',
+        fontFamily: mono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : 'inherit',
+        fontSize: 13,
+        fontWeight: tone === 'warning' ? 600 : 500,
+        color: tone === 'warning' ? 'var(--amber)' : 'var(--text-primary)',
+        background: 'var(--surface-low)',
+        boxSizing: 'border-box',
+        userSelect: 'all',
+      }}
+    >
+      {value}
+    </div>
+  )
+}
+
+const codeStyle: React.CSSProperties = {
+  background: 'rgba(15,23,42,0.06)', padding: '1px 6px', borderRadius: 6, fontSize: 11.5,
+  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 }
 
 // ─── Helpers UI ────────────────────────────────────────────────────────────

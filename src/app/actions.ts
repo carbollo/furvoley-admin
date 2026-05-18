@@ -251,8 +251,11 @@ export async function generateStripeLink(paymentId: string) {
   if (payment.stripeUrl) return payment.stripeUrl
 
   const { getStripe } = await import('@/lib/stripe')
+  const { getClubIssuer } = await import('@/lib/club-settings')
   const stripe = getStripe()
-  
+  const issuer = await getClubIssuer()
+  const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
   const session = await stripe.checkout.sessions.create({
@@ -262,10 +265,10 @@ export async function generateStripeLink(paymentId: string) {
         price_data: {
           currency: 'eur',
           product_data: {
-            name: `Mensualidad Voleibol - ${payment.month}/${payment.year}`,
+            name: `${issuer.name} · Mensualidad ${payment.month}/${payment.year}`,
             description: `Socio: ${payment.member.name}`,
           },
-          unit_amount: Math.round(payment.amount * 100), // Stripe expects cents
+          unit_amount: Math.round(payment.amount * 100),
         },
         quantity: 1,
       },
@@ -274,6 +277,14 @@ export async function generateStripeLink(paymentId: string) {
     success_url: `${appUrl}/?tab=contabilidad&stripeSuccess=1`,
     cancel_url: `${appUrl}/?tab=contabilidad&stripeCanceled=1`,
     client_reference_id: payment.id,
+    metadata: {
+      paymentId: payment.id,
+      memberId: payment.memberId,
+      clubId: clubSlug,
+      clubName: issuer.name,
+      clubLegalName: issuer.legalName || '',
+      clubTaxId: issuer.taxId || '',
+    },
   })
 
   const updatedPayment = await prisma.payment.update({

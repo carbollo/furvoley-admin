@@ -1,22 +1,12 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
+import { getClubSettings, getStripePortalConfig } from '@/lib/club-settings'
 
 const MAX_LOGO_SIZE_BYTES = 768 * 1024 // ~768 KB para data URLs base64 (~ 1 MB en raw)
 
-async function getOrCreateSettings() {
-  const existing = await prisma.clubSettings.findUnique({ where: { isDefault: true } })
-  if (existing) return existing
-  return prisma.clubSettings.create({
-    data: {
-      isDefault: true,
-      name: 'Furvoley',
-      country: 'España',
-    },
-  })
-}
-
-function serialize(s: Awaited<ReturnType<typeof getOrCreateSettings>>) {
+function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
+  const stripe = getStripePortalConfig()
   return {
     id: s.id,
     name: s.name,
@@ -32,16 +22,21 @@ function serialize(s: Awaited<ReturnType<typeof getOrCreateSettings>>) {
     contactPhone: s.contactPhone ?? '',
     website: s.website ?? '',
     primaryColor: s.primaryColor ?? '',
-    stripeCustomerId: s.stripeCustomerId ?? '',
-    stripeDashboardUrl: s.stripeDashboardUrl ?? '',
     updatedAt: s.updatedAt.toISOString(),
+    // Datos de Stripe (read-only desde Railway env vars)
+    stripe: {
+      source: 'env' as const,
+      hasCustomerId: stripe.hasCustomerId,
+      customerIdMasked: stripe.customerIdMasked,
+      dashboardUrl: stripe.dashboardUrl,
+    },
   }
 }
 
 export async function GET() {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
-  const s = await getOrCreateSettings()
+  const s = await getClubSettings()
   return NextResponse.json({ settings: serialize(s) })
 }
 
@@ -56,12 +51,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  // Sanitización
   const data: Record<string, unknown> = {}
   const strFields = [
     'name', 'legalName', 'taxId', 'address', 'city', 'postalCode', 'province',
     'country', 'contactEmail', 'contactPhone', 'website', 'primaryColor',
-    'stripeCustomerId', 'stripeDashboardUrl',
   ] as const
 
   for (const k of strFields) {
@@ -82,18 +75,14 @@ export async function PATCH(request: Request) {
   // Si se intenta dejar name a null, ponemos un valor por defecto
   if (data.name === null) data.name = 'Furvoley'
 
-  // Validaciones suaves
   if (typeof data.contactEmail === 'string' && data.contactEmail && !data.contactEmail.includes('@')) {
     return NextResponse.json({ error: 'El email de contacto no es válido' }, { status: 400 })
   }
   if (typeof data.website === 'string' && data.website && !/^https?:\/\//i.test(data.website)) {
     data.website = 'https://' + data.website
   }
-  if (typeof data.stripeDashboardUrl === 'string' && data.stripeDashboardUrl && !/^https?:\/\//i.test(data.stripeDashboardUrl)) {
-    data.stripeDashboardUrl = 'https://' + data.stripeDashboardUrl
-  }
 
-  // Logo (data URL)
+  // Logo (data URL o URL https)
   if ('logoUrl' in body) {
     const raw = body.logoUrl
     if (raw === null || (typeof raw === 'string' && raw.trim() === '')) {
@@ -121,6 +110,6 @@ export async function PATCH(request: Request) {
     },
   })
 
-  const fresh = await getOrCreateSettings()
+  const fresh = await getClubSettings()
   return NextResponse.json({ ok: true, settings: serialize(fresh) })
 }

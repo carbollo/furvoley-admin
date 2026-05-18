@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { buildInvoicePdf } from '@/lib/invoice-pdf'
+import { getClubIssuer } from '@/lib/club-settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +34,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return new Response('No autorizado', { status: 403 })
   }
 
+  const issuer = await getClubIssuer()
+
   const bytes = await buildInvoicePdf({
     invoiceNumber: invoice.invoiceNumber,
     kind: invoice.kind,
@@ -55,6 +58,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       unitAmount: i.unitAmount,
       totalAmount: i.totalAmount,
     })),
+    issuer: {
+      name: issuer.name,
+      legalName: issuer.legalName,
+      taxId: issuer.taxId,
+      addressLines: issuer.addressLines,
+      contactEmail: issuer.contactEmail,
+      contactPhone: issuer.contactPhone,
+      website: issuer.website,
+    },
   })
 
   await prisma.invoice.update({

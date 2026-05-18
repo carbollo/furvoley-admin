@@ -167,9 +167,17 @@ function isAccountingSectionPath(path: string) {
   return path === '/accounting' || path.startsWith('/accounting/')
 }
 
-export function Sidebar() {
+export type SidebarBranding = {
+  name: string
+  logoUrl: string | null
+}
+
+export function Sidebar({ branding }: { branding?: SidebarBranding } = {}) {
   const pathname = usePathname() || ''
   const { data: session } = useSession()
+  const clubName = (branding?.name || 'Furvoley').trim() || 'Furvoley'
+  const clubLogo = branding?.logoUrl || null
+  const clubInitial = clubName.charAt(0).toUpperCase() || 'F'
   const [accountingOpen, setAccountingOpen] = useState(() => isAccountingSectionPath(pathname))
 
   useEffect(() => {
@@ -240,21 +248,33 @@ export function Sidebar() {
               width: 34,
               height: 34,
               borderRadius: 10,
-              background: ACCENT_GRADIENT,
+              background: clubLogo ? '#fff' : ACCENT_GRADIENT,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              overflow: 'hidden',
               fontSize: 16,
               fontWeight: 800,
               color: '#fff',
               flexShrink: 0,
             }}
           >
-            F
+            {clubLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={clubLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} />
+            ) : (
+              clubInitial
+            )}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
-              Furvoley
+            <div
+              style={{
+                color: '#fff', fontWeight: 700, fontSize: 14, lineHeight: 1.2,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}
+              title={clubName}
+            >
+              {clubName}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>
               Club Multideporte

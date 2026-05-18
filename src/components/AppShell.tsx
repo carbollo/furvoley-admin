@@ -3,6 +3,7 @@ import { authOptions } from '@/lib/auth'
 import { Sidebar } from '@/components/Sidebar'
 import { MemberShell } from '@/components/member/MemberShell'
 import { normalizeRole } from '@/lib/rbac'
+import { getClubBranding } from '@/lib/club-settings'
 
 import type { CSSProperties, ReactNode } from 'react'
 
@@ -42,14 +43,15 @@ export async function AppShell({
 }) {
   const session = await getServerSession(authOptions)
   const role = normalizeRole(session?.user?.role)
+  const branding = await getClubBranding()
 
   if (role === 'MEMBER') {
-    return <MemberShell>{children}</MemberShell>
+    return <MemberShell branding={branding}>{children}</MemberShell>
   }
 
   return (
     <>
-      <Sidebar />
+      <Sidebar branding={branding} />
       <main style={flush ? mainStyleNoPad : mainStyle}>{children}</main>
     </>
   )

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getTaxConfig } from '@/lib/tax-config'
 import { requireRoles } from '@/lib/rbac-api'
 import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
+import { getClubBranding } from '@/lib/club-settings'
 
 function initials(name: string) {
   return name
@@ -68,6 +69,7 @@ export async function GET() {
     taxConfig,
     usersRaw,
     newsRaw,
+    clubBranding,
   ] = await Promise.all([
     prisma.member.findMany({
       where:
@@ -192,6 +194,7 @@ export async function GET() {
           take: 150,
         })
       : Promise.resolve([]),
+    getClubBranding(),
   ])
 
   const pendingInvoicesAll = invoicesRaw.filter(
@@ -417,6 +420,12 @@ export async function GET() {
       email: sessionUser.email ?? '',
       role: currentRole,
       initials: initials(displayName),
+    },
+    club: {
+      name: clubBranding.name,
+      logoUrl: clubBranding.logoUrl,
+      primaryColor: clubBranding.primaryColor,
+      website: clubBranding.website,
     },
     currency,
     kpis: {

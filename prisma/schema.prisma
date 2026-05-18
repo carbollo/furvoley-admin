@@ -594,9 +594,8 @@ model ClubSettings {
   website          String?
   // Marca
   primaryColor     String?                  // hex (#004ac6, etc.)
-  // Stripe (suscripción del club al SaaS y/o dashboard)
-  stripeCustomerId String?
-  stripeDashboardUrl String?                // si el admin guarda su propio dashboard
+  // NOTA: la configuración de Stripe (customer ID + dashboard URL) vive en
+  // variables de entorno (Railway): STRIPE_CLUB_CUSTOMER_ID y STRIPE_DASHBOARD_URL.
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

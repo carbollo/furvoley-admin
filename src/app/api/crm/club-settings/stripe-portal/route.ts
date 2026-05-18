@@ -1,26 +1,24 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 import { getStripe } from '@/lib/stripe'
+import { getStripePortalConfig } from '@/lib/club-settings'
 
 /**
  * Crea una sesión del Stripe Billing Portal para que el ADMIN del club
  * gestione la suscripción del club al SaaS (cambiar tarjeta, ver facturas,
- * actualizar plan, etc.). Requiere que `clubSettings.stripeCustomerId` esté
- * configurado en el modal de configuración del club.
+ * actualizar plan, etc.). El customer ID se lee de la variable de entorno
+ * `STRIPE_CLUB_CUSTOMER_ID` (configurada en Railway), NO del modal.
  */
 export async function POST(request: Request) {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
 
-  const settings = await prisma.clubSettings.findUnique({ where: { isDefault: true } })
-  const customerId = settings?.stripeCustomerId?.trim()
-
-  if (!customerId) {
+  const cfg = getStripePortalConfig()
+  if (!cfg.hasCustomerId) {
     return NextResponse.json(
       {
         error:
-          'Aún no has vinculado un Stripe Customer ID. Ve a "Configuración del club" > "Suscripción" e introdúcelo (empieza por cus_…).',
+          'No hay STRIPE_CLUB_CUSTOMER_ID configurado en Railway. Añade la variable de entorno con tu customer ID (empieza por cus_…) y vuelve a desplegar.',
       },
       { status: 400 }
     )
@@ -31,7 +29,7 @@ export async function POST(request: Request) {
     const origin = url.origin
     const stripe = getStripe()
     const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
+      customer: cfg.customerId,
       return_url: origin + '/?tab=dashboard',
     })
     return NextResponse.json({ url: session.url })
@@ -40,7 +38,10 @@ export async function POST(request: Request) {
     const msg = String(e?.message || 'No se pudo abrir el portal de Stripe')
     if (code === 'resource_missing') {
       return NextResponse.json(
-        { error: 'El Stripe Customer ID configurado no existe en esta cuenta de Stripe.' },
+        {
+          error:
+            'El STRIPE_CLUB_CUSTOMER_ID configurado no existe en esta cuenta de Stripe. Comprueba la variable de entorno en Railway.',
+        },
         { status: 404 }
       )
     }

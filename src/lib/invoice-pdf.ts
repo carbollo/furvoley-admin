@@ -22,6 +22,19 @@ export type InvoicePdfInput = {
     unitAmount: number
     totalAmount: number
   }[]
+  /**
+   * Datos del emisor (club). Si se omite se usa solo el nombre genérico
+   * "Furvoley" como cabecera por compatibilidad.
+   */
+  issuer?: {
+    name: string
+    legalName?: string | null
+    taxId?: string | null
+    addressLines?: string[]
+    contactEmail?: string | null
+    contactPhone?: string | null
+    website?: string | null
+  }
 }
 
 function fmt(n: number) {
@@ -45,11 +58,30 @@ export async function buildInvoicePdf(data: InvoicePdfInput): Promise<Uint8Array
     y -= line * (size / 11)
   }
 
-  draw('Furvoley — Factura', { bold: true, size: 18 })
+  const issuer = data.issuer
+  const headerName = issuer?.name?.trim() || 'Furvoley'
+
+  draw(`${headerName} — Factura`, { bold: true, size: 18 })
   y -= 6
   draw(`Nº ${data.invoiceNumber}`)
   draw(`Tipo: ${data.kind === 'OTHER' ? 'Cobro adicional' : 'Cuota / membresía'}`)
   y -= 8
+
+  if (issuer) {
+    draw('Datos del emisor', { bold: true, size: 12 })
+    if (issuer.legalName) draw(issuer.legalName)
+    if (issuer.taxId) draw(`CIF/NIF: ${issuer.taxId}`)
+    if (issuer.addressLines && issuer.addressLines.length) {
+      for (const lineText of issuer.addressLines) draw(lineText, { size: 10 })
+    }
+    const contactBits = [
+      issuer.contactEmail || null,
+      issuer.contactPhone || null,
+      issuer.website || null,
+    ].filter(Boolean) as string[]
+    if (contactBits.length) draw(contactBits.join('  ·  '), { size: 10 })
+    y -= 8
+  }
 
   draw('Datos del socio', { bold: true, size: 12 })
   draw(data.member.name)
