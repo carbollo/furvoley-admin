@@ -5345,6 +5345,20 @@ function CrmInner() {
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
   const [showClubSettings, setShowClubSettings] = useState(false)
 
+  // Si volvemos del onboarding de Stripe Connect (?stripeConnect=connected|refresh)
+  // abrimos automáticamente el modal en la pestaña Suscripción y limpiamos el query.
+  useEffect(() => {
+    const sc = searchParams.get('stripeConnect')
+    if (!sc) return
+    if (role === 'ADMIN') {
+      setShowClubSettings(true)
+    }
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('stripeConnect')
+    const qs = params.toString()
+    router.replace(qs ? `/?${qs}` : '/', { scroll: false })
+  }, [searchParams, router, role])
+
   const tabRaw = searchParams.get('tab') ?? ''
   const normalizedTab = tabRaw === 'cobros' ? 'contabilidad' : tabRaw
   const role = normalizeRole(bundle?.user?.role)

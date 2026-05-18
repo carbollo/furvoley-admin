@@ -24,12 +24,12 @@ export async function POST() {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
 
-  const connect = getStripeConnectConfig()
+  const connect = await getStripeConnectConfig()
   if (!connect.hasConnectedAccount) {
     return NextResponse.json(
       {
         error:
-          'No hay STRIPE_CONNECTED_ACCOUNT_ID configurado en Railway. Añade la variable con el `acct_…` del cliente conectado y vuelve a desplegar.',
+          'No hay cuenta conectada. Conecta una cuenta desde el modal de configuración del club o define STRIPE_CONNECTED_ACCOUNT_ID en Railway.',
       },
       { status: 400 }
     )

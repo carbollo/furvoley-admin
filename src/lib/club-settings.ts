@@ -54,7 +54,7 @@ export type StripePortalConfig = {
 }
 
 export type StripeConnectConfig = {
-  /** Cuenta conectada del cliente (club) — `acct_…`. Lee `STRIPE_CONNECTED_ACCOUNT_ID`. */
+  /** Cuenta conectada del cliente (club) — `acct_…`. */
   connectedAccountId: string
   /** Si los cobros se enrutan a una cuenta conectada (Direct Charges). */
   hasConnectedAccount: boolean
@@ -65,6 +65,16 @@ export type StripeConnectConfig = {
    * `STRIPE_APPLICATION_FEE_PERCENT`. 0 = sin comisión.
    */
   applicationFeePercent: number
+  /** De dónde proviene el `acct_…`: env var (Railway), BD o no configurado. */
+  source: 'env' | 'db' | 'none'
+  /** Tipo de cuenta Stripe (`express` por defecto). */
+  accountType: 'express' | 'standard' | 'custom' | 'unknown'
+  /** Estado de onboarding (cacheado en BD; null si no se ha consultado). */
+  chargesEnabled: boolean | null
+  payoutsEnabled: boolean | null
+  detailsSubmitted: boolean | null
+  /** ISO de la última consulta al estado de la cuenta conectada. */
+  statusAt: string | null
 }
 
 /**
@@ -145,17 +155,48 @@ export function getStripePortalConfig(): StripePortalConfig {
 
 /**
  * Devuelve la configuración de Stripe Connect del cliente (club) que recibe
- * los cobros de sus socios. Lee exclusivamente env vars de Railway:
- * - `STRIPE_CONNECTED_ACCOUNT_ID` (`acct_…`): cuenta conectada destino.
- * - `STRIPE_APPLICATION_FEE_PERCENT` (0-100): comisión opcional de plataforma.
+ * los cobros de sus socios.
+ *
+ * Resolución por prioridad:
+ *   1. `STRIPE_CONNECTED_ACCOUNT_ID` (env var de Railway) — override total.
+ *   2. `ClubSettings.stripeConnectedAccountId` (BD) — onboarding hecho desde
+ *      el CRM via Stripe Connect Express.
+ *
+ * `STRIPE_APPLICATION_FEE_PERCENT` siempre viene de env vars.
  */
-export function getStripeConnectConfig(): StripeConnectConfig {
-  const raw = (process.env.STRIPE_CONNECTED_ACCOUNT_ID || '').trim()
-  const connectedAccountId = raw.startsWith('acct_') ? raw : ''
+export async function getStripeConnectConfig(): Promise<StripeConnectConfig> {
   const rawFee = (process.env.STRIPE_APPLICATION_FEE_PERCENT || '').trim()
   const parsedFee = rawFee ? Number(rawFee) : 0
   const applicationFeePercent =
     Number.isFinite(parsedFee) && parsedFee >= 0 && parsedFee <= 100 ? parsedFee : 0
+
+  const envRaw = (process.env.STRIPE_CONNECTED_ACCOUNT_ID || '').trim()
+  const envAcct = envRaw.startsWith('acct_') ? envRaw : ''
+
+  let dbAcct = ''
+  let accountType: StripeConnectConfig['accountType'] = 'unknown'
+  let chargesEnabled: boolean | null = null
+  let payoutsEnabled: boolean | null = null
+  let detailsSubmitted: boolean | null = null
+  let statusAt: string | null = null
+
+  try {
+    const s = await prisma.clubSettings.findUnique({ where: { isDefault: true } })
+    if (s?.stripeConnectedAccountId && s.stripeConnectedAccountId.startsWith('acct_')) {
+      dbAcct = s.stripeConnectedAccountId
+      accountType = (s.stripeAccountType as StripeConnectConfig['accountType']) || 'express'
+      chargesEnabled = s.stripeChargesEnabled ?? null
+      payoutsEnabled = s.stripePayoutsEnabled ?? null
+      detailsSubmitted = s.stripeDetailsSubmitted ?? null
+      statusAt = s.stripeAccountStatusAt ? s.stripeAccountStatusAt.toISOString() : null
+    }
+  } catch {
+    // BD no disponible — seguimos con env.
+  }
+
+  const connectedAccountId = envAcct || dbAcct
+  const source: StripeConnectConfig['source'] = envAcct ? 'env' : dbAcct ? 'db' : 'none'
+
   return {
     connectedAccountId,
     hasConnectedAccount: connectedAccountId !== '',
@@ -163,5 +204,11 @@ export function getStripeConnectConfig(): StripeConnectConfig {
       ? connectedAccountId.slice(0, 8) + '…' + connectedAccountId.slice(-4)
       : '',
     applicationFeePercent,
+    source,
+    accountType: envAcct ? 'unknown' : accountType,
+    chargesEnabled: envAcct ? null : chargesEnabled,
+    payoutsEnabled: envAcct ? null : payoutsEnabled,
+    detailsSubmitted: envAcct ? null : detailsSubmitted,
+    statusAt: envAcct ? null : statusAt,
   }
 }

@@ -20,7 +20,9 @@
 - [[changelog/2026-05-18-stripe-connect]] — Conexión Stripe Connect (Direct Charges) al cliente vía env vars.
 - [[changelog/2026-05-18-stripe-connect-funcional]] — Webhooks completos + contabilidad solo por CSV bancario.
 - [[changelog/2026-05-18-stripe-webhooks-bootstrap]] — Autoconfiguración de webhooks Stripe a partir de la URL pública (Railway).
+- [[changelog/2026-05-18-stripe-connect-express-onboarding]] — Onboarding Express desde el CRM (botón Conectar mi cuenta de Stripe).
 
 ## Configuración
 - [[features/club-settings]] — Modelo `ClubSettings`, endpoints y modal.
 - [[features/stripe-bootstrap]] — Bootstrap automático de webhooks Stripe por instancia clonada.
+- [[features/stripe-connect-express]] — Onboarding Stripe Connect Express desde el CRM.

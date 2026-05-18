@@ -10,10 +10,15 @@ type StripeConfig = {
 }
 
 type ConnectConfig = {
-  source: 'env'
+  source: 'env' | 'db' | 'none'
   hasConnectedAccount: boolean
   connectedAccountIdMasked: string
   applicationFeePercent: number
+  accountType: 'express' | 'standard' | 'custom' | 'unknown'
+  chargesEnabled: boolean | null
+  payoutsEnabled: boolean | null
+  detailsSubmitted: boolean | null
+  statusAt: string | null
 }
 
 type WebhooksStatus = {
@@ -59,10 +64,15 @@ const EMPTY_STRIPE: StripeConfig = {
 }
 
 const EMPTY_CONNECT: ConnectConfig = {
-  source: 'env',
+  source: 'none',
   hasConnectedAccount: false,
   connectedAccountIdMasked: '',
   applicationFeePercent: 0,
+  accountType: 'unknown',
+  chargesEnabled: null,
+  payoutsEnabled: null,
+  detailsSubmitted: null,
+  statusAt: null,
 }
 
 const EMPTY_WEBHOOKS: WebhooksStatus = {
@@ -278,6 +288,77 @@ export function ClubSettingsModal({
     }
   }
 
+  const [connectBusy, setConnectBusy] = useState(false)
+  async function startConnectOnboarding() {
+    if (connectBusy) return
+    setConnectBusy(true)
+    setError(null)
+    setInfo(null)
+    try {
+      const r = await fetch('/api/crm/stripe-connect/start', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || !j.url) {
+        setError(j.error || 'No se pudo iniciar el onboarding de Stripe Connect')
+        return
+      }
+      window.location.href = String(j.url)
+    } finally {
+      setConnectBusy(false)
+    }
+  }
+  async function refreshConnectStatus() {
+    if (connectBusy) return
+    setConnectBusy(true)
+    setError(null)
+    setInfo(null)
+    try {
+      const r = await fetch('/api/crm/stripe-connect/status', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setError(j.error || 'No se pudo refrescar el estado de la cuenta conectada')
+        return
+      }
+      await load()
+      setInfo('Estado de la cuenta conectada actualizado.')
+      window.setTimeout(() => setInfo(null), 2400)
+    } finally {
+      setConnectBusy(false)
+    }
+  }
+  async function disconnectAccount() {
+    if (connectBusy) return
+    const ok = window.confirm(
+      '¿Desvincular la cuenta de Stripe del CRM?\n\n' +
+      'La cuenta no se elimina en Stripe, solo deja de usarse para los cobros del club.'
+    )
+    if (!ok) return
+    setConnectBusy(true)
+    setError(null)
+    setInfo(null)
+    try {
+      const r = await fetch('/api/crm/stripe-connect/disconnect', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setError(j.error || 'No se pudo desvincular la cuenta')
+        return
+      }
+      await load()
+      setInfo('Cuenta desvinculada del CRM.')
+      window.setTimeout(() => setInfo(null), 2400)
+    } finally {
+      setConnectBusy(false)
+    }
+  }
+
   const [webhookBusy, setWebhookBusy] = useState(false)
   async function resyncWebhooks() {
     if (webhookBusy) return
@@ -462,8 +543,12 @@ export function ClubSettingsModal({
                   onOpenPortal={openStripePortal}
                   onOpenConnect={openConnectLogin}
                   onResyncWebhooks={resyncWebhooks}
+                  onStartOnboarding={startConnectOnboarding}
+                  onRefreshConnect={refreshConnectStatus}
+                  onDisconnectAccount={disconnectAccount}
                   portalBusy={portalBusy}
                   webhookBusy={webhookBusy}
+                  connectBusy={connectBusy}
                 />
               )}
             </>
@@ -753,7 +838,10 @@ function LegalTab({
 
 // ─── TAB: Suscripción Stripe ───────────────────────────────────────────────
 function SubscriptionTab({
-  stripe, connect, webhooks, onOpenPortal, onOpenConnect, onResyncWebhooks, portalBusy, webhookBusy,
+  stripe, connect, webhooks,
+  onOpenPortal, onOpenConnect, onResyncWebhooks,
+  onStartOnboarding, onRefreshConnect, onDisconnectAccount,
+  portalBusy, webhookBusy, connectBusy,
 }: {
   stripe: StripeConfig
   connect: ConnectConfig
@@ -761,9 +849,16 @@ function SubscriptionTab({
   onOpenPortal: () => void
   onOpenConnect: () => void
   onResyncWebhooks: () => void
+  onStartOnboarding: () => void
+  onRefreshConnect: () => void
+  onDisconnectAccount: () => void
   portalBusy: boolean
   webhookBusy: boolean
+  connectBusy: boolean
 }) {
+  const onboardingComplete = !!(connect.detailsSubmitted && connect.chargesEnabled)
+  const onboardingPending = connect.hasConnectedAccount && !onboardingComplete
+  const isEnvOverride = connect.source === 'env'
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div
@@ -791,6 +886,23 @@ function SubscriptionTab({
             display: 'flex', flexDirection: 'column', gap: 16,
           }}
         >
+          {/* Encabezado de origen */}
+          <div
+            style={{
+              padding: '10px 14px', borderRadius: 8,
+              background: isEnvOverride ? 'var(--accent-pill)' : 'var(--surface-low)',
+              color: isEnvOverride ? 'var(--accent-strong)' : 'var(--text-secondary)',
+              fontSize: 12.5, fontWeight: 600, lineHeight: 1.5,
+              border: '1px solid ' + (isEnvOverride ? 'rgba(0,74,198,0.18)' : 'var(--border)'),
+            }}
+          >
+            {isEnvOverride
+              ? <>Origen: <b>variable de entorno</b> (<code style={codeStyle}>STRIPE_CONNECTED_ACCOUNT_ID</code>). Para conectar una cuenta nueva desde el CRM, elimina esa env var en Railway.</>
+              : connect.source === 'db'
+                ? <>Origen: <b>onboarding desde el CRM</b> (Stripe Connect Express).</>
+                : <>Sin cuenta conectada. Conecta tu cuenta de Stripe desde aquí, o define <code style={codeStyle}>STRIPE_CONNECTED_ACCOUNT_ID</code> en Railway.</>}
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Field label="Connected account ID">
               <ReadonlyValue
@@ -799,8 +911,8 @@ function SubscriptionTab({
                 tone={connect.hasConnectedAccount ? 'default' : 'warning'}
               />
               <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                Configurado vía <code style={codeStyle}>STRIPE_CONNECTED_ACCOUNT_ID</code>.
-                {' '}Debe empezar por <code style={codeStyle}>acct_</code>.
+                Tipo: <b>{connect.accountType !== 'unknown' ? connect.accountType : '—'}</b>
+                {connect.statusAt ? <> · última sync: {new Date(connect.statusAt).toLocaleString('es-ES')}</> : null}
               </div>
             </Field>
             <Field label="Comisión de plataforma">
@@ -815,38 +927,95 @@ function SubscriptionTab({
             </Field>
           </div>
 
+          {/* Estado del onboarding */}
+          {connect.hasConnectedAccount && !isEnvOverride && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <StatusPill ok={!!connect.detailsSubmitted} label="Onboarding" />
+              <StatusPill ok={!!connect.chargesEnabled} label="Cobros" />
+              <StatusPill ok={!!connect.payoutsEnabled} label="Transferencias" />
+            </div>
+          )}
+
+          {/* Mensaje contextual */}
           <div
             style={{
               padding: '10px 14px', borderRadius: 8,
-              background: connect.hasConnectedAccount ? 'var(--green-soft)' : 'var(--amber-soft)',
-              color: connect.hasConnectedAccount ? 'var(--green)' : 'var(--amber)',
+              background: onboardingComplete
+                ? 'var(--green-soft)'
+                : connect.hasConnectedAccount
+                  ? 'var(--amber-soft)'
+                  : 'var(--surface-low)',
+              color: onboardingComplete
+                ? 'var(--green)'
+                : connect.hasConnectedAccount
+                  ? 'var(--amber)'
+                  : 'var(--text-secondary)',
               fontSize: 12.5, fontWeight: 600, lineHeight: 1.5,
             }}
           >
-            {connect.hasConnectedAccount
-              ? 'Los cobros se enrutan a esta cuenta conectada vía Stripe-Account header.'
-              : 'Sin cuenta conectada: los cobros se realizan en la cuenta de la plataforma. Añade STRIPE_CONNECTED_ACCOUNT_ID en Railway para enrutarlos al cliente.'}
+            {onboardingComplete
+              ? 'Cuenta conectada activa. Los cobros se enrutan automáticamente vía Stripe-Account header.'
+              : onboardingPending
+                ? 'Cuenta creada pero el onboarding no está completo. Completa los pasos en Stripe para empezar a cobrar.'
+                : connect.hasConnectedAccount
+                  ? 'Cuenta conectada vía env var. Los cobros se enrutan a esta cuenta.'
+                  : 'Conecta una cuenta de Stripe del cliente para que los pagos de socios aterricen ahí.'}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Abre el dashboard de la cuenta conectada del cliente.
-            </div>
+          {/* Botonera */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-end' }}>
+            {/* Conectar / completar */}
+            {!isEnvOverride && !connect.hasConnectedAccount && (
+              <button
+                type="button"
+                onClick={onStartOnboarding}
+                disabled={connectBusy}
+                style={primaryBtnStyle(connectBusy)}
+              >
+                {connectBusy ? 'Abriendo…' : 'Conectar mi cuenta de Stripe'}
+              </button>
+            )}
+            {!isEnvOverride && onboardingPending && (
+              <button
+                type="button"
+                onClick={onStartOnboarding}
+                disabled={connectBusy}
+                style={primaryBtnStyle(connectBusy)}
+              >
+                {connectBusy ? 'Abriendo…' : 'Completar onboarding'}
+              </button>
+            )}
+            {/* Refrescar */}
+            {connect.hasConnectedAccount && !isEnvOverride && (
+              <button
+                type="button"
+                onClick={onRefreshConnect}
+                disabled={connectBusy}
+                style={secondaryBtnStyle(connectBusy)}
+              >
+                {connectBusy ? 'Actualizando…' : 'Refrescar estado'}
+              </button>
+            )}
+            {/* Dashboard */}
             <button
               type="button"
               onClick={onOpenConnect}
               disabled={portalBusy || !connect.hasConnectedAccount}
-              style={{
-                padding: '10px 18px', borderRadius: 8, border: 'none',
-                background: 'var(--accent)', color: '#fff',
-                fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-                cursor: (portalBusy || !connect.hasConnectedAccount) ? 'not-allowed' : 'pointer',
-                opacity: (portalBusy || !connect.hasConnectedAccount) ? 0.65 : 1,
-                boxShadow: '0 1px 2px rgba(0,74,198,0.2)',
-              }}
+              style={primaryBtnStyle(portalBusy || !connect.hasConnectedAccount)}
             >
-              {portalBusy ? 'Abriendo…' : 'Abrir dashboard del cliente conectado'}
+              {portalBusy ? 'Abriendo…' : 'Abrir dashboard del cliente'}
             </button>
+            {/* Desvincular */}
+            {connect.hasConnectedAccount && !isEnvOverride && (
+              <button
+                type="button"
+                onClick={onDisconnectAccount}
+                disabled={connectBusy}
+                style={dangerBtnStyle(connectBusy)}
+              >
+                Desvincular cuenta
+              </button>
+            )}
           </div>
         </div>
       </Section>
@@ -1020,6 +1189,55 @@ function SubscriptionTab({
       </Section>
     </div>
   )
+}
+
+function StatusPill({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div
+      style={{
+        padding: '8px 12px', borderRadius: 8,
+        background: ok ? 'var(--green-soft)' : 'var(--amber-soft)',
+        color: ok ? 'var(--green)' : 'var(--amber)',
+        fontSize: 12, fontWeight: 700,
+        display: 'flex', alignItems: 'center', gap: 8,
+        lineHeight: 1.2,
+      }}
+    >
+      <span aria-hidden style={{ fontSize: 13 }}>{ok ? '✓' : '○'}</span>
+      <span>{label}</span>
+    </div>
+  )
+}
+
+function primaryBtnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: '10px 18px', borderRadius: 8, border: 'none',
+    background: 'var(--accent)', color: '#fff',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.65 : 1,
+    boxShadow: '0 1px 2px rgba(0,74,198,0.2)',
+  }
+}
+function secondaryBtnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: '10px 18px', borderRadius: 8,
+    background: 'var(--surface-card)', color: 'var(--text-primary)',
+    border: '1px solid var(--border-strong)',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.65 : 1,
+  }
+}
+function dangerBtnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: '10px 18px', borderRadius: 8,
+    background: 'transparent', color: 'var(--red)',
+    border: '1px solid rgba(186,26,26,0.35)',
+    fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.65 : 1,
+  }
 }
 
 function ReadonlyValue({ value, mono, tone = 'default' }: { value: string; mono?: boolean; tone?: 'default' | 'warning' }) {

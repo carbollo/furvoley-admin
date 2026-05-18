@@ -371,7 +371,7 @@ export async function createInvoiceStripeLink(invoiceId: string) {
   if (pendingAmount <= 0) return null
 
   const issuer = await getClubIssuer()
-  const connect = getStripeConnectConfig()
+  const connect = await getStripeConnectConfig()
   const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
   const pendingCents = Math.round(pendingAmount * 100)
   const applicationFeeCents = connect.applicationFeePercent > 0
@@ -437,7 +437,7 @@ export async function createSubscriptionStripeLink(subscriptionId: string) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const issuer = await getClubIssuer()
-  const connect = getStripeConnectConfig()
+  const connect = await getStripeConnectConfig()
   const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
 
   const stripe = getStripe()

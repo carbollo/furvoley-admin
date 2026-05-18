@@ -254,7 +254,7 @@ export async function generateStripeLink(paymentId: string) {
   const { getClubIssuer, getStripeConnectConfig } = await import('@/lib/club-settings')
   const stripe = getStripe()
   const issuer = await getClubIssuer()
-  const connect = getStripeConnectConfig()
+  const connect = await getStripeConnectConfig()
   const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
