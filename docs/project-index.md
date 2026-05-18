@@ -18,6 +18,7 @@
 - [[changelog/2026-05-18-club-settings]] — Modal de configuración del club (identidad, legal, Stripe).
 - [[changelog/2026-05-18-club-settings-propagado]] — Stripe a env vars + identidad y legal propagados a CRM, socio y facturas.
 - [[changelog/2026-05-18-stripe-connect]] — Conexión Stripe Connect (Direct Charges) al cliente vía env vars.
+- [[changelog/2026-05-18-stripe-connect-funcional]] — Webhooks completos + contabilidad solo por CSV bancario.
 
 ## Configuración
 - [[features/club-settings]] — Modelo `ClubSettings`, endpoints y modal.

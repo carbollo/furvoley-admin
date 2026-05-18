@@ -282,47 +282,59 @@ export async function recordInvoicePayment(data: {
     })
 
     const method = data.method ?? 'STRIPE'
-    let source = 'INVOICE_PAYMENT'
-    if (method === 'STRIPE') source = 'STRIPE'
-    else if (method === 'BANK_TRANSFER') source = 'BANK_TRANSFER'
-    else if (method === 'CASH') source = 'CASH'
 
-    await prisma.transaction.create({
-      data: {
-        type: 'INCOME',
-        amount: data.amount,
-        description: `Cobro factura ${invoice.invoiceNumber} (${method})`,
-        date: new Date(),
-        invoiceId: invoice.id,
-        source,
-        bankReference: data.bankReference ?? null,
-      },
-    })
+    // ⚠️ Política contable: los cobros recibidos por Stripe **no** generan
+    // automáticamente Transaction ni JournalEntry. La contabilidad oficial se
+    // llena exclusivamente desde el CSV bancario (importBankCsv +
+    // reconcileBankLine). Cuando el ingreso de Stripe aparezca en el extracto,
+    // el admin lo conciliará o creará el asiento desde la línea bancaria.
+    //
+    // Para BANK_TRANSFER y CASH (cobros registrados manualmente desde el CRM)
+    // sí creamos el asiento de inmediato, porque esos cobros nunca pasan por
+    // el CSV bancario (efectivo en mano) o porque su matching con el extracto
+    // se hará por importe/referencia (transferencia manual).
+    if (method !== 'STRIPE') {
+      let source = 'INVOICE_PAYMENT'
+      if (method === 'BANK_TRANSFER') source = 'BANK_TRANSFER'
+      else if (method === 'CASH') source = 'CASH'
 
-    await ensureBasePgcAccounts()
-    const cashAccount = method === 'CASH' ? '5700000' : '5720000'
-    await createJournalEntry({
-      concept: `Cobro factura ${invoice.invoiceNumber} (${method})`,
-      entryDate: new Date(),
-      source: 'PAYMENT',
-      sourceId: invoice.id,
-      lines: [
-        {
-          accountCode: cashAccount,
-          side: 'DEBIT',
+      await prisma.transaction.create({
+        data: {
+          type: 'INCOME',
           amount: data.amount,
-          lineConcept: 'Cobro recibido',
-          memberId: invoice.memberId,
+          description: `Cobro factura ${invoice.invoiceNumber} (${method})`,
+          date: new Date(),
+          invoiceId: invoice.id,
+          source,
+          bankReference: data.bankReference ?? null,
         },
-        {
-          accountCode: '4300000',
-          side: 'CREDIT',
-          amount: data.amount,
-          lineConcept: 'Cancelación parcial/total de cliente',
-          memberId: invoice.memberId,
-        },
-      ],
-    })
+      })
+
+      await ensureBasePgcAccounts()
+      const cashAccount = method === 'CASH' ? '5700000' : '5720000'
+      await createJournalEntry({
+        concept: `Cobro factura ${invoice.invoiceNumber} (${method})`,
+        entryDate: new Date(),
+        source: 'PAYMENT',
+        sourceId: invoice.id,
+        lines: [
+          {
+            accountCode: cashAccount,
+            side: 'DEBIT',
+            amount: data.amount,
+            lineConcept: 'Cobro recibido',
+            memberId: invoice.memberId,
+          },
+          {
+            accountCode: '4300000',
+            side: 'CREDIT',
+            amount: data.amount,
+            lineConcept: 'Cancelación parcial/total de cliente',
+            memberId: invoice.memberId,
+          },
+        ],
+      })
+    }
   }
 
   revalidatePath('/')

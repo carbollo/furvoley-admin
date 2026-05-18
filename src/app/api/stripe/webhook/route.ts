@@ -1,20 +1,21 @@
 import { headers } from 'next/headers'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
-import { recordInvoicePayment } from '@/app/actions/billing'
+import { createInvoiceForSubscription, recordInvoicePayment } from '@/app/actions/billing'
 import type Stripe from 'stripe'
 
 /**
  * Webhook único para eventos de la plataforma y de las cuentas conectadas
- * (Stripe Connect, Direct Charges). Aceptamos dos secrets:
+ * (Stripe Connect, Direct Charges).
  *
- *  - `STRIPE_WEBHOOK_SECRET`: eventos de la cuenta de la plataforma.
- *  - `STRIPE_CONNECT_WEBHOOK_SECRET`: eventos enviados al endpoint Connect
- *    (cobros que viven en una cuenta conectada — `event.account` poblado).
+ * Política contable: los cobros llegados por Stripe **no** generan
+ * Transaction/JournalEntry; la contabilidad oficial se carga importando el
+ * CSV del banco y conciliando líneas (`/accounting/bank-import`).
  *
- * Si solo configuras uno, el otro se ignora. Lo habitual es crear dos
- * endpoints en el Dashboard de Stripe con la misma URL y firmar cada uno
- * con su propio secret.
+ * Secrets aceptados:
+ *  - `STRIPE_WEBHOOK_SECRET` — eventos de la cuenta de la plataforma.
+ *  - `STRIPE_CONNECT_WEBHOOK_SECRET` — eventos de cuentas conectadas
+ *    (Direct Charges, donde `event.account` viene poblado).
  */
 export async function POST(req: Request) {
   const body = await req.text()
@@ -45,9 +46,60 @@ export async function POST(req: Request) {
     return new Response(`Webhook Error: ${errors.join(' | ')}`, { status: 400 })
   }
 
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.Checkout.Session
-    const invoiceId = session.metadata?.invoiceId || session.client_reference_id
+  // Para llamar a APIs de Stripe sobre la cuenta conectada (p.ej. recuperar
+  // un payment_intent), reutilizamos `event.account` como stripeAccount.
+  const stripeAccount = event.account
+  const requestOptions: Stripe.RequestOptions | undefined = stripeAccount
+    ? { stripeAccount }
+    : undefined
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        await onCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session)
+        break
+      }
+      case 'invoice.paid':
+      case 'invoice.payment_succeeded': {
+        await onInvoicePaymentSucceeded(event.data.object as Stripe.Invoice)
+        break
+      }
+      case 'invoice.payment_failed': {
+        await onInvoicePaymentFailed(event.data.object as Stripe.Invoice)
+        break
+      }
+      case 'payment_intent.payment_failed': {
+        await onPaymentIntentFailed(event.data.object as Stripe.PaymentIntent)
+        break
+      }
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        await onSubscriptionUpserted(event.data.object as Stripe.Subscription)
+        break
+      }
+      case 'customer.subscription.deleted': {
+        await onSubscriptionDeleted(event.data.object as Stripe.Subscription)
+        break
+      }
+      default:
+        // Evento no manejado — devolvemos 200 para no reintenten.
+        break
+    }
+  } catch (err) {
+    console.error('[stripe webhook] handler error', event.type, err)
+    return new Response('Handler error', { status: 500 })
+  }
+
+  return Response.json({ received: true, type: event.type, account: stripeAccount ?? null })
+  void requestOptions // reservado para futuras llamadas a Stripe API sobre la cuenta conectada
+}
+
+// ─── Handlers ─────────────────────────────────────────────────────────────
+
+async function onCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+  // Modo pago puntual (factura/payment ad-hoc)
+  if (session.mode === 'payment') {
+    const invoiceId = session.metadata?.invoiceId || session.client_reference_id || null
     if (invoiceId) {
       const amount = (session.amount_total ?? 0) / 100
       await recordInvoicePayment({
@@ -60,40 +112,193 @@ export async function POST(req: Request) {
           typeof session.payment_intent === 'string' ? session.payment_intent : undefined,
       })
     }
+    return
   }
 
-  if (event.type === 'payment_intent.payment_failed') {
-    const intent = event.data.object as Stripe.PaymentIntent
-    const invoice = await prisma.invoice.findFirst({
-      where: { paymentAttempts: { some: { stripePaymentIntent: intent.id } } },
+  // Modo suscripción: vincula nuestra Subscription con la de Stripe
+  if (session.mode === 'subscription') {
+    const internalSubscriptionId =
+      session.metadata?.subscriptionId || session.client_reference_id || null
+    const stripeSubscriptionId =
+      typeof session.subscription === 'string' ? session.subscription : null
+    const stripeCustomerId =
+      typeof session.customer === 'string' ? session.customer : null
+    if (internalSubscriptionId && stripeSubscriptionId) {
+      const exists = await prisma.subscription.findUnique({
+        where: { id: internalSubscriptionId },
+        select: { id: true },
+      })
+      if (exists) {
+        await prisma.subscription.update({
+          where: { id: internalSubscriptionId },
+          data: {
+            stripeSubscriptionId,
+            stripeCustomerId: stripeCustomerId ?? undefined,
+            autoPay: true,
+            status: 'ACTIVE',
+          },
+        })
+      }
+    }
+    // El primer cobro se procesa en `invoice.payment_succeeded` para evitar duplicados.
+    return
+  }
+}
+
+type LegacyInvoice = Stripe.Invoice & {
+  subscription?: string | Stripe.Subscription | null
+  payment_intent?: string | Stripe.PaymentIntent | null
+}
+
+async function onInvoicePaymentSucceeded(rawInvoice: Stripe.Invoice) {
+  const stripeInvoice = rawInvoice as LegacyInvoice
+  const amountPaid = (stripeInvoice.amount_paid ?? 0) / 100
+  const stripeSubscriptionId =
+    typeof stripeInvoice.subscription === 'string' ? stripeInvoice.subscription : null
+  const stripePaymentIntent =
+    typeof stripeInvoice.payment_intent === 'string' ? stripeInvoice.payment_intent : null
+
+  // Caso A: la factura interna se identifica explícitamente vía metadata.
+  const metaInvoiceId =
+    (stripeInvoice as { metadata?: Record<string, string> | null }).metadata?.invoiceId || null
+  if (metaInvoiceId) {
+    if (await alreadyRecorded(stripePaymentIntent)) return
+    await recordInvoicePayment({
+      invoiceId: metaInvoiceId,
+      amount: amountPaid,
+      method: 'STRIPE',
+      status: 'SUCCEEDED',
+      stripePaymentIntent: stripePaymentIntent ?? undefined,
     })
-    if (invoice) {
-      await prisma.paymentAttempt.create({
-        data: {
-          invoiceId: invoice.id,
-          amount: (intent.amount ?? 0) / 100,
-          method: 'STRIPE',
-          status: 'FAILED',
-          stripePaymentIntent: intent.id,
-          errorMessage: intent.last_payment_error?.message ?? 'Payment failed',
-        },
-      })
-    }
+    return
   }
 
-  if (event.type === 'invoice.paid') {
-    const stripeInvoice = event.data.object as Stripe.Invoice
-    const invoiceId =
-      (stripeInvoice as { metadata?: Record<string, string> }).metadata?.invoiceId ?? null
-    if (invoiceId) {
-      await recordInvoicePayment({
-        invoiceId,
-        amount: (stripeInvoice.amount_paid ?? 0) / 100,
+  // Caso B: cobro recurrente de una suscripción Stripe vinculada.
+  if (stripeSubscriptionId) {
+    if (await alreadyRecorded(stripePaymentIntent)) return
+    const subscription = await prisma.subscription.findFirst({
+      where: { stripeSubscriptionId },
+    })
+    if (!subscription) return
+
+    // Genera la siguiente factura interna del período y márcala como pagada.
+    // (createInvoiceForSubscription también avanza `nextInvoiceDate`.)
+    const newInvoice = await createInvoiceForSubscription(subscription.id)
+    await recordInvoicePayment({
+      invoiceId: newInvoice.id,
+      amount: amountPaid,
+      method: 'STRIPE',
+      status: 'SUCCEEDED',
+      stripePaymentIntent: stripePaymentIntent ?? undefined,
+    })
+  }
+}
+
+async function onInvoicePaymentFailed(rawInvoice: Stripe.Invoice) {
+  const stripeInvoice = rawInvoice as LegacyInvoice
+  const stripeSubscriptionId =
+    typeof stripeInvoice.subscription === 'string' ? stripeInvoice.subscription : null
+  const stripePaymentIntent =
+    typeof stripeInvoice.payment_intent === 'string' ? stripeInvoice.payment_intent : null
+
+  if (stripeSubscriptionId) {
+    const subscription = await prisma.subscription.findFirst({
+      where: { stripeSubscriptionId },
+    })
+    if (subscription) {
+      // Marca la última factura pendiente de esa suscripción como OVERDUE.
+      const lastPending = await prisma.invoice.findFirst({
+        where: { subscriptionId: subscription.id, status: { in: ['PENDING', 'PARTIAL'] } },
+        orderBy: { issueDate: 'desc' },
+      })
+      if (lastPending) {
+        await prisma.paymentAttempt.create({
+          data: {
+            invoiceId: lastPending.id,
+            amount: (stripeInvoice.amount_due ?? 0) / 100,
+            method: 'STRIPE',
+            status: 'FAILED',
+            stripePaymentIntent: stripePaymentIntent ?? undefined,
+            errorMessage: 'Stripe invoice.payment_failed',
+          },
+        })
+        await prisma.invoice.update({
+          where: { id: lastPending.id },
+          data: { status: 'OVERDUE' },
+        })
+      }
+    }
+  }
+}
+
+async function onPaymentIntentFailed(intent: Stripe.PaymentIntent) {
+  const invoice = await prisma.invoice.findFirst({
+    where: { paymentAttempts: { some: { stripePaymentIntent: intent.id } } },
+  })
+  if (invoice) {
+    await prisma.paymentAttempt.create({
+      data: {
+        invoiceId: invoice.id,
+        amount: (intent.amount ?? 0) / 100,
         method: 'STRIPE',
-        status: 'SUCCEEDED',
-      })
-    }
+        status: 'FAILED',
+        stripePaymentIntent: intent.id,
+        errorMessage: intent.last_payment_error?.message ?? 'Payment failed',
+      },
+    })
   }
+}
 
-  return Response.json({ received: true, account: event.account ?? null })
+async function onSubscriptionUpserted(sub: Stripe.Subscription) {
+  const stripeSubscriptionId = sub.id
+  const status = mapStripeSubscriptionStatus(sub.status)
+  const stripeCustomerId = typeof sub.customer === 'string' ? sub.customer : null
+  const internal = await prisma.subscription.findFirst({ where: { stripeSubscriptionId } })
+  if (!internal) return
+  await prisma.subscription.update({
+    where: { id: internal.id },
+    data: {
+      status,
+      stripeCustomerId: stripeCustomerId ?? undefined,
+      endDate: status === 'CANCELED' ? new Date() : null,
+    },
+  })
+}
+
+async function onSubscriptionDeleted(sub: Stripe.Subscription) {
+  const internal = await prisma.subscription.findFirst({
+    where: { stripeSubscriptionId: sub.id },
+  })
+  if (!internal) return
+  await prisma.subscription.update({
+    where: { id: internal.id },
+    data: { status: 'CANCELED', endDate: new Date() },
+  })
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+
+async function alreadyRecorded(stripePaymentIntent: string | null) {
+  if (!stripePaymentIntent) return false
+  const existing = await prisma.paymentAttempt.findFirst({
+    where: { stripePaymentIntent, status: 'SUCCEEDED' },
+    select: { id: true },
+  })
+  return !!existing
+}
+
+function mapStripeSubscriptionStatus(stripeStatus: string): 'ACTIVE' | 'PAUSED' | 'CANCELED' {
+  switch (stripeStatus) {
+    case 'active':
+    case 'trialing':
+      return 'ACTIVE'
+    case 'paused':
+      return 'PAUSED'
+    case 'canceled':
+    case 'incomplete_expired':
+    case 'unpaid':
+      return 'CANCELED'
+    default:
+      return 'ACTIVE'
+  }
 }
