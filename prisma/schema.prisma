@@ -573,3 +573,32 @@ model NewsPost {
   authorId    String?
   author      User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
 }
+
+// --- CLUB IDENTITY & SUBSCRIPTION (singleton) ---
+model ClubSettings {
+  id               String   @id @default(cuid())
+  isDefault        Boolean  @default(true)
+  // Identidad
+  name             String   @default("Furvoley")
+  logoUrl          String?  @db.Text       // data URL (base64) o URL externa
+  // Información legal
+  legalName        String?
+  taxId            String?                  // CIF / NIF / VAT
+  address          String?
+  city             String?
+  postalCode       String?
+  province         String?
+  country          String?  @default("España")
+  contactEmail     String?
+  contactPhone     String?
+  website          String?
+  // Marca
+  primaryColor     String?                  // hex (#004ac6, etc.)
+  // Stripe (suscripción del club al SaaS y/o dashboard)
+  stripeCustomerId String?
+  stripeDashboardUrl String?                // si el admin guarda su propio dashboard
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([isDefault])
+}

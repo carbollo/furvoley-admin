@@ -2,6 +2,7 @@
 'use client'
 
 import { WorkflowsSection } from './WorkflowsSection'
+import { ClubSettingsModal } from './ClubSettingsModal'
 import { PaymentReminderButton } from './PaymentReminderButton'
 import { InviteLinkButton } from './InviteLinkButton'
 import './crm-vars.css'
@@ -422,7 +423,7 @@ const NAV = [
   { id: 'personal', label: 'Personal', icon: 'users' },
 ];
 
-function Sidebar({ active, setActive }) {
+function Sidebar({ active, setActive, onOpenClubSettings }) {
   const { bundle } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
   const visibleNav = NAV.filter((item) => canAccessCrmSection(role, item.id))
@@ -500,25 +501,60 @@ function Sidebar({ active, setActive }) {
         marginTop:'auto',borderTop:'1px solid var(--sidebar-border)',
         padding:'16px 0 12px',display:'flex',flexDirection:'column'
       }}>
-        <div style={{padding:'8px 24px 12px',display:'flex',alignItems:'center',gap:12}}>
-          <div style={{
-            width:40,height:40,borderRadius:'50%',
-            background:'linear-gradient(135deg, #2563eb, #004ac6)',
-            display:'flex',alignItems:'center',justifyContent:'center',
-            fontSize:14,fontWeight:700,color:'#fff',flexShrink:0,
-            border:'1px solid rgba(255,255,255,0.08)'
-          }}>{bundle?.user?.initials || '—'}</div>
-          <div style={{minWidth:0,flex:1}}>
+        {role === 'ADMIN' && onOpenClubSettings ? (
+          <button
+            type="button"
+            onClick={onOpenClubSettings}
+            title="Configuración del club"
+            style={{
+              display:'flex',alignItems:'center',gap:12,width:'100%',
+              padding:'10px 24px 12px',border:'none',cursor:'pointer',
+              background:'transparent',color:'inherit',fontFamily:'inherit',
+              textAlign:'left',transition:'all 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+          >
             <div style={{
-              color:'#ffffff',fontWeight:600,fontSize:14,lineHeight:1.2,
-              whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
-            }}>{bundle?.user?.name || 'Administrador'}</div>
+              width:40,height:40,borderRadius:'50%',
+              background:'linear-gradient(135deg, #2563eb, #004ac6)',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:14,fontWeight:700,color:'#fff',flexShrink:0,
+              border:'1px solid rgba(255,255,255,0.08)'
+            }}>{bundle?.user?.initials || '—'}</div>
+            <div style={{minWidth:0,flex:1}}>
+              <div style={{
+                color:'#ffffff',fontWeight:600,fontSize:14,lineHeight:1.2,
+                whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
+              }}>{bundle?.user?.name || 'Administrador'}</div>
+              <div style={{
+                color:'#64748b',fontSize:11,fontWeight:700,
+                letterSpacing:'0.06em',textTransform:'uppercase',marginTop:2
+              }}>{ROLE_LABEL[role] || 'Socio'}</div>
+            </div>
+            <span aria-hidden style={{color:'#64748b',fontSize:14,flexShrink:0,opacity:0.7}}>⚙</span>
+          </button>
+        ) : (
+          <div style={{padding:'8px 24px 12px',display:'flex',alignItems:'center',gap:12}}>
             <div style={{
-              color:'#64748b',fontSize:11,fontWeight:700,
-              letterSpacing:'0.06em',textTransform:'uppercase',marginTop:2
-            }}>{ROLE_LABEL[role] || 'Socio'}</div>
+              width:40,height:40,borderRadius:'50%',
+              background:'linear-gradient(135deg, #2563eb, #004ac6)',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize:14,fontWeight:700,color:'#fff',flexShrink:0,
+              border:'1px solid rgba(255,255,255,0.08)'
+            }}>{bundle?.user?.initials || '—'}</div>
+            <div style={{minWidth:0,flex:1}}>
+              <div style={{
+                color:'#ffffff',fontWeight:600,fontSize:14,lineHeight:1.2,
+                whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
+              }}>{bundle?.user?.name || 'Administrador'}</div>
+              <div style={{
+                color:'#64748b',fontSize:11,fontWeight:700,
+                letterSpacing:'0.06em',textTransform:'uppercase',marginTop:2
+              }}>{ROLE_LABEL[role] || 'Socio'}</div>
+            </div>
           </div>
-        </div>
+        )}
 
         <button
           type="button"
@@ -5289,6 +5325,7 @@ function CrmInner() {
   const { loading, error, bundle } = useCrm()
   const [showNotifications, setShowNotifications] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
+  const [showClubSettings, setShowClubSettings] = useState(false)
 
   const tabRaw = searchParams.get('tab') ?? ''
   const normalizedTab = tabRaw === 'cobros' ? 'contabilidad' : tabRaw
@@ -5510,7 +5547,11 @@ function CrmInner() {
           Cargando CRM…
         </div>
       )}
-      <Sidebar active={safeActive} setActive={setActive}/>
+      <Sidebar
+        active={safeActive}
+        setActive={setActive}
+        onOpenClubSettings={role === 'ADMIN' ? () => setShowClubSettings(true) : undefined}
+      />
       <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',minWidth:0,background:'var(--surface)'}}>
         <div style={{
           height:72,background:'var(--surface-card)',
@@ -5649,10 +5690,20 @@ function CrmInner() {
             </div>
           )}
           </div>
-            <div style={{
-              display:'flex',alignItems:'center',gap:10,
-              paddingLeft:16,marginLeft:4,borderLeft:'1px solid var(--border)'
-            }}>
+            <button
+              type="button"
+              onClick={role === 'ADMIN' ? () => setShowClubSettings(true) : undefined}
+              disabled={role !== 'ADMIN'}
+              title={role === 'ADMIN' ? 'Configuración del club' : undefined}
+              style={{
+                display:'flex',alignItems:'center',gap:10,
+                paddingLeft:16,marginLeft:4,borderLeft:'1px solid var(--border)',
+                background:'transparent',border:'none',
+                cursor: role === 'ADMIN' ? 'pointer' : 'default',
+                fontFamily:'inherit',padding:'4px 0 4px 16px',
+                borderRadius:0,
+              }}
+            >
               <div style={{
                 display:'flex',flexDirection:'column',alignItems:'flex-end',lineHeight:1.2
               }} className="crm-topbar-user-text">
@@ -5671,13 +5722,25 @@ function CrmInner() {
                 boxShadow:'0 2px 8px rgba(0,74,198,0.2)',
                 border:'2px solid var(--surface-card)'
               }}>{bundle?.user?.initials || '—'}</div>
-            </div>
+            </button>
           </div>
         </div>
         <div style={{flex:1,overflow:'hidden',display:'flex',minWidth:0}}>
           <Screen setActive={setActive}/>
         </div>
       </div>
+      {role === 'ADMIN' && (
+        <ClubSettingsModal
+          open={showClubSettings}
+          onClose={() => setShowClubSettings(false)}
+          initialUser={{
+            name: bundle?.user?.name,
+            email: bundle?.user?.email,
+            role: bundle?.user?.role,
+            initials: bundle?.user?.initials,
+          }}
+        />
+      )}
     </div>
   );
 }
