@@ -107,16 +107,18 @@ export async function POST() {
       const detail = typeof raw.message === 'string' ? raw.message : String(e)
       const code = typeof raw.code === 'string' ? raw.code : ''
 
-      /** Mensaje orientativo según código concreto de Stripe (los más habituales). */
+      /** Solo mapeamos códigos explícitos. NUNCA uses `detail.includes('connect')`:
+       * palabras como "connected" también contienen "connect" y mostrábamos
+       * un mensaje equivocado ("Connect no activado") para errores totalmente otros. */
       let error =
-        'No se pudo crear la cuenta conectada en Stripe. Completa antes el registro de Connect de tu cuenta plataforma (la de STRIPE_SECRET_KEY).'
-      if (code === 'connect_not_enabled' || detail.toLowerCase().includes('connect')) {
+        'Stripe rechazó crear la cuenta conectada. Revisa `detail` (texto técnico) y el modo Test/Live de tu STRIPE_SECRET_KEY.'
+      if (code === 'connect_not_enabled') {
         error =
-          'Connect no está activado en esta cuenta de Stripe. Entra en el Dashboard → Connect → inicia/completa el registro de la plataforma.'
+          'Connect no está activado para esta cuenta. En Stripe Dashboard → Connect, completa el registro de plataforma (mismo modo Test/Live que tu clave).'
       }
       if (code === 'invalid_request_error' && detail.includes('capabilities')) {
         error =
-          'Stripe rechazó las capacidades pedidas para este país/modalidad. Revisa Connect Settings o prueba país en modo Test.'
+          'Stripe rechazó las capacidades pedidas para este país/modalidad. Revisa Connect Settings o prueba en modo Test.'
       }
 
       console.error('[stripe-connect/start] accounts.create failed', { code, detail })
