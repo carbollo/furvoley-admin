@@ -860,25 +860,11 @@ function SubscriptionTab({
   const onboardingComplete = !!(connect.detailsSubmitted && connect.chargesEnabled)
   const onboardingPending = connect.hasConnectedAccount && !onboardingComplete
   const isEnvOverride = connect.source === 'env'
+  const webhookStatusOk = webhooks.configured && !webhooks.error
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div
-        style={{
-          padding: '12px 16px', borderRadius: 10,
-          background: 'var(--accent-pill)',
-          border: '1px solid rgba(0,74,198,0.18)',
-          display: 'flex', alignItems: 'flex-start', gap: 12,
-          color: 'var(--accent-strong)',
-        }}
-      >
-        <span aria-hidden style={{ fontSize: 16, lineHeight: 1, marginTop: 2 }}>ⓘ</span>
-        <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.5 }}>
-          Toda la integración con Stripe se configura como <b>variables de entorno en Railway</b>.
-          Desde aquí solo puedes consultar el estado y abrir los portales correspondientes.
-        </div>
-      </div>
 
-      <Section title="Stripe Connect — cuenta del cliente" subtitle="Cuenta conectada donde aterrizan los cobros de los socios (Direct Charges).">
+      <Section title="Cobros con Stripe (club)" subtitle="Enlaza la cuenta donde se ingresan los pagos de los socios.">
         <div
           style={{
             padding: 20, borderRadius: 12,
@@ -887,85 +873,80 @@ function SubscriptionTab({
             display: 'flex', flexDirection: 'column', gap: 16,
           }}
         >
-          {/* Encabezado de origen */}
-          <div
-            style={{
-              padding: '10px 14px', borderRadius: 8,
-              background: isEnvOverride ? 'var(--accent-pill)' : 'var(--surface-low)',
-              color: isEnvOverride ? 'var(--accent-strong)' : 'var(--text-secondary)',
-              fontSize: 12.5, fontWeight: 600, lineHeight: 1.5,
-              border: '1px solid ' + (isEnvOverride ? 'rgba(0,74,198,0.18)' : 'var(--border)'),
-            }}
-          >
-            {isEnvOverride
-              ? <>Origen: <b>variable de entorno</b> (<code style={codeStyle}>STRIPE_CONNECTED_ACCOUNT_ID</code>). Para conectar una cuenta nueva desde el CRM, elimina esa env var en Railway.</>
-              : connect.source === 'db'
-                ? <>Origen: <b>onboarding desde el CRM</b> (Stripe Connect Express).</>
-                : <>Sin cuenta conectada. Conecta tu cuenta de Stripe desde aquí, o define <code style={codeStyle}>STRIPE_CONNECTED_ACCOUNT_ID</code> en Railway.</>}
-          </div>
+          {/* Nota corta solo si hace falta (sin variables ni hosting) */}
+          {isEnvOverride ? (
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              La cuenta de Stripe de este club está fijada en la configuración del servidor (no puede cambiarse desde aquí).
+            </div>
+          ) : null}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Connected account ID">
-              <ReadonlyValue
-                value={connect.hasConnectedAccount ? connect.connectedAccountIdMasked : 'No configurado'}
-                mono
-                tone={connect.hasConnectedAccount ? 'default' : 'warning'}
-              />
-              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                Tipo: <b>{connect.accountType !== 'unknown' ? connect.accountType : '—'}</b>
-                {connect.statusAt ? <> · última sync: {new Date(connect.statusAt).toLocaleString('es-ES')}</> : null}
+          {!isEnvOverride && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <Field label={connect.hasConnectedAccount ? 'Referencia cuenta' : 'Estado cuenta'}>
+                  <ReadonlyValue
+                    value={connect.hasConnectedAccount ? connect.connectedAccountIdMasked : 'Sin enlace'}
+                    mono
+                    tone={connect.hasConnectedAccount ? 'default' : 'warning'}
+                  />
+                </Field>
+                <Field label="Comisión plataforma">
+                  <ReadonlyValue
+                    value={connect.applicationFeePercent > 0
+                      ? connect.applicationFeePercent + ' %'
+                      : 'Ninguna'}
+                  />
+                </Field>
               </div>
-            </Field>
-            <Field label="Comisión de plataforma">
-              <ReadonlyValue
-                value={connect.applicationFeePercent > 0
-                  ? connect.applicationFeePercent + ' %'
-                  : 'Sin comisión (0 %)'}
-              />
-              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                Configurada vía <code style={codeStyle}>STRIPE_APPLICATION_FEE_PERCENT</code>.
-              </div>
-            </Field>
-          </div>
 
-          {/* Estado del onboarding */}
-          {connect.hasConnectedAccount && !isEnvOverride && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-              <StatusPill ok={!!connect.detailsSubmitted} label="Onboarding" />
-              <StatusPill ok={!!connect.chargesEnabled} label="Cobros" />
-              <StatusPill ok={!!connect.payoutsEnabled} label="Transferencias" />
+              {connect.hasConnectedAccount && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <StatusPill ok={!!connect.detailsSubmitted} label="Datos completos" />
+                  <StatusPill ok={!!connect.chargesEnabled} label="Cobros habilitados" />
+                  <StatusPill ok={!!connect.payoutsEnabled} label="Liquidaciones habilitadas" />
+                </div>
+              )}
+
+              <div
+                style={{
+                  padding: '10px 14px', borderRadius: 8,
+                  background: onboardingComplete
+                    ? 'var(--green-soft)'
+                    : connect.hasConnectedAccount
+                      ? 'var(--amber-soft)'
+                      : 'var(--surface-low)',
+                  color: onboardingComplete
+                    ? 'var(--green)'
+                    : connect.hasConnectedAccount
+                      ? 'var(--amber)'
+                      : 'var(--text-secondary)',
+                  fontSize: 12.5, fontWeight: 600, lineHeight: 1.5,
+                }}
+              >
+                {onboardingComplete
+                  ? 'La cuenta está lista para recibir pagos desde el club.'
+                  : onboardingPending
+                    ? 'Abre Stripe y termina los pasos que falten antes de poder cobrar.'
+                    : 'Sin cuenta enlazada. Conecta Stripe del club para dirigir ahí los pagos de socios.'}
+              </div>
+            </>
+          )}
+
+          {isEnvOverride && connect.hasConnectedAccount && (
+            <div
+              style={{
+                padding: '10px 14px', borderRadius: 8,
+                background: 'var(--surface-low)',
+                color: 'var(--text-secondary)',
+                fontSize: 12.5, fontWeight: 600,
+                lineHeight: 1.5,
+              }}
+            >
+              Cuenta activa ({connect.connectedAccountIdMasked}). Los cobros se dirigen ahí según tu configuración.
             </div>
           )}
 
-          {/* Mensaje contextual */}
-          <div
-            style={{
-              padding: '10px 14px', borderRadius: 8,
-              background: onboardingComplete
-                ? 'var(--green-soft)'
-                : connect.hasConnectedAccount
-                  ? 'var(--amber-soft)'
-                  : 'var(--surface-low)',
-              color: onboardingComplete
-                ? 'var(--green)'
-                : connect.hasConnectedAccount
-                  ? 'var(--amber)'
-                  : 'var(--text-secondary)',
-              fontSize: 12.5, fontWeight: 600, lineHeight: 1.5,
-            }}
-          >
-            {onboardingComplete
-              ? 'Cuenta conectada activa. Los cobros se enrutan automáticamente vía Stripe-Account header.'
-              : onboardingPending
-                ? 'Cuenta creada pero el onboarding no está completo. Completa los pasos en Stripe para empezar a cobrar.'
-                : connect.hasConnectedAccount
-                  ? 'Cuenta conectada vía env var. Los cobros se enrutan a esta cuenta.'
-                  : 'Conecta una cuenta de Stripe del cliente para que los pagos de socios aterricen ahí.'}
-          </div>
-
-          {/* Botonera */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-end' }}>
-            {/* Conectar / completar */}
             {!isEnvOverride && !connect.hasConnectedAccount && (
               <button
                 type="button"
@@ -983,10 +964,9 @@ function SubscriptionTab({
                 disabled={connectBusy}
                 style={primaryBtnStyle(connectBusy)}
               >
-                {connectBusy ? 'Abriendo…' : 'Completar onboarding'}
+                {connectBusy ? 'Abriendo…' : 'Continuar en Stripe'}
               </button>
             )}
-            {/* Refrescar */}
             {connect.hasConnectedAccount && !isEnvOverride && (
               <button
                 type="button"
@@ -994,19 +974,17 @@ function SubscriptionTab({
                 disabled={connectBusy}
                 style={secondaryBtnStyle(connectBusy)}
               >
-                {connectBusy ? 'Actualizando…' : 'Refrescar estado'}
+                {connectBusy ? 'Actualizando…' : 'Actualizar estado'}
               </button>
             )}
-            {/* Dashboard */}
             <button
               type="button"
               onClick={onOpenConnect}
               disabled={portalBusy || !connect.hasConnectedAccount}
               style={primaryBtnStyle(portalBusy || !connect.hasConnectedAccount)}
             >
-              {portalBusy ? 'Abriendo…' : 'Abrir dashboard del cliente'}
+              {portalBusy ? 'Abriendo…' : 'Ver cuenta del club en Stripe'}
             </button>
-            {/* Desvincular */}
             {connect.hasConnectedAccount && !isEnvOverride && (
               <button
                 type="button"
@@ -1021,7 +999,7 @@ function SubscriptionTab({
         </div>
       </Section>
 
-      <Section title="Portal del cliente Stripe" subtitle="Gestiona la suscripción del club al servicio (cambiar tarjeta, ver facturas y plan).">
+      <Section title="Suscripción al servicio" subtitle="Gestión de la tarifa del club si la tenéis con facturación en Stripe (tarjeta, facturas internas…).">
         <div
           style={{
             padding: 20, borderRadius: 12,
@@ -1030,23 +1008,12 @@ function SubscriptionTab({
             display: 'flex', flexDirection: 'column', gap: 16,
           }}
         >
-          <Field label="Stripe Customer ID del club">
-            <ReadonlyValue
-              value={stripe.hasCustomerId ? stripe.customerIdMasked : 'No configurado'}
-              mono
-              tone={stripe.hasCustomerId ? 'default' : 'warning'}
-            />
-            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-              Configurado vía <code style={codeStyle}>STRIPE_CLUB_CUSTOMER_ID</code> en Railway.
-              {' '}Debe empezar por <code style={codeStyle}>cus_</code>.
-            </div>
-          </Field>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              {stripe.hasCustomerId
-                ? 'Abre el portal de cliente en una pestaña nueva.'
-                : 'Configura STRIPE_CLUB_CUSTOMER_ID en Railway para activar el portal.'}
-            </div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+            {stripe.hasCustomerId
+              ? 'Puedes revisar método de pago y facturas de la cuota del servicio cuando el equipo técnico lo haya activado.'
+              : 'No hay suscripción enlazada. Si debería existir, contacta con el equipo técnico.'}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
               type="button"
               onClick={onOpenPortal}
@@ -1060,30 +1027,23 @@ function SubscriptionTab({
                 boxShadow: '0 1px 2px rgba(0,74,198,0.2)',
               }}
             >
-              {portalBusy ? 'Abriendo…' : 'Abrir portal de cliente Stripe'}
+              {portalBusy ? 'Abriendo…' : 'Gestionar suscripción'}
             </button>
           </div>
         </div>
       </Section>
 
-      <Section title="Dashboard de Stripe" subtitle="Accede al panel donde gestionas los cobros que recibes de tus socios.">
+      <Section title="Panel Stripe" subtitle="Administración general de pagos (útil para equipo del club que ya tiene acceso Stripe).">
         <div
           style={{
             padding: 20, borderRadius: 12,
             background: 'var(--surface-card)',
             border: '1px solid var(--border)',
-            display: 'flex', flexDirection: 'column', gap: 16,
+            display: 'flex', justifyContent: 'flex-end',
           }}
         >
-          <Field label="URL del dashboard">
-            <ReadonlyValue value={stripe.dashboardUrl} mono />
-            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-              Configurada vía <code style={codeStyle}>STRIPE_DASHBOARD_URL</code> (por defecto <b>dashboard.stripe.com</b>).
-            </div>
-          </Field>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <a
-              href={stripe.dashboardUrl}
+              href={stripe.dashboardUrl || 'https://dashboard.stripe.com/'}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -1094,13 +1054,12 @@ function SubscriptionTab({
                 textDecoration: 'none', cursor: 'pointer',
               }}
             >
-              Abrir dashboard de Stripe ↗
+              Abrir Stripe ↗
             </a>
-          </div>
         </div>
       </Section>
 
-      <Section title="Webhooks de Stripe (auto)" subtitle="La app crea y mantiene los webhook endpoints en Stripe usando la URL pública del servicio. No requiere configuración manual.">
+      <Section title="Notificaciones de pago" subtitle="Stripe avisa cuando un socio ha pagado. Si cambia la dirección del sitio, puede hacer falta refrescar desde aquí.">
         <div
           style={{
             padding: 20, borderRadius: 12,
@@ -1109,67 +1068,24 @@ function SubscriptionTab({
             display: 'flex', flexDirection: 'column', gap: 16,
           }}
         >
-          <Field label="URL del webhook">
-            <ReadonlyValue
-              value={webhooks.webhookUrl || 'No detectada'}
-              mono
-              tone={webhooks.webhookUrl ? 'default' : 'warning'}
-            />
-            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-              Detectada desde <code style={codeStyle}>NEXT_PUBLIC_APP_URL</code> o <code style={codeStyle}>RAILWAY_PUBLIC_DOMAIN</code>.
-            </div>
-          </Field>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Endpoint plataforma">
-              <ReadonlyValue
-                value={webhooks.platformWebhookId || 'Pendiente de crear'}
-                mono
-                tone={webhooks.hasPlatformSecret ? 'default' : 'warning'}
-              />
-              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                {webhooks.envOverridesPlatform
-                  ? <>Override activo: <code style={codeStyle}>STRIPE_WEBHOOK_SECRET</code> de env vars.</>
-                  : webhooks.hasPlatformSecret
-                    ? 'Secret persistido en BD ✓'
-                    : 'Sin secret — pulsa "Sincronizar" para crearlo.'}
-              </div>
-            </Field>
-            <Field label="Endpoint Connect">
-              <ReadonlyValue
-                value={webhooks.connectWebhookId || 'Pendiente de crear'}
-                mono
-                tone={webhooks.hasConnectSecret ? 'default' : 'warning'}
-              />
-              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-                {webhooks.envOverridesConnect
-                  ? <>Override activo: <code style={codeStyle}>STRIPE_CONNECT_WEBHOOK_SECRET</code> de env vars.</>
-                  : webhooks.hasConnectSecret
-                    ? 'Secret persistido en BD ✓'
-                    : 'Sin secret — pulsa "Sincronizar" para crearlo.'}
-              </div>
-            </Field>
-          </div>
-
           <div
             style={{
-              padding: '10px 14px', borderRadius: 8,
-              background: webhooks.configured ? 'var(--green-soft)' : (webhooks.error ? 'var(--red-soft)' : 'var(--amber-soft)'),
-              color: webhooks.configured ? 'var(--green)' : (webhooks.error ? 'var(--red)' : 'var(--amber)'),
-              fontSize: 12.5, fontWeight: 600, lineHeight: 1.5,
+              padding: '12px 14px', borderRadius: 8,
+              background: webhookStatusOk ? 'var(--green-soft)' : webhooks.error ? 'var(--red-soft)' : 'var(--amber-soft)',
+              color: webhookStatusOk ? 'var(--green)' : webhooks.error ? 'var(--red)' : 'var(--amber)',
+              fontSize: 13, fontWeight: 600,
+              lineHeight: 1.5,
             }}
           >
             {webhooks.error
-              ? <>Error: {webhooks.error}</>
-              : webhooks.configured
-                ? <>Webhooks sincronizados {webhooks.lastSyncedAt ? <>· última sync: {new Date(webhooks.lastSyncedAt).toLocaleString('es-ES')}</> : null}</>
-                : <>Webhooks aún sin sincronizar. Al pulsar el botón la app creará/actualizará los endpoints en Stripe.</>}
+              ? 'No se ha podido comprobar o actualizar las notificaciones automáticas de pago. Prueba más tarde o pulsa Actualizar enlaces.'
+              : webhookStatusOk
+                ? 'Todo correcto. Los avisos de pago llegan bien a esta instalación.'
+                : webhooks.webhookUrl
+                  ? 'Pendiente de actualizar enlaces tras un cambio.'
+                  : 'No se puede usar esta acción porque falta la dirección web pública del sitio. Consulta con el equipo técnico.'}
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Útil tras cambiar el dominio público o tras clonar el servicio.
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
               type="button"
               onClick={onResyncWebhooks}
@@ -1183,7 +1099,7 @@ function SubscriptionTab({
                 boxShadow: '0 1px 2px rgba(0,74,198,0.2)',
               }}
             >
-              {webhookBusy ? 'Sincronizando…' : (webhooks.configured ? 'Re-sincronizar webhooks' : 'Sincronizar webhooks ahora')}
+              {webhookBusy ? 'Actualizando…' : 'Actualizar enlaces'}
             </button>
           </div>
         </div>
@@ -1261,11 +1177,6 @@ function ReadonlyValue({ value, mono, tone = 'default' }: { value: string; mono?
       {value}
     </div>
   )
-}
-
-const codeStyle: React.CSSProperties = {
-  background: 'rgba(15,23,42,0.06)', padding: '1px 6px', borderRadius: 6, fontSize: 11.5,
-  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 }
 
 // ─── Helpers UI ────────────────────────────────────────────────────────────
