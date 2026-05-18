@@ -4,16 +4,19 @@ import { getStripe } from '@/lib/stripe'
 import { getStripeConnectConfig } from '@/lib/club-settings'
 
 /**
- * Devuelve una URL para abrir el dashboard de la cuenta conectada del cliente
- * (club). El behaviour depende del tipo de dashboard configurado en la cuenta
- * conectada:
+ * Devuelve una URL para abrir el dashboard de **la cuenta conectada del
+ * cliente** (el club), nunca el de la plataforma. Estrategia:
  *
- *  - Dashboard "express" → `stripe.accounts.createLoginLink(acct_…)` devuelve
- *    un login link de un solo uso para el dashboard Express del cliente.
- *  - Dashboard "full" / cuentas Standard → no admite login link generado por
- *    la plataforma; redirige a `https://dashboard.stripe.com/` para que el
- *    cliente entre con sus credenciales.
- *  - Sin dashboard → enviamos al cliente al dashboard de la plataforma.
+ *  1. Si la cuenta conectada tiene dashboard "express", usamos
+ *     `stripe.accounts.createLoginLink(acct_…)` → devuelve un login link de
+ *     un solo uso al dashboard Express del cliente.
+ *  2. Si la cuenta es Standard/Full, `createLoginLink` falla con
+ *     `accounts/login_links/unsupported_account_type` (o similar). En ese
+ *     caso devolvemos la URL **path-scoped al acct_id**
+ *     (`https://dashboard.stripe.com/<acct_id>/dashboard`), que envía al
+ *     cliente a SU cuenta directamente (Stripe le pide login si hace falta).
+ *     Si quien abre el link tiene sesión en otra cuenta de Stripe, la URL
+ *     fuerza el cambio a la cuenta del cliente.
  *
  * Account ID se lee de la env var `STRIPE_CONNECTED_ACCOUNT_ID`.
  */
@@ -32,21 +35,24 @@ export async function POST() {
     )
   }
 
+  // Fallback siempre apunta a la cuenta del cliente, no a la mía.
+  const clientDashboardUrl = `https://dashboard.stripe.com/${connect.connectedAccountId}/dashboard`
+
   const stripe = getStripe()
   try {
     const link = await stripe.accounts.createLoginLink(connect.connectedAccountId)
     return NextResponse.json({ url: link.url, source: 'express' })
   } catch (e: any) {
+    const code = String(e?.code || '')
     const msg = String(e?.message || '')
-    // El error típico cuando la cuenta no es Express y por tanto no admite
-    // login links. En ese caso devolvemos el dashboard genérico de Stripe.
-    const dashboardUrl = 'https://dashboard.stripe.com/'
     return NextResponse.json({
-      url: dashboardUrl,
-      source: 'fallback',
+      url: clientDashboardUrl,
+      source: 'standard',
+      accountId: connect.connectedAccountId,
       note:
-        'La cuenta conectada no admite login link automático (probablemente sea Standard/Full). ' +
-        'Pide al cliente que inicie sesión con sus credenciales. Detalle: ' + msg,
+        'Esta cuenta conectada no admite login link automático (no es Express). ' +
+        'Abrimos directamente el dashboard de la cuenta del cliente; Stripe pedirá login si es necesario.' +
+        (msg ? ` Detalle: ${code || 'stripe_error'}: ${msg}` : ''),
     })
   }
 }
