@@ -103,14 +103,25 @@ export async function POST() {
         },
       })
     } catch (e) {
-      return NextResponse.json(
-        {
-          error:
-            'No se pudo crear la cuenta Express en Stripe. Asegúrate de que la cuenta de plataforma tiene Connect Express activado en el Dashboard.',
-          detail: (e as Error).message,
-        },
-        { status: 400 }
-      )
+      const raw = e as { message?: string; code?: string; type?: string; statusCode?: number }
+      const detail = typeof raw.message === 'string' ? raw.message : String(e)
+      const code = typeof raw.code === 'string' ? raw.code : ''
+
+      /** Mensaje orientativo según código concreto de Stripe (los más habituales). */
+      let error =
+        'No se pudo crear la cuenta conectada en Stripe. Completa antes el registro de Connect de tu cuenta plataforma (la de STRIPE_SECRET_KEY).'
+      if (code === 'connect_not_enabled' || detail.toLowerCase().includes('connect')) {
+        error =
+          'Connect no está activado en esta cuenta de Stripe. Entra en el Dashboard → Connect → inicia/completa el registro de la plataforma.'
+      }
+      if (code === 'invalid_request_error' && detail.includes('capabilities')) {
+        error =
+          'Stripe rechazó las capacidades pedidas para este país/modalidad. Revisa Connect Settings o prueba país en modo Test.'
+      }
+
+      console.error('[stripe-connect/start] accounts.create failed', { code, detail })
+
+      return NextResponse.json({ error, detail, stripeCode: code || undefined }, { status: 400 })
     }
   }
 

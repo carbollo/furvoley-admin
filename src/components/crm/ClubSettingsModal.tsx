@@ -302,7 +302,8 @@ export function ClubSettingsModal({
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok || !j.url) {
-        setError(j.error || 'No se pudo iniciar el onboarding de Stripe Connect')
+        const stripeDetail = typeof j.detail === 'string' && j.detail.trim() ? `\n(${j.detail.trim()})` : ''
+        setError((j.error || 'No se pudo iniciar el onboarding de Stripe Connect') + stripeDetail)
         return
       }
       window.location.href = String(j.url)
