@@ -251,29 +251,33 @@ export async function generateStripeLink(paymentId: string) {
   if (payment.stripeUrl) return payment.stripeUrl
 
   const { getStripe } = await import('@/lib/stripe')
-  const { getClubIssuer } = await import('@/lib/club-settings')
+  const { getClubIssuer, getStripeConnectConfig } = await import('@/lib/club-settings')
   const stripe = getStripe()
   const issuer = await getClubIssuer()
+  const connect = getStripeConnectConfig()
   const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const amountCents = Math.round(payment.amount * 100)
+  const applicationFeeCents = connect.applicationFeePercent > 0
+    ? Math.round((amountCents * connect.applicationFeePercent) / 100)
+    : 0
 
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
+  const params = {
     line_items: [
       {
         price_data: {
-          currency: 'eur',
+          currency: 'eur' as const,
           product_data: {
             name: `${issuer.name} · Mensualidad ${payment.month}/${payment.year}`,
             description: `Socio: ${payment.member.name}`,
           },
-          unit_amount: Math.round(payment.amount * 100),
+          unit_amount: amountCents,
         },
         quantity: 1,
       },
     ],
-    mode: 'payment',
+    mode: 'payment' as const,
     success_url: `${appUrl}/?tab=contabilidad&stripeSuccess=1`,
     cancel_url: `${appUrl}/?tab=contabilidad&stripeCanceled=1`,
     client_reference_id: payment.id,
@@ -284,8 +288,18 @@ export async function generateStripeLink(paymentId: string) {
       clubName: issuer.name,
       clubLegalName: issuer.legalName || '',
       clubTaxId: issuer.taxId || '',
+      stripeAccount: connect.connectedAccountId || '',
     },
-  })
+    payment_intent_data: {
+      metadata: { paymentId: payment.id, memberId: payment.memberId },
+      ...(applicationFeeCents > 0 ? { application_fee_amount: applicationFeeCents } : {}),
+    },
+  }
+
+  const session = await stripe.checkout.sessions.create(
+    params,
+    connect.hasConnectedAccount ? { stripeAccount: connect.connectedAccountId } : undefined,
+  )
 
   const updatedPayment = await prisma.payment.update({
     where: { id: payment.id },

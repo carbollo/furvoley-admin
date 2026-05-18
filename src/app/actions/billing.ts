@@ -5,7 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { getStripe } from '@/lib/stripe'
 import { createJournalEntry } from '@/lib/accounting/engine'
 import { ensureBasePgcAccounts } from '@/lib/accounting/pgc'
-import { getClubIssuer } from '@/lib/club-settings'
+import { getClubIssuer, getStripeConnectConfig } from '@/lib/club-settings'
+import type Stripe from 'stripe'
 
 function startOfDay(date: Date) {
   const d = new Date(date)
@@ -358,11 +359,15 @@ export async function createInvoiceStripeLink(invoiceId: string) {
   if (pendingAmount <= 0) return null
 
   const issuer = await getClubIssuer()
+  const connect = getStripeConnectConfig()
   const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
+  const pendingCents = Math.round(pendingAmount * 100)
+  const applicationFeeCents = connect.applicationFeePercent > 0
+    ? Math.round((pendingCents * connect.applicationFeePercent) / 100)
+    : 0
 
   const stripe = getStripe()
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
+  const params: Stripe.Checkout.SessionCreateParams = {
     mode: 'payment',
     client_reference_id: invoice.id,
     metadata: {
@@ -372,13 +377,14 @@ export async function createInvoiceStripeLink(invoiceId: string) {
       clubName: issuer.name,
       clubLegalName: issuer.legalName || '',
       clubTaxId: issuer.taxId || '',
+      stripeAccount: connect.connectedAccountId || '',
     },
     line_items: [
       {
         quantity: 1,
         price_data: {
           currency: invoice.currency.toLowerCase(),
-          unit_amount: Math.round(pendingAmount * 100),
+          unit_amount: pendingCents,
           product_data: {
             name: `${issuer.name} · Factura ${invoice.invoiceNumber}`,
             description: `Socio: ${invoice.member.name}`,
@@ -388,7 +394,16 @@ export async function createInvoiceStripeLink(invoiceId: string) {
     ],
     success_url: `${appUrl}/my-billing?success=true`,
     cancel_url: `${appUrl}/my-billing?canceled=true`,
-  })
+    payment_intent_data: {
+      metadata: { invoiceId: invoice.id, memberId: invoice.memberId },
+      ...(applicationFeeCents > 0 ? { application_fee_amount: applicationFeeCents } : {}),
+    },
+  }
+
+  const requestOptions: Stripe.RequestOptions | undefined = connect.hasConnectedAccount
+    ? { stripeAccount: connect.connectedAccountId }
+    : undefined
+  const session = await stripe.checkout.sessions.create(params, requestOptions)
 
   await prisma.invoice.update({
     where: { id: invoice.id },
@@ -410,10 +425,11 @@ export async function createSubscriptionStripeLink(subscriptionId: string) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const issuer = await getClubIssuer()
+  const connect = getStripeConnectConfig()
   const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
 
   const stripe = getStripe()
-  const session = await stripe.checkout.sessions.create({
+  const params: Stripe.Checkout.SessionCreateParams = {
     mode: 'subscription',
     client_reference_id: subscription.id,
     metadata: {
@@ -423,6 +439,7 @@ export async function createSubscriptionStripeLink(subscriptionId: string) {
       clubName: issuer.name,
       clubLegalName: issuer.legalName || '',
       clubTaxId: issuer.taxId || '',
+      stripeAccount: connect.connectedAccountId || '',
     },
     line_items: [
       {
@@ -448,7 +465,18 @@ export async function createSubscriptionStripeLink(subscriptionId: string) {
     ],
     success_url: `${appUrl}/?tab=contabilidad&success=true`,
     cancel_url: `${appUrl}/?tab=contabilidad&canceled=true`,
-  })
+    subscription_data: {
+      metadata: { subscriptionId: subscription.id, memberId: subscription.memberId },
+      ...(connect.applicationFeePercent > 0
+        ? { application_fee_percent: connect.applicationFeePercent }
+        : {}),
+    },
+  }
+
+  const requestOptions: Stripe.RequestOptions | undefined = connect.hasConnectedAccount
+    ? { stripeAccount: connect.connectedAccountId }
+    : undefined
+  const session = await stripe.checkout.sessions.create(params, requestOptions)
   return session.url
 }
 

@@ -9,6 +9,13 @@ type StripeConfig = {
   dashboardUrl: string
 }
 
+type ConnectConfig = {
+  source: 'env'
+  hasConnectedAccount: boolean
+  connectedAccountIdMasked: string
+  applicationFeePercent: number
+}
+
 type Settings = {
   id?: string
   name: string
@@ -25,6 +32,7 @@ type Settings = {
   website: string
   primaryColor: string
   stripe: StripeConfig
+  connect: ConnectConfig
 }
 
 const EMPTY_STRIPE: StripeConfig = {
@@ -32,6 +40,13 @@ const EMPTY_STRIPE: StripeConfig = {
   hasCustomerId: false,
   customerIdMasked: '',
   dashboardUrl: 'https://dashboard.stripe.com/',
+}
+
+const EMPTY_CONNECT: ConnectConfig = {
+  source: 'env',
+  hasConnectedAccount: false,
+  connectedAccountIdMasked: '',
+  applicationFeePercent: 0,
 }
 
 const EMPTY: Settings = {
@@ -49,6 +64,7 @@ const EMPTY: Settings = {
   website: '',
   primaryColor: '',
   stripe: EMPTY_STRIPE,
+  connect: EMPTY_CONNECT,
 }
 
 type Tab = 'identity' | 'legal' | 'subscription'
@@ -88,6 +104,7 @@ export function ClubSettingsModal({
         ...EMPTY,
         ...incoming,
         stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
+        connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
       }
       setForm(s)
       setLogoPreview(s.logoUrl)
@@ -154,8 +171,8 @@ export function ClubSettingsModal({
     setError(null)
     setInfo(null)
     try {
-      // No enviamos `stripe`: es read-only desde Railway env vars.
-      const { stripe: _s, ...editable } = form
+      // No enviamos `stripe` ni `connect`: son read-only desde Railway env vars.
+      const { stripe: _s, connect: _c, ...editable } = form
       const r = await fetch('/api/crm/club-settings', {
         method: 'PATCH',
         credentials: 'include',
@@ -172,6 +189,7 @@ export function ClubSettingsModal({
         ...EMPTY,
         ...incoming,
         stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
+        connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
       }
       setForm(s)
       setLogoPreview(s.logoUrl)
@@ -198,6 +216,28 @@ export function ClubSettingsModal({
         setError(j.error || 'No se pudo abrir el portal de Stripe')
         return
       }
+      window.open(j.url, '_blank', 'noopener,noreferrer')
+    } finally {
+      setPortalBusy(false)
+    }
+  }
+
+  async function openConnectLogin() {
+    if (portalBusy) return
+    setPortalBusy(true)
+    setError(null)
+    setInfo(null)
+    try {
+      const r = await fetch('/api/crm/club-settings/connect-login', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || !j.url) {
+        setError(j.error || 'No se pudo abrir el dashboard del cliente conectado')
+        return
+      }
+      if (j.note) setInfo(String(j.note))
       window.open(j.url, '_blank', 'noopener,noreferrer')
     } finally {
       setPortalBusy(false)
@@ -356,7 +396,9 @@ export function ClubSettingsModal({
               {tab === 'subscription' && (
                 <SubscriptionTab
                   stripe={form.stripe}
+                  connect={form.connect}
                   onOpenPortal={openStripePortal}
+                  onOpenConnect={openConnectLogin}
                   portalBusy={portalBusy}
                 />
               )}
@@ -647,10 +689,12 @@ function LegalTab({
 
 // ─── TAB: Suscripción Stripe ───────────────────────────────────────────────
 function SubscriptionTab({
-  stripe, onOpenPortal, portalBusy,
+  stripe, connect, onOpenPortal, onOpenConnect, portalBusy,
 }: {
   stripe: StripeConfig
+  connect: ConnectConfig
   onOpenPortal: () => void
+  onOpenConnect: () => void
   portalBusy: boolean
 }) {
   return (
@@ -666,11 +710,79 @@ function SubscriptionTab({
       >
         <span aria-hidden style={{ fontSize: 16, lineHeight: 1, marginTop: 2 }}>ⓘ</span>
         <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.5 }}>
-          Los datos de Stripe se configuran como <b>variables de entorno en Railway</b>
-          {' '}(<code style={codeStyle}>STRIPE_CLUB_CUSTOMER_ID</code> y{' '}
-          <code style={codeStyle}>STRIPE_DASHBOARD_URL</code>). Desde aquí solo puedes consultar y abrir el portal.
+          Toda la integración con Stripe se configura como <b>variables de entorno en Railway</b>.
+          Desde aquí solo puedes consultar el estado y abrir los portales correspondientes.
         </div>
       </div>
+
+      <Section title="Stripe Connect — cuenta del cliente" subtitle="Cuenta conectada donde aterrizan los cobros de los socios (Direct Charges).">
+        <div
+          style={{
+            padding: 20, borderRadius: 12,
+            background: 'var(--surface-card)',
+            border: '1px solid var(--border)',
+            display: 'flex', flexDirection: 'column', gap: 16,
+          }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Field label="Connected account ID">
+              <ReadonlyValue
+                value={connect.hasConnectedAccount ? connect.connectedAccountIdMasked : 'No configurado'}
+                mono
+                tone={connect.hasConnectedAccount ? 'default' : 'warning'}
+              />
+              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                Configurado vía <code style={codeStyle}>STRIPE_CONNECTED_ACCOUNT_ID</code>.
+                {' '}Debe empezar por <code style={codeStyle}>acct_</code>.
+              </div>
+            </Field>
+            <Field label="Comisión de plataforma">
+              <ReadonlyValue
+                value={connect.applicationFeePercent > 0
+                  ? connect.applicationFeePercent + ' %'
+                  : 'Sin comisión (0 %)'}
+              />
+              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                Configurada vía <code style={codeStyle}>STRIPE_APPLICATION_FEE_PERCENT</code>.
+              </div>
+            </Field>
+          </div>
+
+          <div
+            style={{
+              padding: '10px 14px', borderRadius: 8,
+              background: connect.hasConnectedAccount ? 'var(--green-soft)' : 'var(--amber-soft)',
+              color: connect.hasConnectedAccount ? 'var(--green)' : 'var(--amber)',
+              fontSize: 12.5, fontWeight: 600, lineHeight: 1.5,
+            }}
+          >
+            {connect.hasConnectedAccount
+              ? 'Los cobros se enrutan a esta cuenta conectada vía Stripe-Account header.'
+              : 'Sin cuenta conectada: los cobros se realizan en la cuenta de la plataforma. Añade STRIPE_CONNECTED_ACCOUNT_ID en Railway para enrutarlos al cliente.'}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Abre el dashboard de la cuenta conectada del cliente.
+            </div>
+            <button
+              type="button"
+              onClick={onOpenConnect}
+              disabled={portalBusy || !connect.hasConnectedAccount}
+              style={{
+                padding: '10px 18px', borderRadius: 8, border: 'none',
+                background: 'var(--accent)', color: '#fff',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                cursor: (portalBusy || !connect.hasConnectedAccount) ? 'not-allowed' : 'pointer',
+                opacity: (portalBusy || !connect.hasConnectedAccount) ? 0.65 : 1,
+                boxShadow: '0 1px 2px rgba(0,74,198,0.2)',
+              }}
+            >
+              {portalBusy ? 'Abriendo…' : 'Abrir dashboard del cliente conectado'}
+            </button>
+          </div>
+        </div>
+      </Section>
 
       <Section title="Portal del cliente Stripe" subtitle="Gestiona la suscripción del club al servicio (cambiar tarjeta, ver facturas y plan).">
         <div

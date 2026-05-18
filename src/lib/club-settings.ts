@@ -53,6 +53,20 @@ export type StripePortalConfig = {
   customerIdMasked: string
 }
 
+export type StripeConnectConfig = {
+  /** Cuenta conectada del cliente (club) — `acct_…`. Lee `STRIPE_CONNECTED_ACCOUNT_ID`. */
+  connectedAccountId: string
+  /** Si los cobros se enrutan a una cuenta conectada (Direct Charges). */
+  hasConnectedAccount: boolean
+  /** Account ID enmascarado para mostrar en la UI. */
+  connectedAccountIdMasked: string
+  /**
+   * Comisión que la plataforma se queda sobre cada cobro, en %. Lee
+   * `STRIPE_APPLICATION_FEE_PERCENT`. 0 = sin comisión.
+   */
+  applicationFeePercent: number
+}
+
 /**
  * Devuelve los `ClubSettings` (singleton). Si no existen, los crea con valores
  * por defecto.
@@ -126,5 +140,28 @@ export function getStripePortalConfig(): StripePortalConfig {
     customerIdMasked: customerId
       ? customerId.slice(0, 7) + '…' + customerId.slice(-4)
       : '',
+  }
+}
+
+/**
+ * Devuelve la configuración de Stripe Connect del cliente (club) que recibe
+ * los cobros de sus socios. Lee exclusivamente env vars de Railway:
+ * - `STRIPE_CONNECTED_ACCOUNT_ID` (`acct_…`): cuenta conectada destino.
+ * - `STRIPE_APPLICATION_FEE_PERCENT` (0-100): comisión opcional de plataforma.
+ */
+export function getStripeConnectConfig(): StripeConnectConfig {
+  const raw = (process.env.STRIPE_CONNECTED_ACCOUNT_ID || '').trim()
+  const connectedAccountId = raw.startsWith('acct_') ? raw : ''
+  const rawFee = (process.env.STRIPE_APPLICATION_FEE_PERCENT || '').trim()
+  const parsedFee = rawFee ? Number(rawFee) : 0
+  const applicationFeePercent =
+    Number.isFinite(parsedFee) && parsedFee >= 0 && parsedFee <= 100 ? parsedFee : 0
+  return {
+    connectedAccountId,
+    hasConnectedAccount: connectedAccountId !== '',
+    connectedAccountIdMasked: connectedAccountId
+      ? connectedAccountId.slice(0, 8) + '…' + connectedAccountId.slice(-4)
+      : '',
+    applicationFeePercent,
   }
 }

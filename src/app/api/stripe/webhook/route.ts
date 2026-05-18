@@ -2,26 +2,51 @@ import { headers } from 'next/headers'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import { recordInvoicePayment } from '@/app/actions/billing'
+import type Stripe from 'stripe'
 
+/**
+ * Webhook único para eventos de la plataforma y de las cuentas conectadas
+ * (Stripe Connect, Direct Charges). Aceptamos dos secrets:
+ *
+ *  - `STRIPE_WEBHOOK_SECRET`: eventos de la cuenta de la plataforma.
+ *  - `STRIPE_CONNECT_WEBHOOK_SECRET`: eventos enviados al endpoint Connect
+ *    (cobros que viven en una cuenta conectada — `event.account` poblado).
+ *
+ * Si solo configuras uno, el otro se ignora. Lo habitual es crear dos
+ * endpoints en el Dashboard de Stripe con la misma URL y firmar cada uno
+ * con su propio secret.
+ */
 export async function POST(req: Request) {
   const body = await req.text()
   const signature = (await headers()).get('stripe-signature')
-  const secret = process.env.STRIPE_WEBHOOK_SECRET
+  if (!signature) {
+    return new Response('Missing signature', { status: 400 })
+  }
 
-  if (!signature || !secret) {
-    return new Response('Missing signature or webhook secret', { status: 400 })
+  const platformSecret = process.env.STRIPE_WEBHOOK_SECRET
+  const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET
+  if (!platformSecret && !connectSecret) {
+    return new Response('No webhook secret configured', { status: 400 })
   }
 
   const stripe = getStripe()
-  let event
-  try {
-    event = stripe.webhooks.constructEvent(body, signature, secret)
-  } catch (err) {
-    return new Response(`Webhook Error: ${(err as Error).message}`, { status: 400 })
+  let event: Stripe.Event | null = null
+  const errors: string[] = []
+  for (const secret of [platformSecret, connectSecret]) {
+    if (!secret) continue
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, secret)
+      break
+    } catch (err) {
+      errors.push((err as Error).message)
+    }
+  }
+  if (!event) {
+    return new Response(`Webhook Error: ${errors.join(' | ')}`, { status: 400 })
   }
 
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object
+    const session = event.data.object as Stripe.Checkout.Session
     const invoiceId = session.metadata?.invoiceId || session.client_reference_id
     if (invoiceId) {
       const amount = (session.amount_total ?? 0) / 100
@@ -38,7 +63,7 @@ export async function POST(req: Request) {
   }
 
   if (event.type === 'payment_intent.payment_failed') {
-    const intent = event.data.object
+    const intent = event.data.object as Stripe.PaymentIntent
     const invoice = await prisma.invoice.findFirst({
       where: { paymentAttempts: { some: { stripePaymentIntent: intent.id } } },
     })
@@ -57,7 +82,7 @@ export async function POST(req: Request) {
   }
 
   if (event.type === 'invoice.paid') {
-    const stripeInvoice = event.data.object
+    const stripeInvoice = event.data.object as Stripe.Invoice
     const invoiceId =
       (stripeInvoice as { metadata?: Record<string, string> }).metadata?.invoiceId ?? null
     if (invoiceId) {
@@ -70,6 +95,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return Response.json({ received: true })
+  return Response.json({ received: true, account: event.account ?? null })
 }
-

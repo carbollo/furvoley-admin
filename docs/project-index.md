@@ -17,6 +17,7 @@
 - [[changelog/2026-05-17-secciones]] — Aplicación del diseño Stitch v2 al resto de secciones admin.
 - [[changelog/2026-05-18-club-settings]] — Modal de configuración del club (identidad, legal, Stripe).
 - [[changelog/2026-05-18-club-settings-propagado]] — Stripe a env vars + identidad y legal propagados a CRM, socio y facturas.
+- [[changelog/2026-05-18-stripe-connect]] — Conexión Stripe Connect (Direct Charges) al cliente vía env vars.
 
 ## Configuración
 - [[features/club-settings]] — Modelo `ClubSettings`, endpoints y modal.

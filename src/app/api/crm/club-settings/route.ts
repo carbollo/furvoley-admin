@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
-import { getClubSettings, getStripePortalConfig } from '@/lib/club-settings'
+import {
+  getClubSettings,
+  getStripePortalConfig,
+  getStripeConnectConfig,
+} from '@/lib/club-settings'
 
 const MAX_LOGO_SIZE_BYTES = 768 * 1024 // ~768 KB para data URLs base64 (~ 1 MB en raw)
 
 function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
   const stripe = getStripePortalConfig()
+  const connect = getStripeConnectConfig()
   return {
     id: s.id,
     name: s.name,
@@ -29,6 +34,12 @@ function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
       hasCustomerId: stripe.hasCustomerId,
       customerIdMasked: stripe.customerIdMasked,
       dashboardUrl: stripe.dashboardUrl,
+    },
+    connect: {
+      source: 'env' as const,
+      hasConnectedAccount: connect.hasConnectedAccount,
+      connectedAccountIdMasked: connect.connectedAccountIdMasked,
+      applicationFeePercent: connect.applicationFeePercent,
     },
   }
 }
