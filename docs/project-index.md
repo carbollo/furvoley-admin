@@ -19,6 +19,8 @@
 - [[changelog/2026-05-18-club-settings-propagado]] — Stripe a env vars + identidad y legal propagados a CRM, socio y facturas.
 - [[changelog/2026-05-18-stripe-connect]] — Conexión Stripe Connect (Direct Charges) al cliente vía env vars.
 - [[changelog/2026-05-18-stripe-connect-funcional]] — Webhooks completos + contabilidad solo por CSV bancario.
+- [[changelog/2026-05-18-stripe-webhooks-bootstrap]] — Autoconfiguración de webhooks Stripe a partir de la URL pública (Railway).
 
 ## Configuración
 - [[features/club-settings]] — Modelo `ClubSettings`, endpoints y modal.
+- [[features/stripe-bootstrap]] — Bootstrap automático de webhooks Stripe por instancia clonada.

@@ -574,6 +574,32 @@ model NewsPost {
   author      User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
 }
 
+// --- STRIPE BOOTSTRAP (singleton, autogestionado) ---
+// Persiste los IDs y secrets de los webhook endpoints creados automáticamente
+// por la app contra la cuenta Stripe. Permite que un nuevo despliegue
+// (clonado del servicio) se autoconfigure sin tocar variables de entorno
+// dedicadas a webhooks.
+model StripeBootstrap {
+  id                    String   @id @default(cuid())
+  isDefault             Boolean  @default(true)
+  // URL pública detectada (https://…/api/stripe/webhook) la última vez
+  // que se sincronizó con Stripe.
+  publicUrl             String?
+  // Endpoint "account" (eventos de la plataforma)
+  platformWebhookId     String?
+  platformWebhookSecret String?  @db.Text
+  // Endpoint Connect (eventos de cuentas conectadas / Direct Charges)
+  connectWebhookId      String?
+  connectWebhookSecret  String?  @db.Text
+  // Últimos errores capturados (para depuración desde la UI)
+  lastError             String?  @db.Text
+  lastSyncedAt          DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([isDefault])
+}
+
 // --- CLUB IDENTITY & SUBSCRIPTION (singleton) ---
 model ClubSettings {
   id               String   @id @default(cuid())

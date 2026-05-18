@@ -6,12 +6,14 @@ import {
   getStripePortalConfig,
   getStripeConnectConfig,
 } from '@/lib/club-settings'
+import { getStripeBootstrapStatus, scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 
 const MAX_LOGO_SIZE_BYTES = 768 * 1024 // ~768 KB para data URLs base64 (~ 1 MB en raw)
 
-function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
+async function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
   const stripe = getStripePortalConfig()
   const connect = getStripeConnectConfig()
+  const bootstrap = await getStripeBootstrapStatus()
   return {
     id: s.id,
     name: s.name,
@@ -41,14 +43,17 @@ function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
       connectedAccountIdMasked: connect.connectedAccountIdMasked,
       applicationFeePercent: connect.applicationFeePercent,
     },
+    webhooks: bootstrap,
   }
 }
 
 export async function GET() {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
+  // Disparo lazy del bootstrap (no bloqueante).
+  scheduleEnsureStripeWebhooks()
   const s = await getClubSettings()
-  return NextResponse.json({ settings: serialize(s) })
+  return NextResponse.json({ settings: await serialize(s) })
 }
 
 export async function PATCH(request: Request) {
@@ -122,5 +127,5 @@ export async function PATCH(request: Request) {
   })
 
   const fresh = await getClubSettings()
-  return NextResponse.json({ ok: true, settings: serialize(fresh) })
+  return NextResponse.json({ ok: true, settings: await serialize(fresh) })
 }

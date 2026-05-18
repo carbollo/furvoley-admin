@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import { createInvoiceForSubscription, recordInvoicePayment } from '@/app/actions/billing'
+import { getPersistedWebhookSecrets } from '@/lib/stripe-bootstrap'
 import type Stripe from 'stripe'
 
 /**
@@ -24,8 +25,13 @@ export async function POST(req: Request) {
     return new Response('Missing signature', { status: 400 })
   }
 
-  const platformSecret = process.env.STRIPE_WEBHOOK_SECRET
-  const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET
+  // Env vars tienen prioridad sobre secrets persistidos en BD (modo bootstrap
+  // automático). Esto permite que clones nuevos del servicio funcionen sin
+  // configuración manual: la app crea los webhooks la primera vez que el
+  // admin abre el CRM y guarda los secrets en `StripeBootstrap`.
+  const persisted = await getPersistedWebhookSecrets()
+  const platformSecret = process.env.STRIPE_WEBHOOK_SECRET || persisted.platform
+  const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET || persisted.connect
   if (!platformSecret && !connectSecret) {
     return new Response('No webhook secret configured', { status: 400 })
   }

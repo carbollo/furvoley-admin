@@ -16,6 +16,21 @@ type ConnectConfig = {
   applicationFeePercent: number
 }
 
+type WebhooksStatus = {
+  ok: boolean
+  configured: boolean
+  publicUrl: string | null
+  webhookUrl: string | null
+  platformWebhookId: string | null
+  connectWebhookId: string | null
+  hasPlatformSecret: boolean
+  hasConnectSecret: boolean
+  envOverridesPlatform: boolean
+  envOverridesConnect: boolean
+  lastSyncedAt: string | null
+  error: string | null
+}
+
 type Settings = {
   id?: string
   name: string
@@ -33,6 +48,7 @@ type Settings = {
   primaryColor: string
   stripe: StripeConfig
   connect: ConnectConfig
+  webhooks: WebhooksStatus
 }
 
 const EMPTY_STRIPE: StripeConfig = {
@@ -47,6 +63,21 @@ const EMPTY_CONNECT: ConnectConfig = {
   hasConnectedAccount: false,
   connectedAccountIdMasked: '',
   applicationFeePercent: 0,
+}
+
+const EMPTY_WEBHOOKS: WebhooksStatus = {
+  ok: false,
+  configured: false,
+  publicUrl: null,
+  webhookUrl: null,
+  platformWebhookId: null,
+  connectWebhookId: null,
+  hasPlatformSecret: false,
+  hasConnectSecret: false,
+  envOverridesPlatform: false,
+  envOverridesConnect: false,
+  lastSyncedAt: null,
+  error: null,
 }
 
 const EMPTY: Settings = {
@@ -65,6 +96,7 @@ const EMPTY: Settings = {
   primaryColor: '',
   stripe: EMPTY_STRIPE,
   connect: EMPTY_CONNECT,
+  webhooks: EMPTY_WEBHOOKS,
 }
 
 type Tab = 'identity' | 'legal' | 'subscription'
@@ -105,6 +137,7 @@ export function ClubSettingsModal({
         ...incoming,
         stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
         connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
+        webhooks: { ...EMPTY_WEBHOOKS, ...(incoming.webhooks || {}) },
       }
       setForm(s)
       setLogoPreview(s.logoUrl)
@@ -171,8 +204,8 @@ export function ClubSettingsModal({
     setError(null)
     setInfo(null)
     try {
-      // No enviamos `stripe` ni `connect`: son read-only desde Railway env vars.
-      const { stripe: _s, connect: _c, ...editable } = form
+      // No enviamos `stripe`, `connect` ni `webhooks`: son read-only.
+      const { stripe: _s, connect: _c, webhooks: _w, ...editable } = form
       const r = await fetch('/api/crm/club-settings', {
         method: 'PATCH',
         credentials: 'include',
@@ -190,6 +223,7 @@ export function ClubSettingsModal({
         ...incoming,
         stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
         connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
+        webhooks: { ...EMPTY_WEBHOOKS, ...(incoming.webhooks || {}) },
       }
       setForm(s)
       setLogoPreview(s.logoUrl)
@@ -241,6 +275,33 @@ export function ClubSettingsModal({
       window.open(j.url, '_blank', 'noopener,noreferrer')
     } finally {
       setPortalBusy(false)
+    }
+  }
+
+  const [webhookBusy, setWebhookBusy] = useState(false)
+  async function resyncWebhooks() {
+    if (webhookBusy) return
+    setWebhookBusy(true)
+    setError(null)
+    setInfo(null)
+    try {
+      const r = await fetch('/api/crm/club-settings/bootstrap-stripe', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const j = await r.json().catch(() => ({}))
+      const next = (j.status || null) as WebhooksStatus | null
+      if (next) {
+        setForm((prev) => ({ ...prev, webhooks: { ...EMPTY_WEBHOOKS, ...next } }))
+      }
+      if (!r.ok) {
+        setError(j.error || 'No se pudo sincronizar los webhooks con Stripe')
+      } else {
+        setInfo('Webhooks de Stripe sincronizados correctamente.')
+        window.setTimeout(() => setInfo(null), 2400)
+      }
+    } finally {
+      setWebhookBusy(false)
     }
   }
 
@@ -397,9 +458,12 @@ export function ClubSettingsModal({
                 <SubscriptionTab
                   stripe={form.stripe}
                   connect={form.connect}
+                  webhooks={form.webhooks}
                   onOpenPortal={openStripePortal}
                   onOpenConnect={openConnectLogin}
+                  onResyncWebhooks={resyncWebhooks}
                   portalBusy={portalBusy}
+                  webhookBusy={webhookBusy}
                 />
               )}
             </>
@@ -689,13 +753,16 @@ function LegalTab({
 
 // ─── TAB: Suscripción Stripe ───────────────────────────────────────────────
 function SubscriptionTab({
-  stripe, connect, onOpenPortal, onOpenConnect, portalBusy,
+  stripe, connect, webhooks, onOpenPortal, onOpenConnect, onResyncWebhooks, portalBusy, webhookBusy,
 }: {
   stripe: StripeConfig
   connect: ConnectConfig
+  webhooks: WebhooksStatus
   onOpenPortal: () => void
   onOpenConnect: () => void
+  onResyncWebhooks: () => void
   portalBusy: boolean
+  webhookBusy: boolean
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -859,6 +926,95 @@ function SubscriptionTab({
             >
               Abrir dashboard de Stripe ↗
             </a>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Webhooks de Stripe (auto)" subtitle="La app crea y mantiene los webhook endpoints en Stripe usando la URL pública del servicio. No requiere configuración manual.">
+        <div
+          style={{
+            padding: 20, borderRadius: 12,
+            background: 'var(--surface-card)',
+            border: '1px solid var(--border)',
+            display: 'flex', flexDirection: 'column', gap: 16,
+          }}
+        >
+          <Field label="URL del webhook">
+            <ReadonlyValue
+              value={webhooks.webhookUrl || 'No detectada'}
+              mono
+              tone={webhooks.webhookUrl ? 'default' : 'warning'}
+            />
+            <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+              Detectada desde <code style={codeStyle}>NEXT_PUBLIC_APP_URL</code> o <code style={codeStyle}>RAILWAY_PUBLIC_DOMAIN</code>.
+            </div>
+          </Field>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Field label="Endpoint plataforma">
+              <ReadonlyValue
+                value={webhooks.platformWebhookId || 'Pendiente de crear'}
+                mono
+                tone={webhooks.hasPlatformSecret ? 'default' : 'warning'}
+              />
+              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                {webhooks.envOverridesPlatform
+                  ? <>Override activo: <code style={codeStyle}>STRIPE_WEBHOOK_SECRET</code> de env vars.</>
+                  : webhooks.hasPlatformSecret
+                    ? 'Secret persistido en BD ✓'
+                    : 'Sin secret — pulsa "Sincronizar" para crearlo.'}
+              </div>
+            </Field>
+            <Field label="Endpoint Connect">
+              <ReadonlyValue
+                value={webhooks.connectWebhookId || 'Pendiente de crear'}
+                mono
+                tone={webhooks.hasConnectSecret ? 'default' : 'warning'}
+              />
+              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                {webhooks.envOverridesConnect
+                  ? <>Override activo: <code style={codeStyle}>STRIPE_CONNECT_WEBHOOK_SECRET</code> de env vars.</>
+                  : webhooks.hasConnectSecret
+                    ? 'Secret persistido en BD ✓'
+                    : 'Sin secret — pulsa "Sincronizar" para crearlo.'}
+              </div>
+            </Field>
+          </div>
+
+          <div
+            style={{
+              padding: '10px 14px', borderRadius: 8,
+              background: webhooks.configured ? 'var(--green-soft)' : (webhooks.error ? 'var(--red-soft)' : 'var(--amber-soft)'),
+              color: webhooks.configured ? 'var(--green)' : (webhooks.error ? 'var(--red)' : 'var(--amber)'),
+              fontSize: 12.5, fontWeight: 600, lineHeight: 1.5,
+            }}
+          >
+            {webhooks.error
+              ? <>Error: {webhooks.error}</>
+              : webhooks.configured
+                ? <>Webhooks sincronizados {webhooks.lastSyncedAt ? <>· última sync: {new Date(webhooks.lastSyncedAt).toLocaleString('es-ES')}</> : null}</>
+                : <>Webhooks aún sin sincronizar. Al pulsar el botón la app creará/actualizará los endpoints en Stripe.</>}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Útil tras cambiar el dominio público o tras clonar el servicio.
+            </div>
+            <button
+              type="button"
+              onClick={onResyncWebhooks}
+              disabled={webhookBusy || !webhooks.webhookUrl}
+              style={{
+                padding: '10px 18px', borderRadius: 8, border: 'none',
+                background: 'var(--accent)', color: '#fff',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                cursor: (webhookBusy || !webhooks.webhookUrl) ? 'not-allowed' : 'pointer',
+                opacity: (webhookBusy || !webhooks.webhookUrl) ? 0.65 : 1,
+                boxShadow: '0 1px 2px rgba(0,74,198,0.2)',
+              }}
+            >
+              {webhookBusy ? 'Sincronizando…' : (webhooks.configured ? 'Re-sincronizar webhooks' : 'Sincronizar webhooks ahora')}
+            </button>
           </div>
         </div>
       </Section>

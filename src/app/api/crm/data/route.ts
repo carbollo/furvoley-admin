@@ -4,6 +4,7 @@ import { getTaxConfig } from '@/lib/tax-config'
 import { requireRoles } from '@/lib/rbac-api'
 import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
 import { getClubBranding } from '@/lib/club-settings'
+import { scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 
 function initials(name: string) {
   return name
@@ -34,6 +35,13 @@ export async function GET() {
   const auth = await requireRoles(['ADMIN', 'COACH', 'TREASURER'])
   if (!auth.ok) return auth.response
   const role = auth.role
+  // Bootstrap automático de los webhook endpoints de Stripe (idempotente,
+  // throttled a una vez cada 5 minutos). Solo lo intentamos cuando el admin
+  // accede al CRM: así un clon nuevo del servicio se autoconfigura sin que
+  // nadie tenga que crear webhooks en el Dashboard de Stripe.
+  if (role === 'ADMIN') {
+    scheduleEnsureStripeWebhooks()
+  }
   const sessionUser = auth.session.user as { memberId?: string | null; name?: string | null; email?: string | null; role?: string }
   const sessionMemberId = sessionUser.memberId || null
   const canUseAccounting = role === 'ADMIN' || role === 'TREASURER'
