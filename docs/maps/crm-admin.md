@@ -25,7 +25,8 @@ Panel de operaciones del club para roles `ADMIN`, `COACH`, `TREASURER`. Consume 
 - Externas: `next-auth/react`, `next/navigation`, `next/font/google` (Plus Jakarta Sans), Prisma.
 
 ## Workflows
-- `src/components/crm/WorkflowsSection.tsx`: listado, editor visual, export/import JSON (`furvoley-workflows` v1).
+- `src/components/crm/WorkflowsSection.tsx`: listado, editor visual, export/import JSON (`furvoley-workflows` v1) y **Biblioteca de plantillas** (subir JSON o guardar flujo → instalar después).
+- `WorkflowTemplate` en Prisma + `GET/POST /api/crm/workflows/template-catalog`, `POST …/[id]/install`, `DELETE …/[id]`.
 
 ## Riesgos y notas
 - `CrmApp.tsx` está en `@ts-nocheck`; los tipos no se validan dentro del componente. Cuidado al refactorizar.

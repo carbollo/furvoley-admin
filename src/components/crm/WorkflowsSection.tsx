@@ -1,11 +1,19 @@
 'use client'
 
-import { useCallback, useRef, useState, type ChangeEvent } from 'react'
-import { Zap, Plus, Download, Upload } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { Zap, Plus, Download, Upload, BookOpen, X } from 'lucide-react'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
-import { isWorkflowTriggerAllowed } from '@/lib/crm-workflow-triggers'
-import { isWorkflowActionAllowed } from '@/lib/crm-workflow-actions'
+import { parseWorkflowsFromJson } from '@/lib/workflow-import'
 import { WorkflowFlowEditor, type WorkflowEditorInitialPaso } from './WorkflowFlowEditor'
+
+type CatalogTemplate = {
+  id: string
+  name: string
+  description: string | null
+  triggerType: string
+  stepCount: number
+  createdAt: string
+}
 
 function resumenPrimerPaso(
   actionType: string,
@@ -73,6 +81,14 @@ export function WorkflowsSection({
   const [saveBusy, setSaveBusy] = useState(false)
   const [importBusy, setImportBusy] = useState(false)
   const importInputRef = useRef<HTMLInputElement | null>(null)
+
+  const [catalogOpen, setCatalogOpen] = useState(false)
+  const [catalogTemplates, setCatalogTemplates] = useState<CatalogTemplate[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogUploadBusy, setCatalogUploadBusy] = useState(false)
+  const [catalogInstalling, setCatalogInstalling] = useState<string | null>(null)
+  const [catalogSaving, setCatalogSaving] = useState<string | null>(null)
+  const catalogUploadRef = useRef<HTMLInputElement | null>(null)
 
   const activos = wfs.filter((w) => w.activo).length
   const totalPasos = wfs.reduce((a, w) => a + ((w.pasos as unknown[])?.length ?? 0), 0)
@@ -246,46 +262,129 @@ export function WorkflowsSection({
     URL.revokeObjectURL(url)
   }
 
-  function normalizeImportedWorkflows(input: unknown): SerializableWorkflow[] {
-    const rawList =
-      Array.isArray(input)
-        ? input
-        : input && typeof input === 'object' && Array.isArray((input as Record<string, unknown>).workflows)
-          ? ((input as Record<string, unknown>).workflows as unknown[])
-          : []
-    return rawList
-      .map((item) => {
-        if (!item || typeof item !== 'object') return null
-        const o = item as Record<string, unknown>
-        const triggerType = String(o.triggerType || 'MEMBER_CREATED')
-        if (!isWorkflowTriggerAllowed(triggerType)) return null
-        const stepsRaw = Array.isArray(o.steps) ? (o.steps as Record<string, unknown>[]) : []
-        const steps = stepsRaw
-          .map((s, i) => {
-            const actionType = String(s.actionType || '')
-            if (!isWorkflowActionAllowed(actionType)) return null
-            return {
-              position: typeof s.position === 'number' ? s.position : i,
-              stepType: String(s.stepType || 'ACTION'),
-              actionType,
-              config:
-                s.config && typeof s.config === 'object' && !Array.isArray(s.config)
-                  ? (s.config as Record<string, unknown>)
-                  : {},
-            }
-          })
-          .filter((x): x is SerializableWorkflow['steps'][number] => !!x)
-        const name = String(o.name || '').trim()
-        if (!name) return null
-        return {
-          name,
-          description: String(o.description || '').trim() || null,
-          triggerType,
-          isActive: o.isActive !== false,
-          steps,
-        } satisfies SerializableWorkflow
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true)
+    try {
+      const r = await fetch('/api/crm/workflows/template-catalog', { credentials: 'include' })
+      if (!r.ok) {
+        setCatalogTemplates([])
+        return
+      }
+      const j = await r.json()
+      setCatalogTemplates(Array.isArray(j.templates) ? j.templates : [])
+    } finally {
+      setCatalogLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (catalogOpen) void loadCatalog()
+  }, [catalogOpen, loadCatalog])
+
+  const installFromCatalog = async (templateId: string) => {
+    setCatalogInstalling(templateId)
+    try {
+      const r = await fetch(`/api/crm/workflows/template-catalog/${templateId}/install`, {
+        method: 'POST',
+        credentials: 'include',
       })
-      .filter((x): x is SerializableWorkflow => !!x)
+      if (!r.ok) {
+        let msg = 'No se pudo instalar la plantilla'
+        try {
+          msg = (await r.json()).error || msg
+        } catch {
+          //
+        }
+        alert(msg)
+        return
+      }
+      await reload()
+      setCatalogOpen(false)
+    } finally {
+      setCatalogInstalling(null)
+    }
+  }
+
+  const deleteFromCatalog = async (templateId: string, name: string) => {
+    if (!confirm(`¿Quitar «${name}» de la biblioteca?`)) return
+    const r = await fetch(`/api/crm/workflows/template-catalog/${templateId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+    if (!r.ok) {
+      alert('No se pudo eliminar la plantilla')
+      return
+    }
+    await loadCatalog()
+  }
+
+  const saveWorkflowToCatalog = async (workflowId: string) => {
+    setCatalogSaving(workflowId)
+    try {
+      const r = await fetch('/api/crm/workflows/template-catalog', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflowId }),
+      })
+      if (!r.ok) {
+        let msg = 'No se pudo guardar en la biblioteca'
+        try {
+          msg = (await r.json()).error || msg
+        } catch {
+          //
+        }
+        alert(msg)
+        return
+      }
+      if (catalogOpen) await loadCatalog()
+      else alert('Plantilla guardada en la biblioteca.')
+    } finally {
+      setCatalogSaving(null)
+    }
+  }
+
+  const onCatalogUploadFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.currentTarget.value = ''
+    if (!file) return
+    setCatalogUploadBusy(true)
+    try {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(await file.text())
+      } catch {
+        alert('El archivo no es un JSON válido.')
+        return
+      }
+      const workflows = parseWorkflowsFromJson(parsed)
+      if (workflows.length === 0) {
+        alert('No se encontraron flujos válidos. Exporta un flujo desde Furvoley e impórtalo aquí.')
+        return
+      }
+      const r = await fetch('/api/crm/workflows/template-catalog', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload: parsed }),
+      })
+      if (!r.ok) {
+        let msg = 'No se pudo subir a la biblioteca'
+        try {
+          msg = (await r.json()).error || msg
+        } catch {
+          //
+        }
+        alert(msg)
+        return
+      }
+      const j = await r.json()
+      const n = Array.isArray(j.created) ? j.created.length : workflows.length
+      alert(`Se añadieron ${n} plantilla(s) a la biblioteca.`)
+      await loadCatalog()
+    } finally {
+      setCatalogUploadBusy(false)
+    }
   }
 
   const onImportFile = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -302,7 +401,7 @@ export function WorkflowsSection({
         alert('El archivo no es un JSON válido.')
         return
       }
-      const workflows = normalizeImportedWorkflows(parsed)
+      const workflows = parseWorkflowsFromJson(parsed)
       if (workflows.length === 0) {
         alert('No se encontraron flujos válidos para importar.')
         return
@@ -361,6 +460,28 @@ export function WorkflowsSection({
             onChange={onImportFile}
             style={{ display: 'none' }}
           />
+          <input
+            ref={catalogUploadRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={onCatalogUploadFile}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            onClick={() => setCatalogOpen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 18px', borderRadius: 8,
+              border: '1px solid var(--border-strong)', background: 'var(--surface-card)',
+              color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', transition: 'all 0.15s'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-low)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)' }}
+          >
+            <BookOpen size={15} /> Biblioteca de plantillas
+          </button>
           <button
             type="button"
             onClick={() => exportWorkflows()}
@@ -564,6 +685,26 @@ export function WorkflowsSection({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                   <button
                     type="button"
+                    disabled={catalogSaving === String(w.id)}
+                    onClick={() => saveWorkflowToCatalog(String(w.id))}
+                    title="Guardar copia en la biblioteca de plantillas"
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: 10,
+                      border: '1px solid var(--border)',
+                      background: '#fff',
+                      cursor: catalogSaving === String(w.id) ? 'wait' : 'pointer',
+                      color: '#374151',
+                      fontFamily: 'inherit',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      opacity: catalogSaving === String(w.id) ? 0.7 : 1,
+                    }}
+                  >
+                    {catalogSaving === String(w.id) ? '…' : 'A biblioteca'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => exportWorkflows(w)}
                     style={{
                       padding: '8px 14px',
@@ -650,6 +791,135 @@ export function WorkflowsSection({
           )
         })}
       </div>
+
+      {catalogOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 80,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+          onClick={() => setCatalogOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(960px, 100%)',
+              maxHeight: '85vh',
+              background: 'var(--surface-card)',
+              borderRadius: 16,
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+              <div>
+                <strong style={{ fontSize: 18 }}>Biblioteca de plantillas</strong>
+                <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Sube JSON exportado o guarda un flujo con «A biblioteca». Instala cuando quieras usarlo.
+                </p>
+              </div>
+              <button type="button" onClick={() => setCatalogOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', flexShrink: 0 }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                disabled={catalogUploadBusy}
+                onClick={() => catalogUploadRef.current?.click()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 14px', borderRadius: 8, border: 'none',
+                  background: 'var(--accent)', color: '#fff',
+                  fontWeight: 600, fontSize: 13, cursor: catalogUploadBusy ? 'wait' : 'pointer',
+                  opacity: catalogUploadBusy ? 0.8 : 1,
+                }}
+              >
+                <Upload size={14} />
+                {catalogUploadBusy ? 'Subiendo…' : 'Subir plantilla (JSON)'}
+              </button>
+            </div>
+            <div style={{ overflow: 'auto', flex: 1 }}>
+              {catalogLoading ? (
+                <p style={{ padding: 24, textAlign: 'center' }}>Cargando…</p>
+              ) : catalogTemplates.length === 0 ? (
+                <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+                  No hay plantillas. Sube un JSON o guarda un flujo existente con «A biblioteca».
+                </p>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface-low)' }}>
+                      <th style={{ padding: 10, textAlign: 'left' }}>Nombre</th>
+                      <th style={{ padding: 10, textAlign: 'left' }}>Disparador</th>
+                      <th style={{ padding: 10, textAlign: 'left' }}>Pasos</th>
+                      <th style={{ padding: 10 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {catalogTemplates.map((t) => (
+                      <tr key={t.id} style={{ borderTop: '1px solid var(--border)' }}>
+                        <td style={{ padding: 10 }}>
+                          <div style={{ fontWeight: 600 }}>{t.name}</div>
+                          {t.description ? (
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{t.description}</div>
+                          ) : null}
+                        </td>
+                        <td style={{ padding: 10 }}>{workflowTriggerLabel(t.triggerType)}</td>
+                        <td style={{ padding: 10 }}>{t.stepCount}</td>
+                        <td style={{ padding: 10, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <button
+                            type="button"
+                            disabled={catalogInstalling === t.id}
+                            onClick={() => installFromCatalog(t.id)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 8,
+                              border: 'none',
+                              background: 'var(--accent)',
+                              color: '#fff',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              marginRight: 8,
+                            }}
+                          >
+                            {catalogInstalling === t.id ? '…' : 'Instalar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteFromCatalog(t.id, t.name)}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 8,
+                              border: '1px solid #fecaca',
+                              background: '#fff',
+                              color: '#b91c1c',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Quitar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {editorOpen && (
         <WorkflowFlowEditor
