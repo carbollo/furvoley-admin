@@ -156,6 +156,7 @@ function defaultWorkflowVariables() {
     paymentUrl: '',
     invoicePdfUrl: '',
     subscriptionId: '',
+    signupLinkUrl: '',
     eventId: '',
     eventTitle: '',
     teamId: '',
@@ -349,6 +350,10 @@ function evalBranchCondition(
     left = member.name
   } else if (field === 'member.email') {
     left = member.email ?? ''
+  } else if (field === 'trigger.currentStatus') {
+    left = String(runContext?.variables.triggerCurrentStatus || '')
+  } else if (field === 'trigger.previousStatus') {
+    left = String(runContext?.variables.triggerPreviousStatus || '')
   }
 
   if (left === null && field === 'member.age') {
@@ -670,6 +675,13 @@ async function runMemberCreatedStepAction(
   }
 
   if (step.actionType === 'CREATE_SIGNUP_LINK') {
+    if (runContext.variables.triggerType === 'MEMBER_CREATED') {
+      console.warn(
+        '[workflow] CREATE_SIGNUP_LINK en MEMBER_CREATED no tiene sentido: el socio ya está dado de alta. Usa CREATE_INVITE_SIGNUP_LINK con disparador LEAD_CREATED o el botón Invitar del CRM.',
+      )
+      setStepError('Enlace de inscripción omitido: el socio ya está registrado')
+      return
+    }
     const maxUses = Math.max(1, Math.trunc(readNumber(step.config, 'maxUses') ?? 1))
     const expiresInDays = Math.max(1, Math.trunc(readNumber(step.config, 'expiresInDays') ?? 30))
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
@@ -903,6 +915,16 @@ async function runWorkflowsForMemberByTrigger(
   })
 
   for (const workflow of workflows) {
+    if (triggerType === 'MEMBER_STATUS_CHANGED') {
+      const cfg =
+        workflow.triggerConfig && typeof workflow.triggerConfig === 'object'
+          ? (workflow.triggerConfig as { onlyWhenCurrentStatus?: string })
+          : {}
+      const required = cfg.onlyWhenCurrentStatus?.trim()
+      if (required && String(triggerContext.currentStatus || member.status) !== required) {
+        continue
+      }
+    }
     await runWorkflowStepsForMember(workflow.steps, member, triggerType, triggerContext)
   }
 }

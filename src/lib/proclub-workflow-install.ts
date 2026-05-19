@@ -77,6 +77,9 @@ export async function installProclubTemplate(input: {
         proclubType: template.proclubType,
         implementationStatus: template.implementationStatus,
         phase: template.phase,
+        ...(template.onlyWhenCurrentStatus
+          ? { onlyWhenCurrentStatus: template.onlyWhenCurrentStatus }
+          : {}),
       },
     },
   })

@@ -6,9 +6,9 @@
   "proclubType": "Auto",
   "implementationStatus": "partial",
   "phase": 3,
-  "notes": "Campaña retorno.",
+  "notes": "Campaña retorno a ex-socios inactivos.",
   "name": "PROCLUB · Campaña retorno",
-  "description": "[PROCLUB:WB-5] Contacto tras X meses.",
+  "description": "[PROCLUB:WB-5] Contacto tras X meses (activar manualmente o con job).",
   "triggerType": "MEMBER_UPDATED",
   "isActive": false,
   "steps": [

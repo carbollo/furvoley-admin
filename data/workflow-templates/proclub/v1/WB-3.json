@@ -6,22 +6,10 @@
   "proclubType": "Auto",
   "implementationStatus": "partial",
   "phase": 3,
-  "notes": "Lista espera WP-5.",
+  "notes": "Avisar leads en lista de espera (WP-5), no al socio que se va.",
   "name": "PROCLUB · Liberar plaza",
-  "description": "[PROCLUB:WB-3] Aviso lista espera.",
+  "description": "[PROCLUB:WB-3] Campaña a lista de espera cuando hay baja.",
   "triggerType": "MEMBER_STATUS_CHANGED",
   "isActive": false,
-  "steps": [
-    {
-      "position": 0,
-      "stepType": "ACTION",
-      "actionType": "SEND_WHATSAPP",
-      "config": {
-        "waPhone": "{memberPhone}",
-        "waMessage": "Se ha liberado una plaza. Contacta con el club si te interesa.",
-        "label": "slot",
-        "stepKey": "slot"
-      }
-    }
-  ]
+  "steps": []
 }

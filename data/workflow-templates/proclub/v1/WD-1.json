@@ -6,9 +6,9 @@
   "proclubType": "Auto",
   "implementationStatus": "ready",
   "phase": 1,
-  "notes": "Asignación por edad + WhatsApp.",
+  "notes": "Tras alta efectiva: equipo + aviso. No enviar enlace de inscripción (ver WI-1).",
   "name": "PROCLUB · Alta en plantilla del grupo",
-  "description": "[PROCLUB:WD-1] Incorporar jugador al grupo y avisar al tutor.",
+  "description": "[PROCLUB:WD-1] Socio ya registrado: asignar grupo y avisar.",
   "triggerType": "MEMBER_CREATED",
   "isActive": true,
   "steps": [

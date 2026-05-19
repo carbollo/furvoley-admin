@@ -3,6 +3,7 @@ import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { createInvoiceStripeLink, createInvoiceForSubscription, createSubscription } from '@/app/actions/billing'
 import { generateTeamSessionsFromSchedule } from '@/lib/team-calendar'
+import { signupUrlFromToken } from '@/lib/signup-url'
 import type { WorkflowMemberPayload } from '@/lib/workflow-engine'
 
 type WorkflowRunContext = {
@@ -68,6 +69,24 @@ export async function runExtendedWorkflowAction(
     if (explicit) return explicit
     const cfg = await getWhatsAppConfig()
     return String(cfg.linkedSessionId || '').trim() || undefined
+  }
+
+  if (step.actionType === 'CREATE_INVITE_SIGNUP_LINK') {
+    const maxUses = Math.max(1, Math.trunc(readNumber(step.config, 'maxUses') ?? 1))
+    const expiresInDays = Math.max(1, Math.trunc(readNumber(step.config, 'expiresInDays') ?? 14))
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+    const token = crypto.randomUUID().replace(/-/g, '')
+    const link = await prisma.signupLink.create({
+      data: { token, maxUses, expiresAt },
+    })
+    runContext.variables.stepCreatedSignupLinkId = link.id
+    runContext.variables.stepCreatedSignupLinkToken = link.token
+    runContext.variables.signupLinkUrl = signupUrlFromToken(link.token)
+    runContext.variables.stepCreatedSignupLinkExpiresAt = link.expiresAt
+      ? link.expiresAt.toISOString()
+      : ''
+    setStepApplied()
+    return true
   }
 
   if (step.actionType === 'SEND_WHATSAPP_TO_TEAM') {

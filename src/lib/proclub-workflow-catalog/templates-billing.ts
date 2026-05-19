@@ -32,12 +32,12 @@ export const BILLING_TEMPLATES: ProclubWorkflowTemplate[] = [
     proclubId: 'WC-3',
     proclubArea: 'billing',
     proclubType: 'Auto',
-    implementationStatus: 'partial',
+    implementationStatus: 'ready',
     phase: 1,
-    notes: 'Primer cobro + enlace.',
+    notes: 'Tras crear factura (p. ej. al dar de alta suscripción). No en MEMBER_CREATED.',
     name: 'PROCLUB · Primer cobro inscripción',
-    description: '[PROCLUB:WC-3] Matrícula y primera cuota.',
-    triggerType: 'MEMBER_CREATED',
+    description: '[PROCLUB:WC-3] Matrícula y primera cuota cuando existe factura.',
+    triggerType: 'INVOICE_CREATED',
     defaultActive: false,
     steps: withPositions([
       action('SEND_PAYMENT_LINK', {}, 'link'),
@@ -113,6 +113,7 @@ export const BILLING_TEMPLATES: ProclubWorkflowTemplate[] = [
     triggerType: 'INVOICE_OVERDUE',
     defaultActive: true,
     steps: withPositions([
+      action('SEND_PAYMENT_LINK', {}, 'link'),
       wa('Cuota pendiente {invoiceNumber}: {pendingAmount} {invoiceCurrency}. Pagar: {paymentUrl}', 'due'),
     ]),
   },
@@ -166,7 +167,7 @@ export const BILLING_TEMPLATES: ProclubWorkflowTemplate[] = [
     description: '[PROCLUB:WC-12] Suspensión por morosidad.',
     triggerType: 'INVOICE_OVERDUE',
     defaultActive: false,
-    steps: withPositions([action('SET_MEMBER_STATUS', { targetStatus: 'INACTIVE' }, 'suspend')]),
+    steps: [],
   },
   {
     proclubId: 'WC-13',

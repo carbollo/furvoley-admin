@@ -15,6 +15,15 @@
     {
       "position": 0,
       "stepType": "ACTION",
+      "actionType": "SEND_PAYMENT_LINK",
+      "config": {
+        "label": "link",
+        "stepKey": "link"
+      }
+    },
+    {
+      "position": 1,
+      "stepType": "ACTION",
       "actionType": "SEND_WHATSAPP",
       "config": {
         "waPhone": "{memberPhone}",

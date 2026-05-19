@@ -6,7 +6,7 @@
   "proclubType": "Mixto",
   "implementationStatus": "partial",
   "phase": 3,
-  "notes": "Validación menor/tutor.",
+  "notes": "Validación menor/tutor tras alta.",
   "name": "PROCLUB · Validación menor",
   "description": "[PROCLUB:WI-2] Datos tutor obligatorios.",
   "triggerType": "MEMBER_UPDATED",

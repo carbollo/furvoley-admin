@@ -6,10 +6,10 @@
   "proclubType": "Auto",
   "implementationStatus": "partial",
   "phase": 2,
-  "notes": "SEND_WHATSAPP_TO_TEAM.",
+  "notes": "Disparar desde cancelación/evento o manual; no al editar socio.",
   "name": "PROCLUB · Comunicación masiva",
-  "description": "[PROCLUB:WD-13] Mensaje al grupo.",
-  "triggerType": "MEMBER_UPDATED",
+  "description": "[PROCLUB:WD-13] Mensaje al grupo (usar con EVENT_CANCELLED o manual).",
+  "triggerType": "EVENT_CANCELLED",
   "isActive": false,
   "steps": [
     {

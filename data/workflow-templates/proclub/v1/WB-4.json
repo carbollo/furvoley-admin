@@ -6,7 +6,7 @@
   "proclubType": "Auto",
   "implementationStatus": "partial",
   "phase": 2,
-  "notes": "Encuesta motivo.",
+  "notes": "Solo cuando pasa a INACTIVE.",
   "name": "PROCLUB · Cierre y encuesta",
   "description": "[PROCLUB:WB-4] Despedida y feedback.",
   "triggerType": "MEMBER_STATUS_CHANGED",

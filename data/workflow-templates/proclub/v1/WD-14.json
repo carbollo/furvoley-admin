@@ -6,22 +6,10 @@
   "proclubType": "Mixto",
   "implementationStatus": "partial",
   "phase": 2,
-  "notes": "Onboarding entrenador.",
+  "notes": "Manual: el entrenador no es un alta MEMBER_CREATED genérica.",
   "name": "PROCLUB · Onboarding entrenador",
-  "description": "[PROCLUB:WD-14] Bienvenida al entrenador del grupo.",
-  "triggerType": "MEMBER_CREATED",
+  "description": "[PROCLUB:WD-14] Bienvenida al entrenador (activar manualmente).",
+  "triggerType": "MEMBER_UPDATED",
   "isActive": false,
-  "steps": [
-    {
-      "position": 0,
-      "stepType": "ACTION",
-      "actionType": "SEND_WHATSAPP",
-      "config": {
-        "waPhone": "{memberPhone}",
-        "waMessage": "Bienvenido/a. Revisa plantilla y calendario en el CRM.",
-        "label": "coach",
-        "stepKey": "coach"
-      }
-    }
-  ]
+  "steps": []
 }

@@ -6,22 +6,21 @@
   "proclubType": "Auto",
   "implementationStatus": "partial",
   "phase": 3,
-  "notes": "Requiere modelo Lead.",
+  "notes": "Lead: info inicial. La asignación a equipo es tras el alta (WD-1).",
   "name": "PROCLUB · Alta lead y grupo provisional",
-  "description": "[PROCLUB:WP-1] Formulario público y asignación por edad.",
+  "description": "[PROCLUB:WP-1] Contacto recibido; asignar equipo cuando pase a socio.",
   "triggerType": "LEAD_CREATED",
   "isActive": false,
   "steps": [
     {
       "position": 0,
       "stepType": "ACTION",
-      "actionType": "ASSIGN_TEAM_BY_AGE",
+      "actionType": "SEND_WHATSAPP",
       "config": {
-        "minAge": 0,
-        "maxAge": 99,
-        "teamId": "",
-        "label": "assign",
-        "stepKey": "assign"
+        "waPhone": "{memberPhone}",
+        "waMessage": "Gracias por contactar con el club. Te llamaremos para concretar una prueba.",
+        "label": "info",
+        "stepKey": "info"
       }
     }
   ]

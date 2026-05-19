@@ -34,8 +34,12 @@ Importante:
 - {invoiceDueDate}
 - {paymentUrl}
 - {invoicePdfUrl}
+- {signupLinkUrl}
 
 Se rellenan al ejecutar flujos con disparador INVOICE_CREATED, INVOICE_PAID o INVOICE_OVERDUE.
+
+{signupLinkUrl} se genera con la acción «Enlace de inscripción (invitación)» en flujos LEAD_CREATED,
+antes de que exista el socio. No usar «Crear enlace de inscripción» en MEMBER_CREATED.
 
 
 3) Variables base del socio (siempre disponibles)

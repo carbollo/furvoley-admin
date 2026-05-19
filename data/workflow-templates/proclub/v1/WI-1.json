@@ -6,16 +6,16 @@
   "proclubType": "Auto",
   "implementationStatus": "ready",
   "phase": 1,
-  "notes": "Enlace inscripción.",
-  "name": "PROCLUB · Formulario inscripción",
-  "description": "[PROCLUB:WI-1] Enviar enlace de alta.",
-  "triggerType": "MEMBER_CREATED",
+  "notes": "Enlace /join antes del alta. Disparador LEAD, no MEMBER_CREATED.",
+  "name": "PROCLUB · Invitación a inscripción",
+  "description": "[PROCLUB:WI-1] Enviar enlace para que el interesado complete el alta online.",
+  "triggerType": "LEAD_CREATED",
   "isActive": false,
   "steps": [
     {
       "position": 0,
       "stepType": "ACTION",
-      "actionType": "CREATE_SIGNUP_LINK",
+      "actionType": "CREATE_INVITE_SIGNUP_LINK",
       "config": {
         "maxUses": 1,
         "expiresInDays": 14,
@@ -29,9 +29,9 @@
       "actionType": "SEND_WHATSAPP",
       "config": {
         "waPhone": "{memberPhone}",
-        "waMessage": "Completa tu inscripción desde el enlace que te envía el club.",
-        "label": "signup",
-        "stepKey": "signup"
+        "waMessage": "Para unirte al club completa tu inscripción aquí: {signupLinkUrl}",
+        "label": "invite",
+        "stepKey": "invite"
       }
     }
   ]

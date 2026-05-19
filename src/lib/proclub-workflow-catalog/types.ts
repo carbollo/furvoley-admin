@@ -21,6 +21,8 @@ export type ProclubWorkflowTemplate = {
   triggerType: string
   /** Si false, la plantilla se instala pausada hasta completar motor/dominio. */
   defaultActive: boolean
+  /** Solo ejecutar MEMBER_STATUS_CHANGED si el estado nuevo coincide (p. ej. INACTIVE). */
+  onlyWhenCurrentStatus?: string
   steps: ProclubWorkflowStep[]
 }
 
