@@ -79,6 +79,7 @@ export async function GET() {
     usersRaw,
     newsRaw,
     clubBranding,
+    clubHolidaysRaw,
   ] = await Promise.all([
     prisma.member.findMany({
       where:
@@ -207,6 +208,7 @@ export async function GET() {
         })
       : Promise.resolve([]),
     getClubBranding(),
+    prisma.clubHoliday.findMany({ orderBy: { date: 'asc' } }),
   ])
 
   const pendingInvoicesAll = invoicesRaw.filter(
@@ -346,6 +348,10 @@ export async function GET() {
         title: s.title,
         location: s.location,
       })),
+      seasonStartDate: t.seasonStartDate
+        ? t.seasonStartDate.toISOString().slice(0, 10)
+        : '',
+      seasonEndDate: t.seasonEndDate ? t.seasonEndDate.toISOString().slice(0, 10) : '',
       color: '#3B82F6',
       logo: '🏐',
       miembros: t.members.map((tm) => ({
@@ -471,6 +477,11 @@ export async function GET() {
     sociosPorDeporte: teamLabels,
     socios,
     equipos,
+    festivos: clubHolidaysRaw.map((h) => ({
+      id: h.id,
+      date: h.date.toISOString().slice(0, 10),
+      name: h.name ?? '',
+    })),
     cobros,
     eventos,
     workflows,

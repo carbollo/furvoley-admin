@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
+import { runTeamScheduleChangedWorkflows } from '@/lib/workflow-engine'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -59,6 +60,10 @@ export async function POST(request: Request, { params }: Params) {
       title,
       location,
     },
+  })
+
+  void runTeamScheduleChangedWorkflows(teamId).catch((err) => {
+    console.warn('[schedules] WD-2 workflow failed:', err)
   })
 
   return NextResponse.json({

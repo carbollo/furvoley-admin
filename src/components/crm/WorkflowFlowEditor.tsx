@@ -87,6 +87,13 @@ function defaultStepConfig(actionType: string): Record<string, unknown> {
         thenTargetKey: '',
         elseTargetKey: '',
       }
+    case 'GENERATE_TEAM_SESSIONS':
+      return {
+        teamId: '',
+        regenerate: true,
+        untilSeasonEnd: true,
+        weeksAhead: '4',
+      }
     default:
       return {}
   }
@@ -126,6 +133,14 @@ function prepararConfigParaApi(actionType: string, raw: Record<string, unknown>)
     if (o.maxAge !== '' && o.maxAge != null) {
       const n = Number(o.maxAge)
       if (Number.isFinite(n)) o.maxAge = String(n)
+    }
+  }
+  if (actionType === 'GENERATE_TEAM_SESSIONS') {
+    if (typeof o.teamId === 'string') o.teamId = o.teamId.trim()
+    if (o.weeksAhead !== '' && o.weeksAhead != null) {
+      const n = Math.trunc(Number(o.weeksAhead))
+      if (Number.isFinite(n) && n >= 1 && n <= 12) o.weeksAhead = String(n)
+      else delete o.weeksAhead
     }
   }
   if (actionType === 'CREATE_SIGNUP_LINK') {
@@ -1171,6 +1186,56 @@ function WorkflowFlowEditorInner({
                             />
                           </div>
                         </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.actionType === 'GENERATE_TEAM_SESSIONS' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 12 }}>Equipo (opcional)</label>
+                        <select
+                          value={String(selectedNode.data.config.teamId ?? '')}
+                          onChange={(e) => patchConfig({ teamId: e.target.value })}
+                          style={{ ...inputBase, cursor: 'pointer' }}
+                        >
+                          <option value="">— Equipo del disparador —</option>
+                          {equipos.map((eq) => (
+                            <option key={eq.id} value={eq.id}>
+                              {eq.nombre}
+                            </option>
+                          ))}
+                        </select>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.data.config.regenerate !== false}
+                            onChange={(e) => patchConfig({ regenerate: e.target.checked })}
+                          />
+                          Regenerar sesiones futuras auto-generadas
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.data.config.untilSeasonEnd !== false}
+                            onChange={(e) => patchConfig({ untilSeasonEnd: e.target.checked })}
+                          />
+                          Hasta fin de temporada del equipo
+                        </label>
+                        {selectedNode.data.config.untilSeasonEnd === false && (
+                          <div>
+                            <label style={{ ...labelBase, marginTop: 12 }}>Semanas (modo legacy)</label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={12}
+                              value={String(selectedNode.data.config.weeksAhead ?? '4')}
+                              onChange={(e) => patchConfig({ weeksAhead: e.target.value })}
+                              style={inputBase}
+                            />
+                          </div>
+                        )}
+                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.4 }}>
+                          Crea entrenamientos TRAINING según horarios fijos; excluye festivos del club.
+                        </p>
                       </>
                     )}
 

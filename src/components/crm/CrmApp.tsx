@@ -1985,7 +1985,12 @@ function Equipos() {
   const SOCIOS_ALL = bundle?.socios ?? [];
   const [gestionarEquipo, setGestionarEquipo] = useState(null);
   const [gestionarBusy, setGestionarBusy] = useState(false);
-  const [formGestionarTeam, setFormGestionarTeam] = useState({ nombre: '', categoria: '' });
+  const [formGestionarTeam, setFormGestionarTeam] = useState({
+    nombre: '',
+    categoria: '',
+    seasonStartDate: '',
+    seasonEndDate: '',
+  });
   const [coachSelectMemberId, setCoachSelectMemberId] = useState('');
   const [addAlEquipoMemberId, setAddAlEquipoMemberId] = useState('');
   const [scheduleForm, setScheduleForm] = useState({
@@ -2011,6 +2016,8 @@ function Equipos() {
     setFormGestionarTeam({
       nombre: eq.nombre || '',
       categoria: eq.categoriaDb !== undefined ? eq.categoriaDb : '',
+      seasonStartDate: eq.seasonStartDate || '',
+      seasonEndDate: eq.seasonEndDate || '',
     });
     setCoachSelectMemberId(eq.coachMemberId || '');
     setAddAlEquipoMemberId('');
@@ -2021,6 +2028,30 @@ function Equipos() {
       location: '',
       title: '',
     });
+  }
+
+  async function generarCalendarioEquipo() {
+    if (!gestionarEquipo) return;
+    setGestionarBusy(true);
+    try {
+      const r = await fetch('/api/crm/teams/' + gestionarEquipo.id + '/generate-sessions', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        showAlert(j.error || 'No se pudo generar el calendario');
+        return;
+      }
+      showAlert(
+        `Calendario generado: ${j.created ?? 0} sesiones creadas` +
+          (j.skipped ? `, ${j.skipped} omitidas` : '') +
+          (j.deleted ? ` (${j.deleted} sustituidas)` : ''),
+      );
+      await reload();
+    } finally {
+      setGestionarBusy(false);
+    }
   }
 
   async function anadirHorarioEquipo() {
@@ -2094,6 +2125,8 @@ function Equipos() {
         body: JSON.stringify({
           name: nombre,
           category: formGestionarTeam.categoria.trim() ? formGestionarTeam.categoria.trim() : null,
+          seasonStartDate: formGestionarTeam.seasonStartDate.trim() || null,
+          seasonEndDate: formGestionarTeam.seasonEndDate.trim() || null,
         }),
       });
       if (!r.ok) {
@@ -2114,6 +2147,8 @@ function Equipos() {
         setFormGestionarTeam({
           nombre: next.nombre,
           categoria: next.categoriaDb !== undefined ? next.categoriaDb : '',
+          seasonStartDate: next.seasonStartDate || '',
+          seasonEndDate: next.seasonEndDate || '',
         });
         setCoachSelectMemberId(next.coachMemberId || '');
       }
@@ -2551,6 +2586,30 @@ function Equipos() {
                     placeholder="Ej. Sub-18"
                   />
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={teamLabel}>Inicio temporada</label>
+                    <input
+                      type="date"
+                      value={formGestionarTeam.seasonStartDate}
+                      onChange={(e) =>
+                        setFormGestionarTeam((p) => ({ ...p, seasonStartDate: e.target.value }))
+                      }
+                      style={teamInput}
+                    />
+                  </div>
+                  <div>
+                    <label style={teamLabel}>Fin temporada</label>
+                    <input
+                      type="date"
+                      value={formGestionarTeam.seasonEndDate}
+                      onChange={(e) =>
+                        setFormGestionarTeam((p) => ({ ...p, seasonEndDate: e.target.value }))
+                      }
+                      style={teamInput}
+                    />
+                  </div>
+                </div>
               </div>
               <button
                 type="submit"
@@ -2615,7 +2674,9 @@ function Equipos() {
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Horarios fijos</div>
-              <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#6b7280' }}>Usados en avisos al tutor (WD-1).</p>
+              <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#6b7280' }}>
+                Avisos al tutor (WD-1) y calendario automático de entrenamientos (WD-2).
+              </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                 {(gestionarEquipo.horarios ?? []).length === 0 && (
                   <div style={{ fontSize: 13, color: '#9ca3af' }}>Sin horarios definidos.</div>
@@ -2638,7 +2699,28 @@ function Equipos() {
                 <input type="number" min={30} max={240} step={15} value={scheduleForm.durationMinutes} onChange={(e) => setScheduleForm((f) => ({ ...f, durationMinutes: e.target.value }))} style={teamInput} placeholder="Min" title="Duración (min)" />
                 <input value={scheduleForm.location} onChange={(e) => setScheduleForm((f) => ({ ...f, location: e.target.value }))} style={teamInput} placeholder="Ubicación" />
               </div>
-              <button type="button" disabled={gestionarBusy} onClick={anadirHorarioEquipo} style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid var(--border)', background: '#f8fafc', cursor: gestionarBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 20 }}>Añadir horario</button>
+              <button type="button" disabled={gestionarBusy} onClick={anadirHorarioEquipo} style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid var(--border)', background: '#f8fafc', cursor: gestionarBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 10 }}>Añadir horario</button>
+              <button
+                type="button"
+                disabled={gestionarBusy || !(gestionarEquipo.horarios ?? []).length}
+                onClick={generarCalendarioEquipo}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: 'var(--accent)',
+                  cursor: gestionarBusy || !(gestionarEquipo.horarios ?? []).length ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#fff',
+                  marginBottom: 20,
+                  opacity: gestionarBusy || !(gestionarEquipo.horarios ?? []).length ? 0.65 : 1,
+                }}
+              >
+                Generar calendario ahora
+              </button>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Socios en el equipo</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                 {(gestionarEquipo.miembros ?? []).length === 0 && (
@@ -4190,6 +4272,57 @@ function Calendario({ setActive }) {
     datetimeLocal: '',
     location: '',
   });
+  const FESTIVOS_UI = bundle?.festivos ?? [];
+  const [festivoForm, setFestivoForm] = useState({ date: '', name: '' });
+  const [festivoBusy, setFestivoBusy] = useState(false);
+
+  async function anadirFestivo() {
+    if (!festivoForm.date.trim()) {
+      showAlert('Indica la fecha del festivo.');
+      return;
+    }
+    setFestivoBusy(true);
+    try {
+      const r = await fetch('/api/crm/club-holidays', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: festivoForm.date,
+          name: festivoForm.name.trim() || undefined,
+        }),
+      });
+      if (!r.ok) {
+        try {
+          showAlert((await r.json()).error || 'Error al guardar festivo');
+        } catch {
+          showAlert('Error al guardar festivo');
+        }
+        return;
+      }
+      setFestivoForm({ date: '', name: '' });
+      await reload();
+    } finally {
+      setFestivoBusy(false);
+    }
+  }
+
+  async function quitarFestivo(id) {
+    setFestivoBusy(true);
+    try {
+      const r = await fetch('/api/crm/club-holidays/' + id, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!r.ok) {
+        showAlert('No se pudo quitar el festivo');
+        return;
+      }
+      await reload();
+    } finally {
+      setFestivoBusy(false);
+    }
+  }
 
   const evInput = {
     width: '100%',
@@ -4376,6 +4509,39 @@ function Calendario({ setActive }) {
             color="var(--accent)"
             badge={proximoEvento ? { kind:'success', text:'Agendado' } : null}
           />
+        </div>
+
+        {/* Festivos del club (WD-2) */}
+        <div style={{background:'var(--surface-card)',borderRadius:12,padding:24,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
+          <div style={{fontWeight:600,fontSize:16,color:'var(--text-primary)',marginBottom:4}}>Festivos del club</div>
+          <p style={{fontSize:13,color:'var(--text-muted)',margin:'0 0 16px 0'}}>
+            Días sin entrenamiento al generar el calendario automático (WD-2).
+          </p>
+          <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:14,maxHeight:160,overflowY:'auto'}}>
+            {FESTIVOS_UI.length === 0 && (
+              <div style={{fontSize:13,color:'var(--text-muted)'}}>Sin festivos registrados.</div>
+            )}
+            {FESTIVOS_UI.map((f) => (
+              <div key={f.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',background:'var(--surface-low)'}}>
+                <div style={{fontSize:13,color:'var(--text-primary)'}}>
+                  <strong>{f.date}</strong>
+                  {f.name ? ` · ${f.name}` : ''}
+                </div>
+                <button type="button" disabled={festivoBusy} onClick={() => quitarFestivo(f.id)} style={{padding:'6px 10px',borderRadius:8,border:'1px solid #fecaca',background:'#fff',color:'#b91c1c',cursor:festivoBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>Quitar</button>
+              </div>
+            ))}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))',gap:10,alignItems:'end'}}>
+            <div>
+              <label style={evLabel}>Fecha</label>
+              <input type="date" value={festivoForm.date} onChange={(e) => setFestivoForm((p) => ({ ...p, date: e.target.value }))} style={evInput} disabled={festivoBusy} />
+            </div>
+            <div>
+              <label style={evLabel}>Nombre (opcional)</label>
+              <input value={festivoForm.name} onChange={(e) => setFestivoForm((p) => ({ ...p, name: e.target.value }))} style={evInput} placeholder="Ej. Navidad" disabled={festivoBusy} />
+            </div>
+            <button type="button" disabled={festivoBusy} onClick={anadirFestivo} style={{padding:'11px 16px',borderRadius:12,border:'none',background:'var(--accent)',color:'#fff',cursor:festivoBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700}}>Añadir festivo</button>
+          </div>
         </div>
 
         {/* Bento: calendar grid + eventos del día */}

@@ -398,11 +398,13 @@ model BankStatementLine {
 // --- TEAMS AND PLANNING MODELS ---
 
 model Team {
-  id          String       @id @default(cuid())
-  name        String
-  category    String?      // e.g., "U12", "Senior"
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id              String       @id @default(cuid())
+  name            String
+  category        String?      // e.g., "U12", "Senior"
+  seasonStartDate DateTime?
+  seasonEndDate   DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   members     TeamMember[]
   events      Event[]
@@ -459,6 +461,7 @@ model Event {
   maxAttendees  Int?         // Capacity limit
   price         Float?       // Cost to attend, if any
   status        String       @default("SCHEDULED") // SCHEDULED, CANCELLED, COMPLETED
+  source        String       @default("MANUAL") // MANUAL | TEAM_SCHEDULE
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 

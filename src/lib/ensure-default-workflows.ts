@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { WD1_CATALOG_ID, WD1_WORKFLOW } from '@/lib/default-workflows/wd-1'
+import { WD2_CATALOG_ID, WD2_WORKFLOW } from '@/lib/default-workflows/wd-2'
 
 function hasCatalogId(triggerConfig: unknown, catalogId: string): boolean {
   if (!triggerConfig || typeof triggerConfig !== 'object') return false
@@ -45,9 +46,38 @@ async function ensureWd1(): Promise<{ created: boolean; id?: string }> {
   return { created: true, id: wf.id }
 }
 
+async function ensureWd2(): Promise<{ created: boolean; id?: string }> {
+  if (await workflowExists(WD2_CATALOG_ID)) {
+    return { created: false }
+  }
+
+  const wf = await prisma.workflow.create({
+    data: {
+      name: WD2_WORKFLOW.name,
+      description: WD2_WORKFLOW.description,
+      triggerType: WD2_WORKFLOW.triggerType,
+      triggerConfig: WD2_WORKFLOW.triggerConfig as object,
+      isActive: WD2_WORKFLOW.isActive,
+    },
+  })
+
+  await prisma.workflowStep.createMany({
+    data: WD2_WORKFLOW.steps.map((s) => ({
+      workflowId: wf.id,
+      position: s.position,
+      stepType: s.stepType,
+      actionType: s.actionType,
+      config: s.config as object,
+    })),
+  })
+
+  return { created: true, id: wf.id }
+}
+
 export async function ensureDefaultWorkflows(): Promise<{
   wd1: { created: boolean; id?: string }
+  wd2: { created: boolean; id?: string }
 }> {
-  const wd1 = await ensureWd1()
-  return { wd1 }
+  const [wd1, wd2] = await Promise.all([ensureWd1(), ensureWd2()])
+  return { wd1, wd2 }
 }

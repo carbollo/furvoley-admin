@@ -24,6 +24,15 @@ function readNumber(config: unknown, key: string): number | null {
   return Number.isFinite(num) ? num : null
 }
 
+function readBoolean(config: unknown, key: string, defaultValue: boolean): boolean {
+  if (!config || typeof config !== 'object') return defaultValue
+  const raw = (config as Record<string, unknown>)[key]
+  if (typeof raw === 'boolean') return raw
+  if (raw === 'true' || raw === true) return true
+  if (raw === 'false' || raw === false) return false
+  return defaultValue
+}
+
 export function buildInvoiceVariables(invoice: {
   id: string
   invoiceNumber: string
@@ -256,17 +265,26 @@ export async function runExtendedWorkflowAction(
   }
 
   if (step.actionType === 'GENERATE_TEAM_SESSIONS') {
-    const teamId = readString(step.config, 'teamId')
+    const teamId =
+      readString(step.config, 'teamId') ||
+      runContext.variables.teamId ||
+      runContext.variables.scheduleTeamId ||
+      runContext.variables.rosterTeamId
     if (!teamId) {
       setStepError('teamId vacío')
       return true
     }
     try {
+      const untilSeasonEnd = readBoolean(step.config, 'untilSeasonEnd', true)
       const result = await generateTeamSessionsFromSchedule({
         teamId,
+        regenerate: readBoolean(step.config, 'regenerate', true),
+        untilSeasonEnd,
         weeksAhead: readNumber(step.config, 'weeksAhead') ?? 4,
       })
       runContext.variables.sessionsGenerated = String(result.created)
+      runContext.variables.sessionsSkipped = String(result.skipped)
+      runContext.variables.sessionsDeleted = String(result.deleted)
       setStepApplied()
     } catch (e) {
       setStepError(e instanceof Error ? e.message : 'error calendario')

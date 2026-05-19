@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
+import { runTeamScheduleChangedWorkflows } from '@/lib/workflow-engine'
 
 type Params = { params: Promise<{ id: string; scheduleId: string }> }
 
@@ -16,5 +17,10 @@ export async function DELETE(_request: Request, { params }: Params) {
   } catch {
     return NextResponse.json({ error: 'Horario no encontrado' }, { status: 404 })
   }
+
+  void runTeamScheduleChangedWorkflows(teamId).catch((err) => {
+    console.warn('[schedules] WD-2 workflow failed:', err)
+  })
+
   return NextResponse.json({ ok: true })
 }

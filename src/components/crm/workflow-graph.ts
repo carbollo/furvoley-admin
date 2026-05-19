@@ -75,6 +75,8 @@ export function shortActionLabel(actionType: string, c: Record<string, unknown>)
       return 'HTTP'
     case 'BRANCH_IF':
       return 'Condición'
+    case 'GENERATE_TEAM_SESSIONS':
+      return 'Generar entrenamientos'
     default:
       return actionType
   }

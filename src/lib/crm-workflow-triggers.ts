@@ -6,6 +6,10 @@ export const WORKFLOW_TRIGGER_OPTIONS = [
     value: 'TEAM_ROSTER_CONFIRMED',
     label: 'Plantilla de grupo confirmada (alta o cambio de grupo)',
   },
+  {
+    value: 'TEAM_SCHEDULE_CHANGED',
+    label: 'Horarios fijos del grupo modificados',
+  },
   { value: 'LEAD_CREATED', label: 'Lead captado (aún no es socio)' },
   { value: 'MEMBER_UPDATED', label: 'Cambio de datos del socio' },
   { value: 'MEMBER_STATUS_CHANGED', label: 'Cambio de estado del socio' },

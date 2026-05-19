@@ -25,6 +25,7 @@ type WorkflowRunContext = {
 export type WorkflowTriggerType =
   | 'MEMBER_CREATED'
   | 'TEAM_ROSTER_CONFIRMED'
+  | 'TEAM_SCHEDULE_CHANGED'
   | 'MEMBER_UPDATED'
   | 'MEMBER_STATUS_CHANGED'
   | 'PAYMENT_CREATED'
@@ -73,6 +74,8 @@ type WorkflowTriggerContext = {
   } | null
   /** Equipo destino al confirmar plantilla (cambio de grupo). */
   rosterTeamId?: string | null
+  /** Equipo cuyos horarios fijos cambiaron (WD-2). */
+  scheduleTeamId?: string | null
 }
 
 function tokenSafePart(value: string): string {
@@ -203,8 +206,11 @@ function buildTriggerVariables(
     ...(context.invoice ? buildInvoiceVariables(context.invoice) : {}),
     eventId: String(context.event?.id || ''),
     eventTitle: String(context.event?.title || ''),
-    teamId: String(context.event?.teamId || context.rosterTeamId || ''),
+    teamId: String(
+      context.event?.teamId || context.scheduleTeamId || context.rosterTeamId || '',
+    ),
     rosterTeamId: String(context.rosterTeamId || ''),
+    scheduleTeamId: String(context.scheduleTeamId || ''),
     ...(context.rosterTeamId
       ? {
           assignedTeamId: String(context.rosterTeamId),
@@ -887,7 +893,17 @@ async function runWorkflowStepsForMember(
       runContext.variables.rosterTeamId = rosterTeamId
       runContext.variables.assignedTeamId = rosterTeamId
       runContext.variables.teamAssignedId = rosterTeamId
+      runContext.variables.teamId = rosterTeamId
       await populateTeamRosterVariables(rosterTeamId, runContext.variables)
+    }
+  }
+
+  if (triggerType === 'TEAM_SCHEDULE_CHANGED') {
+    const scheduleTeamId = triggerContext.scheduleTeamId?.trim()
+    if (scheduleTeamId) {
+      runContext.variables.teamId = scheduleTeamId
+      runContext.variables.scheduleTeamId = scheduleTeamId
+      await populateTeamRosterVariables(scheduleTeamId, runContext.variables)
     }
   }
 
@@ -1300,6 +1316,43 @@ export async function runEventStartingSoonWorkflows(eventId: string) {
 
 export async function runEventCompletedWorkflows(eventId: string) {
   await runEventTeamWorkflows(eventId, 'EVENT_COMPLETED')
+}
+
+/** Horarios fijos del grupo guardados o eliminados (WD-2). */
+export async function runTeamScheduleChangedWorkflows(teamId: string) {
+  const cleanTeamId = teamId.trim()
+  if (!cleanTeamId) return
+
+  const team = await prisma.team.findUnique({
+    where: { id: cleanTeamId },
+    select: { id: true, name: true },
+  })
+  if (!team) return
+
+  const workflows = await prisma.workflow.findMany({
+    where: { isActive: true, triggerType: 'TEAM_SCHEDULE_CHANGED' },
+    include: { steps: true },
+  })
+  if (workflows.length === 0) return
+
+  const stubMember: WorkflowMemberPayload = {
+    id: 'schedule',
+    name: team.name,
+    email: null,
+    phone: null,
+    guardianPhone: null,
+    address: null,
+    sportPreference: null,
+    dni: null,
+    birthDate: null,
+    status: 'ACTIVE',
+  }
+
+  const ctx: WorkflowTriggerContext = { scheduleTeamId: cleanTeamId }
+
+  for (const workflow of workflows) {
+    await runWorkflowStepsForMember(workflow.steps, stubMember, 'TEAM_SCHEDULE_CHANGED', ctx)
+  }
 }
 
 export async function runAttendanceAbsentUnexcusedWorkflows(attendanceId: string) {

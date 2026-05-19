@@ -12,13 +12,20 @@ export async function createTeam(data: { name: string; category?: string }) {
 
 export async function updateTeam(
   id: string,
-  data: { name?: string; category?: string | null },
+  data: {
+    name?: string
+    category?: string | null
+    seasonStartDate?: Date | null
+    seasonEndDate?: Date | null
+  },
 ) {
   await prisma.team.update({
     where: { id },
     data: {
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.category !== undefined ? { category: data.category } : {}),
+      ...(data.seasonStartDate !== undefined ? { seasonStartDate: data.seasonStartDate } : {}),
+      ...(data.seasonEndDate !== undefined ? { seasonEndDate: data.seasonEndDate } : {}),
     },
   })
   revalidatePath('/')
