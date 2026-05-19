@@ -1,0 +1,27 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WD-5",
+  "proclubArea": "sport",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 2,
+  "notes": "EVENT_CANCELLED + SEND_WHATSAPP_TO_TEAM.",
+  "name": "PROCLUB · Cancelación de sesión",
+  "description": "[PROCLUB:WD-5] Aviso a toda la plantilla.",
+  "triggerType": "EVENT_CANCELLED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP_TO_TEAM",
+      "config": {
+        "teamId": "",
+        "waMessage": "Sesión cancelada o reprogramada. Revisad el calendario.",
+        "label": "notify",
+        "stepKey": "notify"
+      }
+    }
+  ]
+}

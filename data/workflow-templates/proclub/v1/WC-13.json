@@ -1,0 +1,27 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WC-13",
+  "proclubArea": "billing",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 2,
+  "notes": "Tarjeta caducada Stripe.",
+  "name": "PROCLUB · Tarjeta caducada",
+  "description": "[PROCLUB:WC-13] Actualizar método de pago.",
+  "triggerType": "MEMBER_UPDATED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Actualiza tu método de pago en el club.",
+        "label": "card",
+        "stepKey": "card"
+      }
+    }
+  ]
+}

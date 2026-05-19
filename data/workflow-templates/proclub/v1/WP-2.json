@@ -1,0 +1,27 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WP-2",
+  "proclubArea": "capture",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 3,
+  "notes": "LEAD_CREATED.",
+  "name": "PROCLUB · Info inicial al lead",
+  "description": "[PROCLUB:WP-2] Horarios, cuotas, prueba.",
+  "triggerType": "LEAD_CREATED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Gracias por contactar. Info del club y propuesta de prueba.",
+        "label": "info",
+        "stepKey": "info"
+      }
+    }
+  ]
+}

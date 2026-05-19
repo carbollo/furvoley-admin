@@ -1,0 +1,15 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WD-9",
+  "proclubArea": "sport",
+  "proclubType": "Mixto",
+  "implementationStatus": "partial",
+  "phase": 3,
+  "notes": "EVENT_COMPLETED.",
+  "name": "PROCLUB · Resultado partido",
+  "description": "[PROCLUB:WD-9] Recordatorio resultado al entrenador.",
+  "triggerType": "EVENT_COMPLETED",
+  "isActive": false,
+  "steps": []
+}

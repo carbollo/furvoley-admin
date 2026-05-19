@@ -1,0 +1,39 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WD-1",
+  "proclubArea": "sport",
+  "proclubType": "Auto",
+  "implementationStatus": "ready",
+  "phase": 1,
+  "notes": "Asignación por edad + WhatsApp.",
+  "name": "PROCLUB · Alta en plantilla del grupo",
+  "description": "[PROCLUB:WD-1] Incorporar jugador al grupo y avisar al tutor.",
+  "triggerType": "MEMBER_CREATED",
+  "isActive": true,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "ASSIGN_TEAM_BY_AGE",
+      "config": {
+        "minAge": 0,
+        "maxAge": 99,
+        "teamId": "",
+        "label": "assign",
+        "stepKey": "assign"
+      }
+    },
+    {
+      "position": 1,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Hola, {memberName} ya está en {assignedTeamName}. Consulta horarios en el panel del club.",
+        "label": "welcome",
+        "stepKey": "welcome"
+      }
+    }
+  ]
+}

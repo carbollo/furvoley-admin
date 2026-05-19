@@ -1,0 +1,15 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WC-1",
+  "proclubArea": "billing",
+  "proclubType": "Manual",
+  "implementationStatus": "manual",
+  "phase": 1,
+  "notes": "Configurar planes en panel Contabilidad.",
+  "name": "PROCLUB · Catálogo de cuotas (manual)",
+  "description": "[PROCLUB:WC-1] No es workflow: configuración de planes.",
+  "triggerType": "MEMBER_CREATED",
+  "isActive": false,
+  "steps": []
+}

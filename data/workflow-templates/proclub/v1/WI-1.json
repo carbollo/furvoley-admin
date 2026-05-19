@@ -1,0 +1,38 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WI-1",
+  "proclubArea": "signup",
+  "proclubType": "Auto",
+  "implementationStatus": "ready",
+  "phase": 1,
+  "notes": "Enlace inscripción.",
+  "name": "PROCLUB · Formulario inscripción",
+  "description": "[PROCLUB:WI-1] Enviar enlace de alta.",
+  "triggerType": "MEMBER_CREATED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "CREATE_SIGNUP_LINK",
+      "config": {
+        "maxUses": 1,
+        "expiresInDays": 14,
+        "label": "link",
+        "stepKey": "link"
+      }
+    },
+    {
+      "position": 1,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Completa tu inscripción desde el enlace que te envía el club.",
+        "label": "signup",
+        "stepKey": "signup"
+      }
+    }
+  ]
+}

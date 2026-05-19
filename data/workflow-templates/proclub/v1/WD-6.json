@@ -1,0 +1,27 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WD-6",
+  "proclubArea": "sport",
+  "proclubType": "Mixto",
+  "implementationStatus": "partial",
+  "phase": 3,
+  "notes": "Asignación sustituto manual.",
+  "name": "PROCLUB · Sustitución entrenador",
+  "description": "[PROCLUB:WD-6] Aviso de cambio de entrenador.",
+  "triggerType": "EVENT_RESCHEDULED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Cambio de entrenador en la sesión. Revisad el calendario.",
+        "label": "sub",
+        "stepKey": "sub"
+      }
+    }
+  ]
+}

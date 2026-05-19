@@ -1,0 +1,26 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WC-12",
+  "proclubArea": "billing",
+  "proclubType": "Mixto",
+  "implementationStatus": "partial",
+  "phase": 2,
+  "notes": "Suspender socio.",
+  "name": "PROCLUB · Bloqueo por impago",
+  "description": "[PROCLUB:WC-12] Suspensión por morosidad.",
+  "triggerType": "INVOICE_OVERDUE",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SET_MEMBER_STATUS",
+      "config": {
+        "targetStatus": "INACTIVE",
+        "label": "suspend",
+        "stepKey": "suspend"
+      }
+    }
+  ]
+}

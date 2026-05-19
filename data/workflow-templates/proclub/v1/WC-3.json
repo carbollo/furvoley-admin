@@ -1,0 +1,36 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WC-3",
+  "proclubArea": "billing",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 1,
+  "notes": "Primer cobro + enlace.",
+  "name": "PROCLUB · Primer cobro inscripción",
+  "description": "[PROCLUB:WC-3] Matrícula y primera cuota.",
+  "triggerType": "MEMBER_CREATED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_PAYMENT_LINK",
+      "config": {
+        "label": "link",
+        "stepKey": "link"
+      }
+    },
+    {
+      "position": 1,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Completa el pago de inscripción: {paymentUrl}",
+        "label": "pay",
+        "stepKey": "pay"
+      }
+    }
+  ]
+}

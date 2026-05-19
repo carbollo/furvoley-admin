@@ -1,0 +1,27 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WC-8",
+  "proclubArea": "billing",
+  "proclubType": "Auto",
+  "implementationStatus": "ready",
+  "phase": 1,
+  "notes": "INVOICE_OVERDUE.",
+  "name": "PROCLUB · Aviso impago",
+  "description": "[PROCLUB:WC-8] Primer aviso tras vencimiento.",
+  "triggerType": "INVOICE_OVERDUE",
+  "isActive": true,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Cuota pendiente {invoiceNumber}: {pendingAmount} {invoiceCurrency}. Pagar: {paymentUrl}",
+        "label": "due",
+        "stepKey": "due"
+      }
+    }
+  ]
+}

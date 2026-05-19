@@ -1,0 +1,27 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WP-5",
+  "proclubArea": "capture",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 3,
+  "notes": "Lista espera.",
+  "name": "PROCLUB · Lista de espera",
+  "description": "[PROCLUB:WP-5] Aviso cuando hay hueco.",
+  "triggerType": "LEAD_UPDATED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Hay plaza disponible en el grupo. Contacta con el club.",
+        "label": "waitlist",
+        "stepKey": "waitlist"
+      }
+    }
+  ]
+}

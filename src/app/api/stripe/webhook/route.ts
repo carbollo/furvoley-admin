@@ -2,7 +2,6 @@ import { headers } from 'next/headers'
 import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import { createInvoiceForSubscription, recordInvoicePayment } from '@/app/actions/billing'
-import { getPersistedWebhookSecrets } from '@/lib/stripe-bootstrap'
 import { getStripeConnectConfig } from '@/lib/club-settings'
 import type Stripe from 'stripe'
 
@@ -14,10 +13,10 @@ import type Stripe from 'stripe'
  * Transaction/JournalEntry; la contabilidad oficial se carga importando el
  * CSV del banco y conciliando líneas (`/accounting/bank-import`).
  *
- * Secrets aceptados:
- *  - `STRIPE_WEBHOOK_SECRET` — eventos de la cuenta de la plataforma.
- *  - `STRIPE_CONNECT_WEBHOOK_SECRET` — eventos de cuentas conectadas
- *    (Direct Charges, donde `event.account` viene poblado).
+ * Firma: **solo** variables de entorno (configúralas a mano en Railway, etc.):
+ *  - `STRIPE_WEBHOOK_SECRET` — endpoint de la cuenta plataforma.
+ *  - `STRIPE_CONNECT_WEBHOOK_SECRET` — endpoint Connect (eventos con `event.account`).
+ *  Ambas deben estar definidas; no se usan secretos persistidos en BD.
  *
  * Multi-deploy (varios clones en Railway, misma cuenta plataforma): Stripe
  * puede entregar cada evento Connect a **todos** los webhook endpoints Connect
@@ -32,15 +31,13 @@ export async function POST(req: Request) {
     return new Response('Missing signature', { status: 400 })
   }
 
-  // Env vars tienen prioridad sobre secrets persistidos en BD (modo bootstrap
-  // automático). Esto permite que clones nuevos del servicio funcionen sin
-  // configuración manual: la app crea los webhooks la primera vez que el
-  // admin abre el CRM y guarda los secrets en `StripeBootstrap`.
-  const persisted = await getPersistedWebhookSecrets()
-  const platformSecret = process.env.STRIPE_WEBHOOK_SECRET || persisted.platform
-  const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET || persisted.connect
-  if (!platformSecret && !connectSecret) {
-    return new Response('No webhook secret configured', { status: 400 })
+  const platformSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim() || null
+  const connectSecret = (process.env.STRIPE_CONNECT_WEBHOOK_SECRET || '').trim() || null
+  if (!platformSecret || !connectSecret) {
+    return new Response(
+      'Missing STRIPE_WEBHOOK_SECRET or STRIPE_CONNECT_WEBHOOK_SECRET (both required as environment variables)',
+      { status: 503 }
+    )
   }
 
   const stripe = getStripe()

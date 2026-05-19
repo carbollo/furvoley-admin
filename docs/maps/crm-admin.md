@@ -24,6 +24,13 @@ Panel de operaciones del club para roles `ADMIN`, `COACH`, `TREASURER`. Consume 
 - Internas: [[maps/auth]], [[design/crm-elite-club-operations]].
 - Externas: `next-auth/react`, `next/navigation`, `next/font/google` (Plus Jakarta Sans), Prisma.
 
+## Workflows y catálogo PROCLUB
+- `src/components/crm/WorkflowsSection.tsx`: listado, editor visual, export/import JSON (`furvoley-workflows` v1) y **Biblioteca PROCLUB (48)**.
+- `src/lib/proclub-workflow-catalog/`: manifest + 48 plantillas (`ready` / `partial` / `manual`).
+- `data/workflow-templates/proclub/v1/`: JSON espejo para backup o integraciones.
+- `POST /api/crm/workflows/install-template`: instala por `proclubId` sin sobrescribir flujos existentes (omite si ya hay mismo ID en `triggerConfig` o descripción `[PROCLUB:…]`).
+- Matriz completa: [[features/proclub-workflows]].
+
 ## Riesgos y notas
 - `CrmApp.tsx` está en `@ts-nocheck`; los tipos no se validan dentro del componente. Cuidado al refactorizar.
 - Cambios en `--accent` (`#004ac6`) afectan TODO el CRM: botones, links, badge `Activo`, focus rings.

@@ -5,6 +5,7 @@ import {
   getClubSettings,
   getStripePortalConfig,
   getStripeConnectConfig,
+  normalizeInvoicePdfTemplate,
 } from '@/lib/club-settings'
 import { getStripeBootstrapStatus, scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 
@@ -29,6 +30,7 @@ async function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
     contactPhone: s.contactPhone ?? '',
     website: s.website ?? '',
     primaryColor: s.primaryColor ?? '',
+    invoicePdfTemplate: normalizeInvoicePdfTemplate(s.invoicePdfTemplate),
     updatedAt: s.updatedAt.toISOString(),
     // Datos de Stripe (read-only desde Railway env vars)
     stripe: {
@@ -101,6 +103,14 @@ export async function PATCH(request: Request) {
   }
   if (typeof data.website === 'string' && data.website && !/^https?:\/\//i.test(data.website)) {
     data.website = 'https://' + data.website
+  }
+
+  if ('invoicePdfTemplate' in body) {
+    const raw = body.invoicePdfTemplate
+    if (typeof raw !== 'string') {
+      return NextResponse.json({ error: 'Plantilla PDF inválida' }, { status: 400 })
+    }
+    data.invoicePdfTemplate = normalizeInvoicePdfTemplate(raw)
   }
 
   // Logo (data URL o URL https)

@@ -1,0 +1,487 @@
+{
+  "format": "proclub-workflow-catalog",
+  "version": 1,
+  "templateCount": 48,
+  "entries": [
+    {
+      "proclubId": "WD-1",
+      "name": "PROCLUB · Alta en plantilla del grupo",
+      "proclubArea": "sport",
+      "proclubType": "Auto",
+      "implementationStatus": "ready",
+      "phase": 1,
+      "triggerType": "MEMBER_CREATED",
+      "notes": "Asignación por edad + WhatsApp."
+    },
+    {
+      "proclubId": "WD-2",
+      "name": "PROCLUB · Calendario recurrente",
+      "proclubArea": "sport",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "Requiere TeamSchedule + GENERATE_TEAM_SESSIONS."
+    },
+    {
+      "proclubId": "WD-3",
+      "name": "PROCLUB · Recordatorio pase de lista",
+      "proclubArea": "sport",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "EVENT_STARTING_SOON",
+      "notes": "EVENT_STARTING_SOON + aviso entrenador."
+    },
+    {
+      "proclubId": "WD-4",
+      "name": "PROCLUB · Falta no justificada",
+      "proclubArea": "sport",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "ATTENDANCE_ABSENT_UNEXCUSED",
+      "notes": "ATTENDANCE_ABSENT_UNEXCUSED."
+    },
+    {
+      "proclubId": "WD-5",
+      "name": "PROCLUB · Cancelación de sesión",
+      "proclubArea": "sport",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "EVENT_CANCELLED",
+      "notes": "EVENT_CANCELLED + SEND_WHATSAPP_TO_TEAM."
+    },
+    {
+      "proclubId": "WD-6",
+      "name": "PROCLUB · Sustitución entrenador",
+      "proclubArea": "sport",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "EVENT_RESCHEDULED",
+      "notes": "Asignación sustituto manual."
+    },
+    {
+      "proclubId": "WD-7",
+      "name": "PROCLUB · Convocatoria partido",
+      "proclubArea": "sport",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "Modelo convocatoria pendiente."
+    },
+    {
+      "proclubId": "WD-8",
+      "name": "PROCLUB · No convocado",
+      "proclubArea": "sport",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "No convocados."
+    },
+    {
+      "proclubId": "WD-9",
+      "name": "PROCLUB · Resultado partido",
+      "proclubArea": "sport",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "EVENT_COMPLETED",
+      "notes": "EVENT_COMPLETED."
+    },
+    {
+      "proclubId": "WD-10",
+      "name": "PROCLUB · Cambio de grupo",
+      "proclubArea": "sport",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_STATUS_CHANGED",
+      "notes": "Cambio grupo + cuotas."
+    },
+    {
+      "proclubId": "WD-11",
+      "name": "PROCLUB · Evaluación al tutor",
+      "proclubArea": "sport",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "Evaluación trimestral."
+    },
+    {
+      "proclubId": "WD-12",
+      "name": "PROCLUB · Vencimiento documentación",
+      "proclubArea": "sport",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "DOCUMENT_EXPIRING",
+      "notes": "DOCUMENT_EXPIRING."
+    },
+    {
+      "proclubId": "WD-13",
+      "name": "PROCLUB · Comunicación masiva",
+      "proclubArea": "sport",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "SEND_WHATSAPP_TO_TEAM."
+    },
+    {
+      "proclubId": "WD-14",
+      "name": "PROCLUB · Onboarding entrenador",
+      "proclubArea": "sport",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_CREATED",
+      "notes": "Onboarding entrenador."
+    },
+    {
+      "proclubId": "WD-15",
+      "name": "PROCLUB · Incidencias entrenador",
+      "proclubArea": "sport",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "Buzón incidencias pendiente."
+    },
+    {
+      "proclubId": "WC-1",
+      "name": "PROCLUB · Catálogo de cuotas (manual)",
+      "proclubArea": "billing",
+      "proclubType": "Manual",
+      "implementationStatus": "manual",
+      "phase": 1,
+      "triggerType": "MEMBER_CREATED",
+      "notes": "Configurar planes en panel Contabilidad."
+    },
+    {
+      "proclubId": "WC-2",
+      "name": "PROCLUB · Asignación de cuotas",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 1,
+      "triggerType": "MEMBER_CREATED",
+      "notes": "CREATE_SUBSCRIPTION al alta."
+    },
+    {
+      "proclubId": "WC-3",
+      "name": "PROCLUB · Primer cobro inscripción",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 1,
+      "triggerType": "MEMBER_CREATED",
+      "notes": "Primer cobro + enlace."
+    },
+    {
+      "proclubId": "WC-4",
+      "name": "PROCLUB · Cuotas periódicas",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 1,
+      "triggerType": "INVOICE_CREATED",
+      "notes": "INVOICE_CREATED (cron billing)."
+    },
+    {
+      "proclubId": "WC-5",
+      "name": "PROCLUB · Concepto extra",
+      "proclubArea": "billing",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "INVOICE_CREATED",
+      "notes": "Cobro extra manual."
+    },
+    {
+      "proclubId": "WC-6",
+      "name": "PROCLUB · Descuentos y becas",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "INVOICE_CREATED",
+      "notes": "Reglas descuento pendientes."
+    },
+    {
+      "proclubId": "WC-7",
+      "name": "PROCLUB · Pago y recibo",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "ready",
+      "phase": 1,
+      "triggerType": "INVOICE_PAID",
+      "notes": "INVOICE_PAID + recibo PDF WhatsApp."
+    },
+    {
+      "proclubId": "WC-8",
+      "name": "PROCLUB · Aviso impago",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "ready",
+      "phase": 1,
+      "triggerType": "INVOICE_OVERDUE",
+      "notes": "INVOICE_OVERDUE."
+    },
+    {
+      "proclubId": "WC-9",
+      "name": "PROCLUB · Reintento cobro",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "INVOICE_OVERDUE",
+      "notes": "Reintento pasarela."
+    },
+    {
+      "proclubId": "WC-10",
+      "name": "PROCLUB · Escalado impago",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "INVOICE_OVERDUE",
+      "notes": "Alerta admin."
+    },
+    {
+      "proclubId": "WC-11",
+      "name": "PROCLUB · Listado impagos",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "INVOICE_OVERDUE",
+      "notes": "Resumen semanal (job)."
+    },
+    {
+      "proclubId": "WC-12",
+      "name": "PROCLUB · Bloqueo por impago",
+      "proclubArea": "billing",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "INVOICE_OVERDUE",
+      "notes": "Suspender socio."
+    },
+    {
+      "proclubId": "WC-13",
+      "name": "PROCLUB · Tarjeta caducada",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "Tarjeta caducada Stripe."
+    },
+    {
+      "proclubId": "WC-14",
+      "name": "PROCLUB · Pausa de cobros",
+      "proclubArea": "billing",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_STATUS_CHANGED",
+      "notes": "Pausa cobros."
+    },
+    {
+      "proclubId": "WC-15",
+      "name": "PROCLUB · Devolución prorrateada",
+      "proclubArea": "billing",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_STATUS_CHANGED",
+      "notes": "Devolución prorrateada."
+    },
+    {
+      "proclubId": "WC-16",
+      "name": "PROCLUB · Saldo a favor",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "INVOICE_PAID",
+      "notes": "Saldo a favor."
+    },
+    {
+      "proclubId": "WC-17",
+      "name": "PROCLUB · Renovación temporada",
+      "proclubArea": "billing",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "Renovación temporada."
+    },
+    {
+      "proclubId": "WC-18",
+      "name": "PROCLUB · Cierre contable",
+      "proclubArea": "billing",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "Export contable (job)."
+    },
+    {
+      "proclubId": "WP-1",
+      "name": "PROCLUB · Alta lead y grupo provisional",
+      "proclubArea": "capture",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "LEAD_CREATED",
+      "notes": "Requiere modelo Lead."
+    },
+    {
+      "proclubId": "WP-2",
+      "name": "PROCLUB · Info inicial al lead",
+      "proclubArea": "capture",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "LEAD_CREATED",
+      "notes": "LEAD_CREATED."
+    },
+    {
+      "proclubId": "WP-3",
+      "name": "PROCLUB · Aviso entrenador (prueba)",
+      "proclubArea": "capture",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "LEAD_CREATED",
+      "notes": "Aviso entrenador."
+    },
+    {
+      "proclubId": "WP-4",
+      "name": "PROCLUB · Confirmación prueba",
+      "proclubArea": "capture",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "LEAD_UPDATED",
+      "notes": "Recordatorio 5h antes."
+    },
+    {
+      "proclubId": "WP-5",
+      "name": "PROCLUB · Lista de espera",
+      "proclubArea": "capture",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "LEAD_UPDATED",
+      "notes": "Lista espera."
+    },
+    {
+      "proclubId": "WP-6",
+      "name": "PROCLUB · Seguimiento lead frío",
+      "proclubArea": "capture",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "LEAD_UPDATED",
+      "notes": "Seguimiento lead frío."
+    },
+    {
+      "proclubId": "WI-1",
+      "name": "PROCLUB · Formulario inscripción",
+      "proclubArea": "signup",
+      "proclubType": "Auto",
+      "implementationStatus": "ready",
+      "phase": 1,
+      "triggerType": "MEMBER_CREATED",
+      "notes": "Enlace inscripción."
+    },
+    {
+      "proclubId": "WI-2",
+      "name": "PROCLUB · Validación menor",
+      "proclubArea": "signup",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "Validación menor/tutor."
+    },
+    {
+      "proclubId": "WI-3",
+      "name": "PROCLUB · Firmas documentos",
+      "proclubArea": "signup",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "Firmas documentos."
+    },
+    {
+      "proclubId": "WI-4",
+      "name": "PROCLUB · Onboarding post-inscripción",
+      "proclubArea": "signup",
+      "proclubType": "Auto",
+      "implementationStatus": "ready",
+      "phase": 1,
+      "triggerType": "MEMBER_CREATED",
+      "notes": "Bienvenida post-inscripción."
+    },
+    {
+      "proclubId": "WB-1",
+      "name": "PROCLUB · Solicitud de baja",
+      "proclubArea": "churn",
+      "proclubType": "Mixto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_STATUS_CHANGED",
+      "notes": "Solicitud baja admin."
+    },
+    {
+      "proclubId": "WB-2",
+      "name": "PROCLUB · Cancelar cuotas futuras",
+      "proclubArea": "churn",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_STATUS_CHANGED",
+      "notes": "Cancelar cuotas futuras."
+    },
+    {
+      "proclubId": "WB-3",
+      "name": "PROCLUB · Liberar plaza",
+      "proclubArea": "churn",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "MEMBER_STATUS_CHANGED",
+      "notes": "Lista espera WP-5."
+    },
+    {
+      "proclubId": "WB-4",
+      "name": "PROCLUB · Cierre y encuesta",
+      "proclubArea": "churn",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 2,
+      "triggerType": "MEMBER_STATUS_CHANGED",
+      "notes": "Encuesta motivo."
+    },
+    {
+      "proclubId": "WB-5",
+      "name": "PROCLUB · Campaña retorno",
+      "proclubArea": "churn",
+      "proclubType": "Auto",
+      "implementationStatus": "partial",
+      "phase": 3,
+      "triggerType": "MEMBER_UPDATED",
+      "notes": "Campaña retorno."
+    }
+  ]
+}

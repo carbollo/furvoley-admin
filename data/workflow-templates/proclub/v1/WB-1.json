@@ -1,0 +1,15 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WB-1",
+  "proclubArea": "churn",
+  "proclubType": "Mixto",
+  "implementationStatus": "partial",
+  "phase": 2,
+  "notes": "Solicitud baja admin.",
+  "name": "PROCLUB · Solicitud de baja",
+  "description": "[PROCLUB:WB-1] Confirmar fecha efectiva.",
+  "triggerType": "MEMBER_STATUS_CHANGED",
+  "isActive": false,
+  "steps": []
+}

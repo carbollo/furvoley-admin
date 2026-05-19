@@ -72,8 +72,10 @@ model Member {
   email     String?
   phone     String?
   address   String?
+  guardianName  String?
+  guardianPhone String?
   sportPreference String? // Deporte/interés de inscripción (ej. antes de asignar equipo)
-  status    String    @default("ACTIVE") // ACTIVE, INACTIVE
+  status    String    @default("ACTIVE") // LEAD, ACTIVE, PAUSED, INACTIVE
   joinedAt  DateTime  @default(now())
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -87,6 +89,22 @@ model Member {
   reminders ReminderLog[]
   signupSubmissions SignupLink[] @relation("SignupLinkCreatedMember")
   orders    Order[]
+  leads     Lead[]
+}
+
+model Lead {
+  id              String   @id @default(cuid())
+  name            String
+  email           String?
+  phone           String?
+  sportPreference String?
+  status          String   @default("NEW") // NEW, CONTACTED, TRIAL, CONVERTED, LOST
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  memberId        String?
+  member          Member?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
 }
 
 model SignupLink {
@@ -375,6 +393,30 @@ model Team {
 
   members     TeamMember[]
   events      Event[]
+  schedules   TeamSchedule[]
+}
+
+model TeamSchedule {
+  id              String   @id @default(cuid())
+  weekday         Int      // 0=domingo … 6=sábado
+  startTime       String   // HH:mm
+  durationMinutes Int      @default(90)
+  title           String?
+  location        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  teamId          String
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, weekday])
+}
+
+model ClubHoliday {
+  id        String   @id @default(cuid())
+  date      DateTime
+  name      String?
+  createdAt DateTime @default(now())
 }
 
 model TeamMember {
@@ -620,6 +662,8 @@ model ClubSettings {
   website          String?
   // Marca
   primaryColor     String?                  // hex (#004ac6, etc.)
+  // Plantilla del PDF de facturas (valor: CLASSIC | MODERN | COMPACT)
+  invoicePdfTemplate String @default("CLASSIC")
   // NOTA: la configuración de Stripe (customer ID + dashboard URL) vive en
   // variables de entorno (Railway): STRIPE_CLUB_CUSTOMER_ID y STRIPE_DASHBOARD_URL.
 

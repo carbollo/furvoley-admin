@@ -7,6 +7,14 @@ import { createJournalEntry } from '@/lib/accounting/engine'
 import { ensureBasePgcAccounts } from '@/lib/accounting/pgc'
 import { getClubIssuer, getStripeConnectConfig } from '@/lib/club-settings'
 import type Stripe from 'stripe'
+import { sendApiWassText } from '@/lib/apiwass'
+import { getWhatsAppConfig } from '@/lib/whatsapp-config'
+import {
+  runInvoiceCreatedWorkflows,
+  runInvoiceOverdueWorkflows,
+  runInvoicePaidWorkflows,
+  runSubscriptionCreatedWorkflows,
+} from '@/lib/workflow-engine'
 
 function startOfDay(date: Date) {
   const d = new Date(date)
@@ -110,6 +118,7 @@ export async function createSubscription(data: {
 
   // first invoice
   await createInvoiceForSubscription(subscription.id)
+  await runSubscriptionCreatedWorkflows(subscription.id)
   revalidatePath('/')
   return subscription
 }
@@ -154,6 +163,7 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
     where: { id: subscription.id },
     data: { nextInvoiceDate: dueDate },
   })
+  await runInvoiceCreatedWorkflows(invoice.id)
   return invoice
 }
 
@@ -209,6 +219,7 @@ export async function createManualInvoice(data: {
     },
   })
 
+  await runInvoiceCreatedWorkflows(invoice.id)
   revalidatePath('/')
   return invoice
 }
@@ -235,10 +246,14 @@ export async function updateInvoiceStatuses() {
   })
   for (const invoice of invoices) {
     if (invoice.paidAmount < invoice.totalAmount) {
+      const prev = invoice.status
       await prisma.invoice.update({
         where: { id: invoice.id },
         data: { status: 'OVERDUE' },
       })
+      if (prev !== 'OVERDUE') {
+        await runInvoiceOverdueWorkflows(invoice.id)
+      }
     }
   }
   revalidatePath('/')
@@ -334,6 +349,13 @@ export async function recordInvoicePayment(data: {
           },
         ],
       })
+    }
+
+    if ((data.status ?? 'SUCCEEDED') === 'SUCCEEDED') {
+      const updated = await prisma.invoice.findUnique({ where: { id: invoice.id } })
+      if (updated && updated.status === 'PAID') {
+        await runInvoicePaidWorkflows(invoice.id)
+      }
     }
   }
 
@@ -520,8 +542,27 @@ export async function runReminderJob() {
     ).toFixed(2)} ${invoice.currency}.`
 
     let status = 'SENT'
+    let channel = 'EMAIL'
     try {
-      if (process.env.REMINDER_WEBHOOK_URL) {
+      const phone = (invoice.member.phone || '').replace(/[^\d+]/g, '')
+      const cfg = await getWhatsAppConfig()
+      const sessionId = String(cfg.linkedSessionId || '').trim()
+      if (phone && sessionId) {
+        let payLine = ''
+        try {
+          const url =
+            invoice.stripeCheckoutUrl || (await createInvoiceStripeLink(invoice.id))
+          if (url) payLine = ` Pagar: ${url}`
+        } catch {
+          /* optional */
+        }
+        await sendApiWassText({
+          sessionId,
+          phone,
+          message: `${message}${payLine}`,
+        })
+        channel = 'WHATSAPP'
+      } else if (process.env.REMINDER_WEBHOOK_URL) {
         await fetch(process.env.REMINDER_WEBHOOK_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -539,7 +580,7 @@ export async function runReminderJob() {
     await prisma.reminderLog.create({
       data: {
         reminderType,
-        channel: 'EMAIL',
+        channel,
         status,
         message,
         memberId: invoice.memberId,

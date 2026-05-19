@@ -1,0 +1,28 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WP-1",
+  "proclubArea": "capture",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 3,
+  "notes": "Requiere modelo Lead.",
+  "name": "PROCLUB · Alta lead y grupo provisional",
+  "description": "[PROCLUB:WP-1] Formulario público y asignación por edad.",
+  "triggerType": "LEAD_CREATED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "ASSIGN_TEAM_BY_AGE",
+      "config": {
+        "minAge": 0,
+        "maxAge": 99,
+        "teamId": "",
+        "label": "assign",
+        "stepKey": "assign"
+      }
+    }
+  ]
+}

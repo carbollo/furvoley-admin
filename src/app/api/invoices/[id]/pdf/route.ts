@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { buildInvoicePdf } from '@/lib/invoice-pdf'
-import { getClubIssuer } from '@/lib/club-settings'
+import { clubSettingsToIssuer, getClubSettings, normalizeInvoicePdfTemplate } from '@/lib/club-settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +34,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return new Response('No autorizado', { status: 403 })
   }
 
-  const issuer = await getClubIssuer()
+  const club = await getClubSettings()
+  const issuer = clubSettingsToIssuer(club)
+  const template = normalizeInvoicePdfTemplate(club.invoicePdfTemplate)
 
   const bytes = await buildInvoicePdf({
     invoiceNumber: invoice.invoiceNumber,
@@ -67,6 +69,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       contactPhone: issuer.contactPhone,
       website: issuer.website,
     },
+    primaryColor: club.primaryColor ?? null,
+    template,
   })
 
   await prisma.invoice.update({

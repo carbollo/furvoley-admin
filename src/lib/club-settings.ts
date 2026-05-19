@@ -1,10 +1,27 @@
 import { prisma } from '@/lib/prisma'
 
+export type InvoicePdfTemplateId = 'CLASSIC' | 'MODERN' | 'COMPACT'
+
+export const INVOICE_PDF_TEMPLATES: readonly InvoicePdfTemplateId[] = [
+  'CLASSIC',
+  'MODERN',
+  'COMPACT',
+]
+
+export function normalizeInvoicePdfTemplate(
+  raw: string | null | undefined,
+): InvoicePdfTemplateId {
+  const v = String(raw || 'CLASSIC').trim().toUpperCase()
+  if (v === 'MODERN' || v === 'COMPACT') return v
+  return 'CLASSIC'
+}
+
 export type ClubSettingsFull = {
   id: string
   name: string
   logoUrl: string | null
   primaryColor: string | null
+  invoicePdfTemplate: string
   legalName: string | null
   taxId: string | null
   address: string | null
@@ -112,10 +129,9 @@ export async function getClubBranding(): Promise<ClubBranding> {
 }
 
 /**
- * Devuelve los datos del emisor para facturas, recibos y comunicaciones.
+ * Construye el bloque emisor a partir de `ClubSettings` (sin consulta extra a BD).
  */
-export async function getClubIssuer(): Promise<ClubIssuer> {
-  const s = await getClubSettings()
+export function clubSettingsToIssuer(s: ClubSettingsFull): ClubIssuer {
   const addressLines: string[] = []
   if (s.address) addressLines.push(s.address)
   const cityLine = [s.postalCode, s.city].filter(Boolean).join(' ')
@@ -131,6 +147,14 @@ export async function getClubIssuer(): Promise<ClubIssuer> {
     contactPhone: s.contactPhone || null,
     website: s.website || null,
   }
+}
+
+/**
+ * Devuelve los datos del emisor para facturas, recibos y comunicaciones.
+ */
+export async function getClubIssuer(): Promise<ClubIssuer> {
+  const s = await getClubSettings()
+  return clubSettingsToIssuer(s)
 }
 
 /**

@@ -1,0 +1,15 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WC-11",
+  "proclubArea": "billing",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 2,
+  "notes": "Resumen semanal (job).",
+  "name": "PROCLUB · Listado impagos",
+  "description": "[PROCLUB:WC-11] Informe periódico.",
+  "triggerType": "INVOICE_OVERDUE",
+  "isActive": false,
+  "steps": []
+}

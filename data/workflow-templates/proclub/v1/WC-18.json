@@ -1,0 +1,15 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WC-18",
+  "proclubArea": "billing",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 2,
+  "notes": "Export contable (job).",
+  "name": "PROCLUB · Cierre contable",
+  "description": "[PROCLUB:WC-18] Export para gestoría.",
+  "triggerType": "MEMBER_UPDATED",
+  "isActive": false,
+  "steps": []
+}

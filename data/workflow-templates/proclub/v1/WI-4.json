@@ -1,0 +1,27 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WI-4",
+  "proclubArea": "signup",
+  "proclubType": "Auto",
+  "implementationStatus": "ready",
+  "phase": 1,
+  "notes": "Bienvenida post-inscripción.",
+  "name": "PROCLUB · Onboarding post-inscripción",
+  "description": "[PROCLUB:WI-4] Bienvenida y normas.",
+  "triggerType": "MEMBER_CREATED",
+  "isActive": true,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Bienvenido/a {memberName} al club. Revisa horarios en el panel.",
+        "label": "welcome",
+        "stepKey": "welcome"
+      }
+    }
+  ]
+}

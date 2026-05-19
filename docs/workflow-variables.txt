@@ -22,7 +22,23 @@ Importante:
 - Muchas variables reflejan "el ultimo nodo ejecutado" (prefijo step*).
 
 
-2) Variables base del socio (siempre disponibles)
+2) Variables de factura / cobros (disparadores INVOICE_*)
+---------------------------------------------------------
+
+- {invoiceId}
+- {invoiceNumber}
+- {invoiceTotal}
+- {invoiceCurrency}
+- {pendingAmount}
+- {invoiceStatus}
+- {invoiceDueDate}
+- {paymentUrl}
+- {invoicePdfUrl}
+
+Se rellenan al ejecutar flujos con disparador INVOICE_CREATED, INVOICE_PAID o INVOICE_OVERDUE.
+
+
+3) Variables base del socio (siempre disponibles)
 --------------------------------------------------
 
 - {memberId}

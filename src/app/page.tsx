@@ -30,8 +30,8 @@ export default async function HomePage() {
   const userMember = sessionMemberId
     ? await prisma.member.findUnique({
         where: { id: sessionMemberId },
-        include: {
-          teamRoles: {
+    include: {
+      teamRoles: {
             include: {
               team: {
                 include: {
@@ -39,9 +39,9 @@ export default async function HomePage() {
                 },
               },
             },
-          },
-        },
-      })
+      },
+    },
+  })
     : null
 
   const memberInvoices = userMember

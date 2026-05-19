@@ -1,0 +1,27 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WB-4",
+  "proclubArea": "churn",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 2,
+  "notes": "Encuesta motivo.",
+  "name": "PROCLUB · Cierre y encuesta",
+  "description": "[PROCLUB:WB-4] Despedida y feedback.",
+  "triggerType": "MEMBER_STATUS_CHANGED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Lamentamos tu baja. Gracias por formar parte del club.",
+        "label": "bye",
+        "stepKey": "bye"
+      }
+    }
+  ]
+}

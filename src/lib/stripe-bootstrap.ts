@@ -1,21 +1,11 @@
 /**
- * Bootstrap automático de los WebhookEndpoints de Stripe.
+ * Bootstrap automático de los WebhookEndpoints de Stripe (URL + IDs en BD).
  *
- * Objetivo: que un clon nuevo del servicio en Railway pueda funcionar sin que
- * el operador tenga que crear manualmente los webhooks en el Dashboard de
- * Stripe. La función `ensureStripeWebhooks` es idempotente:
- *
- *  - Detecta la URL pública del servicio (`NEXT_PUBLIC_APP_URL` o
- *    `RAILWAY_PUBLIC_DOMAIN`).
- *  - Si la BD ya tiene los IDs+secrets y la URL coincide → no hace nada.
- *  - Si tiene IDs pero la URL ha cambiado → actualiza los endpoints en
- *    Stripe (`update`), conservando los secrets.
- *  - Si no hay IDs → crea ambos endpoints (`platform` y `connect`) y guarda
- *    los `whsec_…` en BD.
- *
- * Los secrets persistidos en BD son el fallback del verificador de firma del
- * webhook cuando `STRIPE_WEBHOOK_SECRET` / `STRIPE_CONNECT_WEBHOOK_SECRET` no
- * están configurados como env vars.
+ * `ensureStripeWebhooks` detecta la URL pública (`NEXT_PUBLIC_APP_URL` o
+ * `RAILWAY_PUBLIC_DOMAIN`), crea o actualiza en Stripe dos endpoints (plataforma
+ * + Connect) y guarda solo sus IDs. Los **`whsec_…` no se guardan en BD**:
+ * configúralos a mano en `STRIPE_WEBHOOK_SECRET` y `STRIPE_CONNECT_WEBHOOK_SECRET`.
+ * `/api/stripe/webhook` verifica las firmas **solo con esas variables de entorno**.
  */
 import { prisma } from '@/lib/prisma'
 import { getStripe } from '@/lib/stripe'
@@ -86,6 +76,8 @@ async function getRow() {
 
 /** Estado actual sin disparar llamadas a Stripe. */
 export async function getStripeBootstrapStatus(): Promise<StripeBootstrapStatus> {
+  const platformSecret = !!(process.env.STRIPE_WEBHOOK_SECRET || '').trim()
+  const connectSecret = !!(process.env.STRIPE_CONNECT_WEBHOOK_SECRET || '').trim()
   let row
   try {
     row = await getRow()
@@ -97,46 +89,29 @@ export async function getStripeBootstrapStatus(): Promise<StripeBootstrapStatus>
       webhookUrl: null,
       platformWebhookId: null,
       connectWebhookId: null,
-      hasPlatformSecret: false,
-      hasConnectSecret: false,
-      envOverridesPlatform: !!process.env.STRIPE_WEBHOOK_SECRET,
-      envOverridesConnect: !!process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+      hasPlatformSecret: platformSecret,
+      hasConnectSecret: connectSecret,
+      envOverridesPlatform: platformSecret,
+      envOverridesConnect: connectSecret,
       lastSyncedAt: null,
       error: (e as Error).message,
     }
   }
+  const secretsReady = platformSecret && connectSecret
+  const idsReady = !!(row.platformWebhookId && row.connectWebhookId)
   return {
-    ok: !row.lastError,
-    configured: !!(row.platformWebhookSecret && row.connectWebhookSecret),
+    ok: secretsReady && idsReady && !row.lastError,
+    configured: secretsReady && idsReady,
     publicUrl: detectPublicBaseUrl(),
     webhookUrl: detectWebhookUrl(),
     platformWebhookId: row.platformWebhookId,
     connectWebhookId: row.connectWebhookId,
-    hasPlatformSecret: !!row.platformWebhookSecret,
-    hasConnectSecret: !!row.connectWebhookSecret,
-    envOverridesPlatform: !!process.env.STRIPE_WEBHOOK_SECRET,
-    envOverridesConnect: !!process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+    hasPlatformSecret: platformSecret,
+    hasConnectSecret: connectSecret,
+    envOverridesPlatform: platformSecret,
+    envOverridesConnect: connectSecret,
     lastSyncedAt: row.lastSyncedAt ? row.lastSyncedAt.toISOString() : null,
     error: row.lastError ?? null,
-  }
-}
-
-/**
- * Devuelve los secrets persistidos para verificar firmas cuando las env vars
- * no están definidas. No dispara ninguna llamada a Stripe.
- */
-export async function getPersistedWebhookSecrets(): Promise<{
-  platform: string | null
-  connect: string | null
-}> {
-  try {
-    const row = await prisma.stripeBootstrap.findUnique({ where: { isDefault: true } })
-    return {
-      platform: row?.platformWebhookSecret ?? null,
-      connect: row?.connectWebhookSecret ?? null,
-    }
-  } catch {
-    return { platform: null, connect: null }
   }
 }
 
@@ -159,13 +134,11 @@ export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
   const stripe = getStripe()
   let row = await getRow()
 
-  // Si todo coincide, no hagas nada.
+  // Si los endpoints ya apuntan a esta URL pública (secrets solo en env), no hagas nada.
   if (
     row.publicUrl === webhookUrl &&
     row.platformWebhookId &&
     row.connectWebhookId &&
-    row.platformWebhookSecret &&
-    row.connectWebhookSecret &&
     !row.lastError
   ) {
     return getStripeBootstrapStatus()
@@ -174,7 +147,8 @@ export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
   try {
     // PLATFORM endpoint
     let platformId = row.platformWebhookId
-    let platformSecret = row.platformWebhookSecret
+    /** Solo al crear endpoint nuevo Stripe devuelve `secret` (una vez). */
+    let createdPlatformSigningSecret: string | null = null
     if (platformId) {
       // Reusar: actualizar URL/eventos por si han cambiado.
       try {
@@ -187,7 +161,6 @@ export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
         // Si el endpoint guardado ya no existe, créalo de nuevo.
         if (isMissingResource(err)) {
           platformId = null
-          platformSecret = null
         } else {
           throw err
         }
@@ -201,12 +174,12 @@ export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
         description: 'Furvoley CRM — platform events (auto)',
       })
       platformId = created.id
-      platformSecret = created.secret ?? null
+      createdPlatformSigningSecret = created.secret ?? null
     }
 
     // CONNECT endpoint
     let connectId = row.connectWebhookId
-    let connectSecret = row.connectWebhookSecret
+    let createdConnectSigningSecret: string | null = null
     if (connectId) {
       try {
         await stripe.webhookEndpoints.update(connectId, {
@@ -217,7 +190,6 @@ export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
       } catch (err) {
         if (isMissingResource(err)) {
           connectId = null
-          connectSecret = null
         } else {
           throw err
         }
@@ -231,7 +203,22 @@ export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
         description: 'Furvoley CRM — Connect events (auto)',
       })
       connectId = created.id
-      connectSecret = created.secret ?? null
+      createdConnectSigningSecret = created.secret ?? null
+    }
+
+    const envHasPlatformSecret = !!(process.env.STRIPE_WEBHOOK_SECRET || '').trim()
+    const envHasConnectSecret = !!(process.env.STRIPE_CONNECT_WEBHOOK_SECRET || '').trim()
+
+    const lastErrorHints: string[] = []
+    if (createdPlatformSigningSecret && !envHasPlatformSecret) {
+      lastErrorHints.push(
+        'Se creó el webhook de la plataforma: copia el signing secret desde el Dashboard de Stripe a STRIPE_WEBHOOK_SECRET.',
+      )
+    }
+    if (createdConnectSigningSecret && !envHasConnectSecret) {
+      lastErrorHints.push(
+        'Se creó el webhook Connect: copia el signing secret desde el Dashboard de Stripe a STRIPE_CONNECT_WEBHOOK_SECRET.',
+      )
     }
 
     row = await prisma.stripeBootstrap.update({
@@ -239,11 +226,11 @@ export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
       data: {
         publicUrl: webhookUrl,
         platformWebhookId: platformId,
-        platformWebhookSecret: platformSecret ?? row.platformWebhookSecret,
+        platformWebhookSecret: null,
         connectWebhookId: connectId,
-        connectWebhookSecret: connectSecret ?? row.connectWebhookSecret,
+        connectWebhookSecret: null,
         lastSyncedAt: new Date(),
-        lastError: null,
+        lastError: lastErrorHints.length > 0 ? lastErrorHints.join(' ') : null,
       },
     })
   } catch (e) {

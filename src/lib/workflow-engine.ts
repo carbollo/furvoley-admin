@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
+import { buildInvoiceVariables, runExtendedWorkflowAction } from '@/lib/workflow-engine-more'
 
 export type WorkflowMemberPayload = {
   id: string
@@ -19,12 +20,24 @@ type WorkflowRunContext = {
   teamNameCache: Map<string, string>
 }
 
-type WorkflowTriggerType =
+export type WorkflowTriggerType =
   | 'MEMBER_CREATED'
   | 'MEMBER_UPDATED'
   | 'MEMBER_STATUS_CHANGED'
   | 'PAYMENT_CREATED'
   | 'PAYMENT_PAID'
+  | 'INVOICE_CREATED'
+  | 'INVOICE_PAID'
+  | 'INVOICE_OVERDUE'
+  | 'SUBSCRIPTION_CREATED'
+  | 'LEAD_CREATED'
+  | 'LEAD_UPDATED'
+  | 'EVENT_CANCELLED'
+  | 'EVENT_RESCHEDULED'
+  | 'EVENT_STARTING_SOON'
+  | 'EVENT_COMPLETED'
+  | 'ATTENDANCE_ABSENT_UNEXCUSED'
+  | 'DOCUMENT_EXPIRING'
 
 type WorkflowTriggerContext = {
   previousStatus?: string | null
@@ -38,6 +51,22 @@ type WorkflowTriggerContext = {
     paidAt: Date | null
     createdAt: Date
     updatedAt: Date
+  } | null
+  invoice?: {
+    id: string
+    invoiceNumber: string
+    totalAmount: number
+    paidAmount: number
+    currency: string
+    status: string
+    dueDate: Date
+    stripeCheckoutUrl: string | null
+  } | null
+  event?: {
+    id: string
+    title: string
+    teamId: string | null
+    date: Date
   } | null
 }
 
@@ -117,6 +146,19 @@ function defaultWorkflowVariables() {
     teamAssignedId: '',
     teamAssignedName: '',
     assignmentApplied: 'false',
+    invoiceId: '',
+    invoiceNumber: '',
+    invoiceTotal: '',
+    invoiceCurrency: '',
+    pendingAmount: '',
+    invoiceStatus: '',
+    invoiceDueDate: '',
+    paymentUrl: '',
+    invoicePdfUrl: '',
+    subscriptionId: '',
+    eventId: '',
+    eventTitle: '',
+    teamId: '',
   } satisfies Record<string, string>
 }
 
@@ -144,6 +186,10 @@ function buildTriggerVariables(
     triggerPaymentPaidAt: payment?.paidAt ? payment.paidAt.toISOString() : '',
     triggerPaymentCreatedAt: payment?.createdAt ? payment.createdAt.toISOString() : '',
     triggerPaymentUpdatedAt: payment?.updatedAt ? payment.updatedAt.toISOString() : '',
+    ...(context.invoice ? buildInvoiceVariables(context.invoice) : {}),
+    eventId: String(context.event?.id || ''),
+    eventTitle: String(context.event?.title || ''),
+    teamId: String(context.event?.teamId || ''),
   } satisfies Record<string, string>
 }
 
@@ -345,6 +391,14 @@ async function runMemberCreatedStepAction(
   member: WorkflowMemberPayload,
   runContext: WorkflowRunContext,
 ): Promise<void> {
+  if (
+    await runExtendedWorkflowAction(step, member, runContext, (tpl, m, ctx) =>
+      interpolateHttpTemplate(tpl, m, ctx),
+    )
+  ) {
+    return
+  }
+
   function setStepError(message: string) {
     runContext.variables.stepError = String(message || '').trim()
     runContext.variables.stepApplied = 'false'
@@ -821,6 +875,7 @@ async function runWorkflowsForMemberByTrigger(
       email: true,
       phone: true,
       address: true,
+      guardianPhone: true,
       sportPreference: true,
       dni: true,
       birthDate: true,
@@ -903,4 +958,252 @@ export async function runPaymentPaidWorkflows(paymentId: string) {
   })
   if (!payment) return
   await runWorkflowsForMemberByTrigger(payment.memberId, 'PAYMENT_PAID', { payment })
+}
+
+async function loadMemberPayload(memberId: string): Promise<WorkflowMemberPayload | null> {
+  const memberRow = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      address: true,
+      sportPreference: true,
+      dni: true,
+      birthDate: true,
+      status: true,
+    },
+  })
+  if (!memberRow) return null
+  return { ...memberRow }
+}
+
+function leadAsMember(lead: {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  sportPreference: string | null
+}): WorkflowMemberPayload {
+  return {
+    id: lead.id,
+    name: lead.name,
+    email: lead.email,
+    phone: lead.phone,
+    address: null,
+    sportPreference: lead.sportPreference,
+    dni: null,
+    birthDate: null,
+    status: 'LEAD',
+  }
+}
+
+export async function runInvoiceCreatedWorkflows(invoiceId: string) {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    select: {
+      id: true,
+      memberId: true,
+      invoiceNumber: true,
+      totalAmount: true,
+      paidAmount: true,
+      currency: true,
+      status: true,
+      dueDate: true,
+      stripeCheckoutUrl: true,
+    },
+  })
+  if (!invoice) return
+  await runWorkflowsForMemberByTrigger(invoice.memberId, 'INVOICE_CREATED', { invoice })
+}
+
+export async function runInvoicePaidWorkflows(invoiceId: string) {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    select: {
+      id: true,
+      memberId: true,
+      invoiceNumber: true,
+      totalAmount: true,
+      paidAmount: true,
+      currency: true,
+      status: true,
+      dueDate: true,
+      stripeCheckoutUrl: true,
+    },
+  })
+  if (!invoice) return
+  await runWorkflowsForMemberByTrigger(invoice.memberId, 'INVOICE_PAID', { invoice })
+}
+
+export async function runInvoiceOverdueWorkflows(invoiceId: string) {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    select: {
+      id: true,
+      memberId: true,
+      invoiceNumber: true,
+      totalAmount: true,
+      paidAmount: true,
+      currency: true,
+      status: true,
+      dueDate: true,
+      stripeCheckoutUrl: true,
+    },
+  })
+  if (!invoice) return
+  await runWorkflowsForMemberByTrigger(invoice.memberId, 'INVOICE_OVERDUE', { invoice })
+}
+
+export async function runSubscriptionCreatedWorkflows(subscriptionId: string) {
+  const sub = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+    select: { memberId: true },
+  })
+  if (!sub) return
+  await runWorkflowsForMemberByTrigger(sub.memberId, 'SUBSCRIPTION_CREATED')
+}
+
+export async function runLeadCreatedWorkflows(leadId: string) {
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      sportPreference: true,
+      memberId: true,
+    },
+  })
+  if (!lead) return
+  if (lead.memberId) {
+    const member = await loadMemberPayload(lead.memberId)
+    if (member) {
+      await runWorkflowsForMemberByTrigger(lead.memberId, 'LEAD_CREATED')
+      return
+    }
+  }
+  const workflows = await prisma.workflow.findMany({
+    where: { isActive: true, triggerType: 'LEAD_CREATED' },
+    include: { steps: true },
+  })
+  const pseudo = leadAsMember(lead)
+  for (const workflow of workflows) {
+    await runWorkflowStepsForMember(workflow.steps, pseudo, 'LEAD_CREATED', {})
+  }
+}
+
+export async function runLeadUpdatedWorkflows(leadId: string) {
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      sportPreference: true,
+      memberId: true,
+    },
+  })
+  if (!lead) return
+  if (lead.memberId) {
+    await runWorkflowsForMemberByTrigger(lead.memberId, 'LEAD_UPDATED')
+    return
+  }
+  const workflows = await prisma.workflow.findMany({
+    where: { isActive: true, triggerType: 'LEAD_UPDATED' },
+    include: { steps: true },
+  })
+  const pseudo = leadAsMember(lead)
+  for (const workflow of workflows) {
+    await runWorkflowStepsForMember(workflow.steps, pseudo, 'LEAD_UPDATED', {})
+  }
+}
+
+async function runEventTeamWorkflows(
+  eventId: string,
+  triggerType: Extract<
+    WorkflowTriggerType,
+    'EVENT_CANCELLED' | 'EVENT_RESCHEDULED' | 'EVENT_STARTING_SOON' | 'EVENT_COMPLETED'
+  >,
+) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, title: true, teamId: true, date: true },
+  })
+  if (!event) return
+
+  const workflows = await prisma.workflow.findMany({
+    where: { isActive: true, triggerType },
+    include: { steps: true },
+  })
+
+  const stubMember: WorkflowMemberPayload = {
+    id: 'event',
+    name: event.title,
+    email: null,
+    phone: null,
+    address: null,
+    sportPreference: null,
+    dni: null,
+    birthDate: null,
+    status: 'ACTIVE',
+  }
+
+  const ctx: WorkflowTriggerContext = {
+    event: {
+      id: event.id,
+      title: event.title,
+      teamId: event.teamId,
+      date: event.date,
+    },
+  }
+
+  if (event.teamId) {
+    const captain = await prisma.teamMember.findFirst({
+      where: { teamId: event.teamId, role: 'COACH' },
+      select: { memberId: true },
+    })
+    if (captain?.memberId) {
+      const coach = await loadMemberPayload(captain.memberId)
+      if (coach) {
+        for (const workflow of workflows) {
+          await runWorkflowStepsForMember(workflow.steps, coach, triggerType, ctx)
+        }
+        return
+      }
+    }
+  }
+
+  for (const workflow of workflows) {
+    await runWorkflowStepsForMember(workflow.steps, stubMember, triggerType, ctx)
+  }
+}
+
+export async function runEventCancelledWorkflows(eventId: string) {
+  await runEventTeamWorkflows(eventId, 'EVENT_CANCELLED')
+}
+
+export async function runEventRescheduledWorkflows(eventId: string) {
+  await runEventTeamWorkflows(eventId, 'EVENT_RESCHEDULED')
+}
+
+export async function runEventStartingSoonWorkflows(eventId: string) {
+  await runEventTeamWorkflows(eventId, 'EVENT_STARTING_SOON')
+}
+
+export async function runEventCompletedWorkflows(eventId: string) {
+  await runEventTeamWorkflows(eventId, 'EVENT_COMPLETED')
+}
+
+export async function runAttendanceAbsentUnexcusedWorkflows(attendanceId: string) {
+  const row = await prisma.attendance.findUnique({
+    where: { id: attendanceId },
+    select: { memberId: true, status: true, reason: true },
+  })
+  if (!row || row.status !== 'ABSENT') return
+  if (row.reason && row.reason.trim()) return
+  await runWorkflowsForMemberByTrigger(row.memberId, 'ATTENDANCE_ABSENT_UNEXCUSED')
 }

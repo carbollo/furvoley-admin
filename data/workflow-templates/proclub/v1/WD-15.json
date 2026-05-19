@@ -1,0 +1,15 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WD-15",
+  "proclubArea": "sport",
+  "proclubType": "Mixto",
+  "implementationStatus": "partial",
+  "phase": 3,
+  "notes": "Buzón incidencias pendiente.",
+  "name": "PROCLUB · Incidencias entrenador",
+  "description": "[PROCLUB:WD-15] Seguimiento de incidencia.",
+  "triggerType": "MEMBER_UPDATED",
+  "isActive": false,
+  "steps": []
+}

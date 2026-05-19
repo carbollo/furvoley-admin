@@ -51,6 +51,7 @@ type Settings = {
   contactPhone: string
   website: string
   primaryColor: string
+  invoicePdfTemplate: string
   stripe: StripeConfig
   connect: ConnectConfig
   webhooks: WebhooksStatus
@@ -104,6 +105,7 @@ const EMPTY: Settings = {
   contactPhone: '',
   website: '',
   primaryColor: '',
+  invoicePdfTemplate: 'CLASSIC',
   stripe: EMPTY_STRIPE,
   connect: EMPTY_CONNECT,
   webhooks: EMPTY_WEBHOOKS,
@@ -123,7 +125,7 @@ export function ClubSettingsModal({
   const [tab, setTab] = useState<Tab>('identity')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [portalBusy, setPortalBusy] = useState(false)
+  const [openingStripeWindow, setOpeningStripeWindow] = useState(false)
   const [connectBusy, setConnectBusy] = useState(false)
   const [webhookBusy, setWebhookBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -147,6 +149,10 @@ export function ClubSettingsModal({
       const s: Settings = {
         ...EMPTY,
         ...incoming,
+        invoicePdfTemplate:
+          typeof incoming.invoicePdfTemplate === 'string'
+            ? incoming.invoicePdfTemplate
+            : EMPTY.invoicePdfTemplate,
         stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
         connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
         webhooks: { ...EMPTY_WEBHOOKS, ...(incoming.webhooks || {}) },
@@ -167,14 +173,16 @@ export function ClubSettingsModal({
   }, [open, load])
 
   // Cerrar con Escape
+  const modalInteractionLocked = busy || openingStripeWindow || connectBusy || webhookBusy
+
   useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !busy && !portalBusy) onClose()
+      if (e.key === 'Escape' && !modalInteractionLocked) onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, busy, portalBusy, onClose])
+  }, [open, modalInteractionLocked, onClose])
 
   if (!open) return null
 
@@ -233,6 +241,10 @@ export function ClubSettingsModal({
       const s: Settings = {
         ...EMPTY,
         ...incoming,
+        invoicePdfTemplate:
+          typeof incoming.invoicePdfTemplate === 'string'
+            ? incoming.invoicePdfTemplate
+            : EMPTY.invoicePdfTemplate,
         stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
         connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
         webhooks: { ...EMPTY_WEBHOOKS, ...(incoming.webhooks || {}) },
@@ -247,30 +259,9 @@ export function ClubSettingsModal({
     }
   }
 
-  async function openStripePortal() {
-    if (portalBusy) return
-    setPortalBusy(true)
-    setError(null)
-    setInfo(null)
-    try {
-      const r = await fetch('/api/crm/club-settings/stripe-portal', {
-        method: 'POST',
-        credentials: 'include',
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok || !j.url) {
-        setError(j.error || 'No se pudo abrir el portal de Stripe')
-        return
-      }
-      window.open(j.url, '_blank', 'noopener,noreferrer')
-    } finally {
-      setPortalBusy(false)
-    }
-  }
-
   async function openConnectLogin() {
-    if (portalBusy) return
-    setPortalBusy(true)
+    if (openingStripeWindow) return
+    setOpeningStripeWindow(true)
     setError(null)
     setInfo(null)
     try {
@@ -286,7 +277,7 @@ export function ClubSettingsModal({
       if (j.note) setInfo(String(j.note))
       window.open(j.url, '_blank', 'noopener,noreferrer')
     } finally {
-      setPortalBusy(false)
+      setOpeningStripeWindow(false)
     }
   }
 
@@ -400,7 +391,7 @@ export function ClubSettingsModal({
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'identity', label: 'Identidad', icon: '★' },
     { id: 'legal', label: 'Información legal', icon: '§' },
-    { id: 'subscription', label: 'Suscripción', icon: '◇' },
+    { id: 'subscription', label: 'Pagos', icon: '◇' },
   ]
 
   return (
@@ -408,7 +399,7 @@ export function ClubSettingsModal({
       role="presentation"
       onMouseDown={(e) => {
         if (e.target !== e.currentTarget) return
-        if (busy || portalBusy) return
+        if (modalInteractionLocked) return
         onClose()
       }}
       style={{
@@ -476,13 +467,13 @@ export function ClubSettingsModal({
           <button
             type="button"
             onClick={onClose}
-            disabled={busy || portalBusy}
+            disabled={modalInteractionLocked}
             aria-label="Cerrar"
             style={{
               width: 36, height: 36, borderRadius: 10, border: '1px solid var(--border)',
               background: 'var(--surface-card)', color: 'var(--text-muted)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: (busy || portalBusy) ? 'not-allowed' : 'pointer',
+              cursor: modalInteractionLocked ? 'not-allowed' : 'pointer',
               fontSize: 18, lineHeight: 1, fontFamily: 'inherit',
               flexShrink: 0, transition: 'all 0.15s',
             }}
@@ -538,16 +529,14 @@ export function ClubSettingsModal({
               {tab === 'legal' && <LegalTab form={form} update={update} />}
               {tab === 'subscription' && (
                 <SubscriptionTab
-                  stripe={form.stripe}
                   connect={form.connect}
                   webhooks={form.webhooks}
-                  onOpenPortal={openStripePortal}
                   onOpenConnect={openConnectLogin}
                   onResyncWebhooks={resyncWebhooks}
                   onStartOnboarding={startConnectOnboarding}
                   onRefreshConnect={refreshConnectStatus}
                   onDisconnectAccount={disconnectAccount}
-                  portalBusy={portalBusy}
+                  connectDashboardBusy={openingStripeWindow}
                   webhookBusy={webhookBusy}
                   connectBusy={connectBusy}
                 />
@@ -588,12 +577,12 @@ export function ClubSettingsModal({
             <button
               type="button"
               onClick={onClose}
-              disabled={busy || portalBusy}
+              disabled={modalInteractionLocked}
               style={{
                 padding: '10px 18px', borderRadius: 8,
                 border: '1px solid var(--border-strong)', background: 'var(--surface-card)',
                 color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-                cursor: (busy || portalBusy) ? 'not-allowed' : 'pointer',
+                cursor: modalInteractionLocked ? 'not-allowed' : 'pointer',
               }}
             >
               Cancelar
@@ -833,27 +822,48 @@ function LegalTab({
           </Field>
         </div>
       </Section>
+
+      <Section title="Plantilla de factura PDF" subtitle="Las facturas incluyen razón social, NIF/CIF y domicilio fiscal anteriores. El diseño Moderno también usa el color corporativo definido en Identidad.">
+        <Field label="Maquetación al descargar PDF">
+          <select
+            value={form.invoicePdfTemplate}
+            onChange={(e) => update('invoicePdfTemplate', e.target.value)}
+            style={{
+              ...inputStyle,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="CLASSIC">Clásico (detalle y bloque fiscal claro)</option>
+            <option value="MODERN">Moderno (cabecera a color corporativo)</option>
+            <option value="COMPACT">Compacto (más contenido por página)</option>
+          </select>
+        </Field>
+      </Section>
     </div>
   )
 }
 
-// ─── TAB: Suscripción Stripe ───────────────────────────────────────────────
+// ─── TAB: Pagos Stripe (Connect + notificaciones) ───────────────────────────
 function SubscriptionTab({
-  stripe, connect, webhooks,
-  onOpenPortal, onOpenConnect, onResyncWebhooks,
-  onStartOnboarding, onRefreshConnect, onDisconnectAccount,
-  portalBusy, webhookBusy, connectBusy,
+  connect,
+  webhooks,
+  onOpenConnect,
+  onResyncWebhooks,
+  onStartOnboarding,
+  onRefreshConnect,
+  onDisconnectAccount,
+  connectDashboardBusy,
+  webhookBusy,
+  connectBusy,
 }: {
-  stripe: StripeConfig
   connect: ConnectConfig
   webhooks: WebhooksStatus
-  onOpenPortal: () => void
   onOpenConnect: () => void
   onResyncWebhooks: () => void
   onStartOnboarding: () => void
   onRefreshConnect: () => void
   onDisconnectAccount: () => void
-  portalBusy: boolean
+  connectDashboardBusy: boolean
   webhookBusy: boolean
   connectBusy: boolean
 }) {
@@ -980,10 +990,10 @@ function SubscriptionTab({
             <button
               type="button"
               onClick={onOpenConnect}
-              disabled={portalBusy || !connect.hasConnectedAccount}
-              style={primaryBtnStyle(portalBusy || !connect.hasConnectedAccount)}
+              disabled={connectDashboardBusy || !connect.hasConnectedAccount}
+              style={primaryBtnStyle(connectDashboardBusy || !connect.hasConnectedAccount)}
             >
-              {portalBusy ? 'Abriendo…' : 'Ver cuenta del club en Stripe'}
+              {connectDashboardBusy ? 'Abriendo…' : 'Ver cuenta del club en Stripe'}
             </button>
             {connect.hasConnectedAccount && !isEnvOverride && (
               <button
@@ -996,66 +1006,6 @@ function SubscriptionTab({
               </button>
             )}
           </div>
-        </div>
-      </Section>
-
-      <Section title="Suscripción al servicio" subtitle="Gestión de la tarifa del club si la tenéis con facturación en Stripe (tarjeta, facturas internas…).">
-        <div
-          style={{
-            padding: 20, borderRadius: 12,
-            background: 'var(--surface-card)',
-            border: '1px solid var(--border)',
-            display: 'flex', flexDirection: 'column', gap: 16,
-          }}
-        >
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
-            {stripe.hasCustomerId
-              ? 'Puedes revisar método de pago y facturas de la cuota del servicio cuando el equipo técnico lo haya activado.'
-              : 'No hay suscripción enlazada. Si debería existir, contacta con el equipo técnico.'}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              onClick={onOpenPortal}
-              disabled={portalBusy || !stripe.hasCustomerId}
-              style={{
-                padding: '10px 18px', borderRadius: 8, border: 'none',
-                background: 'var(--accent)', color: '#fff',
-                fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-                cursor: (portalBusy || !stripe.hasCustomerId) ? 'not-allowed' : 'pointer',
-                opacity: (portalBusy || !stripe.hasCustomerId) ? 0.65 : 1,
-                boxShadow: '0 1px 2px rgba(0,74,198,0.2)',
-              }}
-            >
-              {portalBusy ? 'Abriendo…' : 'Gestionar suscripción'}
-            </button>
-          </div>
-        </div>
-      </Section>
-
-      <Section title="Panel Stripe" subtitle="Administración general de pagos (útil para equipo del club que ya tiene acceso Stripe).">
-        <div
-          style={{
-            padding: 20, borderRadius: 12,
-            background: 'var(--surface-card)',
-            border: '1px solid var(--border)',
-            display: 'flex', justifyContent: 'flex-end',
-          }}
-        >
-            <a
-              href={stripe.dashboardUrl || 'https://dashboard.stripe.com/'}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '10px 18px', borderRadius: 8,
-                border: '1px solid var(--border-strong)', background: 'var(--surface-card)',
-                color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-                textDecoration: 'none', cursor: 'pointer',
-              }}
-            >
-              Abrir Stripe ↗
-            </a>
         </div>
       </Section>
 

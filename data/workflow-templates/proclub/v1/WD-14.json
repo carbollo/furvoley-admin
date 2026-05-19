@@ -1,0 +1,27 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WD-14",
+  "proclubArea": "sport",
+  "proclubType": "Mixto",
+  "implementationStatus": "partial",
+  "phase": 2,
+  "notes": "Onboarding entrenador.",
+  "name": "PROCLUB · Onboarding entrenador",
+  "description": "[PROCLUB:WD-14] Bienvenida al entrenador del grupo.",
+  "triggerType": "MEMBER_CREATED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP",
+      "config": {
+        "waPhone": "{memberPhone}",
+        "waMessage": "Bienvenido/a. Revisa plantilla y calendario en el CRM.",
+        "label": "coach",
+        "stepKey": "coach"
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WD-13",
+  "proclubArea": "sport",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 2,
+  "notes": "SEND_WHATSAPP_TO_TEAM.",
+  "name": "PROCLUB · Comunicación masiva",
+  "description": "[PROCLUB:WD-13] Mensaje al grupo.",
+  "triggerType": "MEMBER_UPDATED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP_TO_TEAM",
+      "config": {
+        "teamId": "",
+        "waMessage": "Aviso del club.",
+        "label": "broadcast",
+        "stepKey": "broadcast"
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "format": "furvoley-workflows",
+  "version": 1,
+  "proclubId": "WD-2",
+  "proclubArea": "sport",
+  "proclubType": "Auto",
+  "implementationStatus": "partial",
+  "phase": 2,
+  "notes": "Requiere TeamSchedule + GENERATE_TEAM_SESSIONS.",
+  "name": "PROCLUB · Calendario recurrente",
+  "description": "[PROCLUB:WD-2] Sesiones desde horarios del grupo.",
+  "triggerType": "MEMBER_UPDATED",
+  "isActive": false,
+  "steps": [
+    {
+      "position": 0,
+      "stepType": "ACTION",
+      "actionType": "GENERATE_TEAM_SESSIONS",
+      "config": {
+        "teamId": "",
+        "label": "gen",
+        "stepKey": "gen"
+      }
+    }
+  ]
+}
