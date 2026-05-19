@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
-
-const WEEKDAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+import { formatTeamScheduleSummary } from '@/lib/team-schedule-summary'
 
 /** Rellena variables de plantilla para mensajes WD-1 (horarios, sede, entrenador). */
 export async function populateTeamRosterVariables(
@@ -25,13 +24,7 @@ export async function populateTeamRosterVariables(
   })
 
   if (schedules.length > 0) {
-    variables.teamScheduleSummary = schedules
-      .map((s) => {
-        const day = WEEKDAY_LABELS[s.weekday] ?? `D${s.weekday}`
-        const loc = s.location?.trim() ? ` · ${s.location.trim()}` : ''
-        return `${day} ${s.startTime}${loc}`
-      })
-      .join(' | ')
+    variables.teamScheduleSummary = formatTeamScheduleSummary(schedules)
     const withLocation = schedules.find((s) => s.location?.trim())
     variables.teamTrainingLocation = withLocation?.location?.trim() || ''
   } else {

@@ -71,6 +71,8 @@ type WorkflowTriggerContext = {
     teamId: string | null
     date: Date
   } | null
+  /** Equipo destino al confirmar plantilla (cambio de grupo). */
+  rosterTeamId?: string | null
 }
 
 function tokenSafePart(value: string): string {
@@ -169,6 +171,7 @@ function defaultWorkflowVariables() {
     eventId: '',
     eventTitle: '',
     teamId: '',
+    rosterTeamId: '',
   } satisfies Record<string, string>
 }
 
@@ -200,7 +203,14 @@ function buildTriggerVariables(
     ...(context.invoice ? buildInvoiceVariables(context.invoice) : {}),
     eventId: String(context.event?.id || ''),
     eventTitle: String(context.event?.title || ''),
-    teamId: String(context.event?.teamId || ''),
+    teamId: String(context.event?.teamId || context.rosterTeamId || ''),
+    rosterTeamId: String(context.rosterTeamId || ''),
+    ...(context.rosterTeamId
+      ? {
+          assignedTeamId: String(context.rosterTeamId),
+          teamAssignedId: String(context.rosterTeamId),
+        }
+      : {}),
   } satisfies Record<string, string>
 }
 
@@ -865,6 +875,22 @@ async function runWorkflowStepsForMember(
     },
     teamNameCache: new Map<string, string>(),
   }
+
+  if (triggerType === 'TEAM_ROSTER_CONFIRMED') {
+    const rosterTeamId =
+      triggerContext.rosterTeamId?.trim() ||
+      (await prisma.teamMember.findFirst({
+        where: { memberId: member.id, role: 'PLAYER' },
+        select: { teamId: true },
+      }))?.teamId
+    if (rosterTeamId) {
+      runContext.variables.rosterTeamId = rosterTeamId
+      runContext.variables.assignedTeamId = rosterTeamId
+      runContext.variables.teamAssignedId = rosterTeamId
+      await populateTeamRosterVariables(rosterTeamId, runContext.variables)
+    }
+  }
+
   const sorted = [...steps].sort((a, b) => a.position - b.position)
   const maxIter = Math.max(sorted.length * 25, 50)
   let i = 0
@@ -979,8 +1005,11 @@ export async function runMemberCreatedWorkflows(memberId: string) {
 }
 
 /** Cambio de grupo confirmado o re-instalación en plantilla (sin repetir alta). */
-export async function runTeamRosterConfirmedWorkflows(memberId: string) {
-  await runWorkflowsForMemberByTrigger(memberId, 'TEAM_ROSTER_CONFIRMED')
+export async function runTeamRosterConfirmedWorkflows(
+  memberId: string,
+  context: Pick<WorkflowTriggerContext, 'rosterTeamId'> = {},
+) {
+  await runWorkflowsForMemberByTrigger(memberId, 'TEAM_ROSTER_CONFIRMED', context)
 }
 
 export async function runMemberUpdatedWorkflows(memberId: string) {

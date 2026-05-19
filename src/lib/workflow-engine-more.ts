@@ -124,6 +124,50 @@ export async function runExtendedWorkflowAction(
     return true
   }
 
+  if (step.actionType === 'SEND_WHATSAPP_TO_COACH') {
+    const teamId =
+      readString(step.config, 'teamId') ||
+      runContext.variables.rosterTeamId ||
+      runContext.variables.assignedTeamId ||
+      runContext.variables.teamAssignedId
+    const messageTpl = readString(step.config, 'waMessage') || ''
+    if (!teamId || !messageTpl.trim()) {
+      setStepError('teamId o mensaje vacío')
+      return true
+    }
+    const message = interpolate(messageTpl, member, runContext)
+    const sessionId = await resolveWorkflowWhatsAppSessionId(
+      readString(step.config, 'waSessionId') || undefined,
+    )
+    const coachLink = await prisma.teamMember.findFirst({
+      where: { teamId, role: 'COACH' },
+      include: { member: { select: { phone: true, guardianPhone: true, name: true } } },
+    })
+    const phone = (
+      coachLink?.member.phone ||
+      coachLink?.member.guardianPhone ||
+      ''
+    ).replace(/[^\d+]/g, '')
+    if (!phone) {
+      setStepError('entrenador sin teléfono')
+      runContext.variables.stepWhatsAppSent = 'false'
+      return true
+    }
+    try {
+      await sendApiWassText({ sessionId, phone, message })
+      runContext.variables.stepWhatsAppSent = 'true'
+      runContext.variables.stepSentWhatsAppPhone = phone
+      runContext.variables.stepSentWhatsAppMessage = message
+      setStepApplied()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'error whatsapp'
+      runContext.variables.stepWhatsAppSent = 'false'
+      setStepError(msg)
+      console.warn('[workflow] SEND_WHATSAPP_TO_COACH fallo:', e)
+    }
+    return true
+  }
+
   if (step.actionType === 'SEND_PAYMENT_LINK') {
     const invoiceId = runContext.variables.invoiceId
     if (!invoiceId) {

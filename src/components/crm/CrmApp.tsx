@@ -1988,6 +1988,23 @@ function Equipos() {
   const [formGestionarTeam, setFormGestionarTeam] = useState({ nombre: '', categoria: '' });
   const [coachSelectMemberId, setCoachSelectMemberId] = useState('');
   const [addAlEquipoMemberId, setAddAlEquipoMemberId] = useState('');
+  const [scheduleForm, setScheduleForm] = useState({
+    weekday: '1',
+    startTime: '18:00',
+    durationMinutes: '90',
+    location: '',
+    title: '',
+  });
+
+  const WEEKDAY_OPTIONS = [
+    { value: 0, label: 'Domingo' },
+    { value: 1, label: 'Lunes' },
+    { value: 2, label: 'Martes' },
+    { value: 3, label: 'Miércoles' },
+    { value: 4, label: 'Jueves' },
+    { value: 5, label: 'Viernes' },
+    { value: 6, label: 'Sábado' },
+  ];
 
   function openGestionar(eq) {
     setGestionarEquipo(eq);
@@ -1997,6 +2014,65 @@ function Equipos() {
     });
     setCoachSelectMemberId(eq.coachMemberId || '');
     setAddAlEquipoMemberId('');
+    setScheduleForm({
+      weekday: '1',
+      startTime: '18:00',
+      durationMinutes: '90',
+      location: '',
+      title: '',
+    });
+  }
+
+  async function anadirHorarioEquipo() {
+    if (!gestionarEquipo) return;
+    setGestionarBusy(true);
+    try {
+      const r = await fetch('/api/crm/teams/' + gestionarEquipo.id + '/schedules', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          weekday: Number(scheduleForm.weekday),
+          startTime: scheduleForm.startTime,
+          durationMinutes: Number(scheduleForm.durationMinutes) || 90,
+          location: scheduleForm.location.trim() || null,
+          title: scheduleForm.title.trim() || null,
+        }),
+      });
+      if (!r.ok) {
+        try {
+          showAlert((await r.json()).error || 'Error al guardar horario');
+        } catch {
+          showAlert('Error al guardar horario');
+        }
+        return;
+      }
+      const j = await reload();
+      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
+      if (next) setGestionarEquipo(next);
+    } finally {
+      setGestionarBusy(false);
+    }
+  }
+
+  async function quitarHorarioEquipo(scheduleId) {
+    if (!gestionarEquipo) return;
+    setGestionarBusy(true);
+    try {
+      const r = await fetch(
+        '/api/crm/teams/' + gestionarEquipo.id + '/schedules/' + scheduleId,
+        { method: 'DELETE', credentials: 'include' },
+      );
+      if (!r.ok) {
+        showAlert('No se pudo quitar el horario');
+        return;
+      }
+      const j = await reload();
+      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
+      if (next) setGestionarEquipo(next);
+    } finally {
+      setGestionarBusy(false);
+    }
   }
 
   function closeGestionar() {
@@ -2538,6 +2614,31 @@ function Equipos() {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Horarios fijos</div>
+              <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#6b7280' }}>Usados en avisos al tutor (WD-1).</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                {(gestionarEquipo.horarios ?? []).length === 0 && (
+                  <div style={{ fontSize: 13, color: '#9ca3af' }}>Sin horarios definidos.</div>
+                )}
+                {(gestionarEquipo.horarios ?? []).map((h) => (
+                  <div key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', background: '#fafafa' }}>
+                    <div style={{ fontSize: 13, color: '#111827' }}>
+                      <strong>{WEEKDAY_OPTIONS.find((d) => d.value === h.weekday)?.label ?? `Día ${h.weekday}`}</strong>
+                      {' · '}{h.startTime}{h.location ? ` · ${h.location}` : ''}
+                    </div>
+                    <button type="button" disabled={gestionarBusy} onClick={() => quitarHorarioEquipo(h.id)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #fecaca', background: '#fff', color: '#b91c1c', cursor: gestionarBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}>Quitar</button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 10 }}>
+                <select value={scheduleForm.weekday} onChange={(e) => setScheduleForm((f) => ({ ...f, weekday: e.target.value }))} style={{ ...teamInput, cursor: 'pointer' }}>
+                  {WEEKDAY_OPTIONS.map((d) => (<option key={d.value} value={String(d.value)}>{d.label}</option>))}
+                </select>
+                <input type="time" value={scheduleForm.startTime} onChange={(e) => setScheduleForm((f) => ({ ...f, startTime: e.target.value }))} style={teamInput} />
+                <input type="number" min={30} max={240} step={15} value={scheduleForm.durationMinutes} onChange={(e) => setScheduleForm((f) => ({ ...f, durationMinutes: e.target.value }))} style={teamInput} placeholder="Min" title="Duración (min)" />
+                <input value={scheduleForm.location} onChange={(e) => setScheduleForm((f) => ({ ...f, location: e.target.value }))} style={teamInput} placeholder="Ubicación" />
+              </div>
+              <button type="button" disabled={gestionarBusy} onClick={anadirHorarioEquipo} style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid var(--border)', background: '#f8fafc', cursor: gestionarBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 20 }}>Añadir horario</button>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Socios en el equipo</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                 {(gestionarEquipo.miembros ?? []).length === 0 && (

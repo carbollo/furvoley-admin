@@ -5,6 +5,7 @@ import { requireRoles } from '@/lib/rbac-api'
 import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
 import { getClubBranding } from '@/lib/club-settings'
 import { scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
+import { formatTeamScheduleSummary } from '@/lib/team-schedule-summary'
 
 function initials(name: string) {
   return name
@@ -113,6 +114,9 @@ export async function GET() {
       include: {
         members: {
           include: { member: true },
+        },
+        schedules: {
+          orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
         },
       },
     }),
@@ -333,7 +337,15 @@ export async function GET() {
         t.members.filter((m) => m.role === 'PLAYER').length || t.members.length,
       entrenador: coachTm?.member?.name ?? '—',
       coachMemberId: coachTm?.memberId ?? null,
-      horario: '—',
+      horario: formatTeamScheduleSummary(t.schedules),
+      horarios: t.schedules.map((s) => ({
+        id: s.id,
+        weekday: s.weekday,
+        startTime: s.startTime,
+        durationMinutes: s.durationMinutes,
+        title: s.title,
+        location: s.location,
+      })),
       color: '#3B82F6',
       logo: '🏐',
       miembros: t.members.map((tm) => ({

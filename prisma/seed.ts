@@ -38,6 +38,14 @@ async function main() {
     where: { role: 'PLAYER' },
     data: { role: 'MEMBER' },
   })
+
+  const { ensureDefaultWorkflows } = await import('../src/lib/ensure-default-workflows')
+  const wf = await ensureDefaultWorkflows()
+  if (wf.wd1.created) {
+    console.log('WD-1 workflow created:', wf.wd1.id)
+  } else {
+    console.log('WD-1 workflow already present')
+  }
 }
 
 main()

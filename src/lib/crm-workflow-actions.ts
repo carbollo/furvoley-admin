@@ -13,6 +13,7 @@ export const WORKFLOW_ACTION_OPTIONS = [
   { value: 'CREATE_SIGNUP_LINK', label: 'Enlace inscripción (socio ya dado de alta — evitar)' },
   { value: 'CREATE_TRANSACTION', label: 'Crear movimiento contable' },
   { value: 'SEND_WHATSAPP', label: 'Enviar WhatsApp' },
+  { value: 'SEND_WHATSAPP_TO_COACH', label: 'WhatsApp al entrenador' },
   { value: 'SEND_WHATSAPP_TO_TEAM', label: 'WhatsApp al equipo' },
   { value: 'SEND_PAYMENT_LINK', label: 'Enviar enlace de pago (Stripe)' },
   { value: 'SEND_INVOICE_PDF_WHATSAPP', label: 'Factura PDF por WhatsApp' },

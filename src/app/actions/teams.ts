@@ -46,9 +46,27 @@ export async function deleteTeam(id: string) {
 }
 
 export async function addTeamMember(data: { teamId: string; memberId: string; role: string }) {
-  const teamMember = await prisma.teamMember.create({ data })
-  if (data.role === 'PLAYER') {
-    await runTeamRosterConfirmedWorkflows(data.memberId)
+  const role = data.role === 'COACH' ? 'COACH' : 'PLAYER'
+  const teamMember = await prisma.$transaction(async (tx) => {
+    if (role === 'PLAYER') {
+      await tx.teamMember.deleteMany({
+        where: {
+          memberId: data.memberId,
+          role: 'PLAYER',
+          teamId: { not: data.teamId },
+        },
+      })
+    }
+    return tx.teamMember.upsert({
+      where: {
+        teamId_memberId: { teamId: data.teamId, memberId: data.memberId },
+      },
+      create: { teamId: data.teamId, memberId: data.memberId, role },
+      update: { role },
+    })
+  })
+  if (role === 'PLAYER') {
+    await runTeamRosterConfirmedWorkflows(data.memberId, { rosterTeamId: data.teamId })
   }
   revalidatePath('/')
   return teamMember

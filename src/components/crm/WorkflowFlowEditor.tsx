@@ -70,6 +70,13 @@ function defaultStepConfig(actionType: string): Record<string, unknown> {
       return { type: 'INCOME', amount: '', description: '' }
     case 'SEND_WHATSAPP':
       return { waSessionId: '', waPhone: '', waMessage: '' }
+    case 'SEND_WHATSAPP_TO_COACH':
+      return {
+        teamId: '',
+        waSessionId: '',
+        waMessage:
+          'Hola {coachName}, nuevo jugador en {assignedTeamName}: {memberName}. Revisa la plantilla en el CRM.',
+      }
     case 'HTTP_REQUEST':
       return { httpUrl: '', httpMethod: 'POST', httpBody: '', httpHeaders: '' }
     case 'BRANCH_IF':
@@ -105,10 +112,11 @@ function prepararConfigParaApi(actionType: string, raw: Record<string, unknown>)
       else delete o.amount
     }
   }
-  if (actionType === 'SEND_WHATSAPP') {
+  if (actionType === 'SEND_WHATSAPP' || actionType === 'SEND_WHATSAPP_TO_COACH') {
     if (typeof o.waPhone === 'string') o.waPhone = o.waPhone.trim()
     if (typeof o.waMessage === 'string') o.waMessage = o.waMessage.trim()
     if (typeof o.waSessionId === 'string') o.waSessionId = o.waSessionId.trim()
+    if (typeof o.teamId === 'string') o.teamId = o.teamId.trim()
   }
   if (actionType === 'ASSIGN_TEAM_BY_AGE') {
     if (o.minAge !== '' && o.minAge != null) {
@@ -278,9 +286,11 @@ function tokenSafePart(value: string) {
 }
 
 function tokenTargetsForAction(actionType: string): Array<{ key: string; label: string }> {
-  if (actionType === 'SEND_WHATSAPP') {
+  if (actionType === 'SEND_WHATSAPP' || actionType === 'SEND_WHATSAPP_TO_COACH') {
     return [
-      { key: 'waPhone', label: 'WhatsApp · Teléfono' },
+      ...(actionType === 'SEND_WHATSAPP'
+        ? [{ key: 'waPhone', label: 'WhatsApp · Teléfono' }]
+        : [{ key: 'teamId', label: 'Equipo (vacío = asignado)' }]),
       { key: 'waMessage', label: 'WhatsApp · Mensaje' },
     ]
   }
@@ -1366,7 +1376,8 @@ function WorkflowFlowEditorInner({
                       </>
                     )}
 
-                    {selectedNode.data.actionType === 'SEND_WHATSAPP' && (
+                    {(selectedNode.data.actionType === 'SEND_WHATSAPP' ||
+                      selectedNode.data.actionType === 'SEND_WHATSAPP_TO_COACH') && (
                       <>
                         <label style={{ ...labelBase, marginTop: 12 }}>Session ID (opcional)</label>
                         <input
@@ -1375,13 +1386,34 @@ function WorkflowFlowEditorInner({
                           style={inputBase}
                           placeholder="Si vacío, usa APIWASS_DEFAULT_SESSION_ID"
                         />
-                        <label style={{ ...labelBase, marginTop: 10 }}>Teléfono destino</label>
-                        <input
-                          value={String(selectedNode.data.config.waPhone ?? '{memberPhone}')}
-                          onChange={(e) => patchConfig({ waPhone: e.target.value })}
-                          style={inputBase}
-                          placeholder="34666777888"
-                        />
+                        {selectedNode.data.actionType === 'SEND_WHATSAPP_TO_COACH' && (
+                          <>
+                            <label style={{ ...labelBase, marginTop: 10 }}>Equipo (opcional)</label>
+                            <select
+                              value={String(selectedNode.data.config.teamId ?? '')}
+                              onChange={(e) => patchConfig({ teamId: e.target.value })}
+                              style={{ ...inputBase, cursor: 'pointer' }}
+                            >
+                              <option value="">Usar equipo asignado en el flujo</option>
+                              {equipos.map((eq) => (
+                                <option key={eq.id} value={eq.id}>
+                                  {eq.nombre}
+                                </option>
+                              ))}
+                            </select>
+                          </>
+                        )}
+                        {selectedNode.data.actionType === 'SEND_WHATSAPP' && (
+                          <>
+                            <label style={{ ...labelBase, marginTop: 10 }}>Teléfono destino</label>
+                            <input
+                              value={String(selectedNode.data.config.waPhone ?? '{guardianPhone}')}
+                              onChange={(e) => patchConfig({ waPhone: e.target.value })}
+                              style={inputBase}
+                              placeholder="{guardianPhone} o 34666777888"
+                            />
+                          </>
+                        )}
                         <label style={{ ...labelBase, marginTop: 10 }}>Mensaje</label>
                         <textarea
                           value={String(selectedNode.data.config.waMessage ?? '')}
@@ -1391,10 +1423,8 @@ function WorkflowFlowEditorInner({
                           placeholder="Escribe el mensaje..."
                         />
                         <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.45 }}>
-                          Variables disponibles: {'{assignedTeamName}'}, {'{assignedTeamId}'},
-                          {'{stepActionType}'}, {'{stepApplied}'},
-                          {'{stepError}'}, {'{stepCreatedPaymentId}'}, {'{stepCreatedTransactionId}'},
-                          {'{stepCreatedSignupLinkToken}'}, {'{stepTargetStatus}'}
+                          Variables: {'{memberName}'}, {'{assignedTeamName}'}, {'{teamScheduleSummary}'},
+                          {'{teamTrainingLocation}'}, {'{coachName}'}, {'{coachPhone}'}, {'{guardianPhone}'}
                         </p>
                       </>
                     )}

@@ -69,6 +69,8 @@ export function shortActionLabel(actionType: string, c: Record<string, unknown>)
       return 'Movimiento contable'
     case 'SEND_WHATSAPP':
       return 'WhatsApp'
+    case 'SEND_WHATSAPP_TO_COACH':
+      return 'WhatsApp entrenador'
     case 'HTTP_REQUEST':
       return 'HTTP'
     case 'BRANCH_IF':
@@ -131,6 +133,7 @@ export function outputDefsByAction(actionType: string): Array<{ key: string; lab
         { key: 'stepCreatedTransactionType', label: 'Tipo movimiento creado' },
       ]
     case 'SEND_WHATSAPP':
+    case 'SEND_WHATSAPP_TO_COACH':
       return [
         ...base,
         { key: 'stepWhatsAppSent', label: 'WhatsApp enviado' },

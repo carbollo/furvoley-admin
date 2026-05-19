@@ -281,6 +281,17 @@ export function WorkflowsSection({
     if (catalogOpen) void loadCatalog()
   }, [catalogOpen, loadCatalog])
 
+  useEffect(() => {
+    void fetch('/api/crm/workflows/ensure-defaults', {
+      method: 'POST',
+      credentials: 'include',
+    }).then((r) => {
+      if (r.ok) void reload()
+    })
+    // Solo al montar la sección: instala WD-1 si falta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const installFromCatalog = async (templateId: string) => {
     setCatalogInstalling(templateId)
     try {
