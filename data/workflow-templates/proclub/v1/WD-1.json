@@ -6,9 +6,9 @@
   "proclubType": "Auto",
   "implementationStatus": "ready",
   "phase": 1,
-  "notes": "Tras alta efectiva: equipo + aviso. No enviar enlace de inscripción (ver WI-1).",
-  "name": "PROCLUB · Alta en plantilla del grupo",
-  "description": "[PROCLUB:WD-1] Socio ya registrado: asignar grupo y avisar.",
+  "notes": "Inscripción cerrada o cambio de grupo. Configura teamId en asignación por edad y en aviso al equipo.",
+  "name": "PROCLUB · Alta del jugador en plantilla del grupo",
+  "description": "[PROCLUB:WD-1] Inscripción cerrada o cambio de grupo confirmado: plantilla, aviso entrenador y datos al tutor.",
   "triggerType": "MEMBER_CREATED",
   "isActive": true,
   "steps": [
@@ -27,12 +27,23 @@
     {
       "position": 1,
       "stepType": "ACTION",
+      "actionType": "SEND_WHATSAPP_TO_TEAM",
+      "config": {
+        "teamId": "",
+        "waMessage": "Nuevo jugador en plantilla: {memberName} se ha incorporado a {assignedTeamName}. Revisa su ficha en el CRM.",
+        "label": "coach",
+        "stepKey": "coach"
+      }
+    },
+    {
+      "position": 2,
+      "stepType": "ACTION",
       "actionType": "SEND_WHATSAPP",
       "config": {
-        "waPhone": "{memberPhone}",
-        "waMessage": "Hola, {memberName} ya está en {assignedTeamName}. Consulta horarios en el panel del club.",
-        "label": "welcome",
-        "stepKey": "welcome"
+        "waPhone": "{guardianPhone}",
+        "waMessage": "Hola, {memberName} ya está en {assignedTeamName}. Horarios: {teamScheduleSummary}. Ubicación: {teamTrainingLocation}. Entrenador/a: {coachName} — Tel: {coachPhone}",
+        "label": "tutor",
+        "stepKey": "tutor"
       }
     }
   ]

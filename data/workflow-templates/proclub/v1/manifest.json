@@ -5,13 +5,13 @@
   "entries": [
     {
       "proclubId": "WD-1",
-      "name": "PROCLUB · Alta en plantilla del grupo",
+      "name": "PROCLUB · Alta del jugador en plantilla del grupo",
       "proclubArea": "sport",
       "proclubType": "Auto",
       "implementationStatus": "ready",
       "phase": 1,
       "triggerType": "MEMBER_CREATED",
-      "notes": "Tras alta efectiva: equipo + aviso. No enviar enlace de inscripción (ver WI-1)."
+      "notes": "Inscripción cerrada o cambio de grupo. Configura teamId en asignación por edad y en aviso al equipo."
     },
     {
       "proclubId": "WD-2",

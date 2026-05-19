@@ -42,7 +42,19 @@ Se rellenan al ejecutar flujos con disparador INVOICE_CREATED, INVOICE_PAID o IN
 antes de que exista el socio. No usar «Crear enlace de inscripción» en MEMBER_CREATED.
 
 
-3) Variables base del socio (siempre disponibles)
+3) Variables de plantilla / entrenador (tras asignar equipo)
+-----------------------------------------------------------
+
+- {assignedTeamName} / {assignedTeamId}
+- {teamScheduleSummary} — horarios recurrentes (TeamSchedule) o próximo evento
+- {teamTrainingLocation}
+- {coachName} / {coachPhone} / {coachEmail}
+- {guardianPhone} — teléfono tutor (si no hay, usa {memberPhone})
+
+Usadas en WD-1 tras incorporar al jugador a la plantilla.
+
+
+4) Variables base del socio (siempre disponibles)
 --------------------------------------------------
 
 - {memberId}

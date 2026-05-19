@@ -1,5 +1,5 @@
 import type { ProclubWorkflowTemplate } from './types'
-import { action, wa, withPositions } from './helpers'
+import { action, wa, waGuardian, withPositions } from './helpers'
 
 export const SPORT_TEMPLATES: ProclubWorkflowTemplate[] = [
   {
@@ -8,14 +8,28 @@ export const SPORT_TEMPLATES: ProclubWorkflowTemplate[] = [
     proclubType: 'Auto',
     implementationStatus: 'ready',
     phase: 1,
-    notes: 'Tras alta efectiva: equipo + aviso. No enviar enlace de inscripción (ver WI-1).',
-    name: 'PROCLUB · Alta en plantilla del grupo',
-    description: '[PROCLUB:WD-1] Socio ya registrado: asignar grupo y avisar.',
+    notes: 'Inscripción cerrada o cambio de grupo. Configura teamId en asignación por edad y en aviso al equipo.',
+    name: 'PROCLUB · Alta del jugador en plantilla del grupo',
+    description:
+      '[PROCLUB:WD-1] Inscripción cerrada o cambio de grupo confirmado: plantilla, aviso entrenador y datos al tutor.',
     triggerType: 'MEMBER_CREATED',
+    eventKinds: ['MEMBER_CREATED', 'TEAM_ROSTER_CONFIRMED'],
     defaultActive: true,
     steps: withPositions([
       action('ASSIGN_TEAM_BY_AGE', { minAge: 0, maxAge: 99, teamId: '' }, 'assign'),
-      wa('Hola, {memberName} ya está en {assignedTeamName}. Consulta horarios en el panel del club.', 'welcome'),
+      action(
+        'SEND_WHATSAPP_TO_TEAM',
+        {
+          teamId: '',
+          waMessage:
+            'Nuevo jugador en plantilla: {memberName} se ha incorporado a {assignedTeamName}. Revisa su ficha en el CRM.',
+        },
+        'coach',
+      ),
+      waGuardian(
+        'Hola, {memberName} ya está en {assignedTeamName}. Horarios: {teamScheduleSummary}. Ubicación: {teamTrainingLocation}. Entrenador/a: {coachName} — Tel: {coachPhone}',
+        'tutor',
+      ),
     ]),
   },
   {

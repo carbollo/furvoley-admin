@@ -90,7 +90,10 @@ export async function runExtendedWorkflowAction(
   }
 
   if (step.actionType === 'SEND_WHATSAPP_TO_TEAM') {
-    const teamId = readString(step.config, 'teamId')
+    const teamId =
+      readString(step.config, 'teamId') ||
+      runContext.variables.assignedTeamId ||
+      runContext.variables.teamAssignedId
     const messageTpl = readString(step.config, 'waMessage') || ''
     if (!teamId || !messageTpl.trim()) {
       setStepError('teamId o mensaje vacío')

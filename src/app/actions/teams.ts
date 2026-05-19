@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { runTeamRosterConfirmedWorkflows } from '@/lib/workflow-engine'
 
 export async function createTeam(data: { name: string; category?: string }) {
   const team = await prisma.team.create({ data })
@@ -46,6 +47,9 @@ export async function deleteTeam(id: string) {
 
 export async function addTeamMember(data: { teamId: string; memberId: string; role: string }) {
   const teamMember = await prisma.teamMember.create({ data })
+  if (data.role === 'PLAYER') {
+    await runTeamRosterConfirmedWorkflows(data.memberId)
+  }
   revalidatePath('/')
   return teamMember
 }

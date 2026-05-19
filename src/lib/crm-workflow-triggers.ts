@@ -1,7 +1,11 @@
 /** Tipos de disparador persistidos en `Workflow.triggerType`. El motor ejecuta los flujos activos cuyo trigger coincida con el evento. */
 
 export const WORKFLOW_TRIGGER_OPTIONS = [
-  { value: 'MEMBER_CREATED', label: 'Alta de socio (ya registrado en el CRM)' },
+  { value: 'MEMBER_CREATED', label: 'Alta de socio / inscripción cerrada' },
+  {
+    value: 'TEAM_ROSTER_CONFIRMED',
+    label: 'Plantilla de grupo confirmada (alta o cambio de grupo)',
+  },
   { value: 'LEAD_CREATED', label: 'Lead captado (aún no es socio)' },
   { value: 'MEMBER_UPDATED', label: 'Cambio de datos del socio' },
   { value: 'MEMBER_STATUS_CHANGED', label: 'Cambio de estado del socio' },

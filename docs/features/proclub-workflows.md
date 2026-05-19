@@ -13,7 +13,7 @@ Matriz de las 48 plantillas alineadas con PROCLUB CRM. Los flujos ya guardados e
 
 | ID | Área | Tipo | Estado | Fase | Disparador | Pasos | Notas |
 |----|------|------|--------|------|------------|-------|-------|
-| WD-1 | sport | Auto | ready | 1 | `MEMBER_CREATED` | ASSIGN_TEAM_BY_AGE, SEND_WHATSAPP | Tras alta efectiva: equipo + aviso. No enviar enlace de inscripción (ver WI-1). |
+| WD-1 | sport | Auto | ready | 1 | `MEMBER_CREATED` | ASSIGN_TEAM_BY_AGE, SEND_WHATSAPP_TO_TEAM, SEND_WHATSAPP | Inscripción cerrada o cambio de grupo. Configura teamId en asignación por edad y en aviso al equipo. |
 | WD-2 | sport | Auto | partial | 2 | `MEMBER_UPDATED` | — | Ejecutar con cron GENERATE_TEAM_SESSIONS; no disparar al editar socio. |
 | WD-3 | sport | Auto | partial | 2 | `EVENT_STARTING_SOON` | — | EVENT_STARTING_SOON + aviso entrenador. |
 | WD-4 | sport | Auto | partial | 3 | `ATTENDANCE_ABSENT_UNEXCUSED` | SEND_WHATSAPP | ATTENDANCE_ABSENT_UNEXCUSED. |

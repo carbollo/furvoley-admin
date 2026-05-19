@@ -2,12 +2,14 @@ import { prisma } from '@/lib/prisma'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { buildInvoiceVariables, runExtendedWorkflowAction } from '@/lib/workflow-engine-more'
+import { populateTeamRosterVariables } from '@/lib/workflow-team-context'
 
 export type WorkflowMemberPayload = {
   id: string
   name: string
   email: string | null
   phone: string | null
+  guardianPhone: string | null
   address: string | null
   sportPreference: string | null
   dni: string | null
@@ -22,6 +24,7 @@ type WorkflowRunContext = {
 
 export type WorkflowTriggerType =
   | 'MEMBER_CREATED'
+  | 'TEAM_ROSTER_CONFIRMED'
   | 'MEMBER_UPDATED'
   | 'MEMBER_STATUS_CHANGED'
   | 'PAYMENT_CREATED'
@@ -157,6 +160,12 @@ function defaultWorkflowVariables() {
     invoicePdfUrl: '',
     subscriptionId: '',
     signupLinkUrl: '',
+    teamScheduleSummary: '',
+    teamTrainingLocation: '',
+    coachName: '',
+    coachPhone: '',
+    coachEmail: '',
+    guardianPhone: '',
     eventId: '',
     eventTitle: '',
     teamId: '',
@@ -176,6 +185,7 @@ function buildTriggerVariables(
     triggerMemberName: member.name ?? '',
     triggerMemberEmail: member.email ?? '',
     triggerMemberPhone: member.phone ?? '',
+    guardianPhone: member.guardianPhone ?? member.phone ?? '',
     triggerMemberStatus: member.status ?? '',
     triggerPreviousStatus: String(context.previousStatus || ''),
     triggerCurrentStatus: String(context.currentStatus || member.status || ''),
@@ -253,6 +263,7 @@ function interpolateHttpTemplate(
     memberName: member.name ?? '',
     memberEmail: member.email ?? '',
     memberPhone: member.phone ?? '',
+    guardianPhone: member.guardianPhone ?? member.phone ?? '',
     memberAddress: member.address ?? '',
     memberDni: member.dni ?? '',
     memberStatus: member.status ?? '',
@@ -395,6 +406,7 @@ async function runMemberCreatedStepAction(
   },
   member: WorkflowMemberPayload,
   runContext: WorkflowRunContext,
+  triggerType: WorkflowTriggerType,
 ): Promise<void> {
   if (
     await runExtendedWorkflowAction(step, member, runContext, (tpl, m, ctx) =>
@@ -446,10 +458,24 @@ async function runMemberCreatedStepAction(
     runContext.variables.teamAssignedName = teamName
     runContext.variables.assignmentApplied = flag
     runContext.variables.stepApplied = flag
-    if (applied) runContext.variables.stepError = ''
+    if (applied) {
+      runContext.variables.stepError = ''
+      if (cleanId) await populateTeamRosterVariables(cleanId, runContext.variables)
+    }
   }
 
   if (step.actionType === 'ASSIGN_TEAM_BY_AGE') {
+    if (runContext.variables.triggerType === 'TEAM_ROSTER_CONFIRMED') {
+      const existing = await prisma.teamMember.findFirst({
+        where: { memberId: member.id, role: 'PLAYER' },
+        select: { teamId: true },
+      })
+      if (existing?.teamId) {
+        await setAssignedTeamResult(existing.teamId, true)
+        return
+      }
+    }
+
     if (!member.birthDate) {
       await setAssignedTeamResult(null, false)
       return
@@ -731,7 +757,13 @@ async function runMemberCreatedStepAction(
     const sessionId = await resolveWorkflowWhatsAppSessionId(readString(step.config, 'waSessionId') || undefined)
     const phoneTpl = readString(step.config, 'waPhone') || '{memberPhone}'
     const messageTpl = readString(step.config, 'waMessage') || ''
-    const phone = interpolateHttpTemplate(phoneTpl, member, runContext).replace(/[^\d+]/g, '')
+    let phone = interpolateHttpTemplate(phoneTpl, member, runContext).replace(/[^\d+]/g, '')
+    if (!phone && phoneTpl.includes('guardian')) {
+      phone = String(member.guardianPhone || member.phone || '').replace(/[^\d+]/g, '')
+    }
+    if (!phone) {
+      phone = String(member.phone || '').replace(/[^\d+]/g, '')
+    }
     const message = interpolateHttpTemplate(messageTpl, member, runContext)
     runContext.variables.stepSentWhatsAppPhone = phone
     runContext.variables.stepSentWhatsAppMessage = message
@@ -864,7 +896,7 @@ async function runWorkflowStepsForMember(
       continue
     }
 
-    await runMemberCreatedStepAction(step, member, runContext)
+    await runMemberCreatedStepAction(step, member, runContext, triggerType)
     snapshotNodeScopedVariables(runContext, stepKey)
     i++
   }
@@ -872,6 +904,18 @@ async function runWorkflowStepsForMember(
   if (guard >= maxIter) {
     console.warn('[workflow] Bucle de pasos detenido por límite de seguridad')
   }
+}
+
+function workflowMatchesTrigger(
+  workflow: { triggerType: string; triggerConfig: unknown },
+  triggerType: string,
+) {
+  if (workflow.triggerType === triggerType) return true
+  const cfg =
+    workflow.triggerConfig && typeof workflow.triggerConfig === 'object'
+      ? (workflow.triggerConfig as { eventKinds?: string[] })
+      : {}
+  return Array.isArray(cfg.eventKinds) && cfg.eventKinds.includes(triggerType)
 }
 
 async function runWorkflowsForMemberByTrigger(
@@ -887,8 +931,8 @@ async function runWorkflowsForMemberByTrigger(
       email: true,
       phone: true,
       address: true,
-      guardianPhone: true,
       sportPreference: true,
+      guardianPhone: true,
       dni: true,
       birthDate: true,
       status: true,
@@ -902,6 +946,7 @@ async function runWorkflowsForMemberByTrigger(
     name: memberRow.name,
     email: memberRow.email,
     phone: memberRow.phone,
+    guardianPhone: memberRow.guardianPhone,
     address: memberRow.address,
     sportPreference: memberRow.sportPreference,
     dni: memberRow.dni,
@@ -909,10 +954,10 @@ async function runWorkflowsForMemberByTrigger(
     status: memberRow.status,
   }
 
-  const workflows = await prisma.workflow.findMany({
-    where: { isActive: true, triggerType },
+  const workflows = (await prisma.workflow.findMany({
+    where: { isActive: true },
     include: { steps: true },
-  })
+  })).filter((w) => workflowMatchesTrigger(w, triggerType))
 
   for (const workflow of workflows) {
     if (triggerType === 'MEMBER_STATUS_CHANGED') {
@@ -931,6 +976,11 @@ async function runWorkflowsForMemberByTrigger(
 
 export async function runMemberCreatedWorkflows(memberId: string) {
   await runWorkflowsForMemberByTrigger(memberId, 'MEMBER_CREATED')
+}
+
+/** Cambio de grupo confirmado o re-instalación en plantilla (sin repetir alta). */
+export async function runTeamRosterConfirmedWorkflows(memberId: string) {
+  await runWorkflowsForMemberByTrigger(memberId, 'TEAM_ROSTER_CONFIRMED')
 }
 
 export async function runMemberUpdatedWorkflows(memberId: string) {
@@ -990,6 +1040,7 @@ async function loadMemberPayload(memberId: string): Promise<WorkflowMemberPayloa
       name: true,
       email: true,
       phone: true,
+      guardianPhone: true,
       address: true,
       sportPreference: true,
       dni: true,
@@ -1013,6 +1064,7 @@ function leadAsMember(lead: {
     name: lead.name,
     email: lead.email,
     phone: lead.phone,
+    guardianPhone: lead.phone,
     address: null,
     sportPreference: lead.sportPreference,
     dni: null,
@@ -1167,6 +1219,7 @@ async function runEventTeamWorkflows(
     name: event.title,
     email: null,
     phone: null,
+    guardianPhone: null,
     address: null,
     sportPreference: null,
     dni: null,

@@ -23,6 +23,8 @@ export type ProclubWorkflowTemplate = {
   defaultActive: boolean
   /** Solo ejecutar MEMBER_STATUS_CHANGED si el estado nuevo coincide (p. ej. INACTIVE). */
   onlyWhenCurrentStatus?: string
+  /** Disparadores adicionales (p. ej. WD-1: MEMBER_CREATED + TEAM_ROSTER_CONFIRMED). */
+  eventKinds?: string[]
   steps: ProclubWorkflowStep[]
 }
 

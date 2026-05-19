@@ -80,6 +80,7 @@ export async function installProclubTemplate(input: {
         ...(template.onlyWhenCurrentStatus
           ? { onlyWhenCurrentStatus: template.onlyWhenCurrentStatus }
           : {}),
+        ...(template.eventKinds?.length ? { eventKinds: template.eventKinds } : {}),
       },
     },
   })

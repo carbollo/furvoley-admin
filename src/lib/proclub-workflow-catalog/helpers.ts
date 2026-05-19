@@ -9,6 +9,16 @@ export function wa(msg: string, label: string): ProclubWorkflowStep {
   }
 }
 
+/** WhatsApp al tutor; si no hay guardianPhone, el motor usa teléfono del socio. */
+export function waGuardian(msg: string, label: string): ProclubWorkflowStep {
+  return {
+    position: 0,
+    stepType: 'ACTION',
+    actionType: 'SEND_WHATSAPP',
+    config: { waPhone: '{guardianPhone}', waMessage: msg, label, stepKey: label },
+  }
+}
+
 export function action(
   actionType: string,
   config: Record<string, unknown>,
