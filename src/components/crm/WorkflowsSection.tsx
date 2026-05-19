@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Zap, Plus, Download, Upload, BookOpen, X } from 'lucide-react'
+import { useCallback, useRef, useState, type ChangeEvent } from 'react'
+import { Zap, Plus, Download, Upload } from 'lucide-react'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
 import { isWorkflowTriggerAllowed } from '@/lib/crm-workflow-triggers'
 import { isWorkflowActionAllowed } from '@/lib/crm-workflow-actions'
@@ -73,84 +73,6 @@ export function WorkflowsSection({
   const [saveBusy, setSaveBusy] = useState(false)
   const [importBusy, setImportBusy] = useState(false)
   const importInputRef = useRef<HTMLInputElement | null>(null)
-  const [proclubOpen, setProclubOpen] = useState(false)
-  const [proclubTemplates, setProclubTemplates] = useState<
-    Array<{
-      proclubId: string
-      name: string
-      proclubArea: string
-      implementationStatus: string
-      triggerType: string
-      stepCount: number
-      notes: string
-    }>
-  >([])
-  const [proclubLoading, setProclubLoading] = useState(false)
-  const [proclubArea, setProclubArea] = useState('')
-  const [proclubStatus, setProclubStatus] = useState('')
-  const [proclubInstalling, setProclubInstalling] = useState<string | null>(null)
-
-  const PROCLUB_AREA_LABEL: Record<string, string> = {
-    sport: 'Deporte',
-    billing: 'Cobros',
-    capture: 'Captación',
-    signup: 'Inscripción',
-    churn: 'Baja',
-  }
-
-  const loadProclubCatalog = useCallback(async () => {
-    setProclubLoading(true)
-    try {
-      const q = new URLSearchParams()
-      if (proclubArea) q.set('area', proclubArea)
-      if (proclubStatus) q.set('status', proclubStatus)
-      const r = await fetch(`/api/crm/workflows/proclub-catalog?${q}`, { credentials: 'include' })
-      if (!r.ok) return
-      const j = await r.json()
-      setProclubTemplates(j.templates || [])
-    } finally {
-      setProclubLoading(false)
-    }
-  }, [proclubArea, proclubStatus])
-
-  useEffect(() => {
-    if (proclubOpen) loadProclubCatalog()
-  }, [proclubOpen, loadProclubCatalog])
-
-  const installProclub = async (proclubId: string, implementationStatus: string) => {
-    if (implementationStatus === 'manual') {
-      alert('Solo documentación: configura planes y cuotas manualmente en el CRM.')
-      return
-    }
-    if (
-      implementationStatus === 'partial' &&
-      !confirm(`${proclubId} es parcial. ¿Instalar igualmente?`)
-    ) {
-      return
-    }
-    setProclubInstalling(proclubId)
-    try {
-      const r = await fetch('/api/crm/workflows/install-template', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proclubId }),
-      })
-      const j = await r.json()
-      if (!r.ok) {
-        alert(j.error || 'Error al instalar')
-        return
-      }
-      if (j.skipped) {
-        alert(j.reason || 'Ya instalada')
-        return
-      }
-      await reload()
-      alert(`Instalado: ${j.name || proclubId}`)
-    } finally {
-      setProclubInstalling(null)
-    }
-  }
 
   const activos = wfs.filter((w) => w.activo).length
   const totalPasos = wfs.reduce((a, w) => a + ((w.pasos as unknown[])?.length ?? 0), 0)
@@ -441,19 +363,6 @@ export function WorkflowsSection({
           />
           <button
             type="button"
-            onClick={() => setProclubOpen(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '10px 18px', borderRadius: 8,
-              border: '1px solid var(--border-strong)', background: 'var(--surface-card)',
-              color: 'var(--accent)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            <BookOpen size={15} /> Biblioteca PROCLUB (48)
-          </button>
-          <button
-            type="button"
             onClick={() => exportWorkflows()}
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
@@ -741,106 +650,6 @@ export function WorkflowsSection({
           )
         })}
       </div>
-
-      {proclubOpen && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 80,
-              background: 'rgba(15,23,42,0.45)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 24,
-            }}
-            onClick={() => setProclubOpen(false)}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: 'min(960px, 100%)',
-                maxHeight: '85vh',
-                background: 'var(--surface-card)',
-                borderRadius: 16,
-                border: '1px solid var(--border)',
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: 18 }}>Biblioteca PROCLUB (48)</strong>
-                <button type="button" onClick={() => setProclubOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}>
-                  <X size={20} />
-                </button>
-              </div>
-              <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10 }}>
-                <select value={proclubArea} onChange={(e) => setProclubArea(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)' }}>
-                  <option value="">Todas las áreas</option>
-                  {Object.entries(PROCLUB_AREA_LABEL).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
-                  ))}
-                </select>
-                <select value={proclubStatus} onChange={(e) => setProclubStatus(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)' }}>
-                  <option value="">Todos los estados</option>
-                  <option value="ready">ready</option>
-                  <option value="partial">partial</option>
-                  <option value="manual">manual</option>
-                </select>
-              </div>
-              <div style={{ overflow: 'auto', flex: 1 }}>
-                {proclubLoading ? (
-                  <p style={{ padding: 24, textAlign: 'center' }}>Cargando…</p>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ background: 'var(--surface-low)' }}>
-                        <th style={{ padding: 10, textAlign: 'left' }}>ID</th>
-                        <th style={{ padding: 10, textAlign: 'left' }}>Nombre</th>
-                        <th style={{ padding: 10, textAlign: 'left' }}>Área</th>
-                        <th style={{ padding: 10, textAlign: 'left' }}>Estado</th>
-                        <th style={{ padding: 10, textAlign: 'left' }}>Disparador</th>
-                        <th style={{ padding: 10 }} />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {proclubTemplates.map((t) => (
-                        <tr key={t.proclubId} style={{ borderTop: '1px solid var(--border)' }}>
-                          <td style={{ padding: 10, fontWeight: 700 }}>{t.proclubId}</td>
-                          <td style={{ padding: 10 }}>{t.name}</td>
-                          <td style={{ padding: 10 }}>{PROCLUB_AREA_LABEL[t.proclubArea] || t.proclubArea}</td>
-                          <td style={{ padding: 10 }}>{t.implementationStatus}</td>
-                          <td style={{ padding: 10 }}>{workflowTriggerLabel(t.triggerType)}</td>
-                          <td style={{ padding: 10, textAlign: 'right' }}>
-                            <button
-                              type="button"
-                              disabled={proclubInstalling === t.proclubId || t.implementationStatus === 'manual'}
-                              onClick={() => installProclub(t.proclubId, t.implementationStatus)}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                border: 'none',
-                                background: 'var(--accent)',
-                                color: '#fff',
-                                fontWeight: 600,
-                                cursor: t.implementationStatus === 'manual' ? 'not-allowed' : 'pointer',
-                              }}
-                            >
-                              {proclubInstalling === t.proclubId ? '…' : 'Instalar'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
-      )}
 
       {editorOpen && (
         <WorkflowFlowEditor
