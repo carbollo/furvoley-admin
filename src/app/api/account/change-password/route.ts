@@ -54,7 +54,8 @@ export async function POST(request: Request) {
   }
 
   const envAdmin = getEnvAdminCredentials()
-  if (envAdmin && user.email.trim().toLowerCase() === envAdmin.email) {
+  const userEmail = user.email?.trim().toLowerCase() ?? ''
+  if (envAdmin && userEmail === envAdmin.email) {
     return NextResponse.json(
       {
         error:
