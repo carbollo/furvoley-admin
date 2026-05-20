@@ -46,10 +46,10 @@ async function resolveCheckoutCustomerFields(
   if (stripeCustomerId?.startsWith('cus_')) {
     try {
       const stripe = getStripe()
-      const opts: Stripe.RequestOptions | undefined = connect.hasConnectedAccount
+      const requestOptions: Stripe.RequestOptions | undefined = connect.hasConnectedAccount
         ? { stripeAccount: connect.connectedAccountId }
         : undefined
-      await stripe.customers.retrieve(stripeCustomerId, opts)
+      await stripe.customers.retrieve(stripeCustomerId, {}, requestOptions)
       return { customer: stripeCustomerId }
     } catch {
       await prisma.member.update({
