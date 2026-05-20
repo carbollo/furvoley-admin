@@ -13,6 +13,7 @@ export type CrmSectionId =
   | 'dashboard'
   | 'socios'
   | 'equipos'
+  | 'cuotas'
   | 'contabilidad'
   | 'calendario'
   | 'informes'
@@ -21,9 +22,9 @@ export type CrmSectionId =
   | 'personal'
 
 const CRM_SECTIONS_BY_ROLE: Record<AppRole, CrmSectionId[]> = {
-  ADMIN: ['dashboard', 'socios', 'equipos', 'contabilidad', 'calendario', 'informes', 'workflows', 'whatsapp', 'personal'],
+  ADMIN: ['dashboard', 'socios', 'equipos', 'cuotas', 'contabilidad', 'calendario', 'informes', 'workflows', 'whatsapp', 'personal'],
   COACH: ['equipos', 'calendario'],
-  TREASURER: ['contabilidad', 'informes'],
+  TREASURER: ['cuotas', 'contabilidad', 'informes'],
   MEMBER: [],
 }
 

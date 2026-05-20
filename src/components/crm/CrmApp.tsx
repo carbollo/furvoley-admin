@@ -2,6 +2,7 @@
 'use client'
 
 import { WorkflowsSection } from './WorkflowsSection'
+import { CuotasSection } from './CuotasSection'
 import { ClubSettingsModal } from './ClubSettingsModal'
 import { PaymentReminderButton } from './PaymentReminderButton'
 import { InviteLinkButton } from './InviteLinkButton'
@@ -287,6 +288,7 @@ const Icon = ({ name, size = 18 }) => {
     users: <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>,
     teams: <><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></>,
     billing: <><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></>,
+    cuotas: <><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 10h4a2 2 0 0 1 0 4h-2"/></>,
     calendar: <><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>,
     reports: <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>,
     workflows: <><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></>,
@@ -420,6 +422,7 @@ const NAV = [
   { id: 'dashboard', label: 'Inicio', icon: 'dashboard' },
   { id: 'socios', label: 'Socios', icon: 'users' },
   { id: 'equipos', label: 'Equipos', icon: 'teams' },
+  { id: 'cuotas', label: 'Gestión de cuotas', icon: 'cuotas' },
   { id: 'contabilidad', label: 'Contabilidad', icon: 'billing' },
   { id: 'calendario', label: 'Calendario', icon: 'calendar' },
   { id: 'informes', label: 'Informes', icon: 'reports' },
@@ -4982,6 +4985,21 @@ function Informes({ setActive }) {
   );
 }
 
+function Cuotas() {
+  const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  if (!(role === 'ADMIN' || role === 'TREASURER')) return null
+  return (
+    <CuotasSection
+      bundle={bundle}
+      reload={reload}
+      fmtMoney={fmtMoney}
+      showAlert={showAlert}
+      showConfirm={showConfirm}
+    />
+  )
+}
+
 function Workflows() {
   const { bundle, reload } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
@@ -5589,13 +5607,14 @@ function WhatsAppSection() {
 }
 
 // ── APP ROOT ─────────────────────────────────────────────────────────────────
-const CRM_SECTION_IDS = ['dashboard','socios','equipos','contabilidad','calendario','informes','workflows','whatsapp','personal'] as const;
+const CRM_SECTION_IDS = ['dashboard','socios','equipos','cuotas','contabilidad','calendario','informes','workflows','whatsapp','personal'] as const;
 type SectionId = (typeof CRM_SECTION_IDS)[number]
 
 const SECTION_TITLES: Record<SectionId, string> = {
   dashboard: 'Inicio',
   socios: 'Socios',
   equipos: 'Equipos',
+  cuotas: 'Gestión de cuotas',
   contabilidad: 'Contabilidad',
   calendario: 'Calendario',
   informes: 'Informes',
@@ -5818,6 +5837,7 @@ function CrmInner() {
     dashboard: Dashboard,
     socios: Socios,
     equipos: Equipos,
+    cuotas: Cuotas,
     contabilidad: Contabilidad,
     calendario: Calendario,
     informes: Informes,
