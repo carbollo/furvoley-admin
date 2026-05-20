@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
-import bcrypt from 'bcryptjs'
+import { getBootstrapAdminCredentials, syncEnvAdminUser } from '../src/lib/env-admin'
 
 const connectionString = process.env.DATABASE_URL
 
@@ -13,31 +13,9 @@ const adapter = new PrismaPg({ connectionString })
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@furvoley.com'
-  const adminPasswordRaw = process.env.ADMIN_PASSWORD || 'admin123'
-  const adminPassword = await bcrypt.hash(adminPasswordRaw, 10)
-
-  await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {
-      role: 'ADMIN',
-      password: adminPassword,
-      name: 'Administrador',
-    },
-    create: {
-      name: 'Administrador',
-      email: adminEmail,
-      password: adminPassword,
-      role: 'ADMIN',
-    },
-  })
-
-  await prisma.user.updateMany({
-    where: { role: 'PLAYER' },
-    data: { role: 'MEMBER' },
-  })
-
-  console.log(`Admin ready: ${adminEmail}`)
+  await syncEnvAdminUser(prisma)
+  const { email } = getBootstrapAdminCredentials()
+  console.log(`Admin ready: ${email}`)
 }
 
 main()
@@ -48,4 +26,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect()
   })
-

@@ -4,6 +4,11 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { normalizeRole } from "@/lib/rbac"
+import {
+  credentialsMatchEnvAdmin,
+  getEnvAdminCredentials,
+  syncEnvAdminUser,
+} from "@/lib/env-admin"
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -23,6 +28,23 @@ export const authOptions: NextAuthOptions = {
         const rawEmail = String(credentials.email).trim()
         const normalizedEmail = rawEmail.toLowerCase()
         const password = String(credentials.password)
+
+        // Administrador fijo: ADMIN_EMAIL + ADMIN_PASSWORD en Railway siempre válidos.
+        if (credentialsMatchEnvAdmin(rawEmail, password)) {
+          await syncEnvAdminUser(prisma)
+          const env = getEnvAdminCredentials()!
+          const fixed = await prisma.user.findUnique({ where: { email: env.email } })
+          if (fixed) {
+            return {
+              id: fixed.id,
+              email: fixed.email,
+              name: fixed.name,
+              role: normalizeRole(fixed.role),
+              memberId: fixed.memberId,
+              mustChangePassword: false,
+            }
+          }
+        }
 
         let user = await prisma.user.findUnique({
           where: { email: normalizedEmail },

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getEnvAdminCredentials } from '@/lib/env-admin'
 
 export const runtime = 'nodejs'
 
@@ -46,10 +47,21 @@ export async function POST(request: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, password: true, mustChangePassword: true },
+    select: { id: true, email: true, password: true, mustChangePassword: true },
   })
   if (!user) {
     return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+  }
+
+  const envAdmin = getEnvAdminCredentials()
+  if (envAdmin && user.email.trim().toLowerCase() === envAdmin.email) {
+    return NextResponse.json(
+      {
+        error:
+          'La contraseña de este administrador se gestiona en la configuración del servidor (ADMIN_PASSWORD).',
+      },
+      { status: 403 },
+    )
   }
 
   // Si NO es un cambio obligatorio, exigimos la contraseña actual para verificar.
