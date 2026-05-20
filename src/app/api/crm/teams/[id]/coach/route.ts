@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { setTeamCoach } from '@/app/actions/teams'
 import { requireRoles } from '@/lib/rbac-api'
+import { runCoachAssignedWorkflows } from '@/lib/workflow-proclub-runners'
 
 export async function POST(
   request: Request,
@@ -27,6 +28,10 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: 'No se pudo asignar el entrenador' }, { status: 400 })
   }
+
+  void runCoachAssignedWorkflows(teamId, memberId).catch((err) => {
+    console.warn('[coach] WD-14 workflow failed:', err)
+  })
 
   return NextResponse.json({ ok: true })
 }

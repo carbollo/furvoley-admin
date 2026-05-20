@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import {
   runAttendanceAbsentUnexcusedWorkflows,
   runEventCancelledWorkflows,
+  runEventCompletedWorkflows,
   runEventRescheduledWorkflows,
 } from '@/lib/workflow-engine'
 
@@ -56,6 +57,9 @@ export async function updateEvent(
   }
   if (data.date && prev && data.date.getTime() !== prev.date.getTime()) {
     await runEventRescheduledWorkflows(id)
+  }
+  if (data.status === 'COMPLETED' && prev?.status !== 'COMPLETED') {
+    await runEventCompletedWorkflows(id)
   }
 
   revalidatePath('/calendar')

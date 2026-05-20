@@ -94,6 +94,8 @@ function defaultStepConfig(actionType: string): Record<string, unknown> {
         untilSeasonEnd: true,
         weeksAhead: '4',
       }
+    case 'GENERATE_RESPONSE_LINK':
+      return { linkType: 'ATTENDANCE', expiresInHours: '72' }
     default:
       return {}
   }

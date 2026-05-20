@@ -287,6 +287,111 @@ model WorkflowStep {
   @@unique([workflowId, position])
 }
 
+/// Enlaces públicos con token para respuestas de workflows (pase de lista, convocatoria, etc.)
+model WorkflowResponseToken {
+  id         String    @id @default(cuid())
+  token      String    @unique
+  type       String    // ATTENDANCE, ATTENDANCE_REASON, CONVOCATION, TRIAL, MATCH_RESULT, CONSENT, LEAVE_SURVEY, SEASON_RENEWAL
+  memberId   String?
+  eventId    String?
+  teamId     String?
+  payload    Json?
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([type, expiresAt])
+}
+
+model EventConvocation {
+  id        String   @id @default(cuid())
+  eventId   String
+  memberId  String
+  status    String   @default("INVITED") // INVITED, CONFIRMED, DECLINED, NOT_CALLED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, memberId])
+  @@index([eventId])
+}
+
+model TeamChangeRequest {
+  id           String    @id @default(cuid())
+  memberId     String
+  fromTeamId   String?
+  toTeamId     String
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  approvedById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([memberId])
+  @@index([status])
+}
+
+model CoachSubstitution {
+  id               String   @id @default(cuid())
+  eventId          String
+  originalCoachId  String?
+  substituteCoachId String
+  status           String   @default("ASSIGNED")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([eventId])
+}
+
+model MemberDocument {
+  id        String   @id @default(cuid())
+  memberId  String
+  type      String
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([memberId])
+  @@index([expiresAt])
+}
+
+model PlayerEvaluation {
+  id        String   @id @default(cuid())
+  memberId  String
+  teamId    String?
+  summary   String?  @db.Text
+  status    String   @default("DRAFT") // DRAFT, PUBLISHED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([memberId])
+}
+
+model CoachIncident {
+  id         String   @id @default(cuid())
+  coachId    String
+  title      String
+  resolution String?  @db.Text
+  status     String   @default("OPEN") // OPEN, RESOLVED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model DiscountRule {
+  id        String   @id @default(cuid())
+  name      String
+  ruleType  String   // SIBLING, STAFF_CHILD, PERCENT
+  percent   Float    @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MemberCreditBalance {
+  id        String   @id @default(cuid())
+  memberId  String   @unique
+  amount    Float    @default(0)
+  updatedAt DateTime @updatedAt
+}
+
 model Transaction {
   id            String   @id @default(cuid())
   type          String   // INCOME, EXPENSE

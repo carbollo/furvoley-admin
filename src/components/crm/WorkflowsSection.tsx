@@ -90,6 +90,23 @@ export function WorkflowsSection({
   const [catalogSaving, setCatalogSaving] = useState<string | null>(null)
   const catalogUploadRef = useRef<HTMLInputElement | null>(null)
 
+  type ProclubEntry = {
+    catalogId: string
+    name: string
+    area: string
+    automation: string
+    phase: number
+    triggerType: string
+    stepCount: number
+    installed: boolean
+    workflowId: string | null
+  }
+  const [proclubOpen, setProclubOpen] = useState(false)
+  const [proclubEntries, setProclubEntries] = useState<ProclubEntry[]>([])
+  const [proclubLoading, setProclubLoading] = useState(false)
+  const [proclubInstalling, setProclubInstalling] = useState(false)
+  const [proclubSelected, setProclubSelected] = useState<Set<string>>(new Set())
+
   const activos = wfs.filter((w) => w.activo).length
   const totalPasos = wfs.reduce((a, w) => a + ((w.pasos as unknown[])?.length ?? 0), 0)
 
@@ -280,6 +297,52 @@ export function WorkflowsSection({
   useEffect(() => {
     if (catalogOpen) void loadCatalog()
   }, [catalogOpen, loadCatalog])
+
+  const loadProclubCatalog = useCallback(async () => {
+    setProclubLoading(true)
+    try {
+      const r = await fetch('/api/crm/workflows/proclub-catalog', { credentials: 'include' })
+      if (!r.ok) {
+        setProclubEntries([])
+        return
+      }
+      const j = await r.json()
+      setProclubEntries(Array.isArray(j.entries) ? j.entries : [])
+    } finally {
+      setProclubLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (proclubOpen) void loadProclubCatalog()
+  }, [proclubOpen, loadProclubCatalog])
+
+  const installProclub = async (installAll: boolean) => {
+    setProclubInstalling(true)
+    try {
+      const ids = installAll ? undefined : [...proclubSelected]
+      const r = await fetch('/api/crm/workflows/proclub-catalog/install', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(installAll ? { installAll: true } : { ids }),
+      })
+      if (!r.ok) {
+        alert('No se pudo instalar la biblioteca PROCLUB')
+        return
+      }
+      const j = await r.json()
+      alert(
+        `PROCLUB: ${j.installed ?? 0} nuevos, ${j.updated ?? 0} actualizados` +
+          (j.skipped ? `, ${j.skipped} omitidos` : ''),
+      )
+      await reload()
+      await loadProclubCatalog()
+      setProclubOpen(false)
+    } finally {
+      setProclubInstalling(false)
+    }
+  }
 
   useEffect(() => {
     void fetch('/api/crm/workflows/ensure-defaults', {
@@ -478,6 +541,19 @@ export function WorkflowsSection({
             onChange={onCatalogUploadFile}
             style={{ display: 'none' }}
           />
+          <button
+            type="button"
+            onClick={() => setProclubOpen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 18px', borderRadius: 8,
+              border: '1px solid var(--accent)',
+              cursor: 'pointer', background: 'var(--accent-pill)', color: 'var(--accent)',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+            }}
+          >
+            <BookOpen size={15} /> Biblioteca PROCLUB
+          </button>
           <button
             type="button"
             onClick={() => setCatalogOpen(true)}
@@ -921,6 +997,122 @@ export function WorkflowsSection({
                           >
                             Quitar
                           </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {proclubOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 85,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+          onClick={() => setProclubOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(1100px, 100%)',
+              maxHeight: '88vh',
+              background: 'var(--surface-card)',
+              borderRadius: 16,
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <strong style={{ fontSize: 18 }}>Biblioteca PROCLUB</strong>
+                <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  48 workflows del esquema PROCLUB. Instala y configura cada flujo (planId, teamId, edades).
+                  Guía: <code>docs/proclub-workflows-guide.md</code>
+                </p>
+              </div>
+              <button type="button" onClick={() => setProclubOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                disabled={proclubInstalling}
+                onClick={() => void installProclub(true)}
+                style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+              >
+                {proclubInstalling ? 'Instalando…' : 'Instalar todo'}
+              </button>
+              <button
+                type="button"
+                disabled={proclubInstalling || proclubSelected.size === 0}
+                onClick={() => void installProclub(false)}
+                style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)', background: '#fff', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Instalar seleccionados ({proclubSelected.size})
+              </button>
+            </div>
+            <div style={{ overflow: 'auto', flex: 1 }}>
+              {proclubLoading ? (
+                <p style={{ padding: 24, textAlign: 'center' }}>Cargando catálogo…</p>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface-low)' }}>
+                      <th style={{ padding: 8 }} />
+                      <th style={{ padding: 8, textAlign: 'left' }}>ID</th>
+                      <th style={{ padding: 8, textAlign: 'left' }}>Nombre</th>
+                      <th style={{ padding: 8 }}>Fase</th>
+                      <th style={{ padding: 8 }}>Área</th>
+                      <th style={{ padding: 8 }}>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {proclubEntries.map((e) => (
+                      <tr key={e.catalogId} style={{ borderTop: '1px solid var(--border)' }}>
+                        <td style={{ padding: 8 }}>
+                          {e.automation !== 'manual' && (
+                            <input
+                              type="checkbox"
+                              checked={proclubSelected.has(e.catalogId)}
+                              onChange={(ev) => {
+                                setProclubSelected((prev) => {
+                                  const next = new Set(prev)
+                                  if (ev.target.checked) next.add(e.catalogId)
+                                  else next.delete(e.catalogId)
+                                  return next
+                                })
+                              }}
+                            />
+                          )}
+                        </td>
+                        <td style={{ padding: 8, fontWeight: 700 }}>{e.catalogId}</td>
+                        <td style={{ padding: 8 }}>{e.name.replace(/^[A-Z]+-\d+ · /, '')}</td>
+                        <td style={{ padding: 8 }}>{e.phase}</td>
+                        <td style={{ padding: 8 }}>{e.area}</td>
+                        <td style={{ padding: 8 }}>
+                          {e.automation === 'manual' ? (
+                            <span style={{ color: '#64748b' }}>Manual</span>
+                          ) : e.installed ? (
+                            <span style={{ color: '#16a34a', fontWeight: 600 }}>Instalado</span>
+                          ) : (
+                            <span style={{ color: '#d97706' }}>Pendiente</span>
+                          )}
                         </td>
                       </tr>
                     ))}

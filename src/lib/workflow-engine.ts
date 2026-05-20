@@ -42,6 +42,29 @@ export type WorkflowTriggerType =
   | 'EVENT_COMPLETED'
   | 'ATTENDANCE_ABSENT_UNEXCUSED'
   | 'DOCUMENT_EXPIRING'
+  | 'BILLING_CYCLE_DUE'
+  | 'CONVOCATION_PUBLISHED'
+  | 'COACH_ASSIGNED'
+  | 'COACH_SUBSTITUTION_ASSIGNED'
+  | 'TEAM_CHANGE_APPROVED'
+  | 'EVALUATION_PUBLISHED'
+  | 'BULK_MESSAGE_REQUESTED'
+  | 'INCIDENT_RESOLVED'
+  | 'CONSENT_PENDING'
+  | 'WAITLIST_SLOT_AVAILABLE'
+  | 'LEAD_COLD_FOLLOWUP'
+  | 'TRIAL_REMINDER_DUE'
+  | 'EXTRA_CHARGE_CREATED'
+  | 'PAYMENT_FAILED'
+  | 'INVOICE_OVERDUE_ESCALATED'
+  | 'OVERDUE_REPORT_DUE'
+  | 'PAYMENT_METHOD_EXPIRING'
+  | 'SUBSCRIPTION_PAUSED'
+  | 'MEMBER_CREDIT_APPLIED'
+  | 'SEASON_RENEWAL_DUE'
+  | 'ACCOUNTING_EXPORT_DUE'
+  | 'MEMBER_LEAVE_REQUESTED'
+  | 'MEMBER_RETURN_CAMPAIGN'
 
 type WorkflowTriggerContext = {
   previousStatus?: string | null
@@ -76,6 +99,12 @@ type WorkflowTriggerContext = {
   rosterTeamId?: string | null
   /** Equipo cuyos horarios fijos cambiaron (WD-2). */
   scheduleTeamId?: string | null
+  fromTeamId?: string | null
+  toTeamId?: string | null
+  documentType?: string | null
+  documentExpiryDate?: string | null
+  bulkMessage?: string | null
+  eventLocation?: string | null
 }
 
 function tokenSafePart(value: string): string {
@@ -206,9 +235,21 @@ function buildTriggerVariables(
     ...(context.invoice ? buildInvoiceVariables(context.invoice) : {}),
     eventId: String(context.event?.id || ''),
     eventTitle: String(context.event?.title || ''),
+    eventDate: context.event?.date
+      ? new Date(context.event.date).toLocaleString('es-ES', {
+          dateStyle: 'short',
+          timeStyle: 'short',
+        })
+      : '',
+    eventLocation: String(context.eventLocation || ''),
     teamId: String(
       context.event?.teamId || context.scheduleTeamId || context.rosterTeamId || '',
     ),
+    fromTeamId: String(context.fromTeamId || ''),
+    toTeamId: String(context.toTeamId || ''),
+    documentType: String(context.documentType || ''),
+    documentExpiryDate: String(context.documentExpiryDate || ''),
+    bulkMessage: String(context.bulkMessage || ''),
     rosterTeamId: String(context.rosterTeamId || ''),
     scheduleTeamId: String(context.scheduleTeamId || ''),
     ...(context.rosterTeamId
@@ -868,7 +909,7 @@ async function runMemberCreatedStepAction(
   }
 }
 
-async function runWorkflowStepsForMember(
+export async function runWorkflowStepsForMember(
   steps: { position: number; stepType: string; actionType: string; config: unknown }[],
   member: WorkflowMemberPayload,
   triggerType: WorkflowTriggerType,
@@ -880,6 +921,19 @@ async function runWorkflowStepsForMember(
       ...buildTriggerVariables(triggerType, member, triggerContext),
     },
     teamNameCache: new Map<string, string>(),
+  }
+
+  try {
+    const { getClubIssuer } = await import('@/lib/club-settings')
+    const issuer = await getClubIssuer()
+    runContext.variables.clubAdminPhone = issuer.contactPhone || ''
+    runContext.variables.clubName = issuer.name || ''
+  } catch {
+    /* optional */
+  }
+
+  if (triggerContext.event?.teamId) {
+    runContext.variables.teamId = triggerContext.event.teamId
   }
 
   if (triggerType === 'TEAM_ROSTER_CONFIRMED') {
@@ -960,7 +1014,7 @@ function workflowMatchesTrigger(
   return Array.isArray(cfg.eventKinds) && cfg.eventKinds.includes(triggerType)
 }
 
-async function runWorkflowsForMemberByTrigger(
+export async function runWorkflowsForMemberByTrigger(
   memberId: string,
   triggerType: WorkflowTriggerType,
   triggerContext: WorkflowTriggerContext = {},
@@ -1254,9 +1308,15 @@ async function runEventTeamWorkflows(
   })
   if (!event) return
 
-  const workflows = await prisma.workflow.findMany({
-    where: { isActive: true, triggerType },
+  const allWorkflows = await prisma.workflow.findMany({
+    where: { isActive: true },
     include: { steps: true },
+  })
+  const workflows = allWorkflows.filter((w) => workflowMatchesTrigger(w, triggerType))
+
+  const eventFull = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, title: true, teamId: true, date: true, location: true },
   })
 
   const stubMember: WorkflowMemberPayload = {
@@ -1274,11 +1334,12 @@ async function runEventTeamWorkflows(
 
   const ctx: WorkflowTriggerContext = {
     event: {
-      id: event.id,
-      title: event.title,
-      teamId: event.teamId,
-      date: event.date,
+      id: eventFull?.id || event.id,
+      title: eventFull?.title || event.title,
+      teamId: eventFull?.teamId ?? event.teamId,
+      date: eventFull?.date || event.date,
     },
+    eventLocation: eventFull?.location || '',
   }
 
   if (event.teamId) {

@@ -4,6 +4,11 @@ import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { createInvoiceStripeLink, createInvoiceForSubscription, createSubscription } from '@/app/actions/billing'
 import { generateTeamSessionsFromSchedule } from '@/lib/team-calendar'
 import { signupUrlFromToken } from '@/lib/signup-url'
+import {
+  createWorkflowResponseLink,
+  type WorkflowLinkType,
+} from '@/lib/workflow-response-links'
+import { getClubIssuer } from '@/lib/club-settings'
 import type { WorkflowMemberPayload } from '@/lib/workflow-engine'
 
 type WorkflowRunContext = {
@@ -261,6 +266,133 @@ export async function runExtendedWorkflowAction(
     } catch (e) {
       setStepError(e instanceof Error ? e.message : 'error factura')
     }
+    return true
+  }
+
+  if (step.actionType === 'GENERATE_RESPONSE_LINK') {
+    const linkType = (readString(step.config, 'linkType') || 'ATTENDANCE') as WorkflowLinkType
+    try {
+      const link = await createWorkflowResponseLink({
+        type: linkType,
+        memberId: member.id !== 'event' && member.id !== 'schedule' ? member.id : null,
+        eventId: runContext.variables.eventId || null,
+        teamId:
+          runContext.variables.teamId ||
+          runContext.variables.scheduleTeamId ||
+          runContext.variables.rosterTeamId ||
+          null,
+        expiresInHours: readNumber(step.config, 'expiresInHours') ?? 72,
+      })
+      runContext.variables.responseLink = link.url
+      runContext.variables.responseLinkToken = link.token
+      setStepApplied()
+    } catch (e) {
+      setStepError(e instanceof Error ? e.message : 'error enlace')
+    }
+    return true
+  }
+
+  if (step.actionType === 'APPLY_DISCOUNT_RULES') {
+    const invoiceId = runContext.variables.invoiceId
+    if (!invoiceId) {
+      setStepError('sin invoiceId')
+      return true
+    }
+    const rules = await prisma.discountRule.findMany({ where: { isActive: true } })
+    if (rules.length === 0) {
+      setStepApplied()
+      return true
+    }
+    let siblings = 0
+    const phone = member.guardianPhone || member.phone
+    if (phone) {
+      siblings = await prisma.member.count({
+        where: {
+          id: { not: member.id },
+          status: 'ACTIVE',
+          OR: [{ guardianPhone: phone }, { phone }],
+        },
+      })
+    }
+    let percent = 0
+    for (const r of rules) {
+      if (r.ruleType === 'SIBLING' && siblings > 0) percent = Math.max(percent, r.percent)
+    }
+    if (percent > 0) {
+      const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } })
+      if (inv && inv.status === 'PENDING') {
+        const discount = Math.round(inv.totalAmount * (percent / 100) * 100) / 100
+        await prisma.invoice.update({
+          where: { id: invoiceId },
+          data: {
+            totalAmount: Math.max(0, inv.totalAmount - discount),
+            subtotal: Math.max(0, inv.subtotal - discount),
+          },
+        })
+        runContext.variables.discountApplied = String(discount)
+      }
+    }
+    setStepApplied()
+    return true
+  }
+
+  if (step.actionType === 'RETRY_PAYMENT') {
+    setStepApplied()
+    runContext.variables.retryScheduled = 'true'
+    return true
+  }
+
+  if (step.actionType === 'SEND_OVERDUE_REPORT') {
+    const club = await getClubIssuer()
+    const overdue = await prisma.invoice.findMany({
+      where: { status: { in: ['OVERDUE', 'PENDING'] }, dueDate: { lt: new Date() } },
+      take: 20,
+      include: { member: { select: { name: true } } },
+    })
+    const summary = overdue
+      .map((i) => `${i.member.name}: ${i.invoiceNumber} ${i.totalAmount - i.paidAmount}€`)
+      .join('\n')
+    const phone = club.contactPhone?.replace(/[^\d+]/g, '') || ''
+    if (phone && summary) {
+      try {
+        const sessionId = await resolveWorkflowWhatsAppSessionId(undefined)
+        await sendApiWassText({
+          sessionId,
+          phone,
+          message: `Impagos (${overdue.length}):\n${summary}`,
+        })
+      } catch (e) {
+        console.warn('[workflow] SEND_OVERDUE_REPORT:', e)
+      }
+    }
+    setStepApplied()
+    return true
+  }
+
+  if (step.actionType === 'CALCULATE_PRORATED_REFUND') {
+    runContext.variables.proratedRefundNote = 'Revisar devolución en panel de facturación'
+    setStepApplied()
+    return true
+  }
+
+  if (step.actionType === 'CANCEL_SUBSCRIPTION') {
+    const sub = await prisma.subscription.findFirst({
+      where: { memberId: member.id, status: 'ACTIVE' },
+    })
+    if (sub) {
+      await prisma.subscription.update({
+        where: { id: sub.id },
+        data: { status: 'CANCELED', endDate: new Date() },
+      })
+    }
+    setStepApplied()
+    return true
+  }
+
+  if (step.actionType === 'TRIGGER_WAITLIST_NOTIFY') {
+    const { runWaitlistSlotWorkflows } = await import('@/lib/workflow-proclub-runners')
+    await runWaitlistSlotWorkflows()
+    setStepApplied()
     return true
   }
 
