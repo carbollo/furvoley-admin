@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createMember } from '@/app/actions'
+import { createSubscription } from '@/app/actions/billing'
 import { requireRoles } from '@/lib/rbac-api'
 import { memberIsDelinquentForCrm } from '@/lib/invoice-display'
+import { prisma } from '@/lib/prisma'
 
 function initials(name: string) {
   return name
@@ -107,6 +109,8 @@ export async function POST(request: Request) {
     birthDate?: string
     joinedAt?: string
     phone?: string
+    planId?: string
+    paymentRequiredOnEnrollment?: boolean
   }
   try {
     body = await request.json()
@@ -166,12 +170,64 @@ export async function POST(request: Request) {
       { status: 400 },
     )
   }
+
+  let planId = String(body.planId || '').trim()
+  if (!planId) {
+    const activePlans = await prisma.membershipPlan.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      take: 2,
+    })
+    if (activePlans.length === 1) planId = activePlans[0].id
+  }
+
+  let subscriptionWarning: string | null = null
+  let subscriptionId: string | null = null
+  if (planId) {
+    const plan = await prisma.membershipPlan.findUnique({ where: { id: planId } })
+    if (!plan || !plan.isActive) {
+      subscriptionWarning =
+        'Socio creado, pero el plan de cuota no es válido. Asigna la cuota en Gestión de cuotas.'
+    } else {
+      try {
+        const paymentRequiredOnEnrollment =
+          typeof body.paymentRequiredOnEnrollment === 'boolean'
+            ? body.paymentRequiredOnEnrollment
+            : plan.paymentRequiredOnEnrollment
+        const subscription = await createSubscription({
+          memberId: member.id,
+          planId,
+          paymentRequiredOnEnrollment,
+        })
+        subscriptionId = subscription.id
+      } catch (e) {
+        subscriptionWarning =
+          e instanceof Error
+            ? `Socio creado, pero no se pudo asignar la cuota: ${e.message}`
+            : 'Socio creado, pero no se pudo asignar la cuota.'
+      }
+    }
+  } else {
+    const activeCount = await prisma.membershipPlan.count({ where: { isActive: true } })
+    if (activeCount > 0) {
+      subscriptionWarning =
+        'Socio creado sin cuota asignada. Elige un plan al dar de alta o asígnalo en Gestión de cuotas para que aparezca el pago en Mis pagos.'
+    } else {
+      subscriptionWarning =
+        'Socio creado. Crea un plan en Gestión de cuotas y asígnalo al socio para generar el primer cobro.'
+    }
+  }
+
   const portalEmail = member.email?.trim().toLowerCase() || ''
   const hasEmail = !!portalEmail
   const defaultPasswordRaw = process.env.MEMBER_DEFAULT_PASSWORD || '12345678'
+  const warnings = [hasEmail ? null : 'El socio no tiene email válido; no se creó usuario de portal.', subscriptionWarning].filter(
+    Boolean,
+  )
   return NextResponse.json({
     ok: true,
     id: member.id,
+    subscriptionId,
     memberAccount: hasEmail
       ? {
           email: portalEmail,
@@ -179,6 +235,6 @@ export async function POST(request: Request) {
           defaultPassword: defaultPasswordRaw,
         }
       : null,
-    warning: hasEmail ? null : 'El socio no tiene email válido; no se creó usuario de portal.',
+    warning: warnings.length ? warnings.join(' ') : null,
   })
 }

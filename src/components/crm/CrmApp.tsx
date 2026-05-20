@@ -874,6 +874,7 @@ function Socios() {
     address: '',
     sportPreference: '',
   });
+  const [membershipPlans, setMembershipPlans] = useState([])
   const [formInscripcion, setFormInscripcion] = useState({
     nombre: '',
     apellidos: '',
@@ -884,6 +885,8 @@ function Socios() {
     domicilio: '',
     deporte: '',
     fechaAlta: new Date().toISOString().slice(0, 10),
+    planId: '',
+    paymentRequiredOnEnrollment: false,
   });
 
   useEffect(() => {
@@ -897,9 +900,19 @@ function Socios() {
     setSociosDb(Array.isArray(j?.socios) ? j.socios : [])
   }, [])
 
+  const loadMembershipPlans = useCallback(async () => {
+    const r = await fetch('/api/crm/membership-plans', { credentials: 'include', cache: 'no-store' })
+    if (!r.ok) return []
+    const j = await r.json()
+    const active = (j.plans || []).filter((p) => p.isActive)
+    setMembershipPlans(active)
+    return active
+  }, [])
+
   useEffect(() => {
     loadSociosDb().catch(() => {})
-  }, [loadSociosDb])
+    loadMembershipPlans().catch(() => {})
+  }, [loadSociosDb, loadMembershipPlans])
 
   useEffect(() => {
     function closeMenu(e: MouseEvent) {
@@ -929,7 +942,16 @@ function Socios() {
   const deportes = ['Todos', ...new Set(SOCIOS_UI.map(s => s.deporte))];
   const estados = ['Todos', 'Activo', 'Moroso', 'Inactivo'];
 
-  function abrirFormularioInscripcion() {
+  function planPaymentRequiredDefault(planId) {
+    return membershipPlans.find((p) => p.id === planId)?.paymentRequiredOnEnrollment ?? false
+  }
+
+  async function abrirFormularioInscripcion() {
+    let plans = membershipPlans
+    if (!plans.length) {
+      plans = (await loadMembershipPlans()) || []
+    }
+    const defaultPlanId = plans[0]?.id || ''
     setFormInscripcion({
       nombre: '',
       apellidos: '',
@@ -940,6 +962,8 @@ function Socios() {
       domicilio: '',
       deporte: '',
       fechaAlta: new Date().toISOString().slice(0, 10),
+      planId: defaultPlanId,
+      paymentRequiredOnEnrollment: planPaymentRequiredDefault(defaultPlanId),
     });
     setShowInscripcion(true);
   }
@@ -948,6 +972,14 @@ function Socios() {
     e.preventDefault();
     if (!formInscripcion.nombre.trim() || !formInscripcion.apellidos.trim() || !formInscripcion.telefono.trim() || !formInscripcion.fechaNacimiento.trim()) {
       showAlert('Nombre, apellidos, teléfono y fecha de nacimiento son obligatorios.');
+      return;
+    }
+    if (membershipPlans.length > 1 && !formInscripcion.planId) {
+      showAlert('Selecciona el plan de cuota para que el socio vea el pago en Mis pagos.');
+      return;
+    }
+    if (membershipPlans.length > 0 && !formInscripcion.planId) {
+      showAlert('No hay plan de cuota seleccionado. Crea un plan en Gestión de cuotas o selecciónalo en el formulario.');
       return;
     }
     setInscripcionBusy(true);
@@ -966,6 +998,8 @@ function Socios() {
           sportPreference: formInscripcion.deporte.trim() || undefined,
           birthDate: formInscripcion.fechaNacimiento || undefined,
           joinedAt: formInscripcion.fechaAlta || undefined,
+          planId: formInscripcion.planId || undefined,
+          paymentRequiredOnEnrollment: formInscripcion.paymentRequiredOnEnrollment,
         }),
       });
       if (!r.ok) {
@@ -980,9 +1014,12 @@ function Socios() {
       try {
         const j = await r.json()
         if (j?.memberAccount?.email) {
-          showAlert(`Socio creado. Acceso portal: ${j.memberAccount.email} / ${j.memberAccount.defaultPassword}`)
+          const cuotaMsg = j.subscriptionId ? ' Cuota y factura generadas en Mis pagos.' : ''
+          showAlert(`Socio creado. Acceso portal: ${j.memberAccount.email} / ${j.memberAccount.defaultPassword}.${cuotaMsg}`)
         } else if (j?.warning) {
           showAlert(j.warning)
+        } else if (j?.subscriptionId) {
+          showAlert('Socio creado con cuota asignada. Verá el pago en Mis pagos al entrar con su email.')
         }
       } catch {
         //
@@ -1867,6 +1904,74 @@ function Socios() {
                   style={insInput}
                 />
               </div>
+              {membershipPlans.length > 0 ? (
+                <>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={insLabel}>Plan de cuota *</label>
+                    <select
+                      required={membershipPlans.length > 1}
+                      value={formInscripcion.planId}
+                      onChange={(e) => {
+                        const planId = e.target.value
+                        setFormInscripcion((p) => ({
+                          ...p,
+                          planId,
+                          paymentRequiredOnEnrollment: planPaymentRequiredDefault(planId),
+                        }))
+                      }}
+                      style={{ ...insInput, cursor: 'pointer' }}
+                    >
+                      {membershipPlans.length > 1 && (
+                        <option value="">Selecciona un plan…</option>
+                      )}
+                      {membershipPlans.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} — {fmtMoney(p.amount)} / {p.billingPeriodLabel}
+                          {p.enrollmentFee > 0 ? ` (+ matrícula ${fmtMoney(p.enrollmentFee)})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+                      Al guardar se genera la primera factura en Mis pagos del socio.
+                    </p>
+                  </div>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        color: '#cbd5e1',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formInscripcion.paymentRequiredOnEnrollment}
+                        onChange={(e) =>
+                          setFormInscripcion((p) => ({
+                            ...p,
+                            paymentRequiredOnEnrollment: e.target.checked,
+                          }))
+                        }
+                        style={{ marginTop: 3 }}
+                      />
+                      <span>
+                        <strong style={{ color: '#f8fafc' }}>Pago obligatorio al alta</strong>
+                        <br />
+                        <span style={{ color: '#94a3b8' }}>
+                          El socio queda pendiente de pago hasta abonar la primera cuota en Mis pagos.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </>
+              ) : (
+                <div style={{ gridColumn: 'span 2', fontSize: 12, color: '#fbbf24', lineHeight: 1.5 }}>
+                  No hay planes de cuota activos. Crea uno en Gestión de cuotas para que el socio vea cobros en Mis pagos.
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
               <button

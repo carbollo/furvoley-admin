@@ -137,9 +137,12 @@ export default async function MyBillingPage() {
                       textAlign: 'center',
                       color: OUTLINE,
                       fontSize: 14,
+                      lineHeight: 1.5,
                     }}
                   >
-                    No tienes facturas registradas todavía.
+                    {!memberId
+                      ? 'Tu cuenta no está vinculada a un socio. Pide al club que revise tu email en la ficha del socio.'
+                      : 'No tienes facturas todavía. Si acabas de darte de alta, el club debe asignarte un plan de cuota desde el CRM.'}
                   </td>
                 </tr>
               )}
