@@ -35,8 +35,22 @@ async function ensureSchema() {
   process.exit(1)
 }
 
+async function ensureAdminUser() {
+  process.stdout.write('[startup] Ensuring admin user (bootstrap-admin)...\n')
+  const result = spawnSync(
+    process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    ['tsx', 'prisma/bootstrap-admin.ts'],
+    { stdio: 'inherit', env: process.env },
+  )
+  if (result.status !== 0) {
+    process.stderr.write('[startup] bootstrap-admin failed.\n')
+    process.exit(1)
+  }
+}
+
 async function main() {
   await ensureSchema()
+  await ensureAdminUser()
   const child = spawn(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
     ['next', 'start'],
