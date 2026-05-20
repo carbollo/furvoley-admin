@@ -64,6 +64,7 @@ export type MemberShellBranding = {
   name: string
   logoUrl: string | null
   primaryColor: string | null
+  subtitle?: string | null
 }
 
 export function MemberShell({
@@ -79,6 +80,8 @@ export function MemberShell({
   const initials = initialsFromName(session?.user?.name || session?.user?.email || '')
   const clubName = (branding?.name || 'Furvoley').trim() || 'Furvoley'
   const clubLogo = branding?.logoUrl || null
+  const clubSubtitle = branding?.subtitle?.trim() || null
+  const accent = branding?.primaryColor?.trim() || PRIMARY
 
   return (
     <div
@@ -132,17 +135,20 @@ export function MemberShell({
             >
               {clubName}
             </h1>
-            <p
-              className="mt-1"
-              style={{
-                color: 'rgba(255,255,255,0.55)',
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: '0.18em',
-              }}
-            >
-              CLUB DE DEPORTES
-            </p>
+            {clubSubtitle ? (
+              <p
+                className="mt-1"
+                style={{
+                  color: 'rgba(255,255,255,0.55)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.12em',
+                  lineHeight: 1.3,
+                }}
+              >
+                {clubSubtitle}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -155,7 +161,7 @@ export function MemberShell({
                 href={item.href}
                 className="flex items-center gap-3 px-6 py-3 transition-all"
                 style={{
-                  borderLeft: active ? `4px solid ${PRIMARY}` : '4px solid transparent',
+                  borderLeft: active ? `4px solid ${accent}` : '4px solid transparent',
                   background: active ? 'rgba(255,255,255,0.06)' : 'transparent',
                   color: active ? '#fff' : 'rgba(255,255,255,0.65)',
                   fontWeight: active ? 700 : 500,
@@ -208,11 +214,11 @@ export function MemberShell({
                 style={{
                   width: 40,
                   height: 40,
-                  background: 'linear-gradient(135deg, #2170e4, #0058be)',
+                  background: `linear-gradient(135deg, ${accent}, ${accent})`,
                   color: '#fff',
                   fontWeight: 700,
                   fontSize: 14,
-                  border: '1px solid rgba(33,112,228,0.6)',
+                  border: `1px solid ${accent}99`,
                 }}
               >
                 {initials}
@@ -226,7 +232,7 @@ export function MemberShell({
                 </p>
                 <p
                   style={{
-                    color: '#adc6ff',
+                    color: `${accent}cc`,
                     fontSize: 10,
                     fontWeight: 900,
                     letterSpacing: '0.18em',
@@ -314,8 +320,8 @@ export function MemberShell({
                 <p style={{ fontWeight: 700, fontSize: 13, color: '#191b23' }}>{userName}</p>
                 <span
                   style={{
-                    background: 'rgba(0,88,190,0.1)',
-                    color: PRIMARY,
+                    background: `${accent}1a`,
+                    color: accent,
                     padding: '2px 8px',
                     borderRadius: 999,
                     fontSize: 10,
@@ -331,7 +337,7 @@ export function MemberShell({
                 style={{
                   width: 40,
                   height: 40,
-                  background: 'linear-gradient(135deg, #2170e4, #0058be)',
+                  background: `linear-gradient(135deg, ${accent}, ${accent})`,
                   color: '#fff',
                   fontWeight: 700,
                   fontSize: 14,

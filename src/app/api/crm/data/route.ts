@@ -453,6 +453,7 @@ export async function GET() {
       logoUrl: clubBranding.logoUrl,
       primaryColor: clubBranding.primaryColor,
       website: clubBranding.website,
+      subtitle: clubBranding.subtitle,
     },
     currency,
     kpis: {

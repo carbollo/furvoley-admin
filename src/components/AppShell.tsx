@@ -46,7 +46,18 @@ export async function AppShell({
   const branding = await getClubBranding()
 
   if (role === 'MEMBER') {
-    return <MemberShell branding={branding}>{children}</MemberShell>
+    return (
+      <MemberShell
+        branding={{
+          name: branding.name,
+          logoUrl: branding.logoUrl,
+          primaryColor: branding.primaryColor,
+          subtitle: branding.subtitle,
+        }}
+      >
+        {children}
+      </MemberShell>
+    )
   }
 
   return (

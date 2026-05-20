@@ -40,6 +40,8 @@ export type ClubBranding = {
   logoUrl: string | null
   primaryColor: string | null
   website: string | null
+  /** Razón social o línea secundaria bajo el nombre en el panel de socios */
+  subtitle: string | null
 }
 
 export type ClubIssuer = {
@@ -122,9 +124,10 @@ export async function getClubBranding(): Promise<ClubBranding> {
       logoUrl: s.logoUrl || null,
       primaryColor: s.primaryColor || null,
       website: s.website || null,
+      subtitle: s.legalName?.trim() || null,
     }
   } catch {
-    return { name: 'Furvoley', logoUrl: null, primaryColor: null, website: null }
+    return { name: 'Furvoley', logoUrl: null, primaryColor: null, website: null, subtitle: null }
   }
 }
 

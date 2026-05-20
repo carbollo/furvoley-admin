@@ -5,6 +5,7 @@ import { Suspense } from 'react'
 import CrmApp from '@/components/crm/CrmApp'
 import { MemberShell } from '@/components/member/MemberShell'
 import { MemberDashboard } from '@/components/member/MemberDashboard'
+import { getClubBranding } from '@/lib/club-settings'
 import { normalizeRole } from '@/lib/rbac'
 
 export const dynamic = 'force-dynamic'
@@ -26,6 +27,7 @@ export default async function HomePage() {
   }
 
   const sessionMemberId = (session.user as { memberId?: string | null })?.memberId || ''
+  const clubBranding = await getClubBranding()
 
   const userMember = sessionMemberId
     ? await prisma.member.findUnique({
@@ -173,7 +175,14 @@ export default async function HomePage() {
   }))
 
   return (
-    <MemberShell>
+    <MemberShell
+      branding={{
+        name: clubBranding.name,
+        logoUrl: clubBranding.logoUrl,
+        primaryColor: clubBranding.primaryColor,
+        subtitle: clubBranding.subtitle,
+      }}
+    >
       <MemberDashboard
         firstName={firstName}
         dateStrPretty={dateStrPretty}
