@@ -12,6 +12,7 @@ type Plan = {
   billingPeriodLabel: string
   enrollmentFee: number
   paymentRequiredOnEnrollment: boolean
+  billingDayOfMonth: number
   isActive: boolean
   subscriptionCount: number
 }
@@ -79,6 +80,7 @@ export function CuotasSection({
     billingPeriod: 'MONTHLY',
     enrollmentFee: '0',
     paymentRequiredOnEnrollment: false,
+    billingDayOfMonth: '1',
     isActive: true,
   })
 
@@ -126,6 +128,7 @@ export function CuotasSection({
       billingPeriod: 'MONTHLY',
       enrollmentFee: '0',
       paymentRequiredOnEnrollment: false,
+      billingDayOfMonth: '1',
       isActive: true,
     })
     setPlanModal(true)
@@ -140,6 +143,7 @@ export function CuotasSection({
       billingPeriod: p.billingPeriod,
       enrollmentFee: String(p.enrollmentFee),
       paymentRequiredOnEnrollment: p.paymentRequiredOnEnrollment,
+      billingDayOfMonth: String(p.billingDayOfMonth ?? 1),
       isActive: p.isActive,
     })
     setPlanModal(true)
@@ -156,6 +160,7 @@ export function CuotasSection({
         billingPeriod: planForm.billingPeriod,
         enrollmentFee: Number(planForm.enrollmentFee) || 0,
         paymentRequiredOnEnrollment: planForm.paymentRequiredOnEnrollment,
+        billingDayOfMonth: Math.min(28, Math.max(1, Number(planForm.billingDayOfMonth) || 1)),
         isActive: planForm.isActive,
       }
       const r = editingPlan
@@ -469,7 +474,7 @@ export function CuotasSection({
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
-                    {['Plan', 'Importe', 'Periodicidad', 'Matrícula', 'Pago al alta', 'Socios', 'Estado', ''].map((h) => (
+                    {['Plan', 'Importe', 'Periodicidad', 'Día cobro', 'Matrícula', 'Pago al alta', 'Socios', 'Estado', ''].map((h) => (
                       <th
                         key={h}
                         style={{
@@ -498,6 +503,9 @@ export function CuotasSection({
                       </td>
                       <td style={{ padding: '16px 20px', fontWeight: 700 }}>{fmtMoney(p.amount)}</td>
                       <td style={{ padding: '16px 20px', fontSize: 14 }}>{p.billingPeriodLabel}</td>
+                      <td style={{ padding: '16px 20px', fontSize: 14, fontWeight: 600 }}>
+                        Día {p.billingDayOfMonth ?? 1}
+                      </td>
                       <td style={{ padding: '16px 20px', fontSize: 14 }}>
                         {p.enrollmentFee > 0 ? fmtMoney(p.enrollmentFee) : '—'}
                       </td>
@@ -791,6 +799,28 @@ export function CuotasSection({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label style={{ fontSize: 13, fontWeight: 600 }}>
+                Día de cobro del mes (1–28)
+                <input
+                  type="number"
+                  min={1}
+                  max={28}
+                  value={planForm.billingDayOfMonth}
+                  onChange={(e) => setPlanForm((f) => ({ ...f, billingDayOfMonth: e.target.value }))}
+                  style={{ ...inputStyle, marginTop: 6 }}
+                />
+                <span
+                  style={{
+                    display: 'block',
+                    fontWeight: 500,
+                    color: 'var(--text-muted)',
+                    marginTop: 4,
+                    fontSize: 12,
+                  }}
+                >
+                  Las cuotas recurrentes se emiten ese día (p. ej. 1 = cada día 1 del mes).
+                </span>
               </label>
               <label style={{ fontSize: 13, fontWeight: 600 }}>
                 Matrícula / alta (€)

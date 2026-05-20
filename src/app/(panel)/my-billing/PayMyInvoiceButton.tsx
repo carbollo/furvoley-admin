@@ -12,7 +12,7 @@ export function PayMyInvoiceButton({ invoiceId }: { invoiceId: string }) {
       onClick={() =>
         startTransition(async () => {
           const url = await createInvoiceStripeLink(invoiceId)
-          if (url) window.open(url, '_blank')
+          if (url) window.location.href = url
         })
       }
       disabled={pending}
@@ -29,7 +29,7 @@ export function PayMyInvoiceButton({ invoiceId }: { invoiceId: string }) {
         boxShadow: '0 1px 2px rgba(0,88,190,0.2)',
       }}
     >
-      {pending ? 'Generando…' : 'Pagar'}
+      {pending ? 'Redirigiendo a Stripe…' : 'Pagar con Stripe'}
     </button>
   )
 }

@@ -10,6 +10,13 @@ import type Stripe from 'stripe'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import {
+  advanceBillingDate,
+  billingDueDate,
+  clampBillingDay,
+  nextBillingDate,
+} from '@/lib/billing-dates'
+import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
+import {
   runInvoiceCreatedWorkflows,
   runInvoiceOverdueWorkflows,
   runInvoicePaidWorkflows,
@@ -47,12 +54,14 @@ export async function createMembershipPlan(data: {
   billingPeriod: string
   enrollmentFee?: number
   paymentRequiredOnEnrollment?: boolean
+  billingDayOfMonth?: number
 }) {
   const plan = await prisma.membershipPlan.create({
     data: {
       ...data,
       enrollmentFee: data.enrollmentFee ?? 0,
       paymentRequiredOnEnrollment: data.paymentRequiredOnEnrollment ?? false,
+      billingDayOfMonth: clampBillingDay(data.billingDayOfMonth ?? 1),
     },
   })
   revalidatePath('/')
@@ -68,12 +77,17 @@ export async function updateMembershipPlan(
     billingPeriod?: string
     enrollmentFee?: number
     paymentRequiredOnEnrollment?: boolean
+    billingDayOfMonth?: number
     isActive?: boolean
   },
 ) {
+  const patch = { ...data }
+  if (patch.billingDayOfMonth != null) {
+    patch.billingDayOfMonth = clampBillingDay(patch.billingDayOfMonth)
+  }
   const plan = await prisma.membershipPlan.update({
     where: { id },
-    data,
+    data: patch,
   })
   revalidatePath('/')
   return plan
@@ -114,12 +128,19 @@ export async function createSubscription(data: {
     data.paymentRequiredOnEnrollment ?? plan.paymentRequiredOnEnrollment ?? false
 
   const startDate = data.startDate ?? new Date()
+  const billingDay = clampBillingDay(plan.billingDayOfMonth)
+  const initialNextInvoiceDate = paymentRequired
+    ? startOfDay(new Date())
+    : nextBillingDate(startDate, billingDay, plan.billingPeriod)
+
+  void ensureMemberStripeCustomer(data.memberId).catch(() => {})
+
   const subscription = await prisma.subscription.create({
     data: {
       memberId: data.memberId,
       planId: data.planId,
       startDate,
-      nextInvoiceDate: startDate,
+      nextInvoiceDate: initialNextInvoiceDate,
       autoPay: data.autoPay ?? false,
       paymentRequiredOnEnrollment: paymentRequired,
     },
@@ -181,9 +202,17 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
   })
   const isFirstInvoice = priorInvoiceCount === 0
   const enrollmentRequired = subscription.paymentRequiredOnEnrollment && isFirstInvoice
+  const billingDay = clampBillingDay(subscription.plan.billingDayOfMonth)
+  const cycleDate = startOfDay(subscription.nextInvoiceDate)
 
-  const periodDue = addPeriod(subscription.nextInvoiceDate, subscription.plan.billingPeriod)
-  const dueDate = enrollmentRequired ? startOfDay(new Date()) : periodDue
+  let dueDate: Date
+  if (enrollmentRequired) {
+    dueDate = startOfDay(new Date())
+  } else if (isFirstInvoice) {
+    dueDate = nextBillingDate(new Date(), billingDay, subscription.plan.billingPeriod)
+  } else {
+    dueDate = billingDueDate(cycleDate, billingDay)
+  }
 
   const periodAmount = subscription.plan.amount
   const enrollmentAmount =
@@ -224,9 +253,14 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
     },
   })
 
+  const nextInvoiceDate =
+    enrollmentRequired && isFirstInvoice
+      ? nextBillingDate(new Date(), billingDay, subscription.plan.billingPeriod)
+      : advanceBillingDate(cycleDate, billingDay, subscription.plan.billingPeriod)
+
   await prisma.subscription.update({
     where: { id: subscription.id },
-    data: { nextInvoiceDate: dueDate },
+    data: { nextInvoiceDate },
   })
   await runInvoiceCreatedWorkflows(invoice.id)
   return invoice
@@ -466,10 +500,17 @@ export async function createInvoiceStripeLink(invoiceId: string) {
     ? Math.round((pendingCents * connect.applicationFeePercent) / 100)
     : 0
 
+  const stripeCustomerId = await ensureMemberStripeCustomer(invoice.memberId)
+
   const stripe = getStripe()
   const params: Stripe.Checkout.SessionCreateParams = {
     mode: 'payment',
     client_reference_id: invoice.id,
+    ...(stripeCustomerId
+      ? { customer: stripeCustomerId }
+      : invoice.member.email
+        ? { customer_email: invoice.member.email.trim() }
+        : {}),
     metadata: {
       invoiceId: invoice.id,
       memberId: invoice.memberId,

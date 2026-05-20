@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { PayMyInvoiceButton } from '@/app/(panel)/my-billing/PayMyInvoiceButton'
 import {
   CalendarIcon,
   ClockIcon,
@@ -446,13 +447,25 @@ export function MemberDashboard({
                           </span>
                         </Td>
                         <Td style={{ textAlign: 'right' }}>
-                          <Link
-                            href={`/api/invoices/${inv.id}/pdf`}
-                            style={{ color: OUTLINE, textDecoration: 'none' }}
-                            aria-label="Descargar factura"
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'flex-end',
+                              gap: 8,
+                            }}
                           >
-                            <DownloadIcon size={18} />
-                          </Link>
+                            {pending > 0 && inv.status !== 'VOID' ? (
+                              <PayMyInvoiceButton invoiceId={inv.id} />
+                            ) : null}
+                            <Link
+                              href={`/api/invoices/${inv.id}/pdf`}
+                              style={{ color: OUTLINE, textDecoration: 'none' }}
+                              aria-label="Descargar factura"
+                            >
+                              <DownloadIcon size={18} />
+                            </Link>
+                          </div>
                         </Td>
                       </tr>
                     )

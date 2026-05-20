@@ -75,7 +75,9 @@ model Member {
   guardianName  String?
   guardianPhone String?
   sportPreference String? // Deporte/interés de inscripción (ej. antes de asignar equipo)
-  status    String    @default("ACTIVE") // LEAD, ACTIVE, PAUSED, INACTIVE
+  status    String    @default("ACTIVE") // LEAD, ACTIVE, PAUSED, INACTIVE, PENDING_PAYMENT
+  /** Cliente Stripe (cuenta conectada del club) para Checkout recurrente. */
+  stripeCustomerId String?
   joinedAt  DateTime  @default(now())
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -147,6 +149,8 @@ model MembershipPlan {
   enrollmentFee   Float    @default(0)
   /** Si true, el socio queda en PENDING_PAYMENT hasta pagar la primera factura (alta). */
   paymentRequiredOnEnrollment Boolean @default(false)
+  /** Día del mes en que se emite la cuota recurrente (1–28). */
+  billingDayOfMonth Int @default(1)
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

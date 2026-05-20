@@ -2,7 +2,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
 import { PayMyInvoiceButton } from './PayMyInvoiceButton'
+import { MyBillingAlerts } from './MyBillingAlerts'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +69,10 @@ export default async function MyBillingPage() {
           Histórico de facturas, deuda y pagos pendientes.
         </p>
       </header>
+
+      <Suspense fallback={null}>
+        <MyBillingAlerts />
+      </Suspense>
 
       <section
         className="grid gap-6 mb-8"

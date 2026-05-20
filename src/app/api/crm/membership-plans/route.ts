@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
+import { clampBillingDay } from '@/lib/billing-dates'
 import {
   createMembershipPlan,
   deleteMembershipPlan,
@@ -45,6 +46,7 @@ export async function GET() {
       billingPeriodLabel: periodLabel(p.billingPeriod),
       enrollmentFee: p.enrollmentFee,
       paymentRequiredOnEnrollment: p.paymentRequiredOnEnrollment,
+      billingDayOfMonth: p.billingDayOfMonth,
       isActive: p.isActive,
       subscriptionCount: p._count.subscriptions,
       updatedAt: p.updatedAt.toISOString(),
@@ -104,6 +106,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Matrícula inválida' }, { status: 400 })
   }
 
+  const billingDayOfMonth = clampBillingDay(
+    body.billingDayOfMonth != null ? Number(body.billingDayOfMonth) : 1,
+  )
+
   try {
     const plan = await createMembershipPlan({
       name,
@@ -112,6 +118,7 @@ export async function POST(request: Request) {
       billingPeriod,
       enrollmentFee,
       paymentRequiredOnEnrollment: body.paymentRequiredOnEnrollment === true,
+      billingDayOfMonth,
     })
     return NextResponse.json({ ok: true, plan: { id: plan.id, name: plan.name } })
   } catch (e) {
@@ -171,6 +178,9 @@ export async function PATCH(request: Request) {
   if (typeof body.isActive === 'boolean') data.isActive = body.isActive
   if (typeof body.paymentRequiredOnEnrollment === 'boolean') {
     data.paymentRequiredOnEnrollment = body.paymentRequiredOnEnrollment
+  }
+  if (body.billingDayOfMonth != null) {
+    data.billingDayOfMonth = clampBillingDay(Number(body.billingDayOfMonth))
   }
 
   try {

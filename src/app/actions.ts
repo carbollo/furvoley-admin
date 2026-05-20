@@ -14,6 +14,7 @@ import {
   runPaymentPaidWorkflows,
 } from '@/lib/workflow-engine'
 import { createInvoiceStripeLink } from '@/app/actions/billing'
+import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
 
 // MEMBERS
 export async function createMember(data: {
@@ -68,6 +69,7 @@ export async function createMember(data: {
     }
     return created
   })
+  void ensureMemberStripeCustomer(member.id).catch(() => {})
   await runMemberCreatedWorkflows(member.id)
   revalidatePath('/')
   return member

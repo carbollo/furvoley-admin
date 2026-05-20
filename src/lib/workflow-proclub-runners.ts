@@ -97,16 +97,6 @@ export async function runBillingCycleWorkflows() {
           stripeCheckoutUrl: invoice.stripeCheckoutUrl,
         },
       })
-      await prisma.subscription.update({
-        where: { id: sub.id },
-        data: {
-          nextInvoiceDate: new Date(
-            sub.nextInvoiceDate.getFullYear(),
-            sub.nextInvoiceDate.getMonth() + 1,
-            sub.nextInvoiceDate.getDate(),
-          ),
-        },
-      })
     } catch (e) {
       console.warn('[billing-cycle]', sub.id, e)
     }

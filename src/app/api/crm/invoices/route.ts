@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getTaxConfig } from '@/lib/tax-config'
 import { requireRoles } from '@/lib/rbac-api'
+import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
+import { runInvoiceCreatedWorkflows } from '@/lib/workflow-engine'
 
 async function nextInvoiceNumber() {
   const year = new Date().getFullYear()
@@ -96,6 +98,11 @@ export async function POST(request: Request) {
     },
     select: { id: true },
   })
+
+  void ensureMemberStripeCustomer(memberId).catch(() => {})
+  void runInvoiceCreatedWorkflows(invoice.id).catch((e) =>
+    console.warn('[crm/invoices] workflow', e),
+  )
 
   return NextResponse.json({ ok: true, id: invoice.id })
 }

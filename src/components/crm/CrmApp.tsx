@@ -3123,8 +3123,12 @@ function Contabilidad({ setActive }) {
     const taxRate = Number(nuevoCobroForm.taxRate)
     const applyWithholding = Boolean(nuevoCobroForm.applyWithholding)
     const withholdingRate = Number(nuevoCobroForm.withholdingRate)
-    if (!memberId || !concepto || !dueDate || !Number.isFinite(amount) || amount <= 0) {
-      showAlert('Completa todos los campos del nuevo cobro.')
+    if (!memberId) {
+      showAlert('Selecciona el socio al que corresponde el cobro.')
+      return
+    }
+    if (!concepto || !dueDate || !Number.isFinite(amount) || amount <= 0) {
+      showAlert('Completa concepto, importe y vencimiento.')
       return
     }
     setNuevoCobroBusy(true)
@@ -3156,6 +3160,7 @@ function Contabilidad({ setActive }) {
       }
       setShowNuevoCobroModal(false)
       await reload()
+      showAlert('Cobro creado. El socio lo verá en Mis pagos con el botón Pagar (Stripe).')
     } finally {
       setNuevoCobroBusy(false)
     }
@@ -4123,10 +4128,12 @@ function Contabilidad({ setActive }) {
 
             <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Socio</label>
             <select
+              required
               value={nuevoCobroForm.memberId}
               onChange={(e) => setNuevoCobroForm((f) => ({ ...f, memberId: e.target.value }))}
               style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', marginBottom: 12, fontFamily: 'inherit' }}
             >
+              <option value="">— Seleccionar socio —</option>
               {SOCIOS_UI.map((s) => (
                 <option key={s.id} value={s.id}>{s.nombre}</option>
               ))}

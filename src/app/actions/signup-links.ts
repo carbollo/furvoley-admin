@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { runMemberCreatedWorkflows } from '@/lib/workflow-engine'
+import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
 
 async function buildSignupUrl(token: string) {
   const h = await headers()
@@ -67,6 +68,7 @@ export async function submitSignupFromLink(data: {
       status: 'ACTIVE',
     },
   })
+  void ensureMemberStripeCustomer(member.id).catch(() => {})
   await runMemberCreatedWorkflows(member.id)
 
   await prisma.signupLink.update({

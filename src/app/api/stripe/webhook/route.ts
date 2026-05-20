@@ -3,6 +3,7 @@ import { getStripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import { createInvoiceForSubscription, recordInvoicePayment } from '@/app/actions/billing'
 import { getStripeConnectConfig } from '@/lib/club-settings'
+import { linkStripeCustomerFromCheckout } from '@/lib/stripe-member-customer'
 import type Stripe from 'stripe'
 
 /**
@@ -133,6 +134,12 @@ async function onCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
   // Modo pago puntual (factura/payment ad-hoc)
   if (session.mode === 'payment') {
     const invoiceId = session.metadata?.invoiceId || session.client_reference_id || null
+    const memberId = session.metadata?.memberId || null
+    const stripeCustomerId =
+      typeof session.customer === 'string' ? session.customer : null
+    if (memberId && stripeCustomerId) {
+      await linkStripeCustomerFromCheckout(memberId, stripeCustomerId)
+    }
     if (invoiceId) {
       const amount = (session.amount_total ?? 0) / 100
       await recordInvoicePayment({
