@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
+import { memberStatusChangeMatches } from '@/lib/workflow-trigger-config'
 import {
   loadMemberPayload,
   runWorkflowStepsForMember,
@@ -352,6 +353,30 @@ export async function runWorkflowTest(
   )
 
   const triggerContext = await buildSyntheticTriggerContext(triggerType, subject.member)
+
+  if (
+    triggerType === 'MEMBER_STATUS_CHANGED' &&
+    !memberStatusChangeMatches(workflow.triggerConfig, triggerContext, subject.member.status)
+  ) {
+    const cfg =
+      workflow.triggerConfig && typeof workflow.triggerConfig === 'object'
+        ? (workflow.triggerConfig as { onlyWhenCurrentStatus?: string; onlyWhenPreviousStatus?: string })
+        : {}
+    return {
+      ok: false,
+      workflowId,
+      workflowName: workflow.name,
+      triggerType: workflow.triggerType,
+      triggerLabel: workflowTriggerLabel(workflow.triggerType),
+      subjectId: subject.member.id,
+      subjectName: subject.member.name,
+      subjectKind: subject.kind,
+      stepsRun: 0,
+      reports: [],
+      warnings: subject.warnings,
+      error: `El socio de prueba no cumple el filtro de estado (nuevo: ${cfg.onlyWhenCurrentStatus || 'cualquiera'}, anterior: ${cfg.onlyWhenPreviousStatus || 'cualquiera'}). Elige otro socio o ajusta el disparador.`,
+    }
+  }
   const reports: WorkflowStepRunReport[] = []
 
   try {

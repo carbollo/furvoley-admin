@@ -60,12 +60,19 @@ export async function createWorkflowResponseLink(input: {
   }
 }
 
-export async function consumeWorkflowResponseToken(token: string) {
+/** Lectura del token (formulario público); no marca como usado. */
+export async function getWorkflowResponseToken(token: string) {
   const row = await prisma.workflowResponseToken.findUnique({ where: { token } })
   if (!row) return { ok: false as const, error: 'Enlace no válido' }
-  if (row.usedAt) return { ok: false as const, error: 'Enlace ya utilizado' }
   if (row.expiresAt < new Date()) return { ok: false as const, error: 'Enlace caducado' }
-  return { ok: true as const, row }
+  return { ok: true as const, row, used: !!row.usedAt }
+}
+
+export async function consumeWorkflowResponseToken(token: string) {
+  const peek = await getWorkflowResponseToken(token)
+  if (!peek.ok) return peek
+  if (peek.used) return { ok: false as const, error: 'Enlace ya utilizado' }
+  return { ok: true as const, row: peek.row }
 }
 
 export async function markWorkflowResponseTokenUsed(token: string) {

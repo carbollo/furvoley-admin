@@ -1,5 +1,6 @@
 import type { Edge, Node } from '@xyflow/react'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
+import { mergeTriggerNodeConfig, type WorkflowTriggerConfig } from '@/lib/workflow-trigger-config'
 
 /** Props comunes a todas las aristas del editor (incluye tipo React Flow para el componente con botón ×). */
 export const WORKFLOW_EDGE_TYPE = 'workflowDeletable' as const
@@ -158,6 +159,7 @@ export function outputDefsByAction(actionType: string): Array<{ key: string; lab
 /** Flujo vacío: solo nodo disparador (trigger). */
 export function emptyFlow(
   triggerType = 'MEMBER_CREATED',
+  triggerConfig?: WorkflowTriggerConfig | null,
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
   const label = workflowTriggerLabel(triggerType)
   return {
@@ -169,7 +171,7 @@ export function emptyFlow(
         data: {
           label,
           actionType: '_TRIGGER',
-          config: { triggerType },
+          config: mergeTriggerNodeConfig(triggerType, triggerConfig),
           stepKey: '_trigger',
         },
         draggable: false,
@@ -189,8 +191,9 @@ export function stepsToFlowNodes(
     config: unknown
   }>,
   triggerType = 'MEMBER_CREATED',
+  triggerConfig?: WorkflowTriggerConfig | null,
 ): { nodes: Node<WorkflowNodeData>[]; edges: Edge[] } {
-  if (!pasos.length) return emptyFlow(triggerType)
+  if (!pasos.length) return emptyFlow(triggerType, triggerConfig)
 
   const sorted = [...pasos].sort((a, b) => a.position - b.position)
   const label = workflowTriggerLabel(triggerType)
@@ -202,7 +205,7 @@ export function stepsToFlowNodes(
       data: {
         label,
         actionType: '_TRIGGER',
-        config: { triggerType },
+        config: mergeTriggerNodeConfig(triggerType, triggerConfig),
         stepKey: '_trigger',
       },
       draggable: false,

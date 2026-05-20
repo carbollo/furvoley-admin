@@ -21,10 +21,15 @@ import {
 import '@xyflow/react/dist/style.css'
 import { Plus, Trash2, Zap } from 'lucide-react'
 import { WORKFLOW_ACTION_OPTIONS } from '@/lib/crm-workflow-actions'
+import { MEMBER_STATUS_OPTIONS } from '@/lib/crm-member-statuses'
 import {
   workflowActionDescription,
   workflowTriggerDescription,
 } from '@/lib/crm-workflow-descriptions'
+import {
+  triggerConfigFromNodeConfig,
+  type WorkflowTriggerConfig,
+} from '@/lib/workflow-trigger-config'
 import {
   isWorkflowTriggerAllowed,
   workflowTriggerLabel,
@@ -422,12 +427,14 @@ export function WorkflowFlowEditor(props: {
   initialPasos: WorkflowEditorInitialPaso[]
   /** Tipo de disparador del flujo (p. ej. MEMBER_CREATED). Define la etiqueta del nodo trigger. */
   triggerType: string
+  initialTriggerConfig?: WorkflowTriggerConfig | null
   editingId: string | null
   onClose: () => void
   onSave: (payload: {
     name: string
     description: string | null
     triggerType: string
+    triggerConfig: WorkflowTriggerConfig | null
     steps: Array<{ position: number; stepType: string; actionType: string; config: Record<string, unknown> }>
   }) => void
   saveBusy: boolean
@@ -445,6 +452,7 @@ function WorkflowFlowEditorInner({
   initialDescripcion,
   initialPasos,
   triggerType,
+  initialTriggerConfig,
   editingId,
   onClose,
   onSave,
@@ -455,12 +463,14 @@ function WorkflowFlowEditorInner({
   initialDescripcion: string
   initialPasos: WorkflowEditorInitialPaso[]
   triggerType: string
+  initialTriggerConfig?: WorkflowTriggerConfig | null
   editingId: string | null
   onClose: () => void
   onSave: (payload: {
     name: string
     description: string | null
     triggerType: string
+    triggerConfig: WorkflowTriggerConfig | null
     steps: Array<{ position: number; stepType: string; actionType: string; config: Record<string, unknown> }>
   }) => void
   saveBusy: boolean
@@ -470,8 +480,10 @@ function WorkflowFlowEditorInner({
 
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
     () =>
-      initialPasos.length ? stepsToFlowNodes(initialPasos, triggerType) : emptyFlow(triggerType),
-    [initialPasos, triggerType],
+      initialPasos.length
+        ? stepsToFlowNodes(initialPasos, triggerType, initialTriggerConfig)
+        : emptyFlow(triggerType, initialTriggerConfig),
+    [initialPasos, triggerType, initialTriggerConfig],
   )
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
@@ -486,8 +498,8 @@ function WorkflowFlowEditorInner({
     setNombre(initialNombre)
     setDescripcion(initialDescripcion)
     const { nodes: n, edges: e } = initialPasos.length
-      ? stepsToFlowNodes(initialPasos, triggerType)
-      : emptyFlow(triggerType)
+      ? stepsToFlowNodes(initialPasos, triggerType, initialTriggerConfig)
+      : emptyFlow(triggerType, initialTriggerConfig)
     setNodes(n)
     setEdges(e)
     setSelectedId(null)
@@ -495,7 +507,7 @@ function WorkflowFlowEditorInner({
     setTokenTargetField(null)
     setTokenSearch('')
     setLastInsertedToken('')
-  }, [initialPasos, initialNombre, initialDescripcion, triggerType, setNodes, setEdges])
+  }, [initialPasos, initialNombre, initialDescripcion, triggerType, initialTriggerConfig, setNodes, setEdges])
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedId && n.type === 'workflowStep') as Node<WorkflowNodeData> | undefined,
@@ -616,28 +628,54 @@ function WorkflowFlowEditorInner({
       .filter((g) => g.options.length > 0)
   }, [availableTokenGroups, tokenSearch])
 
+  const patchTriggerConfig = useCallback(
+    (patch: Record<string, unknown>) => {
+      setNodes((nds) =>
+        nds.map((n) => {
+          if (n.id !== WORKFLOW_START_ID || n.type !== 'workflowTrigger') return n
+          const d = n.data as WorkflowNodeData
+          const prev =
+            typeof d.config === 'object' && d.config ? (d.config as Record<string, unknown>) : {}
+          const next = { ...prev, ...patch }
+          for (const key of ['onlyWhenCurrentStatus', 'onlyWhenPreviousStatus'] as const) {
+            if (key in patch && !String(next[key] ?? '').trim()) delete next[key]
+          }
+          return {
+            ...n,
+            data: {
+              ...d,
+              config: next,
+            },
+          }
+        }),
+      )
+    },
+    [setNodes],
+  )
+
   const setWorkflowTriggerType = useCallback(
     (value: string) => {
       if (!isWorkflowTriggerAllowed(value)) return
       setNodes((nds) =>
-        nds.map((n) =>
-          n.id === WORKFLOW_START_ID && n.type === 'workflowTrigger'
-            ? {
-                ...n,
-                data: {
-                  ...(n.data as WorkflowNodeData),
-                  label: workflowTriggerLabel(value),
-                  config: {
-                    ...(typeof (n.data as WorkflowNodeData).config === 'object' &&
-                    (n.data as WorkflowNodeData).config
-                      ? (n.data as WorkflowNodeData).config
-                      : {}),
-                    triggerType: value,
-                  },
-                },
-              }
-            : n,
-        ),
+        nds.map((n) => {
+          if (n.id !== WORKFLOW_START_ID || n.type !== 'workflowTrigger') return n
+          const d = n.data as WorkflowNodeData
+          const prev =
+            typeof d.config === 'object' && d.config ? (d.config as Record<string, unknown>) : {}
+          const next: Record<string, unknown> = { ...prev, triggerType: value }
+          if (value !== 'MEMBER_STATUS_CHANGED') {
+            delete next.onlyWhenCurrentStatus
+            delete next.onlyWhenPreviousStatus
+          }
+          return {
+            ...n,
+            data: {
+              ...d,
+              label: workflowTriggerLabel(value),
+              config: next,
+            },
+          }
+        }),
       )
     },
     [setNodes],
@@ -853,6 +891,7 @@ function WorkflowFlowEditorInner({
       name,
       description: descripcion.trim() || null,
       triggerType: resolvedTrigger,
+      triggerConfig: triggerConfigFromNodeConfig(cfg),
       steps,
     })
   }
@@ -1048,6 +1087,56 @@ function WorkflowFlowEditorInner({
                         ),
                       )}
                     </p>
+                    {String(
+                      (selectedTriggerNode.data.config as Record<string, unknown>).triggerType ?? triggerType,
+                    ) === 'MEMBER_STATUS_CHANGED' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 14 }}>Ejecutar cuando el socio pasa a</label>
+                        <select
+                          value={String(
+                            (selectedTriggerNode.data.config as Record<string, unknown>).onlyWhenCurrentStatus ??
+                              '',
+                          )}
+                          onChange={(e) =>
+                            patchTriggerConfig({
+                              onlyWhenCurrentStatus: e.target.value || undefined,
+                            })
+                          }
+                          style={{ ...inputBase, cursor: 'pointer' }}
+                        >
+                          <option value="">— Cualquier estado nuevo —</option>
+                          {MEMBER_STATUS_OPTIONS.map((s) => (
+                            <option key={s.value} value={s.value}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+                        <label style={{ ...labelBase, marginTop: 12 }}>Solo si venía de (opcional)</label>
+                        <select
+                          value={String(
+                            (selectedTriggerNode.data.config as Record<string, unknown>).onlyWhenPreviousStatus ??
+                              '',
+                          )}
+                          onChange={(e) =>
+                            patchTriggerConfig({
+                              onlyWhenPreviousStatus: e.target.value || undefined,
+                            })
+                          }
+                          style={{ ...inputBase, cursor: 'pointer' }}
+                        >
+                          <option value="">— Cualquier estado anterior —</option>
+                          {MEMBER_STATUS_OPTIONS.map((s) => (
+                            <option key={s.value} value={s.value}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.45 }}>
+                          Ejemplo: «pasa a Baja» = INACTIVE sin filtro anterior; «de Activo a Baja» = anterior ACTIVE y
+                          nuevo INACTIVE.
+                        </p>
+                      </>
+                    )}
                   </>
                 )}
                 {selectedNode && (
@@ -1308,9 +1397,40 @@ function WorkflowFlowEditorInner({
                           onChange={(e) => patchConfig({ targetStatus: e.target.value })}
                           style={{ ...inputBase, cursor: 'pointer' }}
                         >
-                          <option value="ACTIVE">Activo</option>
-                          <option value="INACTIVE">Inactivo</option>
+                          {MEMBER_STATUS_OPTIONS.map((s) => (
+                            <option key={s.value} value={s.value}>
+                              {s.label}
+                            </option>
+                          ))}
                         </select>
+                      </>
+                    )}
+
+                    {selectedNode.data.actionType === 'GENERATE_RESPONSE_LINK' && (
+                      <>
+                        <label style={{ ...labelBase, marginTop: 12 }}>Tipo de enlace</label>
+                        <select
+                          value={String(selectedNode.data.config.linkType ?? 'ATTENDANCE')}
+                          onChange={(e) => patchConfig({ linkType: e.target.value })}
+                          style={{ ...inputBase, cursor: 'pointer' }}
+                        >
+                          <option value="LEAVE_SURVEY">Encuesta de baja (formulario público)</option>
+                          <option value="ATTENDANCE">Pase de lista</option>
+                          <option value="ATTENDANCE_REASON">Motivo de ausencia</option>
+                          <option value="CONVOCATION">Convocatoria</option>
+                          <option value="TRIAL">Prueba / confirmación</option>
+                          <option value="CONSENT">Consentimiento</option>
+                          <option value="SEASON_RENEWAL">Renovación temporada</option>
+                        </select>
+                        <label style={{ ...labelBase, marginTop: 12 }}>Caducidad (horas)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={720}
+                          value={String(selectedNode.data.config.expiresInHours ?? '72')}
+                          onChange={(e) => patchConfig({ expiresInHours: e.target.value })}
+                          style={inputBase}
+                        />
                       </>
                     )}
 

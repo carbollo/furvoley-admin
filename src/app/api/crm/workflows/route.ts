@@ -66,11 +66,17 @@ export async function POST(request: Request) {
       : null
   const isActive = body.isActive !== false
 
+  let triggerConfig: object | undefined
+  if (body.triggerConfig && typeof body.triggerConfig === 'object' && !Array.isArray(body.triggerConfig)) {
+    triggerConfig = body.triggerConfig as object
+  }
+
   const wf = await prisma.workflow.create({
     data: {
       name,
       description,
       triggerType,
+      triggerConfig,
       isActive: !!isActive,
     },
   })

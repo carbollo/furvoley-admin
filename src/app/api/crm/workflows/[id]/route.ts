@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 import { isWorkflowActionAllowed } from '@/lib/crm-workflow-actions'
 import { isWorkflowTriggerAllowed } from '@/lib/crm-workflow-triggers'
@@ -83,6 +84,14 @@ export async function PATCH(
   const isActive =
     body.isActive !== undefined ? !!body.isActive : existing.isActive
 
+  let triggerConfigUpdate: Prisma.InputJsonValue | typeof Prisma.DbNull | undefined
+  if (body.triggerConfig !== undefined) {
+    triggerConfigUpdate =
+      body.triggerConfig && typeof body.triggerConfig === 'object' && !Array.isArray(body.triggerConfig)
+        ? (body.triggerConfig as Prisma.InputJsonValue)
+        : Prisma.DbNull
+  }
+
   await prisma.$transaction(async (tx) => {
     await tx.workflow.update({
       where: { id },
@@ -90,6 +99,7 @@ export async function PATCH(
         name,
         description,
         triggerType,
+        ...(triggerConfigUpdate !== undefined ? { triggerConfig: triggerConfigUpdate } : {}),
         isActive,
       },
     })

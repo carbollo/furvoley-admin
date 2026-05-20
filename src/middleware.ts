@@ -37,6 +37,11 @@ function redirectToLogin(req: NextRequest, clearCookies: boolean) {
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
+  // Enlaces públicos de workflows (/r/...) y API pública (sin login).
+  if (path.startsWith("/r/") || path.startsWith("/api/public/")) {
+    return NextResponse.next()
+  }
+
   // Detalle público de evento (sin login).
   const eventPublic = /^\/events\/([^/]+)$/.exec(path)
   if (eventPublic && eventPublic[1] !== "new") {

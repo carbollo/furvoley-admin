@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import {
   consumeWorkflowResponseToken,
+  getWorkflowResponseToken,
   markWorkflowResponseTokenUsed,
 } from '@/lib/workflow-response-links'
 import { updateAttendance } from '@/app/actions/events'
@@ -11,12 +12,39 @@ export async function GET(
   context: { params: Promise<{ token: string }> },
 ) {
   const { token } = await context.params
-  const consumed = await consumeWorkflowResponseToken(token)
-  if (!consumed.ok) {
-    return NextResponse.json({ error: consumed.error }, { status: 400 })
+  const peek = await getWorkflowResponseToken(token)
+  if (!peek.ok) {
+    return NextResponse.json({ error: peek.error }, { status: 400 })
   }
 
-  const row = consumed.row
+  const row = peek.row
+  let prefill: { name?: string; email?: string; phone?: string } | null = null
+  if (row.memberId) {
+    const member = await prisma.member.findUnique({
+      where: { id: row.memberId },
+      select: { name: true, email: true, phone: true, guardianPhone: true },
+    })
+    if (member) {
+      prefill = {
+        name: member.name,
+        email: member.email ?? undefined,
+        phone: member.phone ?? member.guardianPhone ?? undefined,
+      }
+    }
+  }
+
+  if (row.type === 'LEAVE_SURVEY') {
+    return NextResponse.json({
+      type: row.type,
+      used: peek.used,
+      prefill,
+    })
+  }
+
+  if (peek.used) {
+    return NextResponse.json({ error: 'Enlace ya utilizado' }, { status: 400 })
+  }
+
   let event = null
   let attendances: Array<{ id: string; memberName: string; status: string }> = []
 
@@ -95,7 +123,46 @@ export async function POST(
   }
 
   if (row.type === 'LEAVE_SURVEY') {
-    await markWorkflowResponseTokenUsed(token)
+    const name = String(body.name || '').trim()
+    const reason = String(body.reason || '').trim()
+    if (!name || !reason) {
+      return NextResponse.json({ error: 'Nombre y motivo son obligatorios' }, { status: 400 })
+    }
+    const survey = {
+      name,
+      email: typeof body.email === 'string' ? body.email.trim() : '',
+      phone: typeof body.phone === 'string' ? body.phone.trim() : '',
+      reason,
+      reasonLabel: String(body.reasonLabel || reason),
+      comments: typeof body.comments === 'string' ? body.comments.trim() : '',
+      submittedAt: new Date().toISOString(),
+    }
+    const prevPayload =
+      row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+        ? (row.payload as Record<string, unknown>)
+        : {}
+    await prisma.workflowResponseToken.update({
+      where: { token },
+      data: {
+        usedAt: new Date(),
+        payload: { ...prevPayload, survey } as object,
+      },
+    })
+    if (row.memberId) {
+      const member = await prisma.member.findUnique({
+        where: { id: row.memberId },
+        select: { email: true, phone: true },
+      })
+      if (member) {
+        await prisma.member.update({
+          where: { id: row.memberId },
+          data: {
+            email: member.email?.trim() ? member.email : survey.email || undefined,
+            phone: member.phone?.trim() ? member.phone : survey.phone || undefined,
+          },
+        })
+      }
+    }
     return NextResponse.json({ ok: true })
   }
 

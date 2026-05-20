@@ -102,6 +102,7 @@ export function WorkflowsSection({
   const [initialDescripcion, setInitialDescripcion] = useState('')
   const [initialPasos, setInitialPasos] = useState<WorkflowEditorInitialPaso[]>([])
   const [initialTriggerType, setInitialTriggerType] = useState('MEMBER_CREATED')
+  const [initialTriggerConfig, setInitialTriggerConfig] = useState<Record<string, unknown> | null>(null)
   const [saveBusy, setSaveBusy] = useState(false)
   const [importBusy, setImportBusy] = useState(false)
   const importInputRef = useRef<HTMLInputElement | null>(null)
@@ -163,6 +164,7 @@ export function WorkflowsSection({
     setInitialDescripcion('')
     setInitialPasos([])
     setInitialTriggerType('MEMBER_CREATED')
+    setInitialTriggerConfig(null)
     setEditorSession((s) => s + 1)
     setEditorOpen(true)
   }
@@ -181,6 +183,10 @@ export function WorkflowsSection({
       })),
     )
     setInitialTriggerType(String(w.trigger || 'MEMBER_CREATED'))
+    const tc = w.triggerConfig
+    setInitialTriggerConfig(
+      tc && typeof tc === 'object' && !Array.isArray(tc) ? (tc as Record<string, unknown>) : null,
+    )
     setEditorSession((s) => s + 1)
     setEditorOpen(true)
   }
@@ -241,6 +247,7 @@ export function WorkflowsSection({
     name: string
     description: string | null
     triggerType: string
+    triggerConfig: Record<string, unknown> | null
     steps: Array<{ position: number; stepType: string; actionType: string; config: Record<string, unknown> }>
   }) => {
     setSaveBusy(true)
@@ -249,6 +256,7 @@ export function WorkflowsSection({
         name: payload.name,
         description: payload.description,
         triggerType: payload.triggerType,
+        triggerConfig: payload.triggerConfig,
         isActive: true,
         steps: payload.steps,
       }
@@ -1404,6 +1412,7 @@ export function WorkflowsSection({
           initialDescripcion={initialDescripcion}
           initialPasos={initialPasos}
           triggerType={initialTriggerType}
+          initialTriggerConfig={initialTriggerConfig}
           editingId={editingId}
           onClose={() => setEditorOpen(false)}
           onSave={handleSaveFromEditor}

@@ -14,7 +14,7 @@ const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   WAITLIST_SLOT_AVAILABLE: 'Cuando hay plaza libre y un socio en lista de espera puede entrar.',
   MEMBER_UPDATED: 'Cualquier cambio de ficha del socio (contacto, preferencias, etc.).',
   MEMBER_STATUS_CHANGED:
-    'Al cambiar el estado (activo, baja, pendiente…). Puede filtrarse por estado en triggerConfig.',
+    'Al cambiar el estado del socio. Configura «pasa a» (activo, baja, pausa…) y opcionalmente «venía de».',
   MEMBER_LEAVE_REQUESTED: 'El socio solicita la baja o se inicia el proceso de salida.',
   MEMBER_RETURN_CAMPAIGN: 'Campaña de reactivación para ex-socios.',
   PAYMENT_CREATED: 'Legacy: se crea un cobro manual en contabilidad.',

@@ -398,6 +398,7 @@ export async function GET() {
       nombre: w.name,
       descripcion: w.description ?? '',
       trigger: w.triggerType,
+      triggerConfig: w.triggerConfig ?? null,
       accion: step ? `${step.stepType}: ${step.actionType}` : '—',
       activo: w.isActive,
       ejecuciones: 0,

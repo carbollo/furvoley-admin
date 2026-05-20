@@ -3,6 +3,7 @@ import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { buildInvoiceVariables, runExtendedWorkflowAction } from '@/lib/workflow-engine-more'
 import { populateTeamRosterVariables } from '@/lib/workflow-team-context'
+import { memberStatusChangeMatches } from '@/lib/workflow-trigger-config'
 
 export type WorkflowMemberPayload = {
   id: string
@@ -1081,15 +1082,11 @@ export async function runWorkflowsForMemberByTrigger(
   })).filter((w) => workflowMatchesTrigger(w, triggerType))
 
   for (const workflow of workflows) {
-    if (triggerType === 'MEMBER_STATUS_CHANGED') {
-      const cfg =
-        workflow.triggerConfig && typeof workflow.triggerConfig === 'object'
-          ? (workflow.triggerConfig as { onlyWhenCurrentStatus?: string })
-          : {}
-      const required = cfg.onlyWhenCurrentStatus?.trim()
-      if (required && String(triggerContext.currentStatus || member.status) !== required) {
-        continue
-      }
+    if (
+      triggerType === 'MEMBER_STATUS_CHANGED' &&
+      !memberStatusChangeMatches(workflow.triggerConfig, triggerContext, member.status)
+    ) {
+      continue
     }
     await runWorkflowStepsForMember(workflow.steps, member, triggerType, triggerContext)
   }
