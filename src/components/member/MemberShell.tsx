@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   BellIcon,
   CalendarIcon,
@@ -67,21 +67,55 @@ export type MemberShellBranding = {
   subtitle?: string | null
 }
 
+function resolveBranding(
+  server?: MemberShellBranding,
+  live?: MemberShellBranding | null,
+): MemberShellBranding {
+  const pick = live ?? server
+  return {
+    name: (pick?.name || 'Furvoley').trim() || 'Furvoley',
+    logoUrl: pick?.logoUrl ?? null,
+    primaryColor: pick?.primaryColor ?? null,
+    subtitle: pick?.subtitle?.trim() || null,
+  }
+}
+
 export function MemberShell({
   children,
-  branding,
+  branding: serverBranding,
 }: {
   children: ReactNode
   branding?: MemberShellBranding
 }) {
   const pathname = usePathname() || ''
   const { data: session } = useSession()
+  const [liveBranding, setLiveBranding] = useState<MemberShellBranding | null>(null)
+
+  const refreshBranding = useCallback(async () => {
+    try {
+      const r = await fetch('/api/public/club-branding', { cache: 'no-store' })
+      if (!r.ok) return
+      const j = (await r.json()) as { branding?: MemberShellBranding }
+      if (j.branding?.name) setLiveBranding(j.branding)
+    } catch {
+      // Sin branding en vivo: se usa el del servidor.
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshBranding()
+    const onUpdate = () => void refreshBranding()
+    window.addEventListener('club-settings-updated', onUpdate)
+    return () => window.removeEventListener('club-settings-updated', onUpdate)
+  }, [refreshBranding])
+
+  const branding = resolveBranding(serverBranding, liveBranding)
   const userName = session?.user?.name || session?.user?.email || 'Socio'
   const initials = initialsFromName(session?.user?.name || session?.user?.email || '')
-  const clubName = (branding?.name || 'Furvoley').trim() || 'Furvoley'
-  const clubLogo = branding?.logoUrl || null
-  const clubSubtitle = branding?.subtitle?.trim() || null
-  const accent = branding?.primaryColor?.trim() || PRIMARY
+  const clubName = branding.name
+  const clubLogo = branding.logoUrl
+  const clubSubtitle = branding.subtitle
+  const accent = branding.primaryColor?.trim() || PRIMARY
 
   return (
     <div
@@ -129,7 +163,6 @@ export function MemberShell({
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                textTransform: 'uppercase',
               }}
               title={clubName}
             >

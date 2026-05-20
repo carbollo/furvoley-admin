@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 
 export type InvoicePdfTemplateId = 'CLASSIC' | 'MODERN' | 'COMPACT'
@@ -101,7 +102,10 @@ export type StripeConnectConfig = {
  * por defecto.
  */
 export async function getClubSettings(): Promise<ClubSettingsFull> {
-  const existing = await prisma.clubSettings.findUnique({ where: { isDefault: true } })
+  noStore()
+  const existing =
+    (await prisma.clubSettings.findFirst({ where: { isDefault: true } })) ??
+    (await prisma.clubSettings.findFirst({ orderBy: { updatedAt: 'desc' } }))
   if (existing) return existing
   return prisma.clubSettings.create({
     data: {
@@ -117,6 +121,7 @@ export async function getClubSettings(): Promise<ClubSettingsFull> {
  * sidebar y portales públicos. Nunca lanza: si la BD falla devuelve fallback.
  */
 export async function getClubBranding(): Promise<ClubBranding> {
+  noStore()
   try {
     const s = await getClubSettings()
     return {

@@ -7,6 +7,8 @@ import { getClubBranding } from '@/lib/club-settings'
 
 import type { CSSProperties, ReactNode } from 'react'
 
+export const dynamic = 'force-dynamic'
+
 const mainStyle: CSSProperties = {
   flex: 1,
   height: '100vh',

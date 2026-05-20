@@ -1,3 +1,4 @@
+import { revalidatePath } from 'next/cache'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
@@ -142,5 +143,10 @@ export async function PATCH(request: Request) {
   })
 
   const fresh = await getClubSettings()
+  revalidatePath('/', 'layout')
+  revalidatePath('/')
+  revalidatePath('/calendar')
+  revalidatePath('/my-billing')
+  revalidatePath('/mural')
   return NextResponse.json({ ok: true, settings: await serialize(fresh) })
 }
