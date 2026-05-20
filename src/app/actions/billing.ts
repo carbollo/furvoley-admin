@@ -490,80 +490,11 @@ export async function recordManualInvoicePayment(data: {
 }
 
 export async function createInvoiceStripeLink(invoiceId: string) {
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-    include: { member: true },
-  })
-  if (!invoice) throw new Error('Invoice not found')
-  if (invoice.stripeCheckoutUrl) return invoice.stripeCheckoutUrl
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const pendingAmount = Math.max(0, invoice.totalAmount - invoice.paidAmount)
-  if (pendingAmount <= 0) return null
-
-  const issuer = await getClubIssuer()
-  const connect = await getStripeConnectConfig()
-  const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
-  const pendingCents = Math.round(pendingAmount * 100)
-  const applicationFeeCents = connect.applicationFeePercent > 0
-    ? Math.round((pendingCents * connect.applicationFeePercent) / 100)
-    : 0
-
-  const stripeCustomerId = await ensureMemberStripeCustomer(invoice.memberId)
-
-  const stripe = getStripe()
-  const params: Stripe.Checkout.SessionCreateParams = {
-    mode: 'payment',
-    client_reference_id: invoice.id,
-    ...(stripeCustomerId
-      ? { customer: stripeCustomerId }
-      : invoice.member.email
-        ? { customer_email: invoice.member.email.trim() }
-        : {}),
-    metadata: {
-      invoiceId: invoice.id,
-      memberId: invoice.memberId,
-      clubId: clubSlug,
-      clubName: issuer.name,
-      clubLegalName: issuer.legalName || '',
-      clubTaxId: issuer.taxId || '',
-      stripeAccount: connect.connectedAccountId || '',
-    },
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: invoice.currency.toLowerCase(),
-          unit_amount: pendingCents,
-          product_data: {
-            name: `${issuer.name} · Factura ${invoice.invoiceNumber}`,
-            description: `Socio: ${invoice.member.name}`,
-          },
-        },
-      },
-    ],
-    success_url: `${appUrl}/my-billing?success=true`,
-    cancel_url: `${appUrl}/my-billing?canceled=true`,
-    payment_intent_data: {
-      metadata: { invoiceId: invoice.id, memberId: invoice.memberId },
-      ...(applicationFeeCents > 0 ? { application_fee_amount: applicationFeeCents } : {}),
-    },
-  }
-
-  const requestOptions: Stripe.RequestOptions | undefined = connect.hasConnectedAccount
-    ? { stripeAccount: connect.connectedAccountId }
-    : undefined
-  const session = await stripe.checkout.sessions.create(params, requestOptions)
-
-  await prisma.invoice.update({
-    where: { id: invoice.id },
-    data: {
-      stripeCheckoutUrl: session.url ?? null,
-      stripeSessionId: session.id,
-    },
-  })
+  const { createInvoiceCheckoutUrl } = await import('@/lib/stripe-checkout')
+  const result = await createInvoiceCheckoutUrl(invoiceId)
+  if (!result.ok) throw new Error(result.error)
   revalidatePath('/my-billing')
-  return session.url
+  return result.url
 }
 
 export async function createSubscriptionStripeLink(subscriptionId: string) {
