@@ -66,7 +66,7 @@ export type WorkflowTriggerType =
   | 'MEMBER_LEAVE_REQUESTED'
   | 'MEMBER_RETURN_CAMPAIGN'
 
-type WorkflowTriggerContext = {
+export type WorkflowTriggerContext = {
   previousStatus?: string | null
   currentStatus?: string | null
   payment?: {
@@ -909,11 +909,21 @@ async function runMemberCreatedStepAction(
   }
 }
 
+export type WorkflowStepRunReport = {
+  position: number
+  stepKey: string
+  actionType: string
+  applied: boolean
+  branchResult?: string
+  error?: string
+}
+
 export async function runWorkflowStepsForMember(
   steps: { position: number; stepType: string; actionType: string; config: unknown }[],
   member: WorkflowMemberPayload,
   triggerType: WorkflowTriggerType,
   triggerContext: WorkflowTriggerContext,
+  options?: { onStepComplete?: (report: WorkflowStepRunReport) => void },
 ) {
   const runContext: WorkflowRunContext = {
     variables: {
@@ -978,6 +988,13 @@ export async function runWorkflowStepsForMember(
       runContext.variables.stepApplied = 'true'
       runContext.variables.stepBranchResult = ok ? 'then' : 'else'
       snapshotNodeScopedVariables(runContext, stepKey)
+      options?.onStepComplete?.({
+        position: step.position,
+        stepKey,
+        actionType: step.actionType,
+        applied: true,
+        branchResult: ok ? 'then' : 'else',
+      })
       const thenRef = readString(step.config, 'thenTargetKey') || readString(step.config, 'thenGoToLabel')
       const elseRef = readString(step.config, 'elseTargetKey') || readString(step.config, 'elseGoToLabel')
       const targetRef = ok ? thenRef : elseRef
@@ -994,6 +1011,14 @@ export async function runWorkflowStepsForMember(
 
     await runMemberCreatedStepAction(step, member, runContext, triggerType)
     snapshotNodeScopedVariables(runContext, stepKey)
+    const stepErr = runContext.variables.stepError?.trim()
+    options?.onStepComplete?.({
+      position: step.position,
+      stepKey,
+      actionType: step.actionType,
+      applied: runContext.variables.stepApplied === 'true',
+      error: stepErr || undefined,
+    })
     i++
   }
 
@@ -1131,7 +1156,7 @@ export async function runPaymentPaidWorkflows(paymentId: string) {
   await runWorkflowsForMemberByTrigger(payment.memberId, 'PAYMENT_PAID', { payment })
 }
 
-async function loadMemberPayload(memberId: string): Promise<WorkflowMemberPayload | null> {
+export async function loadMemberPayload(memberId: string): Promise<WorkflowMemberPayload | null> {
   const memberRow = await prisma.member.findUnique({
     where: { id: memberId },
     select: {

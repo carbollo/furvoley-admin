@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Zap, Plus, Download, Upload, BookOpen, X } from 'lucide-react'
+import { Zap, Plus, Download, Upload, BookOpen, X, Play } from 'lucide-react'
+import { WORKFLOW_ACTION_OPTIONS } from '@/lib/crm-workflow-actions'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
 import { parseWorkflowsFromJson } from '@/lib/workflow-import'
 import { WorkflowFlowEditor, type WorkflowEditorInitialPaso } from './WorkflowFlowEditor'
@@ -43,6 +44,28 @@ function resumenPrimerPaso(
 }
 
 type BundleEquip = { id: string; nombre: string }
+type BundleSocio = { id: string; nombre: string; telefono?: string; estado?: string }
+
+type WorkflowTestStepReport = {
+  position: number
+  stepKey: string
+  actionType: string
+  applied: boolean
+  branchResult?: string
+  error?: string
+}
+
+type WorkflowTestApiResult = {
+  ok: boolean
+  workflowName: string
+  triggerLabel: string
+  subjectName: string
+  subjectKind: string
+  stepsRun: number
+  reports: WorkflowTestStepReport[]
+  warnings: string[]
+  error?: string
+}
 type SerializableWorkflow = {
   name: string
   description: string | null
@@ -65,6 +88,7 @@ export function WorkflowsSection({
 }) {
   const wfs = (bundle?.workflows as Record<string, unknown>[]) ?? []
   const equipos = (bundle?.equipos as BundleEquip[]) ?? []
+  const socios = (bundle?.socios as BundleSocio[]) ?? []
 
   const nombreEquipo = useCallback(
     (id: string) => equipos.find((e) => e.id === id)?.nombre ?? '',
@@ -106,6 +130,14 @@ export function WorkflowsSection({
   const [proclubLoading, setProclubLoading] = useState(false)
   const [proclubInstalling, setProclubInstalling] = useState(false)
   const [proclubSelected, setProclubSelected] = useState<Set<string>>(new Set())
+
+  const [testOpen, setTestOpen] = useState(false)
+  const [testWorkflowId, setTestWorkflowId] = useState<string | null>(null)
+  const [testWorkflowName, setTestWorkflowName] = useState('')
+  const [testTriggerLabel, setTestTriggerLabel] = useState('')
+  const [testMemberId, setTestMemberId] = useState('')
+  const [testBusy, setTestBusy] = useState(false)
+  const [testResult, setTestResult] = useState<WorkflowTestApiResult | null>(null)
 
   const activos = wfs.filter((w) => w.activo).length
   const totalPasos = wfs.reduce((a, w) => a + ((w.pasos as unknown[])?.length ?? 0), 0)
@@ -151,6 +183,42 @@ export function WorkflowsSection({
     setInitialTriggerType(String(w.trigger || 'MEMBER_CREATED'))
     setEditorSession((s) => s + 1)
     setEditorOpen(true)
+  }
+
+  const actionLabel = (actionType: string) =>
+    WORKFLOW_ACTION_OPTIONS.find((a) => a.value === actionType)?.label ?? actionType
+
+  const openTest = (w: Record<string, unknown>) => {
+    setTestWorkflowId(String(w.id))
+    setTestWorkflowName(String(w.nombre || ''))
+    setTestTriggerLabel(workflowTriggerLabel(String(w.trigger || 'MEMBER_CREATED')))
+    setTestMemberId(socios[0]?.id ?? '')
+    setTestResult(null)
+    setTestOpen(true)
+  }
+
+  const runTest = async () => {
+    if (!testWorkflowId) return
+    setTestBusy(true)
+    setTestResult(null)
+    try {
+      const r = await fetch(`/api/crm/workflows/${testWorkflowId}/test`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testMemberId ? { memberId: testMemberId } : {}),
+      })
+      const data = (await r.json()) as WorkflowTestApiResult & { error?: string }
+      if (!r.ok && !data.reports) {
+        alert(data.error || 'No se pudo ejecutar la prueba')
+        return
+      }
+      setTestResult(data)
+    } catch {
+      alert('Error de red al probar el flujo')
+    } finally {
+      setTestBusy(false)
+    }
   }
 
   const eliminar = async (id: string, titulo: string) => {
@@ -772,6 +840,30 @@ export function WorkflowsSection({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                   <button
                     type="button"
+                    disabled={pasos.length === 0}
+                    onClick={() => openTest(w)}
+                    title="Simular el disparador y ejecutar el flujo"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '8px 14px',
+                      borderRadius: 10,
+                      border: '1px solid #a7f3d0',
+                      background: '#ecfdf5',
+                      cursor: pasos.length === 0 ? 'not-allowed' : 'pointer',
+                      color: '#047857',
+                      fontFamily: 'inherit',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      opacity: pasos.length === 0 ? 0.5 : 1,
+                    }}
+                  >
+                    <Play size={14} />
+                    Probar
+                  </button>
+                  <button
+                    type="button"
                     disabled={catalogSaving === String(w.id)}
                     onClick={() => saveWorkflowToCatalog(String(w.id))}
                     title="Guardar copia en la biblioteca de plantillas"
@@ -878,6 +970,186 @@ export function WorkflowsSection({
           )
         })}
       </div>
+
+      {testOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 90,
+            background: 'rgba(15,23,42,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+          onClick={() => !testBusy && setTestOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 'min(520px, 100%)',
+              maxHeight: '85vh',
+              overflow: 'auto',
+              background: 'var(--surface-card)',
+              borderRadius: 16,
+              border: '1px solid var(--border)',
+              padding: 20,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+              <div>
+                <strong style={{ fontSize: 17 }}>Probar flujo</strong>
+                <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  {testWorkflowName} · {testTriggerLabel}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={testBusy}
+                onClick={() => setTestOpen(false)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p
+              style={{
+                fontSize: 12,
+                color: '#b45309',
+                background: '#fffbeb',
+                border: '1px solid #fde68a',
+                borderRadius: 10,
+                padding: '10px 12px',
+                margin: '0 0 14px',
+                lineHeight: 1.45,
+              }}
+            >
+              Simula el disparador y ejecuta los pasos de verdad (WhatsApp, asignaciones, cobros…). Elige un socio de
+              prueba o déjalo vacío para usar el primero activo del club.
+            </p>
+
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6 }}>
+              Socio de prueba (opcional)
+            </label>
+            <select
+              value={testMemberId}
+              onChange={(e) => setTestMemberId(e.target.value)}
+              disabled={testBusy}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 10,
+                border: '1px solid var(--border)',
+                fontFamily: 'inherit',
+                fontSize: 14,
+                marginBottom: 14,
+              }}
+            >
+              <option value="">— Automático (primer socio activo) —</option>
+              {socios.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                  {s.telefono ? ` · ${s.telefono}` : ''}
+                  {s.estado ? ` (${s.estado})` : ''}
+                </option>
+              ))}
+            </select>
+
+            {testResult && (
+              <div
+                style={{
+                  marginBottom: 14,
+                  padding: 12,
+                  borderRadius: 10,
+                  border: `1px solid ${testResult.ok ? '#6ee7b7' : '#fecaca'}`,
+                  background: testResult.ok ? '#ecfdf5' : '#fef2f2',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: testResult.ok ? '#047857' : '#b91c1c', marginBottom: 8 }}>
+                  {testResult.ok ? 'Prueba completada' : 'Prueba con incidencias'}
+                  {testResult.error ? ` — ${testResult.error}` : ''}
+                </div>
+                <div style={{ color: '#334155' }}>
+                  Sujeto: <strong>{testResult.subjectName}</strong> ({testResult.subjectKind === 'lead' ? 'lead' : 'socio'})
+                  · {testResult.stepsRun} paso(s)
+                </div>
+                {testResult.warnings?.length > 0 && (
+                  <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: '#64748b' }}>
+                    {testResult.warnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                )}
+                {testResult.reports?.length > 0 && (
+                  <ul style={{ margin: '10px 0 0', padding: 0, listStyle: 'none' }}>
+                    {testResult.reports.map((r) => (
+                      <li
+                        key={`${r.stepKey}-${r.position}`}
+                        style={{
+                          padding: '6px 0',
+                          borderTop: '1px solid rgba(0,0,0,0.06)',
+                          color: r.error ? '#b91c1c' : r.applied ? '#047857' : '#64748b',
+                        }}
+                      >
+                        {actionLabel(r.actionType)}
+                        {r.branchResult ? ` → rama ${r.branchResult}` : ''}
+                        {r.applied ? ' ✓' : ' —'}
+                        {r.error ? ` · ${r.error}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                disabled={testBusy}
+                onClick={() => setTestOpen(false)}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 10,
+                  border: '1px solid var(--border)',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: 13,
+                }}
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                disabled={testBusy}
+                onClick={runTest}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 18px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#059669',
+                  color: '#fff',
+                  cursor: testBusy ? 'wait' : 'pointer',
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                <Play size={15} />
+                {testBusy ? 'Ejecutando…' : testResult ? 'Repetir prueba' : 'Ejecutar prueba'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {catalogOpen && (
         <div
