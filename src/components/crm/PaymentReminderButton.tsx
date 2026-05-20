@@ -19,11 +19,24 @@ export function PaymentReminderButton() {
             setErrorMessage(null)
             try {
               const result = await sendWhatsAppPaymentReminders()
+              if (result.error) {
+                setErrorMessage(result.error)
+                return
+              }
+              if (result.totalMembersInDebt === 0) {
+                setResultMessage('No hay socios con facturas vencidas o pendientes de cobro.')
+                return
+              }
               setResultMessage(
                 `Enviados: ${result.sent} | Fallidos: ${result.failed} | Sin teléfono: ${result.skippedNoPhone} | Socios con deuda: ${result.totalMembersInDebt}`,
               )
             } catch (error) {
-              setErrorMessage(error instanceof Error ? error.message : 'Error enviando recordatorios')
+              const msg = error instanceof Error ? error.message : ''
+              setErrorMessage(
+                msg && !msg.includes('Server Components render')
+                  ? msg
+                  : 'No se pudieron enviar los recordatorios. Revisa ApiWass (APIWASS_API_KEY y sesión vinculada en Ajustes).',
+              )
             }
           })
         }

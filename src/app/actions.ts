@@ -3,6 +3,9 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import bcrypt from 'bcryptjs'
+import { sendApiWassText } from '@/lib/apiwass'
+import { getClubIssuer } from '@/lib/club-settings'
+import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import {
   runMemberCreatedWorkflows,
   runMemberStatusChangedWorkflows,
@@ -10,6 +13,7 @@ import {
   runPaymentCreatedWorkflows,
   runPaymentPaidWorkflows,
 } from '@/lib/workflow-engine'
+import { createInvoiceStripeLink } from '@/app/actions/billing'
 
 // MEMBERS
 export async function createMember(data: {
@@ -132,28 +136,40 @@ export async function deleteMember(id: string) {
   revalidatePath('/')
 }
 
-export async function sendWhatsAppPaymentReminders() {
-  const apiUrl = process.env.APIWASS_API_URL || 'https://api.wassenger.com/v1/messages'
-  const apiToken = process.env.APIWASS_TOKEN
+export type PaymentReminderResult = {
+  sent: number
+  failed: number
+  skippedNoPhone: number
+  totalMembersInDebt: number
+  error?: string
+}
 
-  if (!apiToken) {
-    throw new Error('Falta APIWASS_TOKEN en variables de entorno')
+export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderResult> {
+  const waCfg = await getWhatsAppConfig()
+  const sessionId = String(waCfg.linkedSessionId || process.env.APIWASS_DEFAULT_SESSION_ID || '').trim()
+  if (!sessionId) {
+    return {
+      sent: 0,
+      failed: 0,
+      skippedNoPhone: 0,
+      totalMembersInDebt: 0,
+      error:
+        'WhatsApp no está configurado. Ve a Ajustes del club y vincula una sesión de ApiWass, o define APIWASS_DEFAULT_SESSION_ID.',
+    }
   }
 
-  const overdueInvoices = await prisma.invoice.findMany({
+  const now = new Date()
+  const openInvoices = await prisma.invoice.findMany({
     where: {
-      OR: [
-        { status: 'OVERDUE' },
-        {
-          status: 'PARTIAL',
-          dueDate: { lt: new Date() },
-        },
-      ],
+      status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
     },
     include: { member: true },
+    orderBy: { dueDate: 'asc' },
   })
 
-  // Agrupar deuda por socio
+  const issuer = await getClubIssuer()
+  const clubName = issuer.name || 'el club'
+
   const byMember = new Map<
     string,
     {
@@ -162,21 +178,35 @@ export async function sendWhatsAppPaymentReminders() {
       phone: string | null
       pendingTotal: number
       oldestDueDate: Date
+      oldestInvoiceId: string
     }
   >()
 
-  for (const invoice of overdueInvoices) {
+  const todayStart = new Date(now)
+  todayStart.setHours(0, 0, 0, 0)
+
+  for (const invoice of openInvoices) {
     const pending = Math.max(0, invoice.totalAmount - invoice.paidAmount)
     if (pending <= 0) continue
+    const dueDay = new Date(invoice.dueDate)
+    dueDay.setHours(0, 0, 0, 0)
+    const isDue = invoice.status === 'OVERDUE' || dueDay <= todayStart
+    if (!isDue) continue
 
     const existing = byMember.get(invoice.memberId)
+    const phone =
+      invoice.member.phone?.trim() ||
+      invoice.member.guardianPhone?.trim() ||
+      null
+
     if (!existing) {
       byMember.set(invoice.memberId, {
         memberId: invoice.memberId,
         memberName: invoice.member.name,
-        phone: invoice.member.phone || null,
+        phone,
         pendingTotal: pending,
         oldestDueDate: invoice.dueDate,
+        oldestInvoiceId: invoice.id,
       })
       continue
     }
@@ -184,7 +214,9 @@ export async function sendWhatsAppPaymentReminders() {
     existing.pendingTotal += pending
     if (invoice.dueDate < existing.oldestDueDate) {
       existing.oldestDueDate = invoice.dueDate
+      existing.oldestInvoiceId = invoice.id
     }
+    if (!existing.phone && phone) existing.phone = phone
   }
 
   let sent = 0
@@ -197,36 +229,37 @@ export async function sendWhatsAppPaymentReminders() {
       continue
     }
 
+    let payLine = ''
+    try {
+      const url =
+        (await prisma.invoice.findUnique({
+          where: { id: member.oldestInvoiceId },
+          select: { stripeCheckoutUrl: true },
+        }))?.stripeCheckoutUrl || (await createInvoiceStripeLink(member.oldestInvoiceId))
+      if (url) payLine = `\nPagar aquí: ${url}`
+    } catch {
+      /* enlace opcional */
+    }
+
     const message =
-      `Hola ${member.memberName}, te recordamos que tienes cuotas pendientes en Furvoley.\n` +
+      `Hola ${member.memberName}, te recordamos que tienes cuotas pendientes en ${clubName}.\n` +
       `Importe pendiente: ${member.pendingTotal.toFixed(2)} EUR.\n` +
       `Vencimiento más antiguo: ${member.oldestDueDate.toLocaleDateString('es-ES')}.\n` +
-      `Por favor, regulariza el pago lo antes posible. Gracias.`
+      `Por favor, regulariza el pago lo antes posible. Gracias.${payLine}`
 
     try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Token: apiToken,
-        },
-        body: JSON.stringify({
-          phone: member.phone,
-          message,
-        }),
+      await sendApiWassText({
+        sessionId,
+        phone: member.phone,
+        message,
       })
-
-      if (!response.ok) {
-        failed++
-        continue
-      }
       sent++
-    } catch {
+    } catch (e) {
+      console.warn('[recordar cobros] fallo WhatsApp:', e)
       failed++
     }
   }
 
-  revalidatePath('/')
   return { sent, failed, skippedNoPhone, totalMembersInDebt: byMember.size }
 }
 
