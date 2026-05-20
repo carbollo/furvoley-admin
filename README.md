@@ -20,8 +20,7 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
    - `NEXTAUTH_SECRET`: Una cadena de texto aleatoria (puedes generar una ejecutando `openssl rand -base64 32` en tu terminal o inventarte una larga).
    - `NEXTAUTH_URL`: La URL pública de tu aplicación en Railway (ej. `https://furvoley-admin-production.up.railway.app`).
    - `STRIPE_SECRET_KEY`: Tu clave secreta de Stripe.
-   - `STRIPE_WEBHOOK_SECRET`: Signing secret (**Plataforma**: «Events on your account») del webhook `https://<tu-app>/api/stripe/webhook`.
-   - `STRIPE_CONNECT_WEBHOOK_SECRET`: Signing secret del webhook **Connect** (misma URL; endpoint que recibe eventos de cuentas conectadas). Ambos son obligatorios; no uses secretos persistidos desde la base de datos.
+   - `STRIPE_WEBHOOK_SECRET` / `STRIPE_CONNECT_WEBHOOK_SECRET` (opcionales): override manual. Por defecto la app crea los webhooks y guarda los signing secrets en la base de datos al abrir el CRM (Configuración del club → Actualizar enlaces).
   - `APIWASS_API_KEY`: Clave API de ApiWass (`sk_...`), usada en backend para conexión/sesiones/envío.
   - `APIWASS_BASE_URL` (opcional): Base URL de ApiWass, por defecto `https://apiwass.com/api`.
   - `APIWASS_DEFAULT_SESSION_ID` (opcional): Session ID por defecto para envíos automáticos (workflows) y panel.

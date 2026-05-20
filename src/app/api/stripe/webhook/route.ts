@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { createInvoiceForSubscription, recordInvoicePayment } from '@/app/actions/billing'
 import { getStripeConnectConfig } from '@/lib/club-settings'
 import { linkStripeCustomerFromCheckout } from '@/lib/stripe-member-customer'
+import { ensureStripeWebhooks, getWebhookSigningSecrets } from '@/lib/stripe-bootstrap'
 import type Stripe from 'stripe'
 
 /**
@@ -14,10 +15,9 @@ import type Stripe from 'stripe'
  * Transaction/JournalEntry; la contabilidad oficial se carga importando el
  * CSV del banco y conciliando líneas (`/accounting/bank-import`).
  *
- * Firma: **solo** variables de entorno (configúralas a mano en Railway, etc.):
- *  - `STRIPE_WEBHOOK_SECRET` — endpoint de la cuenta plataforma.
- *  - `STRIPE_CONNECT_WEBHOOK_SECRET` — endpoint Connect (eventos con `event.account`).
- *  Ambas deben estar definidas; no se usan secretos persistidos en BD.
+ * Firma: signing secrets en BD (`StripeBootstrap`, autogenerados al sincronizar
+ * webhooks) o, opcionalmente, override en env (`STRIPE_WEBHOOK_SECRET`,
+ * `STRIPE_CONNECT_WEBHOOK_SECRET`).
  *
  * Multi-deploy (varios clones en Railway, misma cuenta plataforma): Stripe
  * puede entregar cada evento Connect a **todos** los webhook endpoints Connect
@@ -32,12 +32,17 @@ export async function POST(req: Request) {
     return new Response('Missing signature', { status: 400 })
   }
 
-  const platformSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim() || null
-  const connectSecret = (process.env.STRIPE_CONNECT_WEBHOOK_SECRET || '').trim() || null
+  let { platform: platformSecret, connect: connectSecret } = await getWebhookSigningSecrets()
+  if (!platformSecret || !connectSecret) {
+    await ensureStripeWebhooks()
+    const retry = await getWebhookSigningSecrets()
+    platformSecret = retry.platform
+    connectSecret = retry.connect
+  }
   if (!platformSecret || !connectSecret) {
     return new Response(
-      'Missing STRIPE_WEBHOOK_SECRET or STRIPE_CONNECT_WEBHOOK_SECRET (both required as environment variables)',
-      { status: 503 }
+      'Webhook signing secrets no configurados. Abre el CRM (Configuración del club → Actualizar enlaces) para generarlos automáticamente.',
+      { status: 503 },
     )
   }
 

@@ -1,11 +1,12 @@
 /**
- * Bootstrap automático de los WebhookEndpoints de Stripe (URL + IDs en BD).
+ * Bootstrap automático de WebhookEndpoints de Stripe (URL, IDs y signing secrets en BD).
  *
- * `ensureStripeWebhooks` detecta la URL pública (`NEXT_PUBLIC_APP_URL` o
- * `RAILWAY_PUBLIC_DOMAIN`), crea o actualiza en Stripe dos endpoints (plataforma
- * + Connect) y guarda solo sus IDs. Los **`whsec_…` no se guardan en BD**:
- * configúralos a mano en `STRIPE_WEBHOOK_SECRET` y `STRIPE_CONNECT_WEBHOOK_SECRET`.
- * `/api/stripe/webhook` verifica las firmas **solo con esas variables de entorno**.
+ * Al crear un endpoint, Stripe devuelve `whsec_…` una sola vez; se guarda en
+ * `StripeBootstrap`. El admin no necesita Railway: basta abrir el CRM o pulsar
+ * «Actualizar enlaces» en Configuración del club.
+ *
+ * Variables de entorno opcionales (override del programador):
+ * `STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`.
  */
 import { prisma } from '@/lib/prisma'
 import { getStripe } from '@/lib/stripe'
@@ -22,13 +23,6 @@ export const REQUIRED_WEBHOOK_EVENTS: Stripe.WebhookEndpointCreateParams.Enabled
   'customer.subscription.deleted',
 ]
 
-/**
- * Devuelve la base pública del servicio (sin slash final), o `null` si no se
- * pudo detectar. Prioridad:
- *   1. `NEXT_PUBLIC_APP_URL` (config explícita).
- *   2. `RAILWAY_PUBLIC_DOMAIN` (auto-poblada por Railway).
- *   3. `VERCEL_URL` (por si en algún momento se despliega allí).
- */
 export function detectPublicBaseUrl(): string | null {
   const explicit = (process.env.NEXT_PUBLIC_APP_URL || '').trim()
   if (explicit) return explicit.replace(/\/+$/, '')
@@ -53,6 +47,16 @@ export function detectWebhookUrl(): string | null {
   return base ? `${base}/api/stripe/webhook` : null
 }
 
+type BootstrapRow = {
+  platformWebhookId: string | null
+  platformWebhookSecret: string | null
+  connectWebhookId: string | null
+  connectWebhookSecret: string | null
+  publicUrl: string | null
+  lastError: string | null
+  lastSyncedAt: Date | null
+}
+
 export type StripeBootstrapStatus = {
   ok: boolean
   configured: boolean
@@ -62,10 +66,51 @@ export type StripeBootstrapStatus = {
   connectWebhookId: string | null
   hasPlatformSecret: boolean
   hasConnectSecret: boolean
+  /** true si el secret activo viene de variable de entorno (override) */
   envOverridesPlatform: boolean
   envOverridesConnect: boolean
+  /** true si el secret activo está guardado en BD */
+  storedInDbPlatform: boolean
+  storedInDbConnect: boolean
   lastSyncedAt: string | null
   error: string | null
+}
+
+function trimSecret(value: string | null | undefined): string | null {
+  const v = (value || '').trim()
+  return v.startsWith('whsec_') ? v : null
+}
+
+function envPlatformSecret(): string | null {
+  return trimSecret(process.env.STRIPE_WEBHOOK_SECRET)
+}
+
+function envConnectSecret(): string | null {
+  return trimSecret(process.env.STRIPE_CONNECT_WEBHOOK_SECRET)
+}
+
+/** Secretos efectivos: env (si existe) > BD. */
+export async function getWebhookSigningSecrets(): Promise<{
+  platform: string | null
+  connect: string | null
+}> {
+  const envPlatform = envPlatformSecret()
+  const envConnect = envConnectSecret()
+  if (envPlatform && envConnect) {
+    return { platform: envPlatform, connect: envConnect }
+  }
+
+  let row: BootstrapRow | null = null
+  try {
+    row = await prisma.stripeBootstrap.findUnique({ where: { isDefault: true } })
+  } catch {
+    row = null
+  }
+
+  return {
+    platform: envPlatform ?? trimSecret(row?.platformWebhookSecret),
+    connect: envConnect ?? trimSecret(row?.connectWebhookSecret),
+  }
 }
 
 async function getRow() {
@@ -74,11 +119,10 @@ async function getRow() {
   return prisma.stripeBootstrap.create({ data: { isDefault: true } })
 }
 
-/** Estado actual sin disparar llamadas a Stripe. */
 export async function getStripeBootstrapStatus(): Promise<StripeBootstrapStatus> {
-  const platformSecret = !!(process.env.STRIPE_WEBHOOK_SECRET || '').trim()
-  const connectSecret = !!(process.env.STRIPE_CONNECT_WEBHOOK_SECRET || '').trim()
-  let row
+  const envPlatform = envPlatformSecret()
+  const envConnect = envConnectSecret()
+  let row: BootstrapRow | null = null
   try {
     row = await getRow()
   } catch (e) {
@@ -89,16 +133,24 @@ export async function getStripeBootstrapStatus(): Promise<StripeBootstrapStatus>
       webhookUrl: null,
       platformWebhookId: null,
       connectWebhookId: null,
-      hasPlatformSecret: platformSecret,
-      hasConnectSecret: connectSecret,
-      envOverridesPlatform: platformSecret,
-      envOverridesConnect: connectSecret,
+      hasPlatformSecret: !!envPlatform,
+      hasConnectSecret: !!envConnect,
+      envOverridesPlatform: !!envPlatform,
+      envOverridesConnect: !!envConnect,
+      storedInDbPlatform: false,
+      storedInDbConnect: false,
       lastSyncedAt: null,
       error: (e as Error).message,
     }
   }
-  const secretsReady = platformSecret && connectSecret
+
+  const dbPlatform = trimSecret(row.platformWebhookSecret)
+  const dbConnect = trimSecret(row.connectWebhookSecret)
+  const platformActive = envPlatform ?? dbPlatform
+  const connectActive = envConnect ?? dbConnect
+  const secretsReady = !!platformActive && !!connectActive
   const idsReady = !!(row.platformWebhookId && row.connectWebhookId)
+
   return {
     ok: secretsReady && idsReady && !row.lastError,
     configured: secretsReady && idsReady,
@@ -106,19 +158,79 @@ export async function getStripeBootstrapStatus(): Promise<StripeBootstrapStatus>
     webhookUrl: detectWebhookUrl(),
     platformWebhookId: row.platformWebhookId,
     connectWebhookId: row.connectWebhookId,
-    hasPlatformSecret: platformSecret,
-    hasConnectSecret: connectSecret,
-    envOverridesPlatform: platformSecret,
-    envOverridesConnect: connectSecret,
+    hasPlatformSecret: !!platformActive,
+    hasConnectSecret: !!connectActive,
+    envOverridesPlatform: !!envPlatform,
+    envOverridesConnect: !!envConnect,
+    storedInDbPlatform: !!dbPlatform,
+    storedInDbConnect: !!dbConnect,
     lastSyncedAt: row.lastSyncedAt ? row.lastSyncedAt.toISOString() : null,
     error: row.lastError ?? null,
   }
 }
 
+async function deleteWebhookEndpoint(stripe: Stripe, endpointId: string | null) {
+  if (!endpointId) return
+  try {
+    await stripe.webhookEndpoints.del(endpointId)
+  } catch (err) {
+    if (!isMissingResource(err)) throw err
+  }
+}
+
 /**
- * Garantiza que los WebhookEndpoints existen en Stripe apuntando a la URL
- * actual del servicio. Idempotente; seguro para llamar en background.
+ * Si hay endpoint en Stripe pero no tenemos signing secret (no se puede re-leer),
+ * borramos y recreamos para obtener uno nuevo.
  */
+async function syncWebhookEndpoint(
+  stripe: Stripe,
+  opts: {
+    webhookUrl: string
+    connect: boolean
+    existingId: string | null
+    existingSecret: string | null
+    envSecret: string | null
+    description: string
+  },
+): Promise<{ id: string; secret: string | null }> {
+  let endpointId = opts.existingId
+  const hasUsableSecret = !!(opts.envSecret || trimSecret(opts.existingSecret))
+
+  if (endpointId && !hasUsableSecret) {
+    await deleteWebhookEndpoint(stripe, endpointId)
+    endpointId = null
+  }
+
+  if (endpointId) {
+    try {
+      await stripe.webhookEndpoints.update(endpointId, {
+        url: opts.webhookUrl,
+        enabled_events: REQUIRED_WEBHOOK_EVENTS,
+        description: opts.description,
+      })
+      return {
+        id: endpointId,
+        secret: opts.envSecret ?? trimSecret(opts.existingSecret),
+      }
+    } catch (err) {
+      if (!isMissingResource(err)) throw err
+      endpointId = null
+    }
+  }
+
+  const created = await stripe.webhookEndpoints.create({
+    url: opts.webhookUrl,
+    enabled_events: REQUIRED_WEBHOOK_EVENTS,
+    connect: opts.connect,
+    description: opts.description,
+  })
+
+  return {
+    id: created.id,
+    secret: trimSecret(created.secret) ?? opts.envSecret ?? null,
+  }
+}
+
 export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
   if (!process.env.STRIPE_SECRET_KEY) {
     await markError('STRIPE_SECRET_KEY no está configurada')
@@ -132,105 +244,59 @@ export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
   }
 
   const stripe = getStripe()
-  let row = await getRow()
+  const row = await getRow()
+  const envPlatform = envPlatformSecret()
+  const envConnect = envConnectSecret()
 
-  // Si los endpoints ya apuntan a esta URL pública (secrets solo en env), no hagas nada.
-  if (
+  const alreadySynced =
     row.publicUrl === webhookUrl &&
     row.platformWebhookId &&
     row.connectWebhookId &&
+    (envPlatform || trimSecret(row.platformWebhookSecret)) &&
+    (envConnect || trimSecret(row.connectWebhookSecret)) &&
     !row.lastError
-  ) {
+
+  if (alreadySynced) {
     return getStripeBootstrapStatus()
   }
 
   try {
-    // PLATFORM endpoint
-    let platformId = row.platformWebhookId
-    /** Solo al crear endpoint nuevo Stripe devuelve `secret` (una vez). */
-    let createdPlatformSigningSecret: string | null = null
-    if (platformId) {
-      // Reusar: actualizar URL/eventos por si han cambiado.
-      try {
-        await stripe.webhookEndpoints.update(platformId, {
-          url: webhookUrl,
-          enabled_events: REQUIRED_WEBHOOK_EVENTS,
-          description: 'Furvoley CRM — platform events (auto)',
-        })
-      } catch (err) {
-        // Si el endpoint guardado ya no existe, créalo de nuevo.
-        if (isMissingResource(err)) {
-          platformId = null
-        } else {
-          throw err
-        }
-      }
+    const platform = await syncWebhookEndpoint(stripe, {
+      webhookUrl,
+      connect: false,
+      existingId: row.platformWebhookId,
+      existingSecret: row.platformWebhookSecret,
+      envSecret: envPlatform,
+      description: 'Furvoley CRM — platform events (auto)',
+    })
+
+    const connect = await syncWebhookEndpoint(stripe, {
+      webhookUrl,
+      connect: true,
+      existingId: row.connectWebhookId,
+      existingSecret: row.connectWebhookSecret,
+      envSecret: envConnect,
+      description: 'Furvoley CRM — Connect events (auto)',
+    })
+
+    const hints: string[] = []
+    if (!envPlatform && !platform.secret) {
+      hints.push('No se pudo obtener el signing secret del webhook de plataforma.')
     }
-    if (!platformId) {
-      const created = await stripe.webhookEndpoints.create({
-        url: webhookUrl,
-        enabled_events: REQUIRED_WEBHOOK_EVENTS,
-        connect: false,
-        description: 'Furvoley CRM — platform events (auto)',
-      })
-      platformId = created.id
-      createdPlatformSigningSecret = created.secret ?? null
+    if (!envConnect && !connect.secret) {
+      hints.push('No se pudo obtener el signing secret del webhook Connect.')
     }
 
-    // CONNECT endpoint
-    let connectId = row.connectWebhookId
-    let createdConnectSigningSecret: string | null = null
-    if (connectId) {
-      try {
-        await stripe.webhookEndpoints.update(connectId, {
-          url: webhookUrl,
-          enabled_events: REQUIRED_WEBHOOK_EVENTS,
-          description: 'Furvoley CRM — Connect events (auto)',
-        })
-      } catch (err) {
-        if (isMissingResource(err)) {
-          connectId = null
-        } else {
-          throw err
-        }
-      }
-    }
-    if (!connectId) {
-      const created = await stripe.webhookEndpoints.create({
-        url: webhookUrl,
-        enabled_events: REQUIRED_WEBHOOK_EVENTS,
-        connect: true,
-        description: 'Furvoley CRM — Connect events (auto)',
-      })
-      connectId = created.id
-      createdConnectSigningSecret = created.secret ?? null
-    }
-
-    const envHasPlatformSecret = !!(process.env.STRIPE_WEBHOOK_SECRET || '').trim()
-    const envHasConnectSecret = !!(process.env.STRIPE_CONNECT_WEBHOOK_SECRET || '').trim()
-
-    const lastErrorHints: string[] = []
-    if (createdPlatformSigningSecret && !envHasPlatformSecret) {
-      lastErrorHints.push(
-        'Se creó el webhook de la plataforma: copia el signing secret desde el Dashboard de Stripe a STRIPE_WEBHOOK_SECRET.',
-      )
-    }
-    if (createdConnectSigningSecret && !envHasConnectSecret) {
-      lastErrorHints.push(
-        'Se creó el webhook Connect: copia el signing secret desde el Dashboard de Stripe a STRIPE_CONNECT_WEBHOOK_SECRET.',
-      )
-    }
-
-    row = await prisma.stripeBootstrap.update({
+    await prisma.stripeBootstrap.update({
       where: { isDefault: true },
       data: {
         publicUrl: webhookUrl,
-        platformWebhookId: platformId,
-        platformWebhookSecret: null,
-        connectWebhookId: connectId,
-        connectWebhookSecret: null,
+        platformWebhookId: platform.id,
+        platformWebhookSecret: envPlatform ? null : platform.secret,
+        connectWebhookId: connect.id,
+        connectWebhookSecret: envConnect ? null : connect.secret,
         lastSyncedAt: new Date(),
-        lastError: lastErrorHints.length > 0 ? lastErrorHints.join(' ') : null,
+        lastError: hints.length > 0 ? hints.join(' ') : null,
       },
     })
   } catch (e) {
@@ -249,7 +315,7 @@ async function markError(msg: string) {
       await prisma.stripeBootstrap.create({ data: { isDefault: true, lastError: msg } })
     }
   } catch {
-    // BD no disponible — ignoramos para no bloquear el flujo.
+    // BD no disponible
   }
 }
 
@@ -262,15 +328,9 @@ function isMissingResource(err: unknown): boolean {
   return false
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// Disparador lazy (background) — se invoca desde rutas frecuentes (p.ej. el
-// bundle del CRM) para garantizar que en cuanto el admin abra la app, los
-// webhooks estén sincronizados, sin bloquear su request.
-// ──────────────────────────────────────────────────────────────────────────
-
 let inFlight: Promise<void> | null = null
 let lastCheckedAt = 0
-const CHECK_TTL_MS = 5 * 60 * 1000 // 5 minutos entre intentos
+const CHECK_TTL_MS = 5 * 60 * 1000
 
 export function scheduleEnsureStripeWebhooks() {
   if (!process.env.STRIPE_SECRET_KEY) return
@@ -282,7 +342,7 @@ export function scheduleEnsureStripeWebhooks() {
     try {
       await ensureStripeWebhooks()
     } catch {
-      // Errores se persisten en `lastError` desde dentro de ensureStripeWebhooks.
+      // lastError en BD
     } finally {
       inFlight = null
     }

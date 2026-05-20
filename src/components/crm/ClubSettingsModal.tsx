@@ -1030,9 +1030,9 @@ function SubscriptionTab({
             {webhooks.error
               ? 'No se ha podido comprobar o actualizar las notificaciones automáticas de pago. Prueba más tarde o pulsa Actualizar enlaces.'
               : webhookStatusOk
-                ? 'Todo correcto. Los avisos de pago llegan bien a esta instalación.'
+                ? 'Todo correcto. Los avisos de pago se registran solos al pagar (configuración guardada en el sistema).'
                 : webhooks.webhookUrl
-                  ? 'Pendiente de actualizar enlaces tras un cambio.'
+                  ? 'Pulsa Actualizar enlaces para registrar los avisos de pago en Stripe (no hace falta configurar Railway).'
                   : 'No se puede usar esta acción porque falta la dirección web pública del sitio. Consulta con el equipo técnico.'}
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
