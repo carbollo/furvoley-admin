@@ -48,7 +48,7 @@ export function parseLimit(value: string | null, max = 100, fallback = 50): numb
 export function corsHeaders(): HeadersInit {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, X-API-Key, Content-Type',
   }
 }
@@ -348,8 +348,13 @@ export const API_INDEX = {
   description:
     'Datos deportivos públicos: equipos, horarios, entrenamientos, partidos y noticias publicadas. Sin datos de socios, facturación ni configuración del club.',
   authentication:
-    'Opcional: si PUBLIC_SPORTS_API_KEY está definida, envía Authorization: Bearer <clave> o X-API-Key.',
+    'GET: Authorization o X-API-Key. POST /api/public/v1/query: campo apiKey en el JSON (obligatorio si PUBLIC_SPORTS_API_KEY está definida).',
   endpoints: [
+    {
+      method: 'POST',
+      path: '/api/public/v1/query',
+      description: 'Para bots: cuerpo JSON obligatorio con resource (+ apiKey si aplica)',
+    },
     { method: 'GET', path: '/api/public/v1/teams', description: 'Equipos y horarios fijos' },
     { method: 'GET', path: '/api/public/v1/teams/{id}', description: 'Detalle de un equipo' },
     { method: 'GET', path: '/api/public/v1/events', description: 'Actividades (query: teamId, type, from, to, status, limit)' },
