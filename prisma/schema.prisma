@@ -145,6 +145,8 @@ model MembershipPlan {
   currency        String   @default("EUR")
   billingPeriod   String   @default("MONTHLY") // MONTHLY, QUARTERLY, YEARLY
   enrollmentFee   Float    @default(0)
+  /** Si true, el socio queda en PENDING_PAYMENT hasta pagar la primera factura (alta). */
+  paymentRequiredOnEnrollment Boolean @default(false)
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -159,6 +161,8 @@ model Subscription {
   endDate               DateTime?
   nextInvoiceDate       DateTime
   autoPay               Boolean  @default(false)
+  /** Hereda del plan si no se indica al asignar; exige pago al alta. */
+  paymentRequiredOnEnrollment Boolean @default(false)
   stripeCustomerId      String?
   stripeSubscriptionId  String?
   createdAt             DateTime @default(now())

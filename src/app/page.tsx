@@ -195,6 +195,7 @@ export default async function HomePage() {
         recentInvoices={recentInvoices}
         news={news}
         publicEvents={publicEvents}
+        enrollmentPaymentPending={userMember?.status === 'PENDING_PAYMENT'}
       />
     </MemberShell>
   )

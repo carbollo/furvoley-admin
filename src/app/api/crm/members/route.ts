@@ -68,7 +68,17 @@ export async function GET() {
       fechaAlta: m.joinedAt.toISOString().slice(0, 10),
       deporte: m.sportPreference?.trim() || team?.name || 'Club',
       categoria: team?.category ?? '—',
-      estado: hasOverdue ? 'Moroso' : m.status === 'ACTIVE' ? 'Activo' : 'Inactivo',
+      estado: hasOverdue
+        ? 'Moroso'
+        : m.status === 'PENDING_PAYMENT'
+          ? 'Alta pendiente de pago'
+          : m.status === 'ACTIVE'
+            ? 'Activo'
+            : m.status === 'PAUSED'
+              ? 'En pausa'
+              : m.status === 'LEAD'
+                ? 'Lead'
+                : 'Inactivo',
       cuota: sub?.plan?.amount ?? 0,
       vencimiento: sub?.nextInvoiceDate
         ? sub.nextInvoiceDate.toISOString().slice(0, 10)

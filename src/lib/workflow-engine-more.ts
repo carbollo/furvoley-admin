@@ -240,10 +240,14 @@ export async function runExtendedWorkflowAction(
       return true
     }
     try {
+      const rawRequired = readString(step.config, 'paymentRequiredOnEnrollment')
+      const paymentRequiredOnEnrollment =
+        rawRequired === 'true' ? true : rawRequired === 'false' ? false : undefined
       const sub = await createSubscription({
         memberId: member.id,
         planId,
         autoPay: readString(step.config, 'autoPay') === 'true',
+        paymentRequiredOnEnrollment,
       })
       runContext.variables.subscriptionId = sub.id
       setStepApplied()

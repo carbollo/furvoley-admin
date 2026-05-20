@@ -44,6 +44,7 @@ export async function GET() {
       billingPeriod: p.billingPeriod,
       billingPeriodLabel: periodLabel(p.billingPeriod),
       enrollmentFee: p.enrollmentFee,
+      paymentRequiredOnEnrollment: p.paymentRequiredOnEnrollment,
       isActive: p.isActive,
       subscriptionCount: p._count.subscriptions,
       updatedAt: p.updatedAt.toISOString(),
@@ -54,6 +55,7 @@ export async function GET() {
       startDate: s.startDate.toISOString(),
       nextInvoiceDate: s.nextInvoiceDate.toISOString(),
       autoPay: s.autoPay,
+      paymentRequiredOnEnrollment: s.paymentRequiredOnEnrollment,
       memberId: s.memberId,
       memberName: s.member.name,
       memberEmail: s.member.email,
@@ -109,6 +111,7 @@ export async function POST(request: Request) {
       amount,
       billingPeriod,
       enrollmentFee,
+      paymentRequiredOnEnrollment: body.paymentRequiredOnEnrollment === true,
     })
     return NextResponse.json({ ok: true, plan: { id: plan.id, name: plan.name } })
   } catch (e) {
@@ -166,6 +169,9 @@ export async function PATCH(request: Request) {
     data.billingPeriod = p
   }
   if (typeof body.isActive === 'boolean') data.isActive = body.isActive
+  if (typeof body.paymentRequiredOnEnrollment === 'boolean') {
+    data.paymentRequiredOnEnrollment = body.paymentRequiredOnEnrollment
+  }
 
   try {
     const plan = await updateMembershipPlan(id, data)

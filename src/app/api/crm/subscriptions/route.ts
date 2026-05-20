@@ -40,6 +40,10 @@ export async function POST(request: Request) {
   }
 
   const autoPay = body.autoPay === true
+  const paymentRequiredOnEnrollment =
+    typeof body.paymentRequiredOnEnrollment === 'boolean'
+      ? body.paymentRequiredOnEnrollment
+      : plan.paymentRequiredOnEnrollment
 
   try {
     await prisma.subscription.updateMany({
@@ -52,6 +56,7 @@ export async function POST(request: Request) {
       planId,
       startDate,
       autoPay,
+      paymentRequiredOnEnrollment,
     })
 
     return NextResponse.json({

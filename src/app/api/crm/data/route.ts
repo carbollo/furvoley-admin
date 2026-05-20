@@ -280,7 +280,10 @@ export async function GET() {
     const hasOverdue = m.invoices.length > 0
     let estadoUi: string
     if (hasOverdue) estadoUi = 'Moroso'
+    else if (m.status === 'PENDING_PAYMENT') estadoUi = 'Alta pendiente de pago'
     else if (m.status === 'ACTIVE') estadoUi = 'Activo'
+    else if (m.status === 'PAUSED') estadoUi = 'En pausa'
+    else if (m.status === 'LEAD') estadoUi = 'Lead'
     else estadoUi = 'Inactivo'
 
     let pendingInvoice: { id: string; pending: number } | null = null

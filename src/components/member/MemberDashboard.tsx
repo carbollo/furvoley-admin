@@ -78,6 +78,8 @@ type Props = {
   recentInvoices: MemberInvoice[]
   news: NewsItem[]
   publicEvents: PublicEvent[]
+  /** Socio con cuota obligatoria de alta sin pagar aún */
+  enrollmentPaymentPending?: boolean
 }
 
 function fmtMoney(n: number) {
@@ -128,9 +130,54 @@ export function MemberDashboard({
   recentInvoices,
   news,
   publicEvents,
+  enrollmentPaymentPending = false,
 }: Props) {
   return (
     <div style={{ maxWidth: 1320, margin: '0 auto' }}>
+      {enrollmentPaymentPending ? (
+        <div
+          style={{
+            marginBottom: 24,
+            padding: '16px 20px',
+            borderRadius: 14,
+            background: 'rgba(0,88,190,0.08)',
+            border: `1px solid ${PRIMARY}33`,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
+            <WarningIcon size={22} />
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: ON_SURFACE }}>
+                Alta pendiente de pago
+              </p>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: ON_SURFACE_VARIANT, lineHeight: 1.45 }}>
+                Debes abonar la cuota de inscripción para quedar como socio activo. Puedes pagar desde Mis
+                Pagos.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/my-billing"
+            style={{
+              padding: '10px 18px',
+              borderRadius: 10,
+              background: PRIMARY,
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 13,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Ir a Mis Pagos
+          </Link>
+        </div>
+      ) : null}
       {/* Greeting */}
       <header style={{ marginBottom: 32 }}>
         <h2

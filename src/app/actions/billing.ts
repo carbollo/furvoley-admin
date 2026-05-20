@@ -13,6 +13,7 @@ import {
   runInvoiceCreatedWorkflows,
   runInvoiceOverdueWorkflows,
   runInvoicePaidWorkflows,
+  runMemberStatusChangedWorkflows,
   runSubscriptionCreatedWorkflows,
 } from '@/lib/workflow-engine'
 
@@ -45,11 +46,13 @@ export async function createMembershipPlan(data: {
   amount: number
   billingPeriod: string
   enrollmentFee?: number
+  paymentRequiredOnEnrollment?: boolean
 }) {
   const plan = await prisma.membershipPlan.create({
     data: {
       ...data,
       enrollmentFee: data.enrollmentFee ?? 0,
+      paymentRequiredOnEnrollment: data.paymentRequiredOnEnrollment ?? false,
     },
   })
   revalidatePath('/')
@@ -64,6 +67,7 @@ export async function updateMembershipPlan(
     amount?: number
     billingPeriod?: string
     enrollmentFee?: number
+    paymentRequiredOnEnrollment?: boolean
     isActive?: boolean
   },
 ) {
@@ -101,9 +105,13 @@ export async function createSubscription(data: {
   planId: string
   startDate?: Date
   autoPay?: boolean
+  paymentRequiredOnEnrollment?: boolean
 }) {
   const plan = await prisma.membershipPlan.findUnique({ where: { id: data.planId } })
   if (!plan) throw new Error('Plan not found')
+
+  const paymentRequired =
+    data.paymentRequiredOnEnrollment ?? plan.paymentRequiredOnEnrollment ?? false
 
   const startDate = data.startDate ?? new Date()
   const subscription = await prisma.subscription.create({
@@ -113,14 +121,52 @@ export async function createSubscription(data: {
       startDate,
       nextInvoiceDate: startDate,
       autoPay: data.autoPay ?? false,
+      paymentRequiredOnEnrollment: paymentRequired,
     },
   })
+
+  if (paymentRequired) {
+    const member = await prisma.member.findUnique({ where: { id: data.memberId } })
+    if (member && member.status !== 'INACTIVE') {
+      const prev = member.status
+      await prisma.member.update({
+        where: { id: data.memberId },
+        data: { status: 'PENDING_PAYMENT' },
+      })
+      if (prev !== 'PENDING_PAYMENT') {
+        await runMemberStatusChangedWorkflows(data.memberId, {
+          previousStatus: prev,
+          currentStatus: 'PENDING_PAYMENT',
+        })
+      }
+    }
+  }
 
   // first invoice
   await createInvoiceForSubscription(subscription.id)
   await runSubscriptionCreatedWorkflows(subscription.id)
   revalidatePath('/')
   return subscription
+}
+
+async function tryActivateMemberAfterEnrollmentPayment(invoiceId: string) {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: { subscription: true, member: true },
+  })
+  if (!invoice?.subscription?.paymentRequiredOnEnrollment) return
+  if (invoice.status !== 'PAID') return
+  if (invoice.member.status !== 'PENDING_PAYMENT') return
+
+  const prev = invoice.member.status
+  await prisma.member.update({
+    where: { id: invoice.memberId },
+    data: { status: 'ACTIVE' },
+  })
+  await runMemberStatusChangedWorkflows(invoice.memberId, {
+    previousStatus: prev,
+    currentStatus: 'ACTIVE',
+  })
 }
 
 export async function createInvoiceForSubscription(subscriptionId: string) {
@@ -130,10 +176,38 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
   })
   if (!subscription) throw new Error('Subscription not found')
 
-  const dueDate = addPeriod(subscription.nextInvoiceDate, subscription.plan.billingPeriod)
-  const subtotal = subscription.plan.amount
+  const priorInvoiceCount = await prisma.invoice.count({
+    where: { subscriptionId: subscription.id },
+  })
+  const isFirstInvoice = priorInvoiceCount === 0
+  const enrollmentRequired = subscription.paymentRequiredOnEnrollment && isFirstInvoice
+
+  const periodDue = addPeriod(subscription.nextInvoiceDate, subscription.plan.billingPeriod)
+  const dueDate = enrollmentRequired ? startOfDay(new Date()) : periodDue
+
+  const periodAmount = subscription.plan.amount
+  const enrollmentAmount =
+    isFirstInvoice && subscription.plan.enrollmentFee > 0 ? subscription.plan.enrollmentFee : 0
+  const subtotal = periodAmount + enrollmentAmount
   const taxAmount = 0
   const total = subtotal + taxAmount
+
+  const items: { description: string; quantity: number; unitAmount: number; totalAmount: number }[] = [
+    {
+      description: `${subscription.plan.name} (${subscription.plan.billingPeriod})`,
+      quantity: 1,
+      unitAmount: periodAmount,
+      totalAmount: periodAmount,
+    },
+  ]
+  if (enrollmentAmount > 0) {
+    items.push({
+      description: `Matrícula / alta — ${subscription.plan.name}`,
+      quantity: 1,
+      unitAmount: enrollmentAmount,
+      totalAmount: enrollmentAmount,
+    })
+  }
 
   const invoice = await prisma.invoice.create({
     data: {
@@ -146,16 +220,7 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
       totalAmount: total,
       memberId: subscription.memberId,
       subscriptionId: subscription.id,
-      items: {
-        create: [
-          {
-            description: `${subscription.plan.name} (${subscription.plan.billingPeriod})`,
-            quantity: 1,
-            unitAmount: subtotal,
-            totalAmount: subtotal,
-          },
-        ],
-      },
+      items: { create: items },
     },
   })
 
@@ -355,6 +420,7 @@ export async function recordInvoicePayment(data: {
       const updated = await prisma.invoice.findUnique({ where: { id: invoice.id } })
       if (updated && updated.status === 'PAID') {
         await runInvoicePaidWorkflows(invoice.id)
+        await tryActivateMemberAfterEnrollmentPayment(invoice.id)
       }
     }
   }

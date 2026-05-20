@@ -4,6 +4,7 @@ export const MEMBER_STATUS_OPTIONS = [
   { value: 'ACTIVE', label: 'Activo' },
   { value: 'INACTIVE', label: 'Baja / Inactivo' },
   { value: 'PAUSED', label: 'En pausa' },
+  { value: 'PENDING_PAYMENT', label: 'Alta pendiente de pago' },
   { value: 'LEAD', label: 'Lead (pendiente de alta)' },
 ] as const
 

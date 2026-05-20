@@ -11,6 +11,7 @@ type Plan = {
   billingPeriod: string
   billingPeriodLabel: string
   enrollmentFee: number
+  paymentRequiredOnEnrollment: boolean
   isActive: boolean
   subscriptionCount: number
 }
@@ -26,6 +27,7 @@ type SubscriptionRow = {
   billingPeriodLabel: string
   nextInvoiceDate: string
   autoPay: boolean
+  paymentRequiredOnEnrollment: boolean
 }
 
 type BundleSocio = { id: string; nombre: string; estado?: string }
@@ -76,6 +78,7 @@ export function CuotasSection({
     amount: '',
     billingPeriod: 'MONTHLY',
     enrollmentFee: '0',
+    paymentRequiredOnEnrollment: false,
     isActive: true,
   })
 
@@ -85,6 +88,7 @@ export function CuotasSection({
     planId: '',
     startDate: '',
     autoPay: false,
+    paymentRequiredOnEnrollment: false,
   })
 
   const loadData = useCallback(async () => {
@@ -109,6 +113,10 @@ export function CuotasSection({
 
   const activePlans = plans.filter((p) => p.isActive)
 
+  function planPaymentRequiredDefault(planId: string) {
+    return activePlans.find((p) => p.id === planId)?.paymentRequiredOnEnrollment ?? false
+  }
+
   function openNewPlan() {
     setEditingPlan(null)
     setPlanForm({
@@ -117,6 +125,7 @@ export function CuotasSection({
       amount: '',
       billingPeriod: 'MONTHLY',
       enrollmentFee: '0',
+      paymentRequiredOnEnrollment: false,
       isActive: true,
     })
     setPlanModal(true)
@@ -130,6 +139,7 @@ export function CuotasSection({
       amount: String(p.amount),
       billingPeriod: p.billingPeriod,
       enrollmentFee: String(p.enrollmentFee),
+      paymentRequiredOnEnrollment: p.paymentRequiredOnEnrollment,
       isActive: p.isActive,
     })
     setPlanModal(true)
@@ -145,6 +155,7 @@ export function CuotasSection({
         amount: Number(planForm.amount),
         billingPeriod: planForm.billingPeriod,
         enrollmentFee: Number(planForm.enrollmentFee) || 0,
+        paymentRequiredOnEnrollment: planForm.paymentRequiredOnEnrollment,
         isActive: planForm.isActive,
       }
       const r = editingPlan
@@ -204,6 +215,7 @@ export function CuotasSection({
       showAlert('Selecciona socio y plan')
       return
     }
+    const paymentRequired = assignForm.paymentRequiredOnEnrollment
     setBusy(true)
     try {
       const r = await fetch('/api/crm/subscriptions', {
@@ -215,6 +227,7 @@ export function CuotasSection({
           planId: assignForm.planId,
           startDate: assignForm.startDate || undefined,
           autoPay: assignForm.autoPay,
+          paymentRequiredOnEnrollment: assignForm.paymentRequiredOnEnrollment,
         }),
       })
       const j = await r.json().catch(() => ({}))
@@ -223,10 +236,20 @@ export function CuotasSection({
         return
       }
       setAssignModal(false)
-      setAssignForm({ memberId: '', planId: '', startDate: '', autoPay: false })
+      setAssignForm({
+        memberId: '',
+        planId: '',
+        startDate: '',
+        autoPay: false,
+        paymentRequiredOnEnrollment: false,
+      })
       await loadData()
       await reload()
-      showAlert('Cuota asignada. Se ha generado la primera factura del periodo.')
+      showAlert(
+        paymentRequired
+          ? 'Cuota asignada. El socio queda en «Alta pendiente de pago» hasta que pague la primera factura.'
+          : 'Cuota asignada. Se ha generado la primera factura del periodo.',
+      )
     } finally {
       setBusy(false)
     }
@@ -326,11 +349,13 @@ export function CuotasSection({
             <button
               type="button"
               onClick={() => {
+                const firstPlanId = activePlans[0]?.id || ''
                 setAssignForm({
                   memberId: '',
-                  planId: activePlans[0]?.id || '',
+                  planId: firstPlanId,
                   startDate: new Date().toISOString().slice(0, 10),
                   autoPay: false,
+                  paymentRequiredOnEnrollment: planPaymentRequiredDefault(firstPlanId),
                 })
                 setAssignModal(true)
               }}
@@ -444,7 +469,7 @@ export function CuotasSection({
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
-                    {['Plan', 'Importe', 'Periodicidad', 'Matrícula', 'Socios', 'Estado', ''].map((h) => (
+                    {['Plan', 'Importe', 'Periodicidad', 'Matrícula', 'Pago al alta', 'Socios', 'Estado', ''].map((h) => (
                       <th
                         key={h}
                         style={{
@@ -475,6 +500,13 @@ export function CuotasSection({
                       <td style={{ padding: '16px 20px', fontSize: 14 }}>{p.billingPeriodLabel}</td>
                       <td style={{ padding: '16px 20px', fontSize: 14 }}>
                         {p.enrollmentFee > 0 ? fmtMoney(p.enrollmentFee) : '—'}
+                      </td>
+                      <td style={{ padding: '16px 20px', fontSize: 13 }}>
+                        {p.paymentRequiredOnEnrollment ? (
+                          <span style={{ fontWeight: 700, color: 'var(--accent)' }}>Obligatorio</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>Opcional</span>
+                        )}
                       </td>
                       <td style={{ padding: '16px 20px', fontSize: 14 }}>{p.subscriptionCount}</td>
                       <td style={{ padding: '16px 20px' }}>
@@ -552,7 +584,7 @@ export function CuotasSection({
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
-                    {['Socio', 'Plan', 'Importe', 'Próxima factura', 'Estado', ''].map((h) => (
+                    {['Socio', 'Plan', 'Importe', 'Pago al alta', 'Próxima factura', 'Estado', ''].map((h) => (
                       <th
                         key={h}
                         style={{
@@ -582,6 +614,13 @@ export function CuotasSection({
                       <td style={{ padding: '16px 20px', fontSize: 14 }}>{s.planName}</td>
                       <td style={{ padding: '16px 20px', fontWeight: 700 }}>
                         {fmtMoney(s.planAmount)} / {s.billingPeriodLabel.toLowerCase()}
+                      </td>
+                      <td style={{ padding: '16px 20px', fontSize: 13 }}>
+                        {s.paymentRequiredOnEnrollment ? (
+                          <span style={{ fontWeight: 700, color: 'var(--accent)' }}>Obligatorio</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>Opcional</span>
+                        )}
                       </td>
                       <td style={{ padding: '16px 20px', fontSize: 14 }}>
                         {new Date(s.nextInvoiceDate).toLocaleDateString('es-ES')}
@@ -764,6 +803,40 @@ export function CuotasSection({
                   style={{ ...inputStyle, marginTop: 6 }}
                 />
               </label>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={planForm.paymentRequiredOnEnrollment}
+                  onChange={(e) =>
+                    setPlanForm((f) => ({ ...f, paymentRequiredOnEnrollment: e.target.checked }))
+                  }
+                  style={{ marginTop: 3 }}
+                />
+                <span>
+                  Pago obligatorio al darse de alta
+                  <span
+                    style={{
+                      display: 'block',
+                      fontWeight: 500,
+                      color: 'var(--text-muted)',
+                      marginTop: 4,
+                      fontSize: 12,
+                    }}
+                  >
+                    El socio queda en «Alta pendiente de pago» hasta abonar la primera factura (incluye
+                    matrícula si la hay). Vencimiento inmediato.
+                  </span>
+                </span>
+              </label>
               {editingPlan ? (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
                   <input
@@ -868,7 +941,14 @@ export function CuotasSection({
                 <select
                   required
                   value={assignForm.planId}
-                  onChange={(e) => setAssignForm((f) => ({ ...f, planId: e.target.value }))}
+                  onChange={(e) => {
+                    const planId = e.target.value
+                    setAssignForm((f) => ({
+                      ...f,
+                      planId,
+                      paymentRequiredOnEnrollment: planPaymentRequiredDefault(planId),
+                    }))
+                  }}
                   style={{ ...inputStyle, marginTop: 6 }}
                 >
                   <option value="">— Seleccionar —</option>
@@ -887,6 +967,39 @@ export function CuotasSection({
                   onChange={(e) => setAssignForm((f) => ({ ...f, startDate: e.target.value }))}
                   style={{ ...inputStyle, marginTop: 6 }}
                 />
+              </label>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={assignForm.paymentRequiredOnEnrollment}
+                  onChange={(e) =>
+                    setAssignForm((f) => ({ ...f, paymentRequiredOnEnrollment: e.target.checked }))
+                  }
+                  style={{ marginTop: 3 }}
+                />
+                <span>
+                  Pago obligatorio al darse de alta (esta persona)
+                  <span
+                    style={{
+                      display: 'block',
+                      fontWeight: 500,
+                      color: 'var(--text-muted)',
+                      marginTop: 4,
+                      fontSize: 12,
+                    }}
+                  >
+                    Por defecto sigue la configuración del plan; puedes cambiarlo solo para este socio.
+                  </span>
+                </span>
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
                 <input
