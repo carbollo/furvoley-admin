@@ -238,6 +238,9 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
     })
   }
 
+  const today = startOfDay(new Date())
+  const invoiceStatus = startOfDay(dueDate) < today ? 'OVERDUE' : 'PENDING'
+
   const invoice = await prisma.invoice.create({
     data: {
       invoiceNumber: await nextInvoiceNumber(),
@@ -247,11 +250,16 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
       subtotal,
       taxAmount,
       totalAmount: total,
+      status: invoiceStatus,
       memberId: subscription.memberId,
       subscriptionId: subscription.id,
       items: { create: items },
     },
   })
+
+  if (invoiceStatus === 'OVERDUE') {
+    await runInvoiceOverdueWorkflows(invoice.id)
+  }
 
   const nextInvoiceDate =
     enrollmentRequired && isFirstInvoice
@@ -281,6 +289,7 @@ export async function generateDueInvoices() {
     created.push(invoice.id)
   }
 
+  await updateInvoiceStatuses()
   revalidatePath('/')
   return { createdCount: created.length }
 }

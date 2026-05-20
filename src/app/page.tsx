@@ -7,6 +7,7 @@ import { MemberShell } from '@/components/member/MemberShell'
 import { MemberDashboard } from '@/components/member/MemberDashboard'
 import { getClubBranding } from '@/lib/club-settings'
 import { normalizeRole } from '@/lib/rbac'
+import { isInvoicePastDue } from '@/lib/invoice-display'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,7 +77,7 @@ export default async function HomePage() {
     0,
   )
   const pendingInvoiceCount = allOpenInvoices.length
-  const overdueCount = allOpenInvoices.filter((i) => i.status === 'OVERDUE').length
+  const unpaidPastDueCount = allOpenInvoices.filter((i) => isInvoicePastDue(i)).length
 
   const today = new Date()
   const nextDue = allOpenInvoices[0]?.dueDate
@@ -86,7 +87,7 @@ export default async function HomePage() {
       (new Date(nextDue).getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
     )
     if (diffDays <= 0) {
-      nextDueLabel = 'Vencida — paga ahora'
+      nextDueLabel = 'Cuota sin pagar — puedes abonarla ahora'
     } else if (diffDays === 1) {
       nextDueLabel = 'Vence mañana'
     } else if (diffDays <= 7) {
@@ -188,7 +189,7 @@ export default async function HomePage() {
         dateStrPretty={dateStrPretty}
         debt={debt}
         pendingInvoiceCount={pendingInvoiceCount}
-        overdueCount={overdueCount}
+        overdueCount={unpaidPastDueCount}
         nextDueLabel={nextDueLabel}
         upcomingTeamEvents={upcomingTeamEvents}
         teams={teams}

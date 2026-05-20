@@ -5,6 +5,12 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { PayMyInvoiceButton } from './PayMyInvoiceButton'
 import { MyBillingAlerts } from './MyBillingAlerts'
+import {
+  isInvoicePastDue,
+  isUnpaidInvoice,
+  memberInvoiceBadge,
+  MEMBER_INVOICE_BADGE_STYLES,
+} from '@/lib/invoice-display'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,13 +29,6 @@ function fmtMoney(n: number) {
   }).format(n)
 }
 
-const STATUS_BADGE: Record<string, { bg: string; color: string; label: string }> = {
-  PAID: { bg: 'rgba(16,185,129,0.12)', color: '#047857', label: 'Pagada' },
-  PENDING: { bg: 'rgba(245,158,11,0.12)', color: '#b45309', label: 'Pendiente' },
-  PARTIAL: { bg: 'rgba(245,158,11,0.12)', color: '#b45309', label: 'Parcial' },
-  OVERDUE: { bg: 'rgba(239,68,68,0.12)', color: '#b91c1c', label: 'Vencida' },
-  VOID: { bg: '#f1f5f9', color: '#64748b', label: 'Anulada' },
-}
 
 export default async function MyBillingPage() {
   const session = await getServerSession(authOptions)
@@ -47,7 +46,7 @@ export default async function MyBillingPage() {
     .filter((i) => i.status !== 'PAID' && i.status !== 'VOID')
     .reduce((acc, i) => acc + (i.totalAmount - i.paidAmount), 0)
 
-  const overdueCount = invoices.filter((i) => i.status === 'OVERDUE').length
+  const unpaidPastDueCount = invoices.filter((i) => isInvoicePastDue(i)).length
   const paidCount = invoices.filter((i) => i.status === 'PAID').length
 
   return (
@@ -85,10 +84,10 @@ export default async function MyBillingPage() {
           accent={debt > 0 ? '#ba1a1a' : '#047857'}
         />
         <StatCard
-          label="Facturas vencidas"
-          value={String(overdueCount)}
-          sub={overdueCount > 0 ? 'Requieren atención' : 'Todo en orden'}
-          accent={overdueCount > 0 ? '#ba1a1a' : '#047857'}
+          label="Cuotas sin pagar"
+          value={String(unpaidPastDueCount)}
+          sub={unpaidPastDueCount > 0 ? 'Pendientes tras el día de cobro' : 'Todo en orden'}
+          accent={unpaidPastDueCount > 0 ? '#ba1a1a' : '#047857'}
         />
         <StatCard
           label="Facturas pagadas"
@@ -145,9 +144,10 @@ export default async function MyBillingPage() {
                 </tr>
               )}
               {invoices.map((invoice) => {
-                const badge = STATUS_BADGE[invoice.status] || STATUS_BADGE.PENDING
+                const badge = memberInvoiceBadge(invoice)
+                const styles = MEMBER_INVOICE_BADGE_STYLES[badge.tone]
                 const pending = Math.max(0, invoice.totalAmount - invoice.paidAmount)
-                const canPay = pending > 0 && invoice.status !== 'VOID'
+                const canPay = isUnpaidInvoice(invoice)
                 return (
                   <tr
                     key={invoice.id}
@@ -179,8 +179,8 @@ export default async function MyBillingPage() {
                         style={{
                           padding: '4px 12px',
                           borderRadius: 999,
-                          background: badge.bg,
-                          color: badge.color,
+                          background: styles.bg,
+                          color: styles.color,
                           fontWeight: 700,
                           fontSize: 11,
                           textTransform: 'uppercase',

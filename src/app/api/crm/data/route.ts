@@ -6,6 +6,7 @@ import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
 import { getClubBranding } from '@/lib/club-settings'
 import { scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 import { formatTeamScheduleSummary } from '@/lib/team-schedule-summary'
+import { crmInvoiceEstado, isInvoicePastDue, memberIsDelinquentForCrm } from '@/lib/invoice-display'
 
 function initials(name: string) {
   return name
@@ -18,10 +19,10 @@ function initials(name: string) {
     .slice(0, 3)
 }
 
-function mapInvoiceEstado(status: string): 'Pagado' | 'Pendiente' | 'Vencido' {
-  if (status === 'PAID') return 'Pagado'
-  if (status === 'OVERDUE') return 'Vencido'
-  return 'Pendiente'
+function mapInvoiceEstado(
+  inv: { status: string; dueDate: Date; totalAmount: number; paidAmount: number },
+): 'Pagado' | 'Pendiente' | 'Vencido' {
+  return crmInvoiceEstado(inv)
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -218,7 +219,7 @@ export async function GET() {
       Math.max(0, inv.totalAmount - inv.paidAmount) > 0,
   )
 
-  const overdueInvoices = pendingInvoicesAll.filter((i) => i.status === 'OVERDUE')
+  const overdueInvoices = pendingInvoicesAll.filter((i) => isInvoicePastDue(i))
   const pendingCount = pendingInvoicesAll.length
 
   const incomeTxYear = incomeTxYearRaw
@@ -277,9 +278,10 @@ export async function GET() {
   const socios = membersRaw.map((m) => {
     const sub = m.subscriptions[0]
     const team = m.teamRoles[0]?.team
-    const hasOverdue = m.invoices.length > 0
+    const memberInvoices = invoicesRaw.filter((inv) => inv.memberId === m.id)
+    const isMoroso = memberIsDelinquentForCrm(memberInvoices)
     let estadoUi: string
-    if (hasOverdue) estadoUi = 'Moroso'
+    if (isMoroso) estadoUi = 'Moroso'
     else if (m.status === 'PENDING_PAYMENT') estadoUi = 'Alta pendiente de pago'
     else if (m.status === 'ACTIVE') estadoUi = 'Activo'
     else if (m.status === 'PAUSED') estadoUi = 'En pausa'
@@ -376,7 +378,7 @@ export async function GET() {
     memberId: inv.memberId,
     concepto: inv.items[0]?.description ?? `Factura ${inv.invoiceNumber}`,
     monto: inv.totalAmount,
-    estado: mapInvoiceEstado(inv.status),
+    estado: mapInvoiceEstado(inv),
     registro: inv.createdAt.toISOString().slice(0, 10),
     vencimiento: inv.dueDate.toISOString().slice(0, 10),
     deporte: socios.find((s) => s.id === inv.memberId)?.deporte ?? '—',

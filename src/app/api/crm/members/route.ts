@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createMember } from '@/app/actions'
 import { requireRoles } from '@/lib/rbac-api'
+import { memberIsDelinquentForCrm } from '@/lib/invoice-display'
 
 function initials(name: string) {
   return name
@@ -49,12 +50,8 @@ export async function GET() {
         inv.status !== 'VOID' &&
         Math.max(0, inv.totalAmount - inv.paidAmount) > 0,
     )
-    const hasOverdue = invoicesRaw.some(
-      (inv) =>
-        inv.memberId === m.id &&
-        inv.status === 'OVERDUE' &&
-        Math.max(0, inv.totalAmount - inv.paidAmount) > 0,
-    )
+    const memberInvoices = invoicesRaw.filter((inv) => inv.memberId === m.id)
+    const isMoroso = memberIsDelinquentForCrm(memberInvoices)
 
     return {
       id: m.id,
@@ -68,7 +65,7 @@ export async function GET() {
       fechaAlta: m.joinedAt.toISOString().slice(0, 10),
       deporte: m.sportPreference?.trim() || team?.name || 'Club',
       categoria: team?.category ?? '—',
-      estado: hasOverdue
+      estado: isMoroso
         ? 'Moroso'
         : m.status === 'PENDING_PAYMENT'
           ? 'Alta pendiente de pago'

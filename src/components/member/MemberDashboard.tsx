@@ -1,6 +1,10 @@
 import Link from 'next/link'
 import { PayMyInvoiceButton } from '@/app/(panel)/my-billing/PayMyInvoiceButton'
 import {
+  memberInvoiceBadge,
+  MEMBER_INVOICE_BADGE_STYLES,
+} from '@/lib/invoice-display'
+import {
   CalendarIcon,
   ClockIcon,
   ConfettiIcon,
@@ -106,17 +110,6 @@ function eventTypeLabel(t: string) {
     default:
       return 'Evento'
   }
-}
-
-function invoiceStatusBadge(status: string) {
-  const cfg: Record<string, { bg: string; color: string; label: string }> = {
-    PAID: { bg: 'rgba(16,185,129,0.12)', color: '#047857', label: 'Pagada' },
-    PENDING: { bg: 'rgba(245,158,11,0.12)', color: '#b45309', label: 'Pendiente' },
-    PARTIAL: { bg: 'rgba(245,158,11,0.12)', color: '#b45309', label: 'Parcial' },
-    OVERDUE: { bg: 'rgba(239,68,68,0.12)', color: '#b91c1c', label: 'Vencida' },
-    VOID: { bg: '#f1f5f9', color: '#64748b', label: 'Anulada' },
-  }
-  return cfg[status] || cfg.PENDING
 }
 
 export function MemberDashboard({
@@ -240,9 +233,9 @@ export function MemberDashboard({
           iconColor={SECONDARY}
         />
         <KpiCard
-          label="Facturas vencidas"
+          label="Cuotas sin pagar"
           value={String(overdueCount)}
-          sub={overdueCount > 0 ? 'Requieren atención inmediata' : 'Todo en orden'}
+          sub={overdueCount > 0 ? 'Pendientes tras el día de cobro' : 'Todo en orden'}
           subColor={overdueCount > 0 ? '#b91c1c' : '#047857'}
           icon={<WarningIcon size={22} />}
           iconBg="rgba(186,26,26,0.12)"
@@ -414,7 +407,8 @@ export function MemberDashboard({
                     </tr>
                   )}
                   {recentInvoices.map((inv) => {
-                    const badge = invoiceStatusBadge(inv.status)
+                    const badge = memberInvoiceBadge(inv)
+                    const styles = MEMBER_INVOICE_BADGE_STYLES[badge.tone]
                     const pending = Math.max(0, inv.totalAmount - inv.paidAmount)
                     return (
                       <tr
@@ -435,8 +429,8 @@ export function MemberDashboard({
                             style={{
                               padding: '4px 12px',
                               borderRadius: 999,
-                              background: badge.bg,
-                              color: badge.color,
+                              background: styles.bg,
+                              color: styles.color,
                               fontWeight: 700,
                               fontSize: 11,
                               textTransform: 'uppercase',
