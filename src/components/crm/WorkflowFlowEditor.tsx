@@ -22,6 +22,10 @@ import '@xyflow/react/dist/style.css'
 import { Plus, Trash2, Zap } from 'lucide-react'
 import { WORKFLOW_ACTION_OPTIONS } from '@/lib/crm-workflow-actions'
 import {
+  workflowActionDescription,
+  workflowTriggerDescription,
+} from '@/lib/crm-workflow-descriptions'
+import {
   isWorkflowTriggerAllowed,
   workflowTriggerLabel,
   WORKFLOW_TRIGGER_OPTIONS,
@@ -182,6 +186,27 @@ const labelBase: CSSProperties = {
   display: 'block',
 }
 
+const nodeDescriptionStyle: CSSProperties = {
+  fontSize: 10,
+  color: '#64748b',
+  marginTop: 8,
+  lineHeight: 1.4,
+  marginBottom: 0,
+  fontWeight: 400,
+}
+
+const panelDescriptionStyle: CSSProperties = {
+  fontSize: 12,
+  color: '#475569',
+  marginTop: 10,
+  lineHeight: 1.5,
+  marginBottom: 0,
+  padding: '10px 12px',
+  background: '#f8fafc',
+  borderRadius: 10,
+  border: '1px solid #e2e8f0',
+}
+
 const triggerCard = (selected: boolean): CSSProperties => ({
   padding: '12px 16px 12px 14px',
   borderRadius: 12,
@@ -190,8 +215,8 @@ const triggerCard = (selected: boolean): CSSProperties => ({
   borderLeftWidth: 4,
   borderLeftColor: selected ? '#047857' : '#10b981',
   color: '#064e3b',
-  minWidth: 148,
-  maxWidth: 220,
+  minWidth: 168,
+  maxWidth: 260,
   boxShadow: 'var(--card-shadow, 0 1px 3px rgba(0,0,0,0.08))',
 })
 
@@ -201,21 +226,25 @@ const stepBox = (selected: boolean): CSSProperties => ({
   borderRadius: 14,
   background: '#fff',
   border: `2px solid ${selected ? 'var(--accent, #6366f1)' : 'var(--border, #e5e7eb)'}`,
-  minWidth: 160,
-  maxWidth: 220,
+  minWidth: 168,
+  maxWidth: 260,
   boxShadow: 'var(--card-shadow, 0 1px 3px rgba(0,0,0,0.06))',
 })
 
 const WorkflowTriggerNode = memo(function WorkflowTriggerNode({ data, selected }: NodeProps<Node<WorkflowNodeData>>) {
+  const triggerType =
+    typeof data.config?.triggerType === 'string' ? data.config.triggerType : 'MEMBER_CREATED'
+  const description = workflowTriggerDescription(triggerType)
   return (
     <div style={triggerCard(!!selected)}>
       <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', color: '#059669', marginBottom: 6 }}>
         DISPARADOR
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Zap size={18} strokeWidth={2.5} style={{ color: '#10b981', flexShrink: 0 }} />
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <Zap size={18} strokeWidth={2.5} style={{ color: '#10b981', flexShrink: 0, marginTop: 2 }} />
         <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.25 }}>{data.label}</span>
       </div>
+      {description ? <p style={nodeDescriptionStyle}>{description}</p> : null}
       <Handle
         type="source"
         position={Position.Right}
@@ -228,6 +257,8 @@ const WorkflowTriggerNode = memo(function WorkflowTriggerNode({ data, selected }
 
 const WorkflowStepNode = memo(function WorkflowStepNode({ id, data, selected }: NodeProps<Node<WorkflowNodeData>>) {
   const isBranch = data.actionType === 'BRANCH_IF'
+  const actionLabel = ACCIONES.find((a) => a.value === data.actionType)?.label ?? data.actionType
+  const description = workflowActionDescription(data.actionType)
   return (
     <div style={stepBox(selected)}>
       <Handle
@@ -238,8 +269,9 @@ const WorkflowStepNode = memo(function WorkflowStepNode({ id, data, selected }: 
       />
       <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>{data.label}</div>
       <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', lineHeight: 1.3, wordBreak: 'break-word' }}>
-        {ACCIONES.find((a) => a.value === data.actionType)?.label ?? data.actionType}
+        {actionLabel}
       </div>
+      {description ? <p style={nodeDescriptionStyle}>{description}</p> : null}
       {isBranch ? (
         <>
           <Handle
@@ -1004,14 +1036,17 @@ function WorkflowFlowEditorInner({
                       style={{ ...inputBase, cursor: 'pointer' }}
                     >
                       {WORKFLOW_TRIGGER_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
+                        <option key={o.value} value={o.value} title={workflowTriggerDescription(o.value)}>
                           {o.label}
                         </option>
                       ))}
                     </select>
-                    <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, lineHeight: 1.45, marginBottom: 0 }}>
-                      Hoy el motor ejecuta automáticamente solo los flujos con disparador «Alta de socio». Otros quedan
-                      guardados para cuando se conecten al sistema.
+                    <p style={panelDescriptionStyle}>
+                      {workflowTriggerDescription(
+                        String(
+                          (selectedTriggerNode.data.config as Record<string, unknown>).triggerType ?? triggerType,
+                        ),
+                      )}
                     </p>
                   </>
                 )}
@@ -1129,11 +1164,14 @@ function WorkflowFlowEditorInner({
                       style={{ ...inputBase, cursor: 'pointer' }}
                     >
                       {ACCIONES.map((a) => (
-                        <option key={a.value} value={a.value}>
+                        <option key={a.value} value={a.value} title={workflowActionDescription(a.value)}>
                           {a.label}
                         </option>
                       ))}
                     </select>
+                    <p style={panelDescriptionStyle}>
+                      {workflowActionDescription(selectedNode.data.actionType)}
+                    </p>
 
                     {selectedNode.data.actionType === 'ASSIGN_TEAM' && (
                       <>
