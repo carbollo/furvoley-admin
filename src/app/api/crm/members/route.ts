@@ -4,6 +4,12 @@ import { createSubscription } from '@/app/actions/billing'
 import { requireRoles } from '@/lib/rbac-api'
 import { memberIsDelinquentForCrm } from '@/lib/invoice-display'
 import { prisma } from '@/lib/prisma'
+import { getRegistrationFieldsConfig } from '@/lib/club-settings'
+import {
+  mapRegistrationToMemberData,
+  validateRegistrationSubmission,
+  type RegistrationFieldValues,
+} from '@/lib/registration-fields'
 
 function initials(name: string) {
   return name
@@ -99,6 +105,7 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response
 
   let body: {
+    registrationValues?: RegistrationFieldValues
     firstName?: string
     lastName?: string
     name?: string
@@ -118,31 +125,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  const first = String(body.firstName || '').trim()
-  const last = String(body.lastName || '').trim()
-  const fullNameDirect = String(body.name || '').trim()
+  const config = await getRegistrationFieldsConfig()
 
-  const combined =
-    fullNameDirect ||
-    ([first, last].filter(Boolean).join(' ').trim() || '')
-  const phone = String(body.phone || '').trim()
+  let values: RegistrationFieldValues = body.registrationValues || {}
+  if (!body.registrationValues) {
+    values = {
+      firstName: String(body.firstName || '').trim(),
+      lastName: String(body.lastName || '').trim(),
+      phone: String(body.phone || '').trim(),
+      birthDate: String(body.birthDate || '').trim(),
+      dni: String(body.dni || '').trim(),
+      email: String(body.email || '').trim(),
+      address: String(body.address || '').trim(),
+      sportPreference: String(body.sportPreference || '').trim(),
+    }
+    if (body.name) {
+      values.firstName = String(body.name).trim()
+    }
+  }
 
-  if (!combined) {
+  const fieldErrors = validateRegistrationSubmission(values, config)
+  const firstFieldError = Object.values(fieldErrors)[0]
+  if (firstFieldError) {
+    return NextResponse.json({ error: firstFieldError }, { status: 400 })
+  }
+
+  const mapped = mapRegistrationToMemberData(values, config)
+  if (!mapped.name) {
     return NextResponse.json(
       { error: 'Nombre y apellidos (o nombre completo) son obligatorios' },
       { status: 400 },
     )
-  }
-  if (!phone) {
-    return NextResponse.json({ error: 'El teléfono es obligatorio' }, { status: 400 })
-  }
-  const birthDateRaw = String(body.birthDate || '').trim()
-  if (!birthDateRaw) {
-    return NextResponse.json({ error: 'La fecha de nacimiento es obligatoria' }, { status: 400 })
-  }
-  const birthDate = new Date(birthDateRaw)
-  if (Number.isNaN(birthDate.getTime())) {
-    return NextResponse.json({ error: 'Fecha de nacimiento inválida' }, { status: 400 })
   }
 
   let joined: Date | undefined
@@ -154,13 +167,16 @@ export async function POST(request: Request) {
   let member
   try {
     member = await createMember({
-      name: combined,
-      email: body.email?.trim() || undefined,
-      phone,
-      dni: body.dni?.trim() || undefined,
-      address: body.address?.trim() || undefined,
-      sportPreference: body.sportPreference?.trim() || undefined,
-      birthDate,
+      name: mapped.name,
+      email: mapped.email || undefined,
+      phone: mapped.phone || undefined,
+      dni: mapped.dni || undefined,
+      address: mapped.address || undefined,
+      sportPreference: mapped.sportPreference || undefined,
+      guardianName: mapped.guardianName || undefined,
+      guardianPhone: mapped.guardianPhone || undefined,
+      registrationExtra: mapped.registrationExtra,
+      birthDate: mapped.birthDate ?? undefined,
       status: 'ACTIVE',
       ...(joined !== undefined ? { joinedAt: joined } : {}),
     })

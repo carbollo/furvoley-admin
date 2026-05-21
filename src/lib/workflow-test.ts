@@ -39,12 +39,14 @@ function leadAsMember(lead: {
     name: lead.name,
     email: lead.email,
     phone: lead.phone,
+    guardianName: null,
     guardianPhone: lead.phone,
     address: null,
     sportPreference: lead.sportPreference,
     dni: null,
     birthDate: null,
     status: 'LEAD',
+    registrationExtra: null,
   }
 }
 
@@ -237,20 +239,13 @@ async function resolveTestSubject(
     if (!anyMember) {
       return { ok: false, error: 'No hay socios ni leads para simular la prueba.' }
     }
+    const memberPayload = await loadMemberPayload(anyMember.id)
+    if (!memberPayload) {
+      return { ok: false, error: 'No se pudo cargar el socio de prueba.' }
+    }
     return {
       ok: true,
-      member: {
-        id: anyMember.id,
-        name: anyMember.name,
-        email: anyMember.email,
-        phone: anyMember.phone,
-        guardianPhone: anyMember.guardianPhone ?? anyMember.phone,
-        address: anyMember.address,
-        sportPreference: anyMember.sportPreference,
-        dni: anyMember.dni,
-        birthDate: anyMember.birthDate,
-        status: 'LEAD',
-      },
+      member: { ...memberPayload, status: 'LEAD' },
       kind: 'lead',
       warnings,
     }

@@ -19,6 +19,12 @@ import React, {
 } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { canAccessCrmSection, normalizeRole, ROLE_LABEL } from '@/lib/rbac'
+import {
+  emptyRegistrationValues,
+  getDefaultRegistrationFields,
+  validateRegistrationSubmission,
+} from '@/lib/registration-fields'
+import { RegistrationFieldsForm } from '@/components/registration/RegistrationFieldsForm'
 
 type CrmCtx = {
   bundle: Record<string, unknown> | null
@@ -875,15 +881,13 @@ function Socios() {
     sportPreference: '',
   });
   const [membershipPlans, setMembershipPlans] = useState([])
-  const [formInscripcion, setFormInscripcion] = useState({
-    nombre: '',
-    apellidos: '',
-    telefono: '',
-    fechaNacimiento: '',
-    dni: '',
-    email: '',
-    domicilio: '',
-    deporte: '',
+  const registrationFieldsConfig = Array.isArray(bundle?.club?.registrationFields)
+    ? bundle.club.registrationFields
+    : getDefaultRegistrationFields()
+  const [registrationValues, setRegistrationValues] = useState(() =>
+    emptyRegistrationValues(getDefaultRegistrationFields()),
+  )
+  const [formInscripcionAdmin, setFormInscripcionAdmin] = useState({
     fechaAlta: new Date().toISOString().slice(0, 10),
     planId: '',
     paymentRequiredOnEnrollment: false,
@@ -952,15 +956,8 @@ function Socios() {
       plans = (await loadMembershipPlans()) || []
     }
     const defaultPlanId = plans[0]?.id || ''
-    setFormInscripcion({
-      nombre: '',
-      apellidos: '',
-      telefono: '',
-      fechaNacimiento: '',
-      dni: '',
-      email: '',
-      domicilio: '',
-      deporte: '',
+    setRegistrationValues(emptyRegistrationValues(registrationFieldsConfig))
+    setFormInscripcionAdmin({
       fechaAlta: new Date().toISOString().slice(0, 10),
       planId: defaultPlanId,
       paymentRequiredOnEnrollment: planPaymentRequiredDefault(defaultPlanId),
@@ -970,15 +967,17 @@ function Socios() {
 
   async function enviarInscripcion(e) {
     e.preventDefault();
-    if (!formInscripcion.nombre.trim() || !formInscripcion.apellidos.trim() || !formInscripcion.telefono.trim() || !formInscripcion.fechaNacimiento.trim()) {
-      showAlert('Nombre, apellidos, teléfono y fecha de nacimiento son obligatorios.');
+    const fieldErrors = validateRegistrationSubmission(registrationValues, registrationFieldsConfig)
+    const firstFieldError = Object.values(fieldErrors)[0]
+    if (firstFieldError) {
+      showAlert(firstFieldError);
       return;
     }
-    if (membershipPlans.length > 1 && !formInscripcion.planId) {
+    if (membershipPlans.length > 1 && !formInscripcionAdmin.planId) {
       showAlert('Selecciona el plan de cuota para que el socio vea el pago en Mis pagos.');
       return;
     }
-    if (membershipPlans.length > 0 && !formInscripcion.planId) {
+    if (membershipPlans.length > 0 && !formInscripcionAdmin.planId) {
       showAlert('No hay plan de cuota seleccionado. Crea un plan en Gestión de cuotas o selecciónalo en el formulario.');
       return;
     }
@@ -989,17 +988,10 @@ function Socios() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firstName: formInscripcion.nombre.trim(),
-          lastName: formInscripcion.apellidos.trim(),
-          phone: formInscripcion.telefono.trim(),
-          dni: formInscripcion.dni.trim() || undefined,
-          email: formInscripcion.email.trim() || undefined,
-          address: formInscripcion.domicilio.trim() || undefined,
-          sportPreference: formInscripcion.deporte.trim() || undefined,
-          birthDate: formInscripcion.fechaNacimiento || undefined,
-          joinedAt: formInscripcion.fechaAlta || undefined,
-          planId: formInscripcion.planId || undefined,
-          paymentRequiredOnEnrollment: formInscripcion.paymentRequiredOnEnrollment,
+          registrationValues,
+          joinedAt: formInscripcionAdmin.fechaAlta || undefined,
+          planId: formInscripcionAdmin.planId || undefined,
+          paymentRequiredOnEnrollment: formInscripcionAdmin.paymentRequiredOnEnrollment,
         }),
       });
       if (!r.ok) {
@@ -1812,95 +1804,24 @@ function Socios() {
                 Completa los datos aquí mismo (sin pop-ups del navegador).
               </p>
             </div>
+            <RegistrationFieldsForm
+              fields={registrationFieldsConfig}
+              values={registrationValues}
+              onChange={(key, value) =>
+                setRegistrationValues((prev) => ({ ...prev, [key]: value }))
+              }
+              variant="crm"
+              disabled={inscripcionBusy}
+            />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
               <div style={{ gridColumn: 'span 2' }}>
-                <label style={insLabel}>Nombre *</label>
-                <input
-                  required
-                  value={formInscripcion.nombre}
-                  onChange={(e) => setFormInscripcion((p) => ({ ...p, nombre: e.target.value }))}
-                  placeholder="Ej. María"
-                  style={insInput}
-                  autoComplete="given-name"
-                />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={insLabel}>Apellidos *</label>
-                <input
-                  required
-                  value={formInscripcion.apellidos}
-                  onChange={(e) => setFormInscripcion((p) => ({ ...p, apellidos: e.target.value }))}
-                  placeholder="Ej. García López"
-                  style={insInput}
-                  autoComplete="family-name"
-                />
-              </div>
-              <div>
-                <label style={insLabel}>Fecha de nacimiento *</label>
-                <input
-                  type="date"
-                  required
-                  value={formInscripcion.fechaNacimiento}
-                  onChange={(e) => setFormInscripcion((p) => ({ ...p, fechaNacimiento: e.target.value }))}
-                  style={insInput}
-                />
-              </div>
-              <div>
-                <label style={insLabel}>DNI</label>
-                <input
-                  value={formInscripcion.dni}
-                  onChange={(e) => setFormInscripcion((p) => ({ ...p, dni: e.target.value }))}
-                  placeholder="12345678A"
-                  style={insInput}
-                />
-              </div>
-              <div>
                 <label style={insLabel}>Fecha de alta</label>
                 <input
                   type="date"
-                  value={formInscripcion.fechaAlta}
-                  onChange={(e) => setFormInscripcion((p) => ({ ...p, fechaAlta: e.target.value }))}
-                  style={insInput}
-                />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={insLabel}>Teléfono *</label>
-                <input
-                  required
-                  value={formInscripcion.telefono}
-                  onChange={(e) => setFormInscripcion((p) => ({ ...p, telefono: e.target.value }))}
-                  placeholder="Ej. +34 666 777 888"
-                  style={insInput}
-                  autoComplete="tel"
-                />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={insLabel}>Correo electrónico</label>
-                <input
-                  type="email"
-                  value={formInscripcion.email}
-                  onChange={(e) => setFormInscripcion((p) => ({ ...p, email: e.target.value }))}
-                  placeholder="nombre@ejemplo.com"
-                  style={insInput}
-                  autoComplete="email"
-                />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={insLabel}>Domicilio</label>
-                <input
-                  value={formInscripcion.domicilio}
-                  onChange={(e) => setFormInscripcion((p) => ({ ...p, domicilio: e.target.value }))}
-                  placeholder="Calle, número, localidad…"
-                  style={insInput}
-                  autoComplete="street-address"
-                />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={insLabel}>Deporte a inscribirse</label>
-                <input
-                  value={formInscripcion.deporte}
-                  onChange={(e) => setFormInscripcion((p) => ({ ...p, deporte: e.target.value }))}
-                  placeholder="Ej. Voleibol, multideporte…"
+                  value={formInscripcionAdmin.fechaAlta}
+                  onChange={(e) =>
+                    setFormInscripcionAdmin((p) => ({ ...p, fechaAlta: e.target.value }))
+                  }
                   style={insInput}
                 />
               </div>
@@ -1910,10 +1831,10 @@ function Socios() {
                     <label style={insLabel}>Plan de cuota *</label>
                     <select
                       required={membershipPlans.length > 1}
-                      value={formInscripcion.planId}
+                      value={formInscripcionAdmin.planId}
                       onChange={(e) => {
                         const planId = e.target.value
-                        setFormInscripcion((p) => ({
+                        setFormInscripcionAdmin((p) => ({
                           ...p,
                           planId,
                           paymentRequiredOnEnrollment: planPaymentRequiredDefault(planId),
@@ -1948,9 +1869,9 @@ function Socios() {
                     >
                       <input
                         type="checkbox"
-                        checked={formInscripcion.paymentRequiredOnEnrollment}
+                        checked={formInscripcionAdmin.paymentRequiredOnEnrollment}
                         onChange={(e) =>
-                          setFormInscripcion((p) => ({
+                          setFormInscripcionAdmin((p) => ({
                             ...p,
                             paymentRequiredOnEnrollment: e.target.checked,
                           }))

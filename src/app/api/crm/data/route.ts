@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getTaxConfig } from '@/lib/tax-config'
 import { requireRoles } from '@/lib/rbac-api'
 import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
-import { getClubBranding } from '@/lib/club-settings'
+import { getClubBranding, getRegistrationFieldsConfig } from '@/lib/club-settings'
 import { scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 import { formatTeamScheduleSummary } from '@/lib/team-schedule-summary'
 import { crmInvoiceEstado, isInvoicePastDue, memberIsDelinquentForCrm } from '@/lib/invoice-display'
@@ -81,6 +81,7 @@ export async function GET() {
     usersRaw,
     newsRaw,
     clubBranding,
+    registrationFieldsConfig,
     clubHolidaysRaw,
   ] = await Promise.all([
     prisma.member.findMany({
@@ -210,6 +211,7 @@ export async function GET() {
         })
       : Promise.resolve([]),
     getClubBranding(),
+    getRegistrationFieldsConfig(),
     prisma.clubHoliday.findMany({ orderBy: { date: 'asc' } }),
   ])
 
@@ -461,6 +463,7 @@ export async function GET() {
       primaryColor: clubBranding.primaryColor,
       website: clubBranding.website,
       subtitle: clubBranding.subtitle,
+      registrationFields: registrationFieldsConfig,
     },
     currency,
     kpis: {

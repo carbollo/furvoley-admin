@@ -75,6 +75,8 @@ model Member {
   guardianName  String?
   guardianPhone String?
   sportPreference String? // Deporte/interés de inscripción (ej. antes de asignar equipo)
+  /** Valores de campos personalizados de registro (slug → texto). */
+  registrationExtra Json?
   status    String    @default("ACTIVE") // LEAD, ACTIVE, PAUSED, INACTIVE, PENDING_PAYMENT
   /** Cliente Stripe (cuenta conectada del club) para Checkout recurrente. */
   stripeCustomerId String?
@@ -793,6 +795,8 @@ model ClubSettings {
   primaryColor     String?                  // hex (#004ac6, etc.)
   // Plantilla del PDF de facturas (valor: CLASSIC | MODERN | COMPACT)
   invoicePdfTemplate String @default("CLASSIC")
+  /** Definición de campos visibles en inscripción (enlace + alta CRM). */
+  registrationFieldsConfig Json?
   // NOTA: la configuración de Stripe (customer ID + dashboard URL) vive en
   // variables de entorno (Railway): STRIPE_CLUB_CUSTOMER_ID y STRIPE_DASHBOARD_URL.
 

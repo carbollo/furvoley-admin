@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { getDefaultRegistrationFields, type RegistrationFieldDef } from '@/lib/registration-fields'
+import { RegistrationFieldsTab } from '@/components/crm/RegistrationFieldsTab'
 
 type StripeConfig = {
   source: 'env'
@@ -52,6 +54,7 @@ type Settings = {
   website: string
   primaryColor: string
   invoicePdfTemplate: string
+  registrationFieldsConfig: RegistrationFieldDef[]
   stripe: StripeConfig
   connect: ConnectConfig
   webhooks: WebhooksStatus
@@ -106,12 +109,13 @@ const EMPTY: Settings = {
   website: '',
   primaryColor: '',
   invoicePdfTemplate: 'CLASSIC',
+  registrationFieldsConfig: getDefaultRegistrationFields(),
   stripe: EMPTY_STRIPE,
   connect: EMPTY_CONNECT,
   webhooks: EMPTY_WEBHOOKS,
 }
 
-type Tab = 'identity' | 'legal' | 'subscription'
+type Tab = 'identity' | 'legal' | 'registration' | 'subscription'
 
 export function ClubSettingsModal({
   open,
@@ -153,6 +157,9 @@ export function ClubSettingsModal({
           typeof incoming.invoicePdfTemplate === 'string'
             ? incoming.invoicePdfTemplate
             : EMPTY.invoicePdfTemplate,
+        registrationFieldsConfig: Array.isArray(incoming.registrationFieldsConfig)
+          ? incoming.registrationFieldsConfig
+          : getDefaultRegistrationFields(),
         stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
         connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
         webhooks: { ...EMPTY_WEBHOOKS, ...(incoming.webhooks || {}) },
@@ -245,6 +252,9 @@ export function ClubSettingsModal({
           typeof incoming.invoicePdfTemplate === 'string'
             ? incoming.invoicePdfTemplate
             : EMPTY.invoicePdfTemplate,
+        registrationFieldsConfig: Array.isArray(incoming.registrationFieldsConfig)
+          ? incoming.registrationFieldsConfig
+          : getDefaultRegistrationFields(),
         stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
         connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
         webhooks: { ...EMPTY_WEBHOOKS, ...(incoming.webhooks || {}) },
@@ -391,6 +401,7 @@ export function ClubSettingsModal({
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'identity', label: 'Identidad', icon: '★' },
     { id: 'legal', label: 'Información legal', icon: '§' },
+    { id: 'registration', label: 'Campos de registro', icon: '◆' },
     { id: 'subscription', label: 'Pagos', icon: '◇' },
   ]
 
@@ -527,6 +538,14 @@ export function ClubSettingsModal({
                 />
               )}
               {tab === 'legal' && <LegalTab form={form} update={update} />}
+              {tab === 'registration' && (
+                <RegistrationFieldsTab
+                  fields={form.registrationFieldsConfig}
+                  onChange={(registrationFieldsConfig) =>
+                    setForm((p) => ({ ...p, registrationFieldsConfig }))
+                  }
+                />
+              )}
               {tab === 'subscription' && (
                 <SubscriptionTab
                   connect={form.connect}

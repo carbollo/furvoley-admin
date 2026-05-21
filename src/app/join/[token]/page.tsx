@@ -2,8 +2,11 @@ import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
-import { submitSignupFromLink } from '@/app/actions/signup-links'
 import { AutoCloseNotice } from './AutoCloseNotice'
+import { JoinSignupForm } from './JoinSignupForm'
+import { processJoinSignup } from './join-action'
+import { getRegistrationFieldsConfig } from '@/lib/club-settings'
+import { getEnabledRegistrationFields } from '@/lib/registration-fields'
 import '@/components/crm/crm-vars.css'
 
 const fontJoin = Plus_Jakarta_Sans({
@@ -54,10 +57,6 @@ function Shell({
   )
 }
 
-const inputCls =
-  'w-full rounded-xl border px-4 py-3 text-[15px] text-[#111827] placeholder:text-neutral-400 outline-none transition-[box-shadow,border-color] focus:ring-2 focus:ring-[oklch(0.62_0.14_240_/_0.35)] bg-white'
-const labelCls = 'block text-[13px] font-semibold tracking-wide text-[#64748b] mb-2'
-
 export default async function JoinPage({
   params,
   searchParams,
@@ -84,30 +83,15 @@ export default async function JoinPage({
 
   const expired = !!(link.expiresAt && link.expiresAt < new Date())
   const unavailable = !link.isActive || expired || link.usesCount >= link.maxUses
+  const registrationConfig = await getRegistrationFieldsConfig()
+  const registrationFields = getEnabledRegistrationFields(registrationConfig)
 
   async function action(formData: FormData) {
     'use server'
     const tokenValue = String(formData.get('token'))
-    const name = String(formData.get('name') || '').trim()
-    const dni = String(formData.get('dni') || '').trim()
-    const birthDate = String(formData.get('birthDate') || '').trim()
-    const phone = String(formData.get('phone') || '').trim()
-    const email = String(formData.get('email') || '').trim()
-    const address = String(formData.get('address') || '').trim()
-
-    await submitSignupFromLink({
-      token: tokenValue,
-      name,
-      dni,
-      birthDate,
-      phone,
-      email,
-      address,
-    })
+    await processJoinSignup(formData)
     redirect(`/join/${tokenValue}?success=1`)
   }
-
-  const borderInput = '1px solid rgba(0, 0, 0, 0.1)'
 
   return (
     <Shell
@@ -126,42 +110,7 @@ export default async function JoinPage({
           Este enlace no está disponible (caducado o ya utilizado).
         </div>
       ) : (
-        <form action={action} className="space-y-5">
-          <input type="hidden" name="token" value={token} />
-          <div>
-            <label className={labelCls}>Nombre y apellidos</label>
-            <input name="name" required className={inputCls} style={{ border: borderInput }} />
-          </div>
-          <div>
-            <label className={labelCls}>DNI</label>
-            <input name="dni" required className={inputCls} style={{ border: borderInput }} />
-          </div>
-          <div>
-            <label className={labelCls}>Fecha de nacimiento</label>
-            <input type="date" name="birthDate" required className={inputCls} style={{ border: borderInput }} />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div className="min-w-0">
-              <label className={labelCls}>Teléfono</label>
-              <input name="phone" className={inputCls} style={{ border: borderInput }} />
-            </div>
-            <div className="min-w-0">
-              <label className={labelCls}>Correo electrónico</label>
-              <input type="email" name="email" className={inputCls} style={{ border: borderInput }} />
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Domicilio</label>
-            <input name="address" className={inputCls} style={{ border: borderInput }} />
-          </div>
-          <button
-            type="submit"
-            className="mt-4 w-full rounded-xl py-3.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-95 active:opacity-90"
-            style={{ background: 'oklch(0.52 0.18 240)', boxShadow: '0 1px 2px rgba(37,99,235,0.22)' }}
-          >
-            Enviar inscripción
-          </button>
-        </form>
+        <JoinSignupForm token={token} fields={registrationFields} action={action} />
       )}
     </Shell>
   )

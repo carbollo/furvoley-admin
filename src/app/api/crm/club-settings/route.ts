@@ -7,7 +7,12 @@ import {
   getStripePortalConfig,
   getStripeConnectConfig,
   normalizeInvoicePdfTemplate,
+  registrationFieldsFromSettings,
 } from '@/lib/club-settings'
+import {
+  normalizeRegistrationFieldsConfig,
+  validateRegistrationFieldsConfig,
+} from '@/lib/registration-fields'
 import { getStripeBootstrapStatus, scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 
 const MAX_LOGO_SIZE_BYTES = 768 * 1024 // ~768 KB para data URLs base64 (~ 1 MB en raw)
@@ -32,6 +37,7 @@ async function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
     website: s.website ?? '',
     primaryColor: s.primaryColor ?? '',
     invoicePdfTemplate: normalizeInvoicePdfTemplate(s.invoicePdfTemplate),
+    registrationFieldsConfig: registrationFieldsFromSettings(s),
     updatedAt: s.updatedAt.toISOString(),
     // Datos de Stripe (read-only desde Railway env vars)
     stripe: {
@@ -112,6 +118,19 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Plantilla PDF inválida' }, { status: 400 })
     }
     data.invoicePdfTemplate = normalizeInvoicePdfTemplate(raw)
+  }
+
+  if ('registrationFieldsConfig' in body) {
+    const raw = body.registrationFieldsConfig
+    if (!Array.isArray(raw)) {
+      return NextResponse.json({ error: 'Configuración de campos de registro inválida' }, { status: 400 })
+    }
+    const normalized = normalizeRegistrationFieldsConfig(raw)
+    const configError = validateRegistrationFieldsConfig(normalized)
+    if (configError) {
+      return NextResponse.json({ error: configError }, { status: 400 })
+    }
+    data.registrationFieldsConfig = normalized
   }
 
   // Logo (data URL o URL https)

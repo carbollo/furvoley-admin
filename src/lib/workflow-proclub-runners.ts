@@ -28,15 +28,39 @@ async function loadMemberPayload(memberId: string): Promise<WorkflowMemberPayloa
       name: true,
       email: true,
       phone: true,
+      guardianName: true,
       guardianPhone: true,
       address: true,
       sportPreference: true,
       dni: true,
       birthDate: true,
       status: true,
+      registrationExtra: true,
     },
   })
-  return m ? { ...m } : null
+  if (!m) return null
+  const extra =
+    m.registrationExtra && typeof m.registrationExtra === 'object' && !Array.isArray(m.registrationExtra)
+      ? Object.fromEntries(
+          Object.entries(m.registrationExtra as Record<string, unknown>).filter(
+            ([, v]) => typeof v === 'string' && v.trim(),
+          ),
+        )
+      : null
+  return {
+    id: m.id,
+    name: m.name,
+    email: m.email,
+    phone: m.phone,
+    guardianName: m.guardianName,
+    guardianPhone: m.guardianPhone,
+    address: m.address,
+    sportPreference: m.sportPreference,
+    dni: m.dni,
+    birthDate: m.birthDate,
+    status: m.status,
+    registrationExtra: extra && Object.keys(extra).length ? (extra as Record<string, string>) : null,
+  }
 }
 
 function leadAsMember(lead: {
@@ -51,12 +75,14 @@ function leadAsMember(lead: {
     name: lead.name,
     email: lead.email,
     phone: lead.phone,
+    guardianName: null,
     guardianPhone: lead.phone,
     address: null,
     sportPreference: lead.sportPreference,
     dni: null,
     birthDate: null,
     status: 'LEAD',
+    registrationExtra: null,
   }
 }
 

@@ -1,5 +1,10 @@
 import { unstable_noStore as noStore } from 'next/cache'
 import { prisma } from '@/lib/prisma'
+import {
+  getDefaultRegistrationFields,
+  normalizeRegistrationFieldsConfig,
+  type RegistrationFieldDef,
+} from '@/lib/registration-fields'
 
 export type InvoicePdfTemplateId = 'CLASSIC' | 'MODERN' | 'COMPACT'
 
@@ -33,6 +38,7 @@ export type ClubSettingsFull = {
   contactEmail: string | null
   contactPhone: string | null
   website: string | null
+  registrationFieldsConfig: unknown
   updatedAt: Date
 }
 
@@ -163,6 +169,18 @@ export function clubSettingsToIssuer(s: ClubSettingsFull): ClubIssuer {
 export async function getClubIssuer(): Promise<ClubIssuer> {
   const s = await getClubSettings()
   return clubSettingsToIssuer(s)
+}
+
+/** Campos de inscripción normalizados (enlace público + alta CRM). */
+export async function getRegistrationFieldsConfig(): Promise<RegistrationFieldDef[]> {
+  const s = await getClubSettings()
+  return normalizeRegistrationFieldsConfig(s.registrationFieldsConfig)
+}
+
+export function registrationFieldsFromSettings(
+  settings: Pick<ClubSettingsFull, 'registrationFieldsConfig'>,
+): RegistrationFieldDef[] {
+  return normalizeRegistrationFieldsConfig(settings.registrationFieldsConfig)
 }
 
 /**

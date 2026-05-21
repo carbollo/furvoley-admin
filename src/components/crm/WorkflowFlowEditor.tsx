@@ -31,6 +31,12 @@ import {
   type WorkflowTriggerConfig,
 } from '@/lib/workflow-trigger-config'
 import {
+  branchFieldOptionsFromConfig,
+  getDefaultRegistrationFields,
+  workflowTokensFromConfig,
+  type RegistrationFieldDef,
+} from '@/lib/registration-fields'
+import {
   isWorkflowTriggerAllowed,
   workflowTriggerLabel,
   WORKFLOW_TRIGGER_OPTIONS,
@@ -368,7 +374,10 @@ function tokenTargetsForAction(actionType: string): Array<{ key: string; label: 
   return []
 }
 
-function triggerTokenOptionsByType(triggerType: string): TokenOption[] {
+function triggerTokenOptionsByType(
+  triggerType: string,
+  registrationFields: RegistrationFieldDef[],
+): TokenOption[] {
   const memberBase: TokenOption[] = [
     { token: '{memberId}', label: 'Socio ID' },
     { token: '{memberName}', label: 'Socio nombre' },
@@ -379,6 +388,10 @@ function triggerTokenOptionsByType(triggerType: string): TokenOption[] {
     { token: '{memberStatus}', label: 'Socio estado' },
     { token: '{memberSportPreference}', label: 'Socio preferencia deportiva' },
     { token: '{memberAge}', label: 'Socio edad' },
+    { token: '{memberBirthDate}', label: 'Socio fecha nacimiento' },
+    { token: '{memberGuardianName}', label: 'Socio tutor (nombre)' },
+    { token: '{memberGuardianPhone}', label: 'Socio tutor (teléfono)' },
+    ...workflowTokensFromConfig(registrationFields).filter((t) => t.token.startsWith('{memberExtra_')),
   ]
   const triggerBase: TokenOption[] = [
     { token: '{triggerType}', label: 'Trigger · tipo' },
@@ -388,6 +401,14 @@ function triggerTokenOptionsByType(triggerType: string): TokenOption[] {
     { token: '{triggerMemberEmail}', label: 'Trigger · socio email' },
     { token: '{triggerMemberPhone}', label: 'Trigger · socio teléfono' },
     { token: '{triggerMemberStatus}', label: 'Trigger · socio estado' },
+    { token: '{triggerMemberDni}', label: 'Trigger · socio DNI' },
+    { token: '{triggerMemberAddress}', label: 'Trigger · socio dirección' },
+    { token: '{triggerMemberBirthDate}', label: 'Trigger · fecha nacimiento' },
+    { token: '{triggerMemberSportPreference}', label: 'Trigger · deporte inscripción' },
+    { token: '{triggerMemberGuardianName}', label: 'Trigger · tutor (nombre)' },
+    { token: '{triggerMemberGuardianPhone}', label: 'Trigger · tutor (teléfono)' },
+    { token: '{triggerMemberAge}', label: 'Trigger · edad' },
+    ...workflowTokensFromConfig(registrationFields).filter((t) => t.token.startsWith('{triggerMemberExtra_')),
   ]
   const memberStatusChanged: TokenOption[] = [
     { token: '{triggerPreviousStatus}', label: 'Trigger · estado anterior' },
@@ -422,6 +443,7 @@ export type WorkflowEditorInitialPaso = {
 
 export function WorkflowFlowEditor(props: {
   equipos: BundleEquip[]
+  registrationFields?: RegistrationFieldDef[]
   initialNombre: string
   initialDescripcion: string
   initialPasos: WorkflowEditorInitialPaso[]
@@ -448,6 +470,7 @@ export function WorkflowFlowEditor(props: {
 
 function WorkflowFlowEditorInner({
   equipos,
+  registrationFields: registrationFieldsProp,
   initialNombre,
   initialDescripcion,
   initialPasos,
@@ -459,6 +482,7 @@ function WorkflowFlowEditorInner({
   saveBusy,
 }: {
   equipos: BundleEquip[]
+  registrationFields?: RegistrationFieldDef[]
   initialNombre: string
   initialDescripcion: string
   initialPasos: WorkflowEditorInitialPaso[]
@@ -475,6 +499,11 @@ function WorkflowFlowEditorInner({
   }) => void
   saveBusy: boolean
 }) {
+  const registrationFields = registrationFieldsProp ?? getDefaultRegistrationFields()
+  const branchFieldOptions = useMemo(
+    () => branchFieldOptionsFromConfig(registrationFields),
+    [registrationFields],
+  )
   const [nombre, setNombre] = useState(initialNombre)
   const [descripcion, setDescripcion] = useState(initialDescripcion)
 
@@ -581,7 +610,7 @@ function WorkflowFlowEditorInner({
     if (triggerConnectedToSelected) {
       groups.push({
         sourceLabel: 'Disparador',
-        options: triggerTokenOptionsByType(selectedTriggerType),
+        options: triggerTokenOptionsByType(selectedTriggerType, registrationFields),
       })
     }
     for (const n of priorStepNodes) {
@@ -1695,11 +1724,11 @@ function WorkflowFlowEditorInner({
                           onChange={(e) => patchConfig({ ifField: e.target.value })}
                           style={{ ...inputBase, cursor: 'pointer' }}
                         >
-                          <option value="member.age">Edad</option>
-                          <option value="member.status">Estado</option>
-                          <option value="member.hasBirthDate">Tiene fecha nac.</option>
-                          <option value="member.name">Nombre</option>
-                          <option value="member.email">Correo</option>
+                          {branchFieldOptions.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
                         </select>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 8, marginTop: 12 }}>
                           <select

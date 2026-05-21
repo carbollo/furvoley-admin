@@ -4,18 +4,65 @@ import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { buildInvoiceVariables, runExtendedWorkflowAction } from '@/lib/workflow-engine-more'
 import { populateTeamRosterVariables } from '@/lib/workflow-team-context'
 import { memberStatusChangeMatches } from '@/lib/workflow-trigger-config'
+import { buildMemberExtraVariables } from '@/lib/registration-fields'
 
 export type WorkflowMemberPayload = {
   id: string
   name: string
   email: string | null
   phone: string | null
+  guardianName: string | null
   guardianPhone: string | null
   address: string | null
   sportPreference: string | null
   dni: string | null
   birthDate: Date | null
   status: string
+  registrationExtra: Record<string, string> | null
+}
+
+function parseRegistrationExtra(raw: unknown): Record<string, string> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const out: Record<string, string> = {}
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'string' && v.trim()) out[k] = v.trim()
+  }
+  return Object.keys(out).length ? out : null
+}
+
+function memberRowToPayload(row: {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  guardianName?: string | null
+  guardianPhone: string | null
+  address: string | null
+  sportPreference: string | null
+  dni: string | null
+  birthDate: Date | null
+  status: string
+  registrationExtra?: unknown
+}): WorkflowMemberPayload {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    guardianName: row.guardianName ?? null,
+    guardianPhone: row.guardianPhone,
+    address: row.address,
+    sportPreference: row.sportPreference,
+    dni: row.dni,
+    birthDate: row.birthDate,
+    status: row.status,
+    registrationExtra: parseRegistrationExtra(row.registrationExtra),
+  }
+}
+
+function formatBirthDateIso(d: Date | null): string {
+  if (!d) return ''
+  return d.toISOString().slice(0, 10)
 }
 
 type WorkflowRunContext = {
@@ -214,6 +261,7 @@ function buildTriggerVariables(
   context: WorkflowTriggerContext,
 ) {
   const payment = context.payment
+  const memberAge = member.birthDate ? String(calculateAge(member.birthDate)) : ''
   return {
     triggerType,
     triggerEventAt: new Date().toISOString(),
@@ -223,6 +271,13 @@ function buildTriggerVariables(
     triggerMemberPhone: member.phone ?? '',
     guardianPhone: member.guardianPhone ?? member.phone ?? '',
     triggerMemberStatus: member.status ?? '',
+    triggerMemberDni: member.dni ?? '',
+    triggerMemberAddress: member.address ?? '',
+    triggerMemberBirthDate: formatBirthDateIso(member.birthDate),
+    triggerMemberSportPreference: member.sportPreference ?? '',
+    triggerMemberGuardianName: member.guardianName ?? '',
+    triggerMemberGuardianPhone: member.guardianPhone ?? '',
+    triggerMemberAge: memberAge,
     triggerPreviousStatus: String(context.previousStatus || ''),
     triggerCurrentStatus: String(context.currentStatus || member.status || ''),
     triggerPaymentId: String(payment?.id || ''),
@@ -234,6 +289,7 @@ function buildTriggerVariables(
     triggerPaymentCreatedAt: payment?.createdAt ? payment.createdAt.toISOString() : '',
     triggerPaymentUpdatedAt: payment?.updatedAt ? payment.updatedAt.toISOString() : '',
     ...(context.invoice ? buildInvoiceVariables(context.invoice) : {}),
+    ...buildMemberExtraVariables(member.registrationExtra),
     eventId: String(context.event?.id || ''),
     eventTitle: String(context.event?.title || ''),
     eventDate: context.event?.date
@@ -327,6 +383,10 @@ function interpolateHttpTemplate(
     memberStatus: member.status ?? '',
     memberSportPreference: member.sportPreference ?? '',
     memberAge,
+    memberBirthDate: formatBirthDateIso(member.birthDate),
+    memberGuardianName: member.guardianName ?? '',
+    memberGuardianPhone: member.guardianPhone ?? '',
+    ...buildMemberExtraVariables(member.registrationExtra),
   }
   if (runContext) Object.assign(map, runContext.variables)
   // Accept multiple token styles so workflow configs are resilient:
@@ -419,6 +479,21 @@ function evalBranchCondition(
     left = member.name
   } else if (field === 'member.email') {
     left = member.email ?? ''
+  } else if (field === 'member.phone') {
+    left = member.phone ?? ''
+  } else if (field === 'member.dni') {
+    left = member.dni ?? ''
+  } else if (field === 'member.address') {
+    left = member.address ?? ''
+  } else if (field === 'member.sportPreference') {
+    left = member.sportPreference ?? ''
+  } else if (field === 'member.guardianName') {
+    left = member.guardianName ?? ''
+  } else if (field === 'member.guardianPhone') {
+    left = member.guardianPhone ?? ''
+  } else if (field.startsWith('member.extra.')) {
+    const key = field.slice('member.extra.'.length)
+    left = member.registrationExtra?.[key] ?? ''
   } else if (field === 'trigger.currentStatus') {
     left = String(runContext?.variables.triggerCurrentStatus || '')
   } else if (field === 'trigger.previousStatus') {
@@ -1054,27 +1129,18 @@ export async function runWorkflowsForMemberByTrigger(
       phone: true,
       address: true,
       sportPreference: true,
+      guardianName: true,
       guardianPhone: true,
       dni: true,
       birthDate: true,
       status: true,
+      registrationExtra: true,
     },
   })
 
   if (!memberRow) return
 
-  const member: WorkflowMemberPayload = {
-    id: memberRow.id,
-    name: memberRow.name,
-    email: memberRow.email,
-    phone: memberRow.phone,
-    guardianPhone: memberRow.guardianPhone,
-    address: memberRow.address,
-    sportPreference: memberRow.sportPreference,
-    dni: memberRow.dni,
-    birthDate: memberRow.birthDate,
-    status: memberRow.status,
-  }
+  const member = memberRowToPayload(memberRow)
 
   const workflows = (await prisma.workflow.findMany({
     where: { isActive: true },
@@ -1161,16 +1227,18 @@ export async function loadMemberPayload(memberId: string): Promise<WorkflowMembe
       name: true,
       email: true,
       phone: true,
+      guardianName: true,
       guardianPhone: true,
       address: true,
       sportPreference: true,
       dni: true,
       birthDate: true,
       status: true,
+      registrationExtra: true,
     },
   })
   if (!memberRow) return null
-  return { ...memberRow }
+  return memberRowToPayload(memberRow)
 }
 
 function leadAsMember(lead: {
@@ -1185,12 +1253,14 @@ function leadAsMember(lead: {
     name: lead.name,
     email: lead.email,
     phone: lead.phone,
+    guardianName: null,
     guardianPhone: lead.phone,
     address: null,
     sportPreference: lead.sportPreference,
     dni: null,
     birthDate: null,
     status: 'LEAD',
+    registrationExtra: null,
   }
 }
 
@@ -1346,12 +1416,14 @@ async function runEventTeamWorkflows(
     name: event.title,
     email: null,
     phone: null,
+    guardianName: null,
     guardianPhone: null,
     address: null,
     sportPreference: null,
     dni: null,
     birthDate: null,
     status: 'ACTIVE',
+    registrationExtra: null,
   }
 
   const ctx: WorkflowTriggerContext = {
@@ -1423,12 +1495,14 @@ export async function runTeamScheduleChangedWorkflows(teamId: string) {
     name: team.name,
     email: null,
     phone: null,
+    guardianName: null,
     guardianPhone: null,
     address: null,
     sportPreference: null,
     dni: null,
     birthDate: null,
     status: 'ACTIVE',
+    registrationExtra: null,
   }
 
   const ctx: WorkflowTriggerContext = { scheduleTeamId: cleanTeamId }

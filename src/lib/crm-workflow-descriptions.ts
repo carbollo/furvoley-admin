@@ -64,7 +64,8 @@ const ACTION_DESCRIPTIONS: Record<string, string> = {
   CREATE_INVITE_SIGNUP_LINK: 'Genera enlace de inscripción para invitar a un lead (no para socios ya dados de alta).',
   CREATE_SIGNUP_LINK: 'Enlace de alta para el propio socio; no usar en MEMBER_CREATED.',
   CREATE_TRANSACTION: 'Registra un movimiento en el libro contable.',
-  SEND_WHATSAPP: 'Envía WhatsApp al teléfono del socio (ApiWass). Soporta variables {nombre}, etc.',
+  SEND_WHATSAPP:
+    'Envía WhatsApp al teléfono del socio (ApiWass). Variables: {memberName}, {memberDni}, campos custom {memberExtra_clave}, etc.',
   SEND_WHATSAPP_TO_COACH: 'Mensaje al entrenador del equipo (o equipo del paso).',
   SEND_WHATSAPP_TO_TEAM: 'Envía el mismo mensaje a todos los jugadores del grupo.',
   SEND_PAYMENT_LINK: 'Envía enlace de pago Stripe al socio.',
@@ -82,7 +83,7 @@ const ACTION_DESCRIPTIONS: Record<string, string> = {
   TRIGGER_WAITLIST_NOTIFY: 'Dispara aviso a socios en lista de espera cuando hay plaza.',
   HTTP_REQUEST: 'Llama a una URL externa (webhook). Body y headers configurables.',
   BRANCH_IF:
-    'Evalúa una condición y sigue la rama Sí o No del lienzo (then/else). Sin bucles infinitos.',
+    'Evalúa una condición (edad, DNI, campos custom member.extra.clave…) y sigue la rama Sí o No del lienzo (then/else).',
 }
 
 export function workflowTriggerDescription(triggerType: string): string {

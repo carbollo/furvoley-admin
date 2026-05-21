@@ -24,17 +24,21 @@ export async function createMember(data: {
   email?: string
   phone?: string
   address?: string
+  guardianName?: string
+  guardianPhone?: string
   sportPreference?: string
+  registrationExtra?: Record<string, string> | null
   joinedAt?: Date
   status?: string
 }) {
-  const { joinedAt, ...rest } = data
+  const { joinedAt, registrationExtra, ...rest } = data
   const defaultPasswordRaw = process.env.MEMBER_DEFAULT_PASSWORD || '12345678'
   const hashedDefaultPassword = await bcrypt.hash(defaultPasswordRaw, 10)
   const member = await prisma.$transaction(async (tx) => {
     const created = await tx.member.create({
       data: {
         ...rest,
+        ...(registrationExtra ? { registrationExtra } : {}),
         ...(joinedAt !== undefined ? { joinedAt } : {}),
       },
     })

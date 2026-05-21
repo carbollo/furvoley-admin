@@ -89,6 +89,12 @@ export function WorkflowsSection({
   const wfs = (bundle?.workflows as Record<string, unknown>[]) ?? []
   const equipos = (bundle?.equipos as BundleEquip[]) ?? []
   const socios = (bundle?.socios as BundleSocio[]) ?? []
+  const registrationFields = Array.isArray(
+    (bundle?.club as { registrationFields?: unknown } | undefined)?.registrationFields,
+  )
+    ? ((bundle?.club as { registrationFields: import('@/lib/registration-fields').RegistrationFieldDef[] })
+        .registrationFields)
+    : undefined
 
   const nombreEquipo = useCallback(
     (id: string) => equipos.find((e) => e.id === id)?.nombre ?? '',
@@ -1408,6 +1414,7 @@ export function WorkflowsSection({
         <WorkflowFlowEditor
           key={editorSession}
           equipos={equipos}
+          registrationFields={registrationFields}
           initialNombre={initialNombre}
           initialDescripcion={initialDescripcion}
           initialPasos={initialPasos}

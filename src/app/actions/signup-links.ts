@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { runMemberCreatedWorkflows } from '@/lib/workflow-engine'
 import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
+import type { RegistrationMemberData } from '@/lib/registration-fields'
 
 async function buildSignupUrl(token: string) {
   const h = await headers()
@@ -43,15 +44,7 @@ export async function createSignupLink(expiresInDays = 30) {
   }
 }
 
-export async function submitSignupFromLink(data: {
-  token: string
-  name: string
-  dni: string
-  birthDate?: string
-  phone?: string
-  email?: string
-  address?: string
-}) {
+export async function submitSignupFromLink(data: RegistrationMemberData & { token: string }) {
   const link = await prisma.signupLink.findUnique({ where: { token: data.token } })
   if (!link || !link.isActive) throw new Error('Enlace no válido o desactivado')
   if (link.expiresAt && link.expiresAt < new Date()) throw new Error('El enlace ha caducado')
@@ -60,11 +53,15 @@ export async function submitSignupFromLink(data: {
   const member = await prisma.member.create({
     data: {
       name: data.name,
-      dni: data.dni,
-      birthDate: data.birthDate ? new Date(data.birthDate) : null,
+      dni: data.dni || null,
+      birthDate: data.birthDate ?? null,
       phone: data.phone || null,
       email: data.email || null,
       address: data.address || null,
+      guardianName: data.guardianName || null,
+      guardianPhone: data.guardianPhone || null,
+      sportPreference: data.sportPreference || null,
+      registrationExtra: data.registrationExtra ?? undefined,
       status: 'ACTIVE',
     },
   })
@@ -82,4 +79,3 @@ export async function submitSignupFromLink(data: {
 
   return member.id
 }
-
