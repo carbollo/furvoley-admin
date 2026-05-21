@@ -5409,13 +5409,13 @@ function Personal() {
                     <td style={{ padding: '16px 32px', color: 'var(--text-secondary)' }}>{u.memberName || '—'}</td>
                     <td style={{ padding: '16px 32px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       {u.isEnvFixedAdmin ? (
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                          Gestionada en Railway
-                        </span>
+                        '—'
                       ) : (
-                        <button type="button" onClick={() => resetPassword(u.id)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Restablecer contraseña</button>
+                        <>
+                          <button type="button" onClick={() => resetPassword(u.id)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Restablecer contraseña</button>
+                          <button type="button" onClick={() => removeUser(u.id, u.name || u.email || u.id)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', color: 'var(--red)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Eliminar</button>
+                        </>
                       )}
-                      <button type="button" onClick={() => removeUser(u.id, u.name || u.email || u.id)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', color: 'var(--red)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Eliminar</button>
                     </td>
                   </tr>
                 ))}
