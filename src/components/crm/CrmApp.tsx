@@ -25,6 +25,7 @@ import {
   validateRegistrationSubmission,
 } from '@/lib/registration-fields'
 import { RegistrationFieldsForm } from '@/components/registration/RegistrationFieldsForm'
+import { MemberCombobox } from '@/components/crm/MemberCombobox'
 
 type CrmCtx = {
   bundle: Record<string, unknown> | null
@@ -853,6 +854,19 @@ function Socios() {
   if (role !== 'ADMIN') return null
   const [sociosDb, setSociosDb] = useState<any[]>([])
   const SOCIOS_UI = sociosDb
+  const [sociosPage, setSociosPage] = useState(1)
+  const sociosPageSize = 50
+  const [sociosTotal, setSociosTotal] = useState(0)
+  const [sociosTotalPages, setSociosTotalPages] = useState(1)
+  const [sociosStats, setSociosStats] = useState({
+    total: 0,
+    activos: 0,
+    morosos: 0,
+    cuotaPromedio: 0,
+  })
+  const [deportes, setDeportes] = useState(['Todos'])
+  const [sociosLoading, setSociosLoading] = useState(false)
+  const [searchDebounced, setSearchDebounced] = useState('')
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const teamFilterId = (searchParams.get('team') ?? '').trim();
   const equipoFiltrado = teamFilterId
@@ -898,11 +912,39 @@ function Socios() {
   }, [selected]);
 
   const loadSociosDb = useCallback(async () => {
-    const r = await fetch('/api/crm/members', { credentials: 'include', cache: 'no-store' })
-    if (!r.ok) throw new Error('No se pudo cargar la lista real de socios')
-    const j = await r.json()
-    setSociosDb(Array.isArray(j?.socios) ? j.socios : [])
-  }, [])
+    setSociosLoading(true)
+    try {
+      const params = new URLSearchParams({
+        page: String(sociosPage),
+        pageSize: String(sociosPageSize),
+        stats: '1',
+      })
+      if (searchDebounced.trim()) params.set('q', searchDebounced.trim())
+      if (filterEstado !== 'Todos') params.set('estado', filterEstado)
+      if (filterDeporte !== 'Todos') params.set('deporte', filterDeporte)
+      if (teamFilterId) params.set('teamId', teamFilterId)
+      const r = await fetch(`/api/crm/members?${params.toString()}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      })
+      if (!r.ok) throw new Error('No se pudo cargar la lista real de socios')
+      const j = await r.json()
+      setSociosDb(Array.isArray(j?.socios) ? j.socios : [])
+      setSociosTotal(Number(j?.total || 0))
+      setSociosTotalPages(Math.max(1, Number(j?.totalPages || 1)))
+      if (j?.stats) {
+        setSociosStats({
+          total: Number(j.stats.total || 0),
+          activos: Number(j.stats.activos || 0),
+          morosos: Number(j.stats.morosos || 0),
+          cuotaPromedio: Number(j.stats.cuotaPromedio || 0),
+        })
+      }
+      if (Array.isArray(j?.deportes)) setDeportes(j.deportes)
+    } finally {
+      setSociosLoading(false)
+    }
+  }, [sociosPage, sociosPageSize, searchDebounced, filterEstado, filterDeporte, teamFilterId])
 
   const loadMembershipPlans = useCallback(async () => {
     const r = await fetch('/api/crm/membership-plans', { credentials: 'include', cache: 'no-store' })
@@ -919,6 +961,15 @@ function Socios() {
   }, [loadSociosDb, loadMembershipPlans])
 
   useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  useEffect(() => {
+    setSociosPage(1)
+  }, [searchDebounced, filterEstado, filterDeporte, teamFilterId])
+
+  useEffect(() => {
     function closeMenu(e: MouseEvent) {
       const target = e.target
       if (!(target instanceof Element)) return
@@ -930,21 +981,8 @@ function Socios() {
     return () => document.removeEventListener('mousedown', closeMenu)
   }, [])
 
-  const filtered = SOCIOS_UI.filter(s => {
-    if (teamFilterId) {
-      if (!idsInFilteredTeam) return false;
-      if (!idsInFilteredTeam.has(s.id)) return false;
-    }
-    return (
-      (s.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        (s.email || '').toLowerCase().includes(search.toLowerCase())) &&
-      (filterEstado === 'Todos' || s.estado === filterEstado) &&
-      (filterDeporte === 'Todos' || s.deporte === filterDeporte)
-    );
-  });
-
-  const deportes = ['Todos', ...new Set(SOCIOS_UI.map(s => s.deporte))];
-  const estados = ['Todos', 'Activo', 'Moroso', 'Inactivo'];
+  const filtered = SOCIOS_UI
+  const estados = ['Todos', 'Activo', 'Moroso', 'Inactivo']
 
   function planPaymentRequiredDefault(planId) {
     return membershipPlans.find((p) => p.id === planId)?.paymentRequiredOnEnrollment ?? false
@@ -1084,10 +1122,16 @@ function Socios() {
         return;
       }
       setShowEditSocioModal(false);
-      const j = await reload();
+      await reload();
       await loadSociosDb()
-      const nextSoc = j?.socios?.find((x) => x.id === savedId);
-      if (nextSoc) setSelected(nextSoc);
+      const detailR = await fetch(`/api/crm/members?id=${encodeURIComponent(savedId)}`, {
+        credentials: 'include',
+        cache: 'no-store',
+      })
+      if (detailR.ok) {
+        const detailJ = await detailR.json()
+        if (detailJ?.socio) setSelected(detailJ.socio)
+      }
     } finally {
       setEditSocioBusy(false);
     }
@@ -1240,13 +1284,10 @@ function Socios() {
     await reload();
   }
 
-  // KPIs Socios
-  const totalSocios = SOCIOS_UI.length
-  const sociosActivosN = SOCIOS_UI.filter(s => s.estado === 'Activo').length
-  const sociosMorososN = SOCIOS_UI.filter(s => s.estado === 'Moroso').length
-  const cuotaPromedio = totalSocios > 0
-    ? SOCIOS_UI.reduce((a, s) => a + Number(s.cuota || 0), 0) / totalSocios
-    : 0
+  const totalSocios = sociosStats.total
+  const sociosActivosN = sociosStats.activos
+  const sociosMorososN = sociosStats.morosos
+  const cuotaPromedio = sociosStats.cuotaPromedio
 
   return (
     <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
@@ -1257,8 +1298,8 @@ function Socios() {
             <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Socios</h1>
             <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>
               {teamFilterId && equipoFiltrado
-                ? `${filtered.length} de ${SOCIOS_UI.length} socios · equipo «${equipoFiltrado.nombre}»`
-                : `${SOCIOS_UI.length} socios registrados en el club`}
+                ? `${sociosTotal} socios en «${equipoFiltrado.nombre}»`
+                : `${totalSocios.toLocaleString('es-ES')} socios registrados en el club`}
             </p>
           </div>
           <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',gap:10}}>
@@ -1396,7 +1437,9 @@ function Socios() {
         <div style={{padding:'24px 32px',borderBottom:'1px solid var(--border)'}}>
           <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Directorio de socios</div>
           <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>
-            {filtered.length} {filtered.length === 1 ? 'resultado' : 'resultados'} en la vista actual
+            {sociosLoading
+              ? 'Cargando socios…'
+              : `${sociosTotal.toLocaleString('es-ES')} ${sociosTotal === 1 ? 'resultado' : 'resultados'} · página ${sociosPage} de ${sociosTotalPages}`}
           </div>
         </div>
         <table style={{width:'100%',borderCollapse:'collapse'}}>
@@ -1471,6 +1514,62 @@ function Socios() {
             ))}
           </tbody>
         </table>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+            padding: '16px 32px',
+            borderTop: '1px solid var(--border)',
+          }}
+        >
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+            Mostrando {filtered.length} de {sociosTotal.toLocaleString('es-ES')} socios
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              disabled={sociosPage <= 1 || sociosLoading}
+              onClick={() => setSociosPage((p) => Math.max(1, p - 1))}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-card)',
+                cursor: sociosPage <= 1 || sociosLoading ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                fontSize: 12,
+                fontWeight: 600,
+                opacity: sociosPage <= 1 || sociosLoading ? 0.5 : 1,
+              }}
+            >
+              Anterior
+            </button>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>
+              {sociosPage} / {sociosTotalPages}
+            </span>
+            <button
+              type="button"
+              disabled={sociosPage >= sociosTotalPages || sociosLoading}
+              onClick={() => setSociosPage((p) => Math.min(sociosTotalPages, p + 1))}
+              style={{
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-card)',
+                cursor: sociosPage >= sociosTotalPages || sociosLoading ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                fontSize: 12,
+                fontWeight: 600,
+                opacity: sociosPage >= sociosTotalPages || sociosLoading ? 0.5 : 1,
+              }}
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
         {menuSocioId && (
           <div
             data-socio-menu
@@ -2011,7 +2110,6 @@ function Equipos() {
     }
   }
 
-  const SOCIOS_ALL = bundle?.socios ?? [];
   const [gestionarEquipo, setGestionarEquipo] = useState(null);
   const [gestionarBusy, setGestionarBusy] = useState(false);
   const [formGestionarTeam, setFormGestionarTeam] = useState({
@@ -2021,6 +2119,7 @@ function Equipos() {
     seasonEndDate: '',
   });
   const [coachSelectMemberId, setCoachSelectMemberId] = useState('');
+  const [coachSelectLabel, setCoachSelectLabel] = useState('');
   const [addAlEquipoMemberId, setAddAlEquipoMemberId] = useState('');
   const [scheduleForm, setScheduleForm] = useState({
     weekday: '1',
@@ -2049,6 +2148,7 @@ function Equipos() {
       seasonEndDate: eq.seasonEndDate || '',
     });
     setCoachSelectMemberId(eq.coachMemberId || '');
+    setCoachSelectLabel(eq.entrenador && eq.entrenador !== '—' ? eq.entrenador : '');
     setAddAlEquipoMemberId('');
     setScheduleForm({
       weekday: '1',
@@ -2270,11 +2370,7 @@ function Equipos() {
     }
   }
 
-  const sociosDisponiblesParaEquipo = gestionarEquipo
-    ? SOCIOS_ALL.filter(
-        (s) => !(gestionarEquipo.miembros ?? []).some((m) => m.memberId === s.id),
-      )
-    : [];
+  const miembrosEquipoIds = (gestionarEquipo?.miembros ?? []).map((m) => m.memberId)
 
   // KPIs Equipos
   const totalEquipos = EQUIPOS_UI.length
@@ -2667,19 +2763,16 @@ function Equipos() {
               <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#6b7280' }}>
                 Debe ser un socio del club (si no está en el equipo, se añadirá automáticamente).
               </p>
-              <select
+              <MemberCombobox
                 value={coachSelectMemberId}
-                onChange={(e) => setCoachSelectMemberId(e.target.value)}
-                style={{ ...teamInput, cursor: 'pointer', marginBottom: 10 }}
-              >
-                <option value="">— Elige un socio —</option>
-                {SOCIOS_ALL.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre}
-                    {s.email ? ` (${s.email})` : ''}
-                  </option>
-                ))}
-              </select>
+                displayLabel={coachSelectLabel}
+                onChange={(memberId, member) => {
+                  setCoachSelectMemberId(memberId)
+                  setCoachSelectLabel(member?.nombre || '')
+                }}
+                placeholder="Buscar socio para entrenador…"
+                style={{ marginBottom: 10 }}
+              />
               <button
                 type="button"
                 disabled={gestionarBusy || !coachSelectMemberId}
@@ -2799,28 +2892,24 @@ function Equipos() {
               </div>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 8 }}>Añadir socio al equipo</div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
-                <select
-                  value={addAlEquipoMemberId}
-                  onChange={(e) => setAddAlEquipoMemberId(e.target.value)}
-                  style={{ ...teamInput, flex: 1, minWidth: 200, cursor: 'pointer' }}
-                >
-                  <option value="">— Elige socio para añadir —</option>
-                  {sociosDisponiblesParaEquipo.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nombre}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <MemberCombobox
+                    value={addAlEquipoMemberId}
+                    excludeIds={miembrosEquipoIds}
+                    onChange={(memberId) => setAddAlEquipoMemberId(memberId)}
+                    placeholder="Buscar socio para añadir…"
+                  />
+                </div>
                 <button
                   type="button"
-                  disabled={gestionarBusy || !addAlEquipoMemberId || sociosDisponiblesParaEquipo.length === 0}
+                  disabled={gestionarBusy || !addAlEquipoMemberId}
                   onClick={anadirSocioAlEquipo}
                   style={{
                     padding: '11px 18px',
                     borderRadius: 12,
                     border: 'none',
-                    background: sociosDisponiblesParaEquipo.length && addAlEquipoMemberId ? '#111827' : '#e5e7eb',
-                    color: sociosDisponiblesParaEquipo.length && addAlEquipoMemberId ? '#fff' : '#9ca3af',
+                    background: addAlEquipoMemberId ? '#111827' : '#e5e7eb',
+                    color: addAlEquipoMemberId ? '#fff' : '#9ca3af',
                     cursor: gestionarBusy || !addAlEquipoMemberId ? 'not-allowed' : 'pointer',
                     fontFamily: 'inherit',
                     fontSize: 13,
@@ -2830,9 +2919,6 @@ function Equipos() {
                   Añadir
                 </button>
               </div>
-              {sociosDisponiblesParaEquipo.length === 0 && (gestionarEquipo.miembros ?? []).length > 0 && (
-                <p style={{ margin: '10px 0 0', fontSize: 12, color: '#9ca3af' }}>Todos los socios ya están en este equipo.</p>
-              )}
             </div>
           </div>
         </div>
@@ -2848,7 +2934,7 @@ function Contabilidad({ setActive }) {
   const role = normalizeRole(bundle?.user?.role)
   if (!(role === 'ADMIN' || role === 'TREASURER')) return null
   const COBROS_UI = bundle?.cobros ?? [];
-  const SOCIOS_UI = bundle?.socios ?? [];
+  const sociosTotal = Number(bundle?.kpis?.sociosTotal || 0);
   const EQUIPOS_UI = bundle?.equipos ?? [];
   const countTeamPlayers = (eq) =>
     (eq?.miembros ?? []).filter((m) => m.role === 'PLAYER').length
@@ -3093,7 +3179,7 @@ function Contabilidad({ setActive }) {
   }
 
   function openNuevoCobroModal() {
-    if (!SOCIOS_UI.length && !equiposConJugadores.length) {
+    if (!sociosTotal && !equiposConJugadores.length) {
       showAlert('No hay socios ni equipos con jugadores para facturar.')
       return
     }
@@ -3102,8 +3188,8 @@ function Contabilidad({ setActive }) {
     const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 5)
     const dueDate = `${nextMonth.getFullYear()}-${pad(nextMonth.getMonth() + 1)}-${pad(nextMonth.getDate())}`
     setNuevoCobroForm({
-      target: SOCIOS_UI.length ? 'member' : 'team',
-      memberId: SOCIOS_UI[0]?.id || '',
+      target: sociosTotal ? 'member' : 'team',
+      memberId: '',
       teamId: equiposConJugadores[0]?.id || '',
       concepto: 'Cuota mensual',
       amount: '',
@@ -4111,17 +4197,13 @@ function Contabilidad({ setActive }) {
               </div>
             </div>
 
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginTop: 12, marginBottom: 6, display: 'block' }}>Socio (opcional, trazabilidad)</label>
-            <select
+            <MemberCombobox
+              label="Socio (opcional, trazabilidad)"
               value={movimientoForm.memberId}
-              onChange={(e) => setMovimientoForm((f) => ({ ...f, memberId: e.target.value }))}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', fontFamily: 'inherit' }}
-            >
-              <option value="">Sin socio asociado</option>
-              {SOCIOS_UI.map((s) => (
-                <option key={s.id} value={s.id}>{s.nombre}</option>
-              ))}
-            </select>
+              onChange={(memberId) => setMovimientoForm((f) => ({ ...f, memberId }))}
+              placeholder="Buscar socio (opcional)…"
+              style={{ marginTop: 12 }}
+            />
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button
@@ -4187,7 +4269,7 @@ function Contabilidad({ setActive }) {
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
               <button
                 type="button"
-                disabled={!SOCIOS_UI.length}
+                disabled={!sociosTotal}
                 onClick={() => setNuevoCobroForm((f) => ({ ...f, target: 'member' }))}
                 style={{
                   flex: 1,
@@ -4196,11 +4278,11 @@ function Contabilidad({ setActive }) {
                   border: nuevoCobroForm.target === 'member' ? '1.5px solid var(--accent)' : '1px solid rgba(0,0,0,0.09)',
                   background: nuevoCobroForm.target === 'member' ? 'var(--accent-soft)' : '#fff',
                   color: nuevoCobroForm.target === 'member' ? 'var(--accent)' : '#374151',
-                  cursor: SOCIOS_UI.length ? 'pointer' : 'not-allowed',
+                  cursor: sociosTotal ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit',
                   fontSize: 13,
                   fontWeight: 600,
-                  opacity: SOCIOS_UI.length ? 1 : 0.55,
+                  opacity: sociosTotal ? 1 : 0.55,
                 }}
               >
                 Un socio
@@ -4234,20 +4316,14 @@ function Contabilidad({ setActive }) {
             </div>
 
             {nuevoCobroForm.target === 'member' ? (
-              <>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Socio</label>
-                <select
-                  required
-                  value={nuevoCobroForm.memberId}
-                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, memberId: e.target.value }))}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', marginBottom: 12, fontFamily: 'inherit' }}
-                >
-                  <option value="">— Seleccionar socio —</option>
-                  {SOCIOS_UI.map((s) => (
-                    <option key={s.id} value={s.id}>{s.nombre}</option>
-                  ))}
-                </select>
-              </>
+              <MemberCombobox
+                label="Socio"
+                required
+                value={nuevoCobroForm.memberId}
+                onChange={(memberId) => setNuevoCobroForm((f) => ({ ...f, memberId }))}
+                placeholder="Buscar socio por nombre o email…"
+                style={{ marginBottom: 12 }}
+              />
             ) : (
               <>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Equipo</label>
@@ -4980,6 +5056,33 @@ function Informes({ setActive }) {
   const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
+  const [morososPage, setMorososPage] = useState(1);
+  const [morososList, setMorososList] = useState<any[]>([]);
+  const [morososTotal, setMorososTotal] = useState(0);
+  const [morososTotalPages, setMorososTotalPages] = useState(1);
+  const [morososLoading, setMorososLoading] = useState(false);
+  const morososCount = Number(bundle?.kpis?.sociosMorosos || morososTotal || 0);
+
+  useEffect(() => {
+    setMorososLoading(true);
+    fetch(`/api/crm/members?estado=Moroso&page=${morososPage}&pageSize=25`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+      .then((r) => (r.ok ? r.json() : { socios: [], total: 0, totalPages: 1 }))
+      .then((j) => {
+        setMorososList(Array.isArray(j?.socios) ? j.socios : []);
+        setMorososTotal(Number(j?.total || 0));
+        setMorososTotalPages(Math.max(1, Number(j?.totalPages || 1)));
+      })
+      .catch(() => {
+        setMorososList([]);
+        setMorososTotal(0);
+        setMorososTotalPages(1);
+      })
+      .finally(() => setMorososLoading(false));
+  }, [morososPage]);
+
   const reportTx = bundle?.reportTransactions ?? [];
   const txFiltradas = reportTx.filter((t) => {
     const d = String(t.date || '');
@@ -4999,7 +5102,6 @@ function Informes({ setActive }) {
   }
   const totIng = ingresos.reduce((a,b)=>a+b,0);
   const totEgr = egresos.reduce((a,b)=>a+b,0);
-  const SOCIOS_UI = bundle?.socios ?? [];
   const conceptTotals = new Map();
   for (const t of txFiltradas) {
     if (t.type !== 'INCOME') continue;
@@ -5021,7 +5123,6 @@ function Informes({ setActive }) {
     ? conceptos
     : [{ label: 'Sin ingresos', value: 0, color: '#CBD5E1' }];
 
-  const morosos = SOCIOS_UI.filter(s => s.estado === 'Moroso')
   const ratio = totIng > 0 ? Math.round(((totIng - totEgr) / totIng) * 100) : 0
 
   return (
@@ -5058,7 +5159,7 @@ function Informes({ setActive }) {
           <KPICard label="Ingresos totales" value={fmtMoney(totIng)} sub="En el rango actual" icon="reports" color="var(--green)" badge={totIng > 0 ? { kind:'success', text:'+', icon:'trend_up' } : null}/>
           <KPICard label="Gastos totales" value={fmtMoney(totEgr)} sub={`${txFiltradas.filter(t => t.type === 'EXPENSE').length} movimientos`} icon="billing" color="var(--red)" badge={totEgr > 0 ? { kind:'danger', text:'Salida' } : null}/>
           <KPICard label="Resultado neto" value={fmtMoney(totIng - totEgr)} sub={`Margen ${ratio}%`} icon="dashboard" color="var(--accent-soft)" badge={(totIng - totEgr) >= 0 ? { kind:'success', text:'Positivo', icon:'trend_up' } : { kind:'danger', text:'Negativo', icon:'trend_down' }}/>
-          <KPICard label="Socios morosos" value={String(morosos.length)} sub={morosos.length > 0 ? 'Deuda vencida' : 'Sin morosidad'} icon="users" color="var(--amber)" badge={morosos.length > 0 ? { kind:'warning', text:'Atención' } : { kind:'success', text:'OK' }}/>
+          <KPICard label="Socios morosos" value={String(morososCount)} sub={morososCount > 0 ? 'Deuda vencida' : 'Sin morosidad'} icon="users" color="var(--amber)" badge={morososCount > 0 ? { kind:'warning', text:'Atención' } : { kind:'success', text:'OK' }}/>
         </div>
 
         {/* Bento charts */}
@@ -5108,14 +5209,21 @@ function Informes({ setActive }) {
         <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
           <div style={{padding:'24px 32px',borderBottom:'1px solid var(--border)'}}>
             <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Socios con deuda vencida</div>
-            <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>{morosos.length} {morosos.length === 1 ? 'socio' : 'socios'} en mora</div>
+            <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>
+              {morososLoading
+                ? 'Cargando…'
+                : `${morososTotal.toLocaleString('es-ES')} ${morososTotal === 1 ? 'socio' : 'socios'} en mora`}
+            </div>
           </div>
-          {morosos.length === 0 ? (
+          {morososLoading ? (
+            <div style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>Cargando socios morosos…</div>
+          ) : morososList.length === 0 ? (
             <div style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
               Sin morosidad. Todos los socios al día.
             </div>
           ) : (
-            morosos.map((s, i) => (
+            <>
+            {morososList.map((s, i) => (
               <div key={s.id} style={{
                 minHeight:64,padding:'16px 32px',display:'flex',alignItems:'center',gap:16,
                 borderTop: i === 0 ? 'none' : '1px solid var(--border)'
@@ -5134,7 +5242,15 @@ function Informes({ setActive }) {
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)' }}
                 >Ver en socios</button>
               </div>
-            ))
+            ))}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, padding:'16px 32px', borderTop:'1px solid var(--border)' }}>
+              <span style={{ fontSize:13, color:'var(--text-muted)' }}>Página {morososPage} de {morososTotalPages}</span>
+              <div style={{ display:'flex', gap:8 }}>
+                <button type="button" disabled={morososPage <= 1 || morososLoading} onClick={() => setMorososPage((p) => Math.max(1, p - 1))} style={{ padding:'8px 14px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface-card)', cursor: morososPage <= 1 ? 'not-allowed' : 'pointer', fontFamily:'inherit', fontSize:12, fontWeight:600, opacity: morososPage <= 1 ? 0.5 : 1 }}>Anterior</button>
+                <button type="button" disabled={morososPage >= morososTotalPages || morososLoading} onClick={() => setMorososPage((p) => Math.min(morososTotalPages, p + 1))} style={{ padding:'8px 14px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface-card)', cursor: morososPage >= morososTotalPages ? 'not-allowed' : 'pointer', fontFamily:'inherit', fontSize:12, fontWeight:600, opacity: morososPage >= morososTotalPages ? 0.5 : 1 }}>Siguiente</button>
+              </div>
+            </div>
+            </>
           )}
         </div>
       </div>
@@ -5169,7 +5285,6 @@ function Personal() {
   const role = normalizeRole(bundle?.user?.role)
   if (role !== 'ADMIN') return null
   const users = (bundle?.users as any[]) ?? []
-  const members = (bundle?.socios as any[]) ?? []
   const newsPosts = (bundle?.newsPosts as any[]) ?? []
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({
@@ -5389,12 +5504,12 @@ function Personal() {
               <option value="TREASURER">Tesorero</option>
               <option value="ADMIN">Administrador</option>
             </select>
-            <select value={form.memberId} onChange={(e) => setForm((p) => ({ ...p, memberId: e.target.value }))} style={{ ...inputStyle, marginBottom: 16 }}>
-              <option value="">Sin socio vinculado</option>
-              {members.map((m: any) => (
-                <option key={m.id} value={m.id}>{m.nombre}</option>
-              ))}
-            </select>
+            <MemberCombobox
+              value={form.memberId}
+              onChange={(memberId) => setForm((p) => ({ ...p, memberId }))}
+              placeholder="Vincular socio (opcional)…"
+              style={{ marginBottom: 16 }}
+            />
             <button type="submit" disabled={busy} style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontFamily: 'inherit', fontWeight: 700, fontSize: 13, cursor: busy ? 'not-allowed' : 'pointer', boxShadow: '0 1px 2px rgba(0,74,198,0.2)' }}>
               Crear cuenta
             </button>
@@ -5855,7 +5970,6 @@ function CrmInner() {
 
     const cobros = Array.isArray(bundle?.cobros) ? bundle.cobros : []
     const eventos = Array.isArray(bundle?.eventos) ? bundle.eventos : []
-    const socios = Array.isArray(bundle?.socios) ? bundle.socios : []
     const now = new Date()
     const addDays = (d: Date, days: number) => {
       const x = new Date(d)
@@ -5890,11 +6004,11 @@ function CrmInner() {
       membersWithOverdue.set(c.memberId, prev + 1)
     }
     for (const [memberId, count] of membersWithOverdue.entries()) {
-      const socio = socios.find((s) => s.id === memberId)
+      const cobroNombre = cobros.find((c) => c?.memberId === memberId)?.socio
       out.push({
         id: `member-overdue-${memberId}`,
         title: 'Socio con mensualidad impagada',
-        description: `${socio?.nombre || 'Socio'} · ${count} cuota(s) vencida(s)`,
+        description: `${cobroNombre || 'Socio'} · ${count} cuota(s) vencida(s)`,
         tab: 'socios',
         priority: 'high',
       })

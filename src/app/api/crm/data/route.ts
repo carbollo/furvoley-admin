@@ -6,8 +6,9 @@ import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
 import { getClubBranding, getRegistrationFieldsConfig } from '@/lib/club-settings'
 import { scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 import { formatTeamScheduleSummary } from '@/lib/team-schedule-summary'
-import { crmInvoiceEstado, isInvoicePastDue, memberIsDelinquentForCrm } from '@/lib/invoice-display'
+import { crmInvoiceEstado, isInvoicePastDue } from '@/lib/invoice-display'
 import { isEnvFixedAdminEmail } from '@/lib/env-admin'
+import { getMemberStatsAccurate } from '@/lib/crm-member-mapper'
 
 function initials(name: string) {
   return name
@@ -68,7 +69,7 @@ export async function GET() {
   const monthEnd = new Date(year, now.getMonth() + 1, 0, 23, 59, 59, 999)
 
   const [
-    membersRaw,
+    memberStats,
     teamsRaw,
     invoicesRaw,
     eventsRaw,
@@ -84,34 +85,7 @@ export async function GET() {
     registrationFieldsConfig,
     clubHolidaysRaw,
   ] = await Promise.all([
-    prisma.member.findMany({
-      where:
-        role === 'COACH'
-          ? {
-              teamRoles: {
-                some: { teamId: { in: coachTeamIds } },
-              },
-            }
-          : {},
-      orderBy: { name: 'asc' },
-      include: {
-        subscriptions: {
-          where: { status: 'ACTIVE' },
-          include: { plan: true },
-          take: 1,
-          orderBy: { createdAt: 'desc' },
-        },
-        teamRoles: {
-          include: { team: true },
-          take: 3,
-        },
-        invoices: {
-          where: { status: { in: ['OVERDUE'] } },
-          select: { id: true },
-          take: 1,
-        },
-      },
-    }),
+    getMemberStatsAccurate(prisma),
     prisma.team.findMany({
       where: role === 'COACH' ? { id: { in: coachTeamIds } } : {},
       orderBy: { name: 'asc' },
@@ -276,64 +250,7 @@ export async function GET() {
             color: hues[i % hues.length],
           }
         })
-      : [{ label: 'Sin equipos', value: membersRaw.filter((m) => m.status === 'ACTIVE').length || 1, color: '#3B82F6' }]
-
-  const socios = membersRaw.map((m) => {
-    const sub = m.subscriptions[0]
-    const team = m.teamRoles[0]?.team
-    const memberInvoices = invoicesRaw.filter((inv) => inv.memberId === m.id)
-    const isMoroso = memberIsDelinquentForCrm(memberInvoices)
-    let estadoUi: string
-    if (isMoroso) estadoUi = 'Moroso'
-    else if (m.status === 'PENDING_PAYMENT') estadoUi = 'Alta pendiente de pago'
-    else if (m.status === 'ACTIVE') estadoUi = 'Activo'
-    else if (m.status === 'PAUSED') estadoUi = 'En pausa'
-    else if (m.status === 'LEAD') estadoUi = 'Lead'
-    else estadoUi = 'Inactivo'
-
-    let pendingInvoice: { id: string; pending: number } | null = null
-    const unpaid = invoicesRaw.find(
-      (inv) =>
-        inv.memberId === m.id &&
-        inv.status !== 'PAID' &&
-        inv.status !== 'VOID' &&
-        Math.max(0, inv.totalAmount - inv.paidAmount) > 0,
-    )
-    if (unpaid) {
-      pendingInvoice = {
-        id: unpaid.id,
-        pending: Math.max(0, unpaid.totalAmount - unpaid.paidAmount),
-      }
-    }
-
-    const deporteMostrar =
-      m.sportPreference?.trim() || team?.name || 'Club'
-
-    return {
-      id: m.id,
-      nombre: m.name,
-      email: m.email || '',
-      telefono: m.phone ?? '',
-      dni: m.dni ?? '',
-      domicilio: m.address ?? '',
-      deporteInscripcion: m.sportPreference ?? '',
-      equipoNombre: team?.name ?? '',
-      fechaAlta: m.joinedAt.toISOString().slice(0, 10),
-      deporte: deporteMostrar,
-      categoria: team?.category ?? '—',
-      estado: estadoUi,
-      cuota: sub?.plan?.amount ?? 0,
-      vencimiento: sub?.nextInvoiceDate
-        ? sub.nextInvoiceDate.toISOString().slice(0, 10)
-        : new Date().toISOString().slice(0, 10),
-      avatar: initials(m.name),
-      pendingInvoiceId: pendingInvoice?.id ?? null,
-      pendingInvoiceAmount: pendingInvoice?.pending ?? null,
-      membershipPlanName: sub?.plan?.name ?? '',
-    }
-  })
-
-  const socioActivosCount = membersRaw.filter((m) => m.status === 'ACTIVE').length
+      : [{ label: 'Sin equipos', value: memberStats.activos || 1, color: '#3B82F6' }]
 
   const equipos = teamsRaw.map((t) => {
     const coachTm = t.members.find((tm) => tm.role === 'COACH')
@@ -384,7 +301,7 @@ export async function GET() {
     estado: mapInvoiceEstado(inv),
     registro: inv.createdAt.toISOString().slice(0, 10),
     vencimiento: inv.dueDate.toISOString().slice(0, 10),
-    deporte: socios.find((s) => s.id === inv.memberId)?.deporte ?? '—',
+    deporte: inv.member.sportPreference?.trim() || '—',
     pendingAmount: Math.max(0, inv.totalAmount - inv.paidAmount),
   }))
 
@@ -467,7 +384,9 @@ export async function GET() {
     },
     currency,
     kpis: {
-      sociosActivos: socioActivosCount,
+      sociosActivos: memberStats.activos,
+      sociosTotal: memberStats.total,
+      sociosMorosos: memberStats.morosos,
       cobrosPendientes: pendingCount,
       cobrosPendientesMonto: pendingInvoicesAll.reduce(
         (a, i) => a + Math.max(0, i.totalAmount - i.paidAmount),
@@ -487,7 +406,6 @@ export async function GET() {
       invoiceKind: t.invoice?.kind ?? null,
     })),
     sociosPorDeporte: teamLabels,
-    socios,
     equipos,
     festivos: clubHolidaysRaw.map((h) => ({
       id: h.id,

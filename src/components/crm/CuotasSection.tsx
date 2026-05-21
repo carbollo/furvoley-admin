@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { PaymentReminderButton } from './PaymentReminderButton'
+import { MemberCombobox } from './MemberCombobox'
 
 type Plan = {
   id: string
@@ -62,7 +63,6 @@ export function CuotasSection({
   showAlert: (message: string) => void
   showConfirm: (message: string) => Promise<boolean>
 }) {
-  const socios = (bundle?.socios as BundleSocio[]) ?? []
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'planes' | 'asignaciones'>('planes')
   const [plans, setPlans] = useState<Plan[]>([])
@@ -948,24 +948,14 @@ export function CuotasSection({
           >
             <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700 }}>Asignar cuota a socio</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <label style={{ fontSize: 13, fontWeight: 600 }}>
-                Socio *
-                <select
-                  required
-                  value={assignForm.memberId}
-                  onChange={(e) => setAssignForm((f) => ({ ...f, memberId: e.target.value }))}
-                  style={{ ...inputStyle, marginTop: 6 }}
-                >
-                  <option value="">— Seleccionar —</option>
-                  {socios
-                    .filter((s) => s.estado !== 'INACTIVE')
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nombre}
-                      </option>
-                    ))}
-                </select>
-              </label>
+              <MemberCombobox
+                label="Socio *"
+                required
+                value={assignForm.memberId}
+                onChange={(memberId) => setAssignForm((f) => ({ ...f, memberId }))}
+                placeholder="Buscar socio…"
+                style={{ marginBottom: 0 }}
+              />
               <label style={{ fontSize: 13, fontWeight: 600 }}>
                 Plan *
                 <select

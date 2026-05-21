@@ -6,6 +6,7 @@ import { WORKFLOW_ACTION_OPTIONS } from '@/lib/crm-workflow-actions'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
 import { parseWorkflowsFromJson } from '@/lib/workflow-import'
 import { WorkflowFlowEditor, type WorkflowEditorInitialPaso } from './WorkflowFlowEditor'
+import { MemberCombobox } from './MemberCombobox'
 
 type CatalogTemplate = {
   id: string
@@ -88,7 +89,6 @@ export function WorkflowsSection({
 }) {
   const wfs = (bundle?.workflows as Record<string, unknown>[]) ?? []
   const equipos = (bundle?.equipos as BundleEquip[]) ?? []
-  const socios = (bundle?.socios as BundleSocio[]) ?? []
   const registrationFields = Array.isArray(
     (bundle?.club as { registrationFields?: unknown } | undefined)?.registrationFields,
   )
@@ -204,7 +204,7 @@ export function WorkflowsSection({
     setTestWorkflowId(String(w.id))
     setTestWorkflowName(String(w.nombre || ''))
     setTestTriggerLabel(workflowTriggerLabel(String(w.trigger || 'MEMBER_CREATED')))
-    setTestMemberId(socios[0]?.id ?? '')
+    setTestMemberId('')
     setTestResult(null)
     setTestOpen(true)
   }
@@ -1046,32 +1046,14 @@ export function WorkflowsSection({
               prueba o déjalo vacío para usar el primero activo del club.
             </p>
 
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6 }}>
-              Socio de prueba (opcional)
-            </label>
-            <select
+            <MemberCombobox
+              label="Socio de prueba (opcional)"
               value={testMemberId}
-              onChange={(e) => setTestMemberId(e.target.value)}
+              onChange={(memberId) => setTestMemberId(memberId)}
+              placeholder="Automático si no eliges socio…"
               disabled={testBusy}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: 10,
-                border: '1px solid var(--border)',
-                fontFamily: 'inherit',
-                fontSize: 14,
-                marginBottom: 14,
-              }}
-            >
-              <option value="">— Automático (primer socio activo) —</option>
-              {socios.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre}
-                  {s.telefono ? ` · ${s.telefono}` : ''}
-                  {s.estado ? ` (${s.estado})` : ''}
-                </option>
-              ))}
-            </select>
+              style={{ marginBottom: 14 }}
+            />
 
             {testResult && (
               <div

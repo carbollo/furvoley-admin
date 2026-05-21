@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { createMember } from '@/app/actions'
 import { createSubscription } from '@/app/actions/billing'
 import { requireRoles } from '@/lib/rbac-api'
-import { memberIsDelinquentForCrm } from '@/lib/invoice-display'
 import { prisma } from '@/lib/prisma'
 import { getRegistrationFieldsConfig } from '@/lib/club-settings'
 import {
@@ -10,92 +9,82 @@ import {
   validateRegistrationSubmission,
   type RegistrationFieldValues,
 } from '@/lib/registration-fields'
+import { parseCuid } from '@/lib/db-input-validation'
+import {
+  fetchMemberById,
+  fetchMembersPage,
+  getDeporteFilterOptions,
+  getMemberStatsAccurate,
+  getMorosoMemberIds,
+} from '@/lib/crm-member-mapper'
 
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 3)
+function parsePageParam(value: string | null, fallback = 1) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 1) return fallback
+  return Math.floor(n)
 }
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN'])
+function parsePageSizeParam(value: string | null, fallback = 50) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 1) return fallback
+  return Math.min(100, Math.floor(n))
+}
+
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN', 'TREASURER', 'COACH'])
   if (!auth.ok) return auth.response
 
-  const { prisma } = await import('@/lib/prisma')
-  const membersRaw = await prisma.member.findMany({
-    orderBy: { name: 'asc' },
-    include: {
-      subscriptions: {
-        where: { status: 'ACTIVE' },
-        include: { plan: true },
-        take: 1,
-        orderBy: { createdAt: 'desc' },
-      },
-      teamRoles: {
-        include: { team: true },
-        take: 3,
-      },
-    },
-  })
-  const invoicesRaw = await prisma.invoice.findMany({
-    include: { member: true },
-    orderBy: { dueDate: 'desc' },
-    take: 300,
-  })
-
-  const socios = membersRaw.map((m) => {
-    const sub = m.subscriptions[0]
-    const team = m.teamRoles[0]?.team
-    const unpaid = invoicesRaw.find(
-      (inv) =>
-        inv.memberId === m.id &&
-        inv.status !== 'PAID' &&
-        inv.status !== 'VOID' &&
-        Math.max(0, inv.totalAmount - inv.paidAmount) > 0,
-    )
-    const memberInvoices = invoicesRaw.filter((inv) => inv.memberId === m.id)
-    const isMoroso = memberIsDelinquentForCrm(memberInvoices)
-
-    return {
-      id: m.id,
-      nombre: m.name,
-      email: m.email || '',
-      telefono: m.phone ?? '',
-      dni: m.dni ?? '',
-      domicilio: m.address ?? '',
-      deporteInscripcion: m.sportPreference ?? '',
-      equipoNombre: team?.name ?? '',
-      fechaAlta: m.joinedAt.toISOString().slice(0, 10),
-      deporte: m.sportPreference?.trim() || team?.name || 'Club',
-      categoria: team?.category ?? '—',
-      estado: isMoroso
-        ? 'Moroso'
-        : m.status === 'PENDING_PAYMENT'
-          ? 'Alta pendiente de pago'
-          : m.status === 'ACTIVE'
-            ? 'Activo'
-            : m.status === 'PAUSED'
-              ? 'En pausa'
-              : m.status === 'LEAD'
-                ? 'Lead'
-                : 'Inactivo',
-      cuota: sub?.plan?.amount ?? 0,
-      vencimiento: sub?.nextInvoiceDate
-        ? sub.nextInvoiceDate.toISOString().slice(0, 10)
-        : new Date().toISOString().slice(0, 10),
-      avatar: initials(m.name),
-      pendingInvoiceId: unpaid?.id ?? null,
-      pendingInvoiceAmount: unpaid ? Math.max(0, unpaid.totalAmount - unpaid.paidAmount) : null,
-      membershipPlanName: sub?.plan?.name ?? '',
+  const url = new URL(request.url)
+  const idParam = String(url.searchParams.get('id') || '').trim()
+  if (idParam) {
+    const parsedId = parseCuid(idParam, 'id')
+    if (parsedId instanceof NextResponse) return parsedId
+    const socio = await fetchMemberById(prisma, parsedId)
+    if (!socio) {
+      return NextResponse.json({ error: 'Socio no encontrado' }, { status: 404 })
     }
+    const res = NextResponse.json({ socio })
+    res.headers.set('Cache-Control', 'no-store')
+    return res
+  }
+
+  const page = parsePageParam(url.searchParams.get('page'))
+  const pageSize = parsePageSizeParam(url.searchParams.get('pageSize'))
+  const q = String(url.searchParams.get('q') || '').trim()
+  const estado = String(url.searchParams.get('estado') || 'Todos').trim()
+  const deporte = String(url.searchParams.get('deporte') || 'Todos').trim()
+  const teamIdRaw = String(url.searchParams.get('teamId') || '').trim()
+  const lite = url.searchParams.get('lite') === '1'
+  const withStats = url.searchParams.get('stats') === '1'
+
+  let teamId: string | undefined
+  if (teamIdRaw) {
+    const parsedTeamId = parseCuid(teamIdRaw, 'teamId')
+    if (parsedTeamId instanceof NextResponse) return parsedTeamId
+    teamId = parsedTeamId
+  }
+
+  const morosoIds = estado !== 'Todos' || withStats ? await getMorosoMemberIds(prisma) : undefined
+
+  const pageResult = await fetchMembersPage(prisma, {
+    page,
+    pageSize,
+    q: q || undefined,
+    estado: estado || undefined,
+    deporte: deporte || undefined,
+    teamId,
+    morosoIds,
+    lite,
   })
 
-  const res = NextResponse.json({ socios })
+  const payload: Record<string, unknown> = { ...pageResult }
+
+  if (withStats) {
+    payload.stats = await getMemberStatsAccurate(prisma)
+    payload.deportes = ['Todos', ...(await getDeporteFilterOptions(prisma))]
+  }
+
+  const res = NextResponse.json(payload)
   res.headers.set('Cache-Control', 'no-store')
   return res
 }
