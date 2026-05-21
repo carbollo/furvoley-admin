@@ -2849,6 +2849,10 @@ function Contabilidad({ setActive }) {
   if (!(role === 'ADMIN' || role === 'TREASURER')) return null
   const COBROS_UI = bundle?.cobros ?? [];
   const SOCIOS_UI = bundle?.socios ?? [];
+  const EQUIPOS_UI = bundle?.equipos ?? [];
+  const countTeamPlayers = (eq) =>
+    (eq?.miembros ?? []).filter((m) => m.role === 'PLAYER').length
+  const equiposConJugadores = EQUIPOS_UI.filter((eq) => countTeamPlayers(eq) > 0)
   const [contaTab, setContaTab] = useState('COBROS');
   const [tab, setTab] = useState('Todos');
   const [tesoreriaRange, setTesoreriaRange] = useState<'semestre' | 'anual'>('semestre');
@@ -2873,7 +2877,9 @@ function Contabilidad({ setActive }) {
     reports: any | null
   }>({ entries: [], accounts: [], periods: [], reports: null });
   const [nuevoCobroForm, setNuevoCobroForm] = useState({
+    target: 'member',
     memberId: '',
+    teamId: '',
     concepto: '',
     amount: '',
     dueDate: '',
@@ -3087,8 +3093,8 @@ function Contabilidad({ setActive }) {
   }
 
   function openNuevoCobroModal() {
-    if (!SOCIOS_UI.length) {
-      showAlert('No hay socios para facturar.')
+    if (!SOCIOS_UI.length && !equiposConJugadores.length) {
+      showAlert('No hay socios ni equipos con jugadores para facturar.')
       return
     }
     const today = new Date()
@@ -3096,7 +3102,9 @@ function Contabilidad({ setActive }) {
     const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 5)
     const dueDate = `${nextMonth.getFullYear()}-${pad(nextMonth.getMonth() + 1)}-${pad(nextMonth.getDate())}`
     setNuevoCobroForm({
-      memberId: SOCIOS_UI[0].id,
+      target: SOCIOS_UI.length ? 'member' : 'team',
+      memberId: SOCIOS_UI[0]?.id || '',
+      teamId: equiposConJugadores[0]?.id || '',
       concepto: 'Cuota mensual',
       amount: '',
       dueDate,
@@ -3141,7 +3149,9 @@ function Contabilidad({ setActive }) {
 
   async function submitNuevoCobro(e) {
     e.preventDefault()
+    const target = nuevoCobroForm.target === 'team' ? 'team' : 'member'
     const memberId = String(nuevoCobroForm.memberId || '').trim()
+    const teamId = String(nuevoCobroForm.teamId || '').trim()
     const concepto = String(nuevoCobroForm.concepto || '').trim()
     const dueDate = String(nuevoCobroForm.dueDate || '').trim()
     const amount = Number(nuevoCobroForm.amount)
@@ -3149,9 +3159,20 @@ function Contabilidad({ setActive }) {
     const taxRate = Number(nuevoCobroForm.taxRate)
     const applyWithholding = Boolean(nuevoCobroForm.applyWithholding)
     const withholdingRate = Number(nuevoCobroForm.withholdingRate)
-    if (!memberId) {
+    if (target === 'member' && !memberId) {
       showAlert('Selecciona el socio al que corresponde el cobro.')
       return
+    }
+    if (target === 'team') {
+      if (!teamId) {
+        showAlert('Selecciona el equipo al que corresponde el cobro.')
+        return
+      }
+      const selectedTeam = EQUIPOS_UI.find((eq) => eq.id === teamId)
+      if (!selectedTeam || countTeamPlayers(selectedTeam) === 0) {
+        showAlert('El equipo seleccionado no tiene jugadores a los que facturar.')
+        return
+      }
     }
     if (!concepto || !dueDate || !Number.isFinite(amount) || amount <= 0) {
       showAlert('Completa concepto, importe y vencimiento.')
@@ -3159,20 +3180,21 @@ function Contabilidad({ setActive }) {
     }
     setNuevoCobroBusy(true)
     try {
+      const payload = {
+        concepto,
+        amount,
+        dueDate,
+        applyTax,
+        taxRate: Number.isFinite(taxRate) ? taxRate : 0,
+        applyWithholding,
+        withholdingRate: Number.isFinite(withholdingRate) ? withholdingRate : 0,
+        ...(target === 'team' ? { teamId } : { memberId }),
+      }
       const r = await fetch('/api/crm/invoices', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          memberId,
-          concepto,
-          amount,
-          dueDate,
-          applyTax,
-          taxRate: Number.isFinite(taxRate) ? taxRate : 0,
-          applyWithholding,
-          withholdingRate: Number.isFinite(withholdingRate) ? withholdingRate : 0,
-        }),
+        body: JSON.stringify(payload),
       })
       if (!r.ok) {
         let msg = 'No se pudo crear el cobro'
@@ -3184,9 +3206,19 @@ function Contabilidad({ setActive }) {
         showAlert(msg)
         return
       }
+      const result = await r.json().catch(() => ({}))
       setShowNuevoCobroModal(false)
       await reload()
-      showAlert('Cobro creado. El socio lo verá en Mis pagos con el botón Pagar (Stripe).')
+      if (target === 'team') {
+        const count = Number(result?.count || 0)
+        showAlert(
+          count > 0
+            ? `${count} cobros creados. Cada jugador los verá en Mis pagos con el botón Pagar (Stripe).`
+            : 'Cobros creados. Cada jugador los verá en Mis pagos con el botón Pagar (Stripe).',
+        )
+      } else {
+        showAlert('Cobro creado. El socio lo verá en Mis pagos con el botón Pagar (Stripe).')
+      }
     } finally {
       setNuevoCobroBusy(false)
     }
@@ -4152,18 +4184,91 @@ function Contabilidad({ setActive }) {
               </p>
             </div>
 
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Socio</label>
-            <select
-              required
-              value={nuevoCobroForm.memberId}
-              onChange={(e) => setNuevoCobroForm((f) => ({ ...f, memberId: e.target.value }))}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', marginBottom: 12, fontFamily: 'inherit' }}
-            >
-              <option value="">— Seleccionar socio —</option>
-              {SOCIOS_UI.map((s) => (
-                <option key={s.id} value={s.id}>{s.nombre}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <button
+                type="button"
+                disabled={!SOCIOS_UI.length}
+                onClick={() => setNuevoCobroForm((f) => ({ ...f, target: 'member' }))}
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: nuevoCobroForm.target === 'member' ? '1.5px solid var(--accent)' : '1px solid rgba(0,0,0,0.09)',
+                  background: nuevoCobroForm.target === 'member' ? 'var(--accent-soft)' : '#fff',
+                  color: nuevoCobroForm.target === 'member' ? 'var(--accent)' : '#374151',
+                  cursor: SOCIOS_UI.length ? 'pointer' : 'not-allowed',
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  opacity: SOCIOS_UI.length ? 1 : 0.55,
+                }}
+              >
+                Un socio
+              </button>
+              <button
+                type="button"
+                disabled={!equiposConJugadores.length}
+                onClick={() =>
+                  setNuevoCobroForm((f) => ({
+                    ...f,
+                    target: 'team',
+                    teamId: f.teamId || equiposConJugadores[0]?.id || '',
+                  }))
+                }
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: nuevoCobroForm.target === 'team' ? '1.5px solid var(--accent)' : '1px solid rgba(0,0,0,0.09)',
+                  background: nuevoCobroForm.target === 'team' ? 'var(--accent-soft)' : '#fff',
+                  color: nuevoCobroForm.target === 'team' ? 'var(--accent)' : '#374151',
+                  cursor: equiposConJugadores.length ? 'pointer' : 'not-allowed',
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  opacity: equiposConJugadores.length ? 1 : 0.55,
+                }}
+              >
+                Un equipo
+              </button>
+            </div>
+
+            {nuevoCobroForm.target === 'member' ? (
+              <>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Socio</label>
+                <select
+                  required
+                  value={nuevoCobroForm.memberId}
+                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, memberId: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', marginBottom: 12, fontFamily: 'inherit' }}
+                >
+                  <option value="">— Seleccionar socio —</option>
+                  {SOCIOS_UI.map((s) => (
+                    <option key={s.id} value={s.id}>{s.nombre}</option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Equipo</label>
+                <select
+                  required
+                  value={nuevoCobroForm.teamId}
+                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, teamId: e.target.value }))}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', marginBottom: 6, fontFamily: 'inherit' }}
+                >
+                  <option value="">— Seleccionar equipo —</option>
+                  {equiposConJugadores.map((eq) => (
+                    <option key={eq.id} value={eq.id}>
+                      {eq.nombre} ({countTeamPlayers(eq)} jugadores)
+                    </option>
+                  ))}
+                </select>
+                <p style={{ margin: '0 0 12px', fontSize: 12, color: '#64748b' }}>
+                  Se crearán {countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.teamId) || {})} cobros (solo jugadores).
+                </p>
+              </>
+            )}
 
             <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Concepto</label>
             <input
@@ -4238,12 +4343,27 @@ function Contabilidad({ setActive }) {
               </div>
             </div>
             <div style={{marginTop:10,fontSize:12,color:'#475569'}}>
-              Total cobro neto: {fmtMoney(
-                Number(nuevoCobroForm.amount || 0) *
-                  (1 + (Boolean(nuevoCobroForm.applyTax) ? Number(nuevoCobroForm.taxRate || 0) / 100 : 0)) -
+              {(() => {
+                const netPerMember =
+                  Number(nuevoCobroForm.amount || 0) *
+                    (1 + (Boolean(nuevoCobroForm.applyTax) ? Number(nuevoCobroForm.taxRate || 0) / 100 : 0)) -
                   Number(nuevoCobroForm.amount || 0) *
                     (Boolean(nuevoCobroForm.applyWithholding) ? Number(nuevoCobroForm.withholdingRate || 0) / 100 : 0)
-              )}
+                const teamPlayerCount =
+                  nuevoCobroForm.target === 'team'
+                    ? countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.teamId) || {})
+                    : 0
+                return (
+                  <>
+                    <div>Total cobro neto por socio: {fmtMoney(netPerMember)}</div>
+                    {nuevoCobroForm.target === 'team' && teamPlayerCount > 0 && (
+                      <div style={{ marginTop: 4 }}>
+                        Total equipo ({teamPlayerCount} × importe neto): {fmtMoney(netPerMember * teamPlayerCount)}
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
@@ -4260,7 +4380,11 @@ function Contabilidad({ setActive }) {
                 disabled={nuevoCobroBusy}
                 style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: 'none', background: 'var(--accent)', cursor: nuevoCobroBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#fff', opacity: nuevoCobroBusy ? 0.75 : 1 }}
               >
-                {nuevoCobroBusy ? 'Creando…' : 'Crear cobro'}
+                {nuevoCobroBusy
+                  ? 'Creando…'
+                  : nuevoCobroForm.target === 'team'
+                    ? `Crear ${countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.teamId) || {}) || 0} cobros`
+                    : 'Crear cobro'}
               </button>
             </div>
           </form>
