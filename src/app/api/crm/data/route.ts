@@ -7,6 +7,7 @@ import { getClubBranding } from '@/lib/club-settings'
 import { scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 import { formatTeamScheduleSummary } from '@/lib/team-schedule-summary'
 import { crmInvoiceEstado, isInvoicePastDue, memberIsDelinquentForCrm } from '@/lib/invoice-display'
+import { isEnvFixedAdminEmail } from '@/lib/env-admin'
 
 function initials(name: string) {
   return name
@@ -433,6 +434,7 @@ export async function GET() {
       roleLabel: ROLE_LABEL[mappedRole],
       memberId: usr.memberId || null,
       memberName: usr.member?.name || '',
+      isEnvFixedAdmin: isEnvFixedAdminEmail(usr.email),
     }
   }).filter((u) => u.role !== 'MEMBER')
   const newsPosts = newsRaw.map((post) => ({

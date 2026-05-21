@@ -27,6 +27,13 @@ export function isEnvAdminConfigured(): boolean {
   return getEnvAdminCredentials() !== null
 }
 
+/** True si el email corresponde al admin fijo de ADMIN_EMAIL + ADMIN_PASSWORD. */
+export function isEnvFixedAdminEmail(email: string | null | undefined): boolean {
+  const env = getEnvAdminCredentials()
+  if (!env || !email) return false
+  return email.trim().toLowerCase() === env.email
+}
+
 export function credentialsMatchEnvAdmin(
   rawEmail: string,
   password: string,

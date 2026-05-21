@@ -5197,7 +5197,7 @@ function Personal() {
   }
 
   async function resetPassword(userId: string) {
-    const ok = await showConfirm('¿Resetear la contraseña de esta cuenta a la contraseña por defecto?')
+    const ok = await showConfirm('¿Restablecer la contraseña de esta cuenta a la contraseña por defecto?')
     if (!ok) return
     setBusy(true)
     try {
@@ -5210,10 +5210,10 @@ function Personal() {
       })
       if (!r.ok) {
         const j = await r.json().catch(() => ({}))
-        showAlert(j.error || 'No se pudo resetear la contraseña')
+        showAlert(j.error || 'No se pudo restablecer la contraseña')
         return
       }
-      showAlert(`Contraseña reseteada. Nueva contraseña: ${defaultPassword}`)
+      showAlert(`Contraseña restablecida. Nueva contraseña: ${defaultPassword}`)
     } finally {
       setBusy(false)
     }
@@ -5326,7 +5326,7 @@ function Personal() {
         {/* KPI grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24 }}>
           <KPICard label="Total cuentas" value={String(users.length)} sub="Personal con acceso" icon="users" color="var(--accent-soft)" badge={{ kind: 'info', text: 'Total' }}/>
-          <KPICard label="Administradores" value={String(numAdmins)} sub="Acceso completo" icon="users" color="var(--accent)" badge={{ kind: 'info', text: 'Admin' }}/>
+          <KPICard label="Administradores" value={String(numAdmins)} sub="Acceso completo" icon="users" color="var(--accent)" badge={{ kind: 'info', text: 'Acceso total' }}/>
           <KPICard label="Entrenadores" value={String(numCoaches)} sub="Equipos y eventos" icon="teams" color="var(--green)"/>
           <KPICard label="Tesoreros" value={String(numTreasurers)} sub="Contabilidad y cobros" icon="billing" color="var(--amber)"/>
         </div>
@@ -5400,15 +5400,21 @@ function Personal() {
                     <td style={{ padding: '16px 32px', color: 'var(--text-secondary)' }}>{u.email || '—'}</td>
                     <td style={{ padding: '16px 32px' }}>
                       <select value={u.role} onChange={(e) => updateUserRole(u.id, e.target.value)} disabled={busy} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', background: 'var(--surface-card)' }}>
-                        <option value="ADMIN">ADMIN</option>
-                        <option value="COACH">COACH</option>
-                        <option value="TREASURER">TREASURER</option>
-                        <option value="MEMBER">MEMBER</option>
+                        <option value="ADMIN">{ROLE_LABEL.ADMIN}</option>
+                        <option value="COACH">{ROLE_LABEL.COACH}</option>
+                        <option value="TREASURER">{ROLE_LABEL.TREASURER}</option>
+                        <option value="MEMBER">{ROLE_LABEL.MEMBER}</option>
                       </select>
                     </td>
                     <td style={{ padding: '16px 32px', color: 'var(--text-secondary)' }}>{u.memberName || '—'}</td>
-                    <td style={{ padding: '16px 32px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <button type="button" onClick={() => resetPassword(u.id)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Reset password</button>
+                    <td style={{ padding: '16px 32px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {u.isEnvFixedAdmin ? (
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                          Gestionada en Railway
+                        </span>
+                      ) : (
+                        <button type="button" onClick={() => resetPassword(u.id)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Restablecer contraseña</button>
+                      )}
                       <button type="button" onClick={() => removeUser(u.id, u.name || u.email || u.id)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', color: 'var(--red)', background: 'var(--surface-card)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}>Eliminar</button>
                     </td>
                   </tr>
