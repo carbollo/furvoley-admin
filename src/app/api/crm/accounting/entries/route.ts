@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createJournalEntry } from '@/lib/accounting/engine'
 import { requireRoles } from '@/lib/rbac-api'
+import {
+  parseIsoDateParam,
+  parseOptionalAccountCode,
+} from '@/lib/db-input-validation'
 
 async function assertAccountingRole() {
   const auth = await requireRoles(['ADMIN', 'TREASURER'])
@@ -15,20 +19,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const url = new URL(request.url)
-  const from = url.searchParams.get('from')
-  const to = url.searchParams.get('to')
-  const accountCode = url.searchParams.get('accountCode')
-  const whereDate: any = {}
-  if (from) whereDate.gte = new Date(from)
-  if (to) whereDate.lte = new Date(to)
+  const fromRaw = parseIsoDateParam(url.searchParams.get('from'), 'from')
+  if (fromRaw instanceof NextResponse) return fromRaw
+  const toRaw = parseIsoDateParam(url.searchParams.get('to'), 'to')
+  if (toRaw instanceof NextResponse) return toRaw
+  const accountCodeRaw = parseOptionalAccountCode(url.searchParams.get('accountCode'))
+  if (accountCodeRaw instanceof NextResponse) return accountCodeRaw
+
+  const whereDate: { gte?: Date; lte?: Date } = {}
+  if (fromRaw) whereDate.gte = fromRaw
+  if (toRaw) whereDate.lte = toRaw
+
   const entries = await prisma.journalEntry.findMany({
     where: {
-      ...(from || to ? { entryDate: whereDate } : {}),
-      ...(accountCode
+      ...(fromRaw || toRaw ? { entryDate: whereDate } : {}),
+      ...(accountCodeRaw
         ? {
             lines: {
               some: {
-                account: { code: accountCode },
+                account: { code: accountCodeRaw },
               },
             },
           }

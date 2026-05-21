@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { addTeamMember } from '@/app/actions/teams'
+import { parseCuid } from '@/lib/db-input-validation'
 import { requireRoles } from '@/lib/rbac-api'
 
 export async function POST(
@@ -10,6 +11,8 @@ export async function POST(
   if (!auth.ok) return auth.response
 
   const { id: teamId } = await context.params
+  const parsedTeamId = parseCuid(teamId, 'teamId')
+  if (parsedTeamId instanceof Response) return parsedTeamId
   let body: { memberId?: string; role?: string }
   try {
     body = await request.json()
@@ -26,7 +29,7 @@ export async function POST(
   const dbRole = r === 'COACH' ? 'COACH' : 'PLAYER'
 
   try {
-    await addTeamMember({ teamId, memberId, role: dbRole })
+    await addTeamMember({ teamId: parsedTeamId, memberId, role: dbRole })
   } catch (e: unknown) {
     const msg = e && typeof e === 'object' && 'code' in e && e.code === 'P2002'
       ? 'Ese socio ya está en el equipo'

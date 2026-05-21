@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 
@@ -10,6 +11,8 @@ export async function PATCH(
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   let body: { title?: string; content?: string; priority?: string; isPublished?: boolean }
   try {
     body = await request.json()
@@ -34,7 +37,7 @@ export async function PATCH(
 
   try {
     await prisma.newsPost.update({
-      where: { id },
+      where: { id: parsedId },
       data,
     })
     return NextResponse.json({ ok: true })
@@ -51,8 +54,10 @@ export async function DELETE(
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   try {
-    await prisma.newsPost.delete({ where: { id } })
+    await prisma.newsPost.delete({ where: { id: parsedId } })
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'No se pudo eliminar la noticia' }, { status: 400 })

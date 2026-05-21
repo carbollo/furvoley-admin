@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@/generated/prisma/client'
+import { isCuid } from '@/lib/db-input-validation'
 
 /** Tipos de actividad expuestos sin marcar el evento como público. */
 export const PUBLIC_SPORT_EVENT_TYPES = ['TRAINING', 'MATCH', 'TOURNAMENT'] as const
@@ -213,6 +214,7 @@ export async function listTeams() {
 }
 
 export async function getTeamById(id: string) {
+  if (!isCuid(id)) return null
   const team = await prisma.team.findUnique({
     where: { id },
     include: {
@@ -237,6 +239,7 @@ export async function listEvents(params: {
   status?: string
   limit: number
 }) {
+  if (params.teamId && !isCuid(params.teamId)) return []
   const where: Prisma.EventWhereInput = publicEventWhere({
     ...(params.teamId ? { teamId: params.teamId } : {}),
     ...(params.type ? { type: params.type } : {}),
@@ -263,6 +266,7 @@ export async function listEvents(params: {
 }
 
 export async function getEventById(id: string) {
+  if (!isCuid(id)) return null
   const event = await prisma.event.findFirst({
     where: publicEventWhere({ id }),
     include: {
@@ -327,13 +331,16 @@ export async function getCalendarFeed(params: {
     }),
   ])
 
-  const schedules = await prisma.teamSchedule.findMany({
-    where: params.teamId ? { teamId: params.teamId } : undefined,
-    orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
-    include: {
-      team: { select: { id: true, name: true, category: true } },
-    },
-  })
+  const schedules =
+    params.teamId && !isCuid(params.teamId)
+      ? []
+      : await prisma.teamSchedule.findMany({
+          where: params.teamId ? { teamId: params.teamId } : undefined,
+          orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
+          include: {
+            team: { select: { id: true, name: true, category: true } },
+          },
+        })
 
   return {
     events,

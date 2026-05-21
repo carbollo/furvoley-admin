@@ -7,6 +7,7 @@ import { JoinSignupForm } from './JoinSignupForm'
 import { processJoinSignup } from './join-action'
 import { getRegistrationFieldsConfig } from '@/lib/club-settings'
 import { getEnabledRegistrationFields } from '@/lib/registration-fields'
+import { isHexToken } from '@/lib/db-input-validation'
 import '@/components/crm/crm-vars.css'
 
 const fontJoin = Plus_Jakarta_Sans({
@@ -66,6 +67,7 @@ export default async function JoinPage({
 }) {
   const { token } = await params
   const { success } = await searchParams
+  if (!isHexToken(token)) notFound()
 
   const link = await prisma.signupLink.findUnique({ where: { token } })
   if (!link) notFound()

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 import { runConvocationPublishedWorkflows } from '@/lib/workflow-proclub-runners'
@@ -10,6 +11,8 @@ export async function POST(request: Request, { params }: Params) {
   if (!auth.ok) return auth.response
 
   const { id: eventId } = await params
+  const parsedEventId = parseCuid(eventId, 'eventId')
+  if (parsedEventId instanceof Response) return parsedEventId
   let body: { memberIds?: string[]; audience?: 'INVITED' | 'NOT_CALLED' } = {}
   try {
     body = await request.json()
@@ -17,7 +20,7 @@ export async function POST(request: Request, { params }: Params) {
     body = {}
   }
 
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { teamId: true } })
+  const event = await prisma.event.findUnique({ where: { id: parsedEventId }, select: { teamId: true } })
   if (!event?.teamId) {
     return NextResponse.json({ error: 'Evento sin equipo' }, { status: 400 })
   }
@@ -36,8 +39,8 @@ export async function POST(request: Request, { params }: Params) {
   if (audience === 'INVITED') {
     for (const memberId of memberIds) {
       await prisma.eventConvocation.upsert({
-        where: { eventId_memberId: { eventId, memberId } },
-        create: { eventId, memberId, status: 'INVITED' },
+        where: { eventId_memberId: { eventId: parsedEventId, memberId } },
+        create: { eventId: parsedEventId, memberId, status: 'INVITED' },
         update: { status: 'INVITED' },
       })
     }
@@ -48,15 +51,15 @@ export async function POST(request: Request, { params }: Params) {
     for (const p of allPlayers) {
       if (!memberIds.includes(p.memberId)) {
         await prisma.eventConvocation.upsert({
-          where: { eventId_memberId: { eventId, memberId: p.memberId } },
-          create: { eventId, memberId: p.memberId, status: 'NOT_CALLED' },
+          where: { eventId_memberId: { eventId: parsedEventId, memberId: p.memberId } },
+          create: { eventId: parsedEventId, memberId: p.memberId, status: 'NOT_CALLED' },
           update: { status: 'NOT_CALLED' },
         })
       }
     }
   }
 
-  void runConvocationPublishedWorkflows(eventId, audience).catch((e) => {
+  void runConvocationPublishedWorkflows(parsedEventId, audience).catch((e) => {
     console.warn('[convocation] workflow failed:', e)
   })
 

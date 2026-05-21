@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { Prisma } from '@/generated/prisma/client'
+import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { isWorkflowActionAllowed } from '@/lib/crm-workflow-actions'
 import { isWorkflowTriggerAllowed } from '@/lib/crm-workflow-triggers'
@@ -37,7 +38,9 @@ export async function PATCH(
   }
 
   const { id } = await context.params
-  const existing = await prisma.workflow.findUnique({ where: { id } })
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
+  const existing = await prisma.workflow.findUnique({ where: { id: parsedId } })
   if (!existing) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
@@ -94,7 +97,7 @@ export async function PATCH(
 
   await prisma.$transaction(async (tx) => {
     await tx.workflow.update({
-      where: { id },
+      where: { id: parsedId },
       data: {
         name,
         description,
@@ -105,11 +108,11 @@ export async function PATCH(
     })
 
     if (steps) {
-      await tx.workflowStep.deleteMany({ where: { workflowId: id } })
+      await tx.workflowStep.deleteMany({ where: { workflowId: parsedId } })
       if (steps.length > 0) {
         await tx.workflowStep.createMany({
           data: steps.map((s, i) => ({
-            workflowId: id,
+            workflowId: parsedId,
             position: s.position ?? i,
             stepType: s.stepType,
             actionType: s.actionType,
@@ -134,12 +137,14 @@ export async function DELETE(
   }
 
   const { id } = await context.params
-  const existing = await prisma.workflow.findUnique({ where: { id } })
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
+  const existing = await prisma.workflow.findUnique({ where: { id: parsedId } })
   if (!existing) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
 
-  await prisma.workflow.delete({ where: { id } })
+  await prisma.workflow.delete({ where: { id: parsedId } })
 
   return NextResponse.json({ ok: true })
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { updateTeam } from '@/app/actions/teams'
+import { parseCuid } from '@/lib/db-input-validation'
 import { requireRoles } from '@/lib/rbac-api'
 import { parseDateInput } from '@/lib/team-calendar'
 
@@ -11,6 +12,8 @@ export async function PATCH(
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   let body: {
     name?: string
     category?: string | null
@@ -75,7 +78,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Sin datos para actualizar' }, { status: 400 })
   }
 
-  await updateTeam(id, payload)
+  await updateTeam(parsedId, payload)
 
   return NextResponse.json({ ok: true })
 }

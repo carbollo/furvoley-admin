@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { parseCuid } from '@/lib/db-input-validation'
 import { runWorkflowTest } from '@/lib/workflow-test'
 
 export async function POST(
@@ -14,6 +15,8 @@ export async function POST(
   }
 
   const { id } = await context.params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
 
   let body: Record<string, unknown> = {}
   try {
@@ -28,7 +31,7 @@ export async function POST(
   const leadId =
     typeof body.leadId === 'string' && body.leadId.trim() ? body.leadId.trim() : undefined
 
-  const result = await runWorkflowTest(id, { memberId, leadId })
+  const result = await runWorkflowTest(parsedId, { memberId, leadId })
 
   if (result.error && result.stepsRun === 0 && !result.subjectId) {
     return NextResponse.json({ error: result.error, result }, { status: 400 })

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { updateMember } from '@/app/actions'
+import { parseCuid } from '@/lib/db-input-validation'
 import { requireRoles } from '@/lib/rbac-api'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
@@ -12,6 +13,8 @@ export async function PATCH(
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   let body: {
     name?: string
     email?: string
@@ -52,7 +55,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Sin datos para actualizar' }, { status: 400 })
   }
 
-  await updateMember(id, payload)
+  await updateMember(parsedId, payload)
 
   return NextResponse.json({ ok: true })
 }
@@ -65,10 +68,12 @@ export async function DELETE(
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   try {
     const result = await prisma.$transaction(async (tx) => {
       const member = await tx.member.findUnique({
-        where: { id },
+        where: { id: parsedId },
         select: { id: true, email: true, name: true },
       })
       if (!member) {
@@ -77,32 +82,32 @@ export async function DELETE(
 
       const deletedMemberUsers = await tx.user.deleteMany({
         where: {
-          memberId: id,
+          memberId: parsedId,
           role: { in: ['MEMBER', 'PLAYER'] },
         },
       })
       const unlinkedUsers = await tx.user.updateMany({
-        where: { memberId: id },
+        where: { memberId: parsedId },
         data: { memberId: null },
       })
 
       const unlinkedSignupLinks = await tx.signupLink.updateMany({
-        where: { createdMemberId: id },
+        where: { createdMemberId: parsedId },
         data: { createdMemberId: null },
       })
       const unlinkedOrders = await tx.order.updateMany({
-        where: { memberId: id },
+        where: { memberId: parsedId },
         data: { memberId: null },
       })
 
-      const deletedTeamMembers = await tx.teamMember.deleteMany({ where: { memberId: id } })
-      const deletedAttendances = await tx.attendance.deleteMany({ where: { memberId: id } })
-      const deletedPayments = await tx.payment.deleteMany({ where: { memberId: id } })
-      const deletedReminderLogs = await tx.reminderLog.deleteMany({ where: { memberId: id } })
-      const deletedSubscriptions = await tx.subscription.deleteMany({ where: { memberId: id } })
-      const deletedInvoices = await tx.invoice.deleteMany({ where: { memberId: id } })
+      const deletedTeamMembers = await tx.teamMember.deleteMany({ where: { memberId: parsedId } })
+      const deletedAttendances = await tx.attendance.deleteMany({ where: { memberId: parsedId } })
+      const deletedPayments = await tx.payment.deleteMany({ where: { memberId: parsedId } })
+      const deletedReminderLogs = await tx.reminderLog.deleteMany({ where: { memberId: parsedId } })
+      const deletedSubscriptions = await tx.subscription.deleteMany({ where: { memberId: parsedId } })
+      const deletedInvoices = await tx.invoice.deleteMany({ where: { memberId: parsedId } })
 
-      const deletedMember = await tx.member.deleteMany({ where: { id } })
+      const deletedMember = await tx.member.deleteMany({ where: { id: parsedId } })
       return {
         memberDeleted: deletedMember.count,
         deletedMemberUsers: deletedMemberUsers.count,
@@ -124,7 +129,7 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true, result })
   } catch (e: any) {
-    console.error('[crm/members DELETE] failed', { id, error: e })
+    console.error('[crm/members DELETE] failed', { id: parsedId, error: e })
     return NextResponse.json({ error: e?.message || 'No se pudo eliminar el socio' }, { status: 400 })
   }
 }
@@ -143,8 +148,10 @@ export async function POST(
   }
 
   const { id } = await context.params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   const member = await prisma.member.findUnique({
-    where: { id },
+    where: { id: parsedId },
     select: { id: true, email: true, name: true },
   })
   if (!member) {

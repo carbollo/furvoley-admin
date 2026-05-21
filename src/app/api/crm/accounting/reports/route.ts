@@ -1,20 +1,24 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
+import { parseIsoDateParam } from '@/lib/db-input-validation'
 
 export async function GET(request: Request) {
   const auth = await requireRoles(['ADMIN', 'TREASURER'])
   if (!auth.ok) return auth.response
 
   const url = new URL(request.url)
-  const from = url.searchParams.get('from')
-  const to = url.searchParams.get('to')
-  const dateWhere: any = {}
-  if (from) dateWhere.gte = new Date(from)
-  if (to) dateWhere.lte = new Date(to)
+  const fromRaw = parseIsoDateParam(url.searchParams.get('from'), 'from')
+  if (fromRaw instanceof NextResponse) return fromRaw
+  const toRaw = parseIsoDateParam(url.searchParams.get('to'), 'to')
+  if (toRaw instanceof NextResponse) return toRaw
+
+  const dateWhere: { gte?: Date; lte?: Date } = {}
+  if (fromRaw) dateWhere.gte = fromRaw
+  if (toRaw) dateWhere.lte = toRaw
 
   const lines = await prisma.journalLine.findMany({
-    where: from || to ? { entry: { entryDate: dateWhere } } : {},
+    where: fromRaw || toRaw ? { entry: { entryDate: dateWhere } } : {},
     include: { account: true, entry: true },
   })
 

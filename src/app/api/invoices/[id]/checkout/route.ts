@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { createInvoiceCheckoutUrl } from '@/lib/stripe-checkout'
 import { normalizeRole } from '@/lib/rbac'
@@ -14,11 +15,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   }
 
   const { id } = await params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   const role = normalizeRole((session.user as { role?: string }).role)
   const userMemberId = (session.user as { memberId?: string | null }).memberId ?? null
 
   const invoice = await prisma.invoice.findUnique({
-    where: { id },
+    where: { id: parsedId },
     select: { id: true, memberId: true },
   })
   if (!invoice) {
@@ -31,7 +34,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
-  const result = await createInvoiceCheckoutUrl(id)
+  const result = await createInvoiceCheckoutUrl(parsedId)
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 })
   }

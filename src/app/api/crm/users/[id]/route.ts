@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
+import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 import { normalizeRole } from '@/lib/rbac'
@@ -12,6 +13,8 @@ export async function PATCH(
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   let body: {
     name?: string
     role?: string
@@ -41,7 +44,7 @@ export async function PATCH(
 
   try {
     await prisma.user.update({
-      where: { id },
+      where: { id: parsedId },
       data,
     })
     return NextResponse.json({ ok: true })
@@ -61,13 +64,15 @@ export async function DELETE(
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   const meId = (auth.session.user as { id?: string }).id
-  if (id === meId) {
+  if (parsedId === meId) {
     return NextResponse.json({ error: 'No puedes eliminar tu propia cuenta desde aquí' }, { status: 400 })
   }
 
   try {
-    await prisma.user.delete({ where: { id } })
+    await prisma.user.delete({ where: { id: parsedId } })
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'No se pudo eliminar la cuenta' }, { status: 400 })

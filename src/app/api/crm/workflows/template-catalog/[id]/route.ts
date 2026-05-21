@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 
 type Params = { params: Promise<{ id: string }> }
@@ -13,8 +14,10 @@ export async function DELETE(_request: Request, { params }: Params) {
   }
 
   const { id } = await params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   try {
-    await prisma.workflowTemplate.delete({ where: { id } })
+    await prisma.workflowTemplate.delete({ where: { id: parsedId } })
   } catch {
     return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 404 })
   }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseCuid } from '@/lib/db-input-validation'
 import { requireRoles } from '@/lib/rbac-api'
 import { generateTeamSessionsFromSchedule } from '@/lib/team-calendar'
 
@@ -9,10 +10,12 @@ export async function POST(_request: Request, { params }: Params) {
   if (!auth.ok) return auth.response
 
   const { id: teamId } = await params
+  const parsedTeamId = parseCuid(teamId, 'teamId')
+  if (parsedTeamId instanceof Response) return parsedTeamId
 
   try {
     const result = await generateTeamSessionsFromSchedule({
-      teamId,
+      teamId: parsedTeamId,
       regenerate: true,
       untilSeasonEnd: true,
     })

@@ -1,6 +1,11 @@
 import { PrismaClient } from '../generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 
+/**
+ * Seguridad SQL: no usar $queryRawUnsafe ni $executeRawUnsafe.
+ * SQL nativo solo vía Prisma.$queryRaw(Prisma.sql`...`) con placeholders ${param}.
+ */
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }

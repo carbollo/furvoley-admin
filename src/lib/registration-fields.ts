@@ -59,8 +59,15 @@ const BUILTIN_DEFAULTS: Omit<RegistrationFieldDef, 'id'>[] = [
 ]
 
 export const MAX_CUSTOM_REGISTRATION_FIELDS = 20
+export const MAX_REGISTRATION_FIELD_VALUE_LEN = 500
 
 const CUSTOM_KEY_RE = /^[a-z0-9_]{2,40}$/
+
+function clampFieldValue(value: string): string {
+  return value.length > MAX_REGISTRATION_FIELD_VALUE_LEN
+    ? value.slice(0, MAX_REGISTRATION_FIELD_VALUE_LEN)
+    : value
+}
 
 function stableId(prefix: string, key: string) {
   return `${prefix}_${key}`
@@ -275,19 +282,19 @@ export function mapRegistrationToMemberData(
 
   const pick = (key: string) => {
     if (!enabledKeys.has(key)) return null
-    const v = String(values[key] ?? '').trim()
+    const v = clampFieldValue(String(values[key] ?? '').trim())
     return v || null
   }
 
   const registrationExtra: Record<string, string> = {}
   for (const field of enabled) {
     if (field.kind !== 'custom') continue
-    const v = String(values[field.key] ?? '').trim()
+    const v = clampFieldValue(String(values[field.key] ?? '').trim())
     if (v) registrationExtra[field.key] = v
   }
 
   return {
-    name,
+    name: clampFieldValue(name),
     dni: pick('dni'),
     birthDate,
     phone: pick('phone'),

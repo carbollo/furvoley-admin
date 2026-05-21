@@ -4,6 +4,7 @@ import {
   publicSportsError,
   publicSportsJson,
 } from '@/lib/public-sports-api'
+import { parseCuid } from '@/lib/db-input-validation'
 
 export async function GET(
   request: Request,
@@ -13,7 +14,9 @@ export async function GET(
   if (denied) return denied
 
   const { id } = await context.params
-  const event = await getEventById(id)
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return publicSportsError(400, 'id no tiene un formato válido.')
+  const event = await getEventById(parsedId)
   if (!event) return publicSportsError(404, 'Actividad no encontrada o no disponible en la API pública')
   return publicSportsJson({ event })
 }

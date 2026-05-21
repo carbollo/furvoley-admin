@@ -4,6 +4,7 @@ import { createJournalEntry } from '@/lib/accounting/engine'
 import { ensureBasePgcAccounts } from '@/lib/accounting/pgc'
 import { getTaxConfig } from '@/lib/tax-config'
 import { requireRoles } from '@/lib/rbac-api'
+import { parseCuid, parseOptionalAccountCode } from '@/lib/db-input-validation'
 
 async function assertAccountingRole() {
   const auth = await requireRoles(['ADMIN', 'TREASURER'])
@@ -28,9 +29,21 @@ export async function POST(request: Request) {
   const concept = String(body.concept || '').trim()
   const amount = Number(body.amount)
   const entryDate = body.entryDate ? new Date(body.entryDate) : new Date()
-  const paymentAccountCode = String(body.paymentAccountCode || '').trim()
-  const categoryAccountCode = String(body.categoryAccountCode || '').trim()
-  const memberId = body.memberId ? String(body.memberId).trim() : null
+  const paymentAccountCodeRaw = String(body.paymentAccountCode || '').trim()
+  const categoryAccountCodeRaw = String(body.categoryAccountCode || '').trim()
+  const paymentAccountCodeParsed = parseOptionalAccountCode(paymentAccountCodeRaw, 'paymentAccountCode')
+  if (paymentAccountCodeParsed instanceof NextResponse) return paymentAccountCodeParsed
+  const categoryAccountCodeParsed = parseOptionalAccountCode(categoryAccountCodeRaw, 'categoryAccountCode')
+  if (categoryAccountCodeParsed instanceof NextResponse) return categoryAccountCodeParsed
+  const paymentAccountCode = paymentAccountCodeParsed ?? ''
+  const categoryAccountCode = categoryAccountCodeParsed ?? ''
+  const memberIdRaw = body.memberId ? String(body.memberId).trim() : null
+  let memberId: string | null = null
+  if (memberIdRaw) {
+    const parsedMemberId = parseCuid(memberIdRaw, 'memberId')
+    if (parsedMemberId instanceof NextResponse) return parsedMemberId
+    memberId = parsedMemberId
+  }
   const applyTaxRaw = body.applyTax
   const taxRateRaw = Number(body.taxRate)
   const applyWithholdingRaw = body.applyWithholding
@@ -214,10 +227,9 @@ export async function DELETE(request: Request) {
   }
 
   const url = new URL(request.url)
-  const movementId = String(url.searchParams.get('id') || '').trim()
-  if (!movementId) {
-    return NextResponse.json({ error: 'Falta el id del movimiento' }, { status: 400 })
-  }
+  const movementIdRaw = String(url.searchParams.get('id') || '').trim()
+  const movementId = parseCuid(movementIdRaw, 'id')
+  if (movementId instanceof NextResponse) return movementId
 
   const movement = await prisma.transaction.findUnique({
     where: { id: movementId },

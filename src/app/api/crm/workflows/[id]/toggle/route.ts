@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { setWorkflowActive } from '@/app/actions/workflows'
 
@@ -15,12 +16,14 @@ export async function POST(
   }
 
   const { id } = await context.params
-  const wf = await prisma.workflow.findUnique({ where: { id } })
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
+  const wf = await prisma.workflow.findUnique({ where: { id: parsedId } })
   if (!wf) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  await setWorkflowActive(id, !wf.isActive)
+  await setWorkflowActive(parsedId, !wf.isActive)
 
   return NextResponse.json({ ok: true, active: !wf.isActive })
 }

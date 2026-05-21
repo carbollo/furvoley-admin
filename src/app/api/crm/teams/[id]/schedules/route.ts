@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { parseCuid } from '@/lib/db-input-validation'
 import { requireRoles } from '@/lib/rbac-api'
 import { runTeamScheduleChangedWorkflows } from '@/lib/workflow-engine'
 
@@ -10,8 +11,10 @@ export async function GET(_request: Request, { params }: Params) {
   if (!auth.ok) return auth.response
 
   const { id: teamId } = await params
+  const parsedTeamId = parseCuid(teamId, 'teamId')
+  if (parsedTeamId instanceof Response) return parsedTeamId
   const rows = await prisma.teamSchedule.findMany({
-    where: { teamId },
+    where: { teamId: parsedTeamId },
     orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
   })
   return NextResponse.json({
@@ -31,6 +34,8 @@ export async function POST(request: Request, { params }: Params) {
   if (!auth.ok) return auth.response
 
   const { id: teamId } = await params
+  const parsedTeamId = parseCuid(teamId, 'teamId')
+  if (parsedTeamId instanceof Response) return parsedTeamId
   let body: Record<string, unknown>
   try {
     body = (await request.json()) as Record<string, unknown>
@@ -53,7 +58,7 @@ export async function POST(request: Request, { params }: Params) {
 
   const row = await prisma.teamSchedule.create({
     data: {
-      teamId,
+      teamId: parsedTeamId,
       weekday,
       startTime,
       durationMinutes,
@@ -62,7 +67,7 @@ export async function POST(request: Request, { params }: Params) {
     },
   })
 
-  void runTeamScheduleChangedWorkflows(teamId).catch((err) => {
+  void runTeamScheduleChangedWorkflows(parsedTeamId).catch((err) => {
     console.warn('[schedules] WD-2 workflow failed:', err)
   })
 

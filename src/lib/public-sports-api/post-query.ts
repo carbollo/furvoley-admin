@@ -12,6 +12,7 @@ import {
   publicSportsError,
   publicSportsJson,
 } from '@/lib/public-sports-api/index'
+import { parseCuid } from '@/lib/db-input-validation'
 
 export type PublicSportsQueryBody = {
   apiKey?: string
@@ -95,7 +96,9 @@ export async function handlePublicSportsPostQuery(request: Request) {
   if (resource === 'team' || resource === 'equipo') {
     const id = paramStr(body, 'id') || paramStr(body, 'teamId')
     if (!id) return publicSportsError(400, 'Falta "id" (id del equipo).')
-    const team = await getTeamById(id)
+    const parsedId = parseCuid(id, 'id')
+    if (parsedId instanceof Response) return publicSportsError(400, 'id no tiene un formato válido.')
+    const team = await getTeamById(parsedId)
     if (!team) return publicSportsError(404, 'Equipo no encontrado')
     return publicSportsJson({ resource: 'team', team })
   }
@@ -109,8 +112,15 @@ export async function handlePublicSportsPostQuery(request: Request) {
     if (status && !['SCHEDULED', 'CANCELLED', 'COMPLETED'].includes(status)) {
       return publicSportsError(400, 'status no válido')
     }
+    const teamIdRaw = paramStr(body, 'teamId')
+    let teamId: string | undefined
+    if (teamIdRaw) {
+      const parsedTeamId = parseCuid(teamIdRaw, 'teamId')
+      if (parsedTeamId instanceof Response) return publicSportsError(400, 'teamId no tiene un formato válido.')
+      teamId = parsedTeamId
+    }
     const events = await listEvents({
-      teamId: paramStr(body, 'teamId'),
+      teamId,
       type,
       from: fromRaw ?? undefined,
       to: toRaw ?? undefined,
@@ -123,7 +133,9 @@ export async function handlePublicSportsPostQuery(request: Request) {
   if (resource === 'event' || resource === 'evento') {
     const id = paramStr(body, 'id')
     if (!id) return publicSportsError(400, 'Falta "id" (id del evento).')
-    const event = await getEventById(id)
+    const parsedId = parseCuid(id, 'id')
+    if (parsedId instanceof Response) return publicSportsError(400, 'id no tiene un formato válido.')
+    const event = await getEventById(parsedId)
     if (!event) return publicSportsError(404, 'Evento no encontrado')
     return publicSportsJson({ resource: 'event', event })
   }
@@ -139,10 +151,17 @@ export async function handlePublicSportsPostQuery(request: Request) {
   }
 
   if (resource === 'calendar' || resource === 'calendario') {
+    const teamIdRaw = paramStr(body, 'teamId')
+    let teamId: string | undefined
+    if (teamIdRaw) {
+      const parsedTeamId = parseCuid(teamIdRaw, 'teamId')
+      if (parsedTeamId instanceof Response) return publicSportsError(400, 'teamId no tiene un formato válido.')
+      teamId = parsedTeamId
+    }
     const feed = await getCalendarFeed({
       from: fromRaw ?? undefined,
       to: toRaw ?? undefined,
-      teamId: paramStr(body, 'teamId'),
+      teamId,
       limit: parseLimit(paramStr(body, 'limit') ?? null, 200, 100),
     })
     return publicSportsJson({ resource: 'calendar', ...feed })

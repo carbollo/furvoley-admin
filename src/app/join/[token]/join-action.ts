@@ -1,4 +1,5 @@
 import { getRegistrationFieldsConfig } from '@/lib/club-settings'
+import { isHexToken } from '@/lib/db-input-validation'
 import {
   mapRegistrationToMemberData,
   registrationValuesFromFormData,
@@ -7,7 +8,11 @@ import {
 import { submitSignupFromLink } from '@/app/actions/signup-links'
 
 export async function processJoinSignup(formData: FormData) {
-  const token = String(formData.get('token') || '').trim()
+  const tokenRaw = String(formData.get('token') || '').trim()
+  if (!isHexToken(tokenRaw)) {
+    throw new Error('Enlace no válido')
+  }
+  const token = tokenRaw
   const config = await getRegistrationFieldsConfig()
   const values = registrationValuesFromFormData(formData, config)
   const errors = validateRegistrationSubmission(values, config)

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { recordManualInvoicePayment } from '@/app/actions/billing'
 import { requireRoles } from '@/lib/rbac-api'
@@ -11,7 +12,9 @@ export async function POST(
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
-  const invoice = await prisma.invoice.findUnique({ where: { id } })
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
+  const invoice = await prisma.invoice.findUnique({ where: { id: parsedId } })
   if (!invoice) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
@@ -22,7 +25,7 @@ export async function POST(
   }
 
   await recordManualInvoicePayment({
-    invoiceId: id,
+    invoiceId: parsedId,
     amount: pending,
     method: 'CASH',
   })

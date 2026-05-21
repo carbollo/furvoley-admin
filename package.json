@@ -9,6 +9,7 @@
     "bootstrap-admin": "npx tsx prisma/bootstrap-admin.ts",
     "seed": "prisma db seed",
     "lint": "eslint",
+    "security:sql": "node scripts/check-no-raw-sql.cjs",
     "postinstall": "prisma generate",
     "cf:prepare": "node scripts/patch-pg-cloudflare.cjs",
     "cf:build": "npm run cf:prepare && opennextjs-cloudflare build",

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { randomBytes } from 'crypto'
+import { isHexToken } from '@/lib/db-input-validation'
 
 export type WorkflowLinkType =
   | 'ATTENDANCE'
@@ -62,6 +63,7 @@ export async function createWorkflowResponseLink(input: {
 
 /** Lectura del token (formulario público); no marca como usado. */
 export async function getWorkflowResponseToken(token: string) {
+  if (!isHexToken(token)) return { ok: false as const, error: 'Enlace no válido' }
   const row = await prisma.workflowResponseToken.findUnique({ where: { token } })
   if (!row) return { ok: false as const, error: 'Enlace no válido' }
   if (row.expiresAt < new Date()) return { ok: false as const, error: 'Enlace caducado' }

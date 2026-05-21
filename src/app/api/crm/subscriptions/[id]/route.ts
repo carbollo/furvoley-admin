@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { parseCuid } from '@/lib/db-input-validation'
 import { requireRoles } from '@/lib/rbac-api'
 import { revalidatePath } from 'next/cache'
 
@@ -12,7 +13,8 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!auth.ok) return auth.response
 
   const { id } = await params
-  if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
 
   let body: { status?: string }
   try {
@@ -26,13 +28,13 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ error: 'Estado inválido' }, { status: 400 })
   }
 
-  const existing = await prisma.subscription.findUnique({ where: { id } })
+  const existing = await prisma.subscription.findUnique({ where: { id: parsedId } })
   if (!existing) {
     return NextResponse.json({ error: 'Suscripción no encontrada' }, { status: 404 })
   }
 
   await prisma.subscription.update({
-    where: { id },
+    where: { id: parsedId },
     data: {
       status,
       endDate: status === 'CANCELED' ? new Date() : existing.endDate,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 import { runTeamChangeApprovedWorkflows } from '@/lib/workflow-proclub-runners'
@@ -10,12 +11,14 @@ export async function POST(_request: Request, { params }: Params) {
   if (!auth.ok) return auth.response
 
   const { id } = await params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   await prisma.teamChangeRequest.update({
-    where: { id },
+    where: { id: parsedId },
     data: { status: 'APPROVED', approvedById: auth.session.user.id },
   })
 
-  void runTeamChangeApprovedWorkflows(id).catch((e) => {
+  void runTeamChangeApprovedWorkflows(parsedId).catch((e) => {
     console.warn('[team-change] WD-10 failed:', e)
   })
 

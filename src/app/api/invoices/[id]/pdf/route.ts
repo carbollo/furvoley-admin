@@ -1,5 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { buildInvoicePdf } from '@/lib/invoice-pdf'
 import { clubSettingsToIssuer, getClubSettings, normalizeInvoicePdfTemplate } from '@/lib/club-settings'
@@ -16,8 +17,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const userMemberId = (session.user as { memberId?: string | null }).memberId
 
   const { id } = await params
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
   const invoice = await prisma.invoice.findUnique({
-    where: { id },
+    where: { id: parsedId },
     include: {
       member: true,
       items: true,

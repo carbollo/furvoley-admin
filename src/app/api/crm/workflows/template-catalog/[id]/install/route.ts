@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { parseCuid } from '@/lib/db-input-validation'
 import { installWorkflowTemplate } from '@/lib/workflow-template-catalog'
 
 type Params = { params: Promise<{ id: string }> }
@@ -13,7 +14,9 @@ export async function POST(_request: Request, { params }: Params) {
   }
 
   const { id } = await params
-  const result = await installWorkflowTemplate(id)
+  const parsedId = parseCuid(id, 'id')
+  if (parsedId instanceof Response) return parsedId
+  const result = await installWorkflowTemplate(parsedId)
   if (!result.ok) {
     return NextResponse.json({ error: result.reason }, { status: 404 })
   }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { parseCuid } from '@/lib/db-input-validation'
 import { apiWassRequest } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 
@@ -42,12 +43,13 @@ export async function GET(
   try {
     await assertAdmin()
     const { id } = await context.params
-    if (!id) return NextResponse.json({ error: 'Session ID requerido' }, { status: 400 })
+    const parsedId = parseCuid(id, 'id')
+    if (parsedId instanceof Response) return parsedId
     const cfg = await getWhatsAppConfig()
-    if (!cfg.linkedSessionId || cfg.linkedSessionId !== id) {
+    if (!cfg.linkedSessionId || cfg.linkedSessionId !== parsedId) {
       return NextResponse.json({ error: 'Sesión no vinculada al CRM.' }, { status: 409 })
     }
-    const data = await apiWassRequest(`/sessions/${encodeURIComponent(id)}/qr`)
+    const data = await apiWassRequest(`/sessions/${encodeURIComponent(parsedId)}/qr`)
     return NextResponse.json(
       {
         ...data,

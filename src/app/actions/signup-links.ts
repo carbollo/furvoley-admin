@@ -7,6 +7,7 @@ import { headers } from 'next/headers'
 import { runMemberCreatedWorkflows } from '@/lib/workflow-engine'
 import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
 import type { RegistrationMemberData } from '@/lib/registration-fields'
+import { isHexToken } from '@/lib/db-input-validation'
 
 async function buildSignupUrl(token: string) {
   const h = await headers()
@@ -45,6 +46,7 @@ export async function createSignupLink(expiresInDays = 30) {
 }
 
 export async function submitSignupFromLink(data: RegistrationMemberData & { token: string }) {
+  if (!isHexToken(data.token)) throw new Error('Enlace no válido o desactivado')
   const link = await prisma.signupLink.findUnique({ where: { token: data.token } })
   if (!link || !link.isActive) throw new Error('Enlace no válido o desactivado')
   if (link.expiresAt && link.expiresAt < new Date()) throw new Error('El enlace ha caducado')
