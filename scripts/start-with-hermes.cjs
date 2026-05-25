@@ -54,21 +54,6 @@ function syncHermesConfigOnly() {
   }
 }
 
-function startHermesGatewayInBackground() {
-  process.stdout.write('[startup] Hermes gateway starting in background (non-blocking)...\n')
-  const child = spawn(
-    process.platform === 'win32' ? 'npx.cmd' : 'npx',
-    ['tsx', 'scripts/start-hermes-gateway.ts'],
-    { stdio: 'inherit', env: process.env },
-  )
-  child.on('exit', (code, signal) => {
-    if (signal) return
-    if (code && code !== 0) {
-      process.stderr.write(`[startup] Hermes gateway helper exited with code ${code}.\n`)
-    }
-  })
-}
-
 async function main() {
   await ensureSchema()
   await ensureAdminUser()
@@ -78,8 +63,6 @@ async function main() {
     ['next', 'start'],
     { stdio: 'inherit', env: process.env },
   )
-  // Next.js must bind PORT before Hermes — Railway health checks HTTP, not the gateway.
-  setTimeout(() => startHermesGatewayInBackground(), 2500)
   child.on('exit', (code, signal) => {
     if (signal) {
       process.kill(process.pid, signal)

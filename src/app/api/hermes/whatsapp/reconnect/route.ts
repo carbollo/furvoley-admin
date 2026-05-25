@@ -2,7 +2,7 @@ import { rm } from 'node:fs/promises'
 import { NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/rbac-api'
 import { writeHermesConfigFiles } from '@/lib/hermes-gateway/config-writer'
-import { restartGateway } from '@/lib/hermes-gateway/supervisor'
+import { scheduleGatewayRestart } from '@/lib/hermes-gateway/supervisor'
 import {
   clearWhatsappPairingArtifacts,
   stopWhatsappPairing,
@@ -22,11 +22,11 @@ export async function POST() {
   ])
 
   await writeHermesConfigFiles()
-  const result = await restartGateway()
+  void scheduleGatewayRestart()
 
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error || 'No se pudo reiniciar Hermes' }, { status: 500 })
-  }
-
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({
+    ok: true,
+    pending: true,
+    message: 'Sesión WhatsApp borrada. Reiniciando gateway…',
+  })
 }

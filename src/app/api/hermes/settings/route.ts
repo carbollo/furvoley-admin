@@ -9,7 +9,7 @@ import {
   normalizeAllowedUsers,
   normalizeWhatsappMode,
 } from '@/lib/hermes-gateway/settings'
-import { getGatewayStatus, restartGateway, stopGateway } from '@/lib/hermes-gateway/supervisor'
+import { getGatewayStatus, scheduleGatewayRestart, stopGateway } from '@/lib/hermes-gateway/supervisor'
 import { getHermesWhatsappStatus } from '@/lib/hermes-gateway/whatsapp-status'
 import {
   getHermesMcpApiKey,
@@ -60,6 +60,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
+  try {
   const current = await getHermesSettings()
   const enabled = typeof body.enabled === 'boolean' ? body.enabled : current.enabled
   const ollamaModel =
@@ -137,11 +138,30 @@ export async function PATCH(request: Request) {
 
   await writeHermesConfigFiles()
 
-  let gatewayResult: { ok: boolean; error?: string } = { ok: true }
-  if (enabled) {
-    gatewayResult = await restartGateway()
-  } else {
-    await stopGateway()
+  let gatewayResult: {
+    ok: boolean
+    error?: string
+    apiServerReady?: boolean
+    pending?: boolean
+    message?: string
+  } = { ok: true }
+
+  try {
+    if (enabled) {
+      void scheduleGatewayRestart()
+      gatewayResult = {
+        ok: true,
+        pending: true,
+        message: 'Configuración guardada. Reiniciando gateway en segundo plano…',
+      }
+    } else {
+      await stopGateway()
+    }
+  } catch (e) {
+    gatewayResult = {
+      ok: false,
+      error: e instanceof Error ? e.message : 'No se pudo reiniciar el gateway',
+    }
   }
 
   return NextResponse.json({
@@ -150,6 +170,10 @@ export async function PATCH(request: Request) {
     gatewayResult,
     generatedMcpKey,
   })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Error al guardar la configuración'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {
@@ -180,7 +204,7 @@ export async function POST(request: Request) {
 
     await writeHermesConfigFiles()
     if (await isHermesEnabled()) {
-      await restartGateway()
+      void scheduleGatewayRestart()
     }
 
     return NextResponse.json({

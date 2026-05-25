@@ -185,8 +185,8 @@ export async function startWhatsappPairingIfNeeded(): Promise<{ ok: boolean; err
     void unlink(pairPidFile()).catch(() => undefined)
     void (async () => {
       if (await isWhatsappPaired()) {
-        const { restartGateway } = await import('@/lib/hermes-gateway/supervisor')
-        await restartGateway()
+        const { scheduleGatewayRestart } = await import('@/lib/hermes-gateway/supervisor')
+        void scheduleGatewayRestart()
       }
     })()
   })

@@ -8,6 +8,7 @@ import {
   readHermesGatewayPid,
 } from '@/lib/hermes-gateway/gateway-pid'
 import { getHermesApiServerKey } from '@/lib/hermes-mcp/config'
+import { withGatewayLock } from '@/lib/hermes-gateway/gateway-lock'
 import { getHermesHome, getHermesSettings } from '@/lib/hermes-gateway/settings'
 import {
   isWhatsappPaired,
@@ -222,6 +223,8 @@ export type StartGatewayResult = {
   ok: boolean
   error?: string
   apiServerReady?: boolean
+  pending?: boolean
+  message?: string
 }
 
 export type StartGatewayOptions = {
@@ -229,6 +232,8 @@ export type StartGatewayOptions = {
   force?: boolean
   /** Container boot: short API-server wait so Next.js can bind PORT first. */
   boot?: boolean
+  /** CRM API routes: return once gateway process is alive, poll chat status separately. */
+  skipApiWait?: boolean
 }
 
 async function finishWhatsappPairingAfterGatewayStart() {
@@ -293,14 +298,12 @@ export async function startGateway(opts?: StartGatewayOptions): Promise<StartGat
     if (wantsApiServer) {
       const health = await waitForHermesApiServerReady({ maxMs: 1500, intervalMs: 400 })
       if (health.healthy) {
-        const whatsapp = await finishWhatsappPairingAfterGatewayStart()
-        if (!whatsapp.ok) return whatsapp
+        await finishWhatsappPairingAfterGatewayStart()
         await clearGatewayError()
         return { ok: true, apiServerReady: true }
       }
     } else {
-      const whatsapp = await finishWhatsappPairingAfterGatewayStart()
-      if (!whatsapp.ok) return whatsapp
+      await finishWhatsappPairingAfterGatewayStart()
       await clearGatewayError()
       return { ok: true, apiServerReady: false }
     }
@@ -340,9 +343,11 @@ export async function startGateway(opts?: StartGatewayOptions): Promise<StartGat
   await clearGatewayError()
 
   const whatsapp = await finishWhatsappPairingAfterGatewayStart()
-  if (!whatsapp.ok) return whatsapp
+  if (!whatsapp.ok) {
+    process.stderr.write(`[hermes-gateway] WhatsApp pairing: ${whatsapp.error}\n`)
+  }
 
-  if (wantsApiServer) {
+  if (wantsApiServer && !opts?.skipApiWait) {
     const api = await waitForChatApiServerIfNeeded({ boot: opts?.boot })
     if (!api.ready) {
       return {
@@ -357,6 +362,42 @@ export async function startGateway(opts?: StartGatewayOptions): Promise<StartGat
   return { ok: true, apiServerReady: false }
 }
 
+async function restartGatewayLocked(opts?: Pick<StartGatewayOptions, 'boot' | 'skipApiWait'>) {
+  await stopHermesGatewayProcesses()
+  await stopWhatsappPairing()
+  await sleep(300)
+  return startGateway({ force: true, boot: opts?.boot, skipApiWait: opts?.skipApiWait ?? true })
+}
+
+let scheduledRestart: Promise<StartGatewayResult> | null = null
+
+/** Non-blocking restart for CRM API — avoids Railway HTTP timeouts. */
+export function scheduleGatewayRestart(): Promise<StartGatewayResult> {
+  if (scheduledRestart) {
+    return scheduledRestart.then((result) => {
+      if (result.ok) return scheduleGatewayRestart()
+      return result
+    })
+  }
+
+  scheduledRestart = withGatewayLock(() => restartGatewayLocked({ skipApiWait: true }))
+    .then((result) => {
+      if (!result.ok) {
+        process.stderr.write(`[hermes-gateway] Restart failed: ${result.error || 'unknown'}\n`)
+      }
+      return result
+    })
+    .finally(() => {
+      scheduledRestart = null
+    })
+
+  return scheduledRestart
+}
+
+export async function restartGateway() {
+  return withGatewayLock(() => restartGatewayLocked({ skipApiWait: false }))
+}
+
 export async function ensureGatewayRunning(): Promise<{ ok: boolean; error?: string }> {
   const settings = await getHermesSettings()
   if (!settings.enabled) return { ok: true }
@@ -364,14 +405,7 @@ export async function ensureGatewayRunning(): Promise<{ ok: boolean; error?: str
   const status = await getGatewayStatus()
   if (status.status === 'running') return { ok: true }
 
-  return startGateway()
-}
-
-export async function restartGateway() {
-  await stopHermesGatewayProcesses()
-  await stopWhatsappPairing()
-  await sleep(300)
-  return startGateway({ force: true })
+  return withGatewayLock(() => startGateway({ skipApiWait: true }))
 }
 
 export async function getGatewayStatus(): Promise<{

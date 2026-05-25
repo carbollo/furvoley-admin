@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/rbac-api'
 import { getHermesApiServerStatus } from '@/lib/hermes-gateway/api-server'
 import { writeHermesConfigFiles } from '@/lib/hermes-gateway/config-writer'
-import { getGatewayStatus, restartGateway } from '@/lib/hermes-gateway/supervisor'
+import { getGatewayStatus, scheduleGatewayRestart } from '@/lib/hermes-gateway/supervisor'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,21 +11,14 @@ export async function POST() {
   if (!auth.ok) return auth.response
 
   await writeHermesConfigFiles()
-  const result = await restartGateway()
+  void scheduleGatewayRestart()
   const [status, apiServer] = await Promise.all([getGatewayStatus(), getHermesApiServerStatus()])
-
-  if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error || 'No se pudo reiniciar el gateway', status, apiServer },
-      { status: 500 },
-    )
-  }
 
   return NextResponse.json({
     ok: true,
+    pending: true,
     status,
     apiServer,
-    apiServerReady: result.apiServerReady ?? apiServer.healthy,
-    warning: result.apiServerReady === false ? result.error : undefined,
+    message: 'Reiniciando gateway en segundo plano. El chat estará listo en unos segundos.',
   })
 }
