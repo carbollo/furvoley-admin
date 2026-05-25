@@ -76,6 +76,7 @@ export function HermesAgentSection() {
   const [allowDestructive, setAllowDestructive] = useState(false)
 
   const formDirtyRef = useRef(false)
+  const [isDirty, setIsDirty] = useState(false)
 
   const busy = busyAction !== null
 
@@ -88,6 +89,7 @@ export function HermesAgentSection() {
       setAllowDestructive,
     })
     formDirtyRef.current = false
+    setIsDirty(false)
   }, [])
 
   const loadSettings = useCallback(async () => {
@@ -155,6 +157,7 @@ export function HermesAgentSection() {
 
   function markDirty() {
     formDirtyRef.current = true
+    setIsDirty(true)
   }
 
   function showBanner(kind: BannerKind, text: string) {
@@ -188,6 +191,7 @@ export function HermesAgentSection() {
 
       setOllamaApiKey('')
       formDirtyRef.current = false
+      setIsDirty(false)
 
       if (j.settings) {
         setData(j.settings)
@@ -313,6 +317,59 @@ export function HermesAgentSection() {
     info: { bg: 'rgba(234,179,8,0.1)', border: 'rgba(234,179,8,0.35)', text: '#a16207' },
   }
 
+  const saveButtonStyle = {
+    padding: '12px 24px',
+    borderRadius: 8,
+    border: 'none',
+    background: 'var(--accent)',
+    color: '#fff',
+    fontWeight: 700,
+    fontSize: 14,
+    cursor: busy ? 'not-allowed' : 'pointer',
+    whiteSpace: 'nowrap' as const,
+  }
+
+  const stickySaveBar = (
+    <div
+      style={{
+        position: 'sticky',
+        bottom: 0,
+        zIndex: 5,
+        marginTop: 8,
+        padding: '14px 20px',
+        background: 'var(--surface-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 12,
+        boxShadow: '0 -4px 16px rgba(0,0,0,0.08)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+          Guardar en base de datos
+        </p>
+        <p
+          style={{
+            margin: '4px 0 0',
+            fontSize: 12,
+            color: isDirty ? '#a16207' : 'var(--text-secondary)',
+          }}
+        >
+          {isDirty
+            ? 'Tienes cambios sin guardar. Pulsa Guardar para aplicarlos y reiniciar Hermes si está activo.'
+            : 'La configuración actual está guardada de forma persistente.'}
+        </p>
+      </div>
+      <button type="submit" disabled={busy} style={saveButtonStyle}>
+        {busyAction === 'save' ? 'Guardando…' : 'Guardar configuración'}
+      </button>
+    </div>
+  )
+
   const setupDone = {
     mcp: Boolean(data?.hasMcpKey),
     ollama: Boolean(data?.hasOllamaKey),
@@ -379,6 +436,8 @@ export function HermesAgentSection() {
               recibe tus órdenes al CRM.
             </p>
           </div>
+
+          {stickySaveBar}
 
           <div style={cardStyle}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
@@ -593,23 +652,7 @@ export function HermesAgentSection() {
             </p>
           </div>
 
-          <button
-            type="submit"
-            disabled={busy}
-            style={{
-              padding: '12px 20px',
-              borderRadius: 8,
-              border: 'none',
-              background: 'var(--accent)',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: busy ? 'not-allowed' : 'pointer',
-              justifySelf: 'start',
-            }}
-          >
-            {busyAction === 'save' ? 'Guardando…' : 'Guardar configuración'}
-          </button>
+          {stickySaveBar}
         </form>
       )}
       </div>
