@@ -5923,7 +5923,7 @@ function CrmInner() {
   // abrimos automáticamente el modal en la pestaña Suscripción y limpiamos el query.
   useEffect(() => {
     const sc = searchParams.get('stripeConnect')
-    if (!sc) return
+    if (!sc || loading || !bundle?.user?.role) return
     if (role === 'ADMIN') {
       setShowClubSettings(true)
     }
@@ -5931,7 +5931,7 @@ function CrmInner() {
     params.delete('stripeConnect')
     const qs = params.toString()
     router.replace(qs ? `/?${qs}` : '/', { scroll: false })
-  }, [searchParams, router, role])
+  }, [searchParams, router, role, loading, bundle?.user?.role])
   const active: SectionId = CRM_SECTION_IDS.includes(normalizedTab as SectionId)
     ? (normalizedTab as SectionId)
     : 'dashboard'
@@ -5939,6 +5939,8 @@ function CrmInner() {
   const safeActive = canAccessCrmSection(role, active) ? active : firstAllowed
 
   useEffect(() => {
+    if (loading || !bundle?.user?.role) return
+
     const tRaw = searchParams.get('tab')
     const t = tRaw === 'cobros' ? 'contabilidad' : tRaw
     if (!t || !CRM_SECTION_IDS.includes(t as SectionId)) {
@@ -5952,7 +5954,7 @@ function CrmInner() {
     if (tRaw === 'cobros') {
       router.replace('/?tab=contabilidad', { scroll: false })
     }
-  }, [router, searchParams, role, firstAllowed])
+  }, [router, searchParams, role, firstAllowed, loading, bundle?.user?.role])
 
   const setActive = useCallback(
     (id: string) => {

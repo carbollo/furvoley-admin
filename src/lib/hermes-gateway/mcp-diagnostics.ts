@@ -52,7 +52,15 @@ async function readJsonBody(response: Response): Promise<unknown> {
   }
 }
 
-export async function probeHermesMcpEndpoint(): Promise<HermesMcpProbeResult> {
+let cachedProbe: { at: number; result: HermesMcpProbeResult } | null = null
+const PROBE_TTL_MS = 30_000
+
+export async function probeHermesMcpEndpoint(opts?: { force?: boolean }): Promise<HermesMcpProbeResult> {
+  const now = Date.now()
+  if (!opts?.force && cachedProbe && now - cachedProbe.at < PROBE_TTL_MS) {
+    return cachedProbe.result
+  }
+
   const url = resolveHermesMcpUrlForGateway()
   const apiKey = (await getHermesMcpApiKey()) || ''
   if (!apiKey) {
@@ -138,27 +146,31 @@ export async function probeHermesMcpEndpoint(): Promise<HermesMcpProbeResult> {
     }
 
     const toolCount = Array.isArray(toolsJson.result?.tools) ? toolsJson.result.tools.length : 0
-    return {
+    const result: HermesMcpProbeResult = {
       ok: toolCount > 0,
       toolCount,
       error: toolCount > 0 ? undefined : 'El servidor MCP no expone tools',
       url,
       hasKey: true,
     }
+    cachedProbe = { at: Date.now(), result }
+    return result
   } catch (e) {
-    return {
+    const result: HermesMcpProbeResult = {
       ok: false,
       toolCount: 0,
       error: e instanceof Error ? e.message : 'Probe MCP falló',
       url,
       hasKey: true,
     }
+    cachedProbe = { at: Date.now(), result }
+    return result
   }
 }
 
 export async function waitForHermesMcpReady(opts?: { maxMs?: number; intervalMs?: number }) {
-  const maxMs = opts?.maxMs ?? 45000
-  const intervalMs = opts?.intervalMs ?? 1500
+  const maxMs = opts?.maxMs ?? 15000
+  const intervalMs = opts?.intervalMs ?? 2000
   const start = Date.now()
   let last = await probeHermesMcpEndpoint()
   while (!last.ok && Date.now() - start < maxMs) {
@@ -182,9 +194,12 @@ export async function readGatewayMcpLogHint(): Promise<string | undefined> {
   return summary?.trim()
 }
 
-export async function getHermesMcpStatus() {
+export async function getHermesMcpStatus(opts?: { forceProbe?: boolean }) {
   const pythonSdkInstalled = isHermesPythonMcpSdkInstalled()
-  const [probe, logHint] = await Promise.all([probeHermesMcpEndpoint(), readGatewayMcpLogHint()])
+  const [probe, logHint] = await Promise.all([
+    probeHermesMcpEndpoint({ force: opts?.forceProbe }),
+    readGatewayMcpLogHint(),
+  ])
   const sdkError = pythonSdkInstalled
     ? undefined
     : 'Falta el paquete Python mcp en el contenedor (pip install hermes-agent[mcp])'

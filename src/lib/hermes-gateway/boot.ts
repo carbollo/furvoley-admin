@@ -1,7 +1,7 @@
 import { getHermesSettings } from '@/lib/hermes-gateway/settings'
 import { waitForHermesApiServerReady } from '@/lib/hermes-gateway/api-server'
-import { readApiServerLogHint, isHermesAiohttpInstalled } from '@/lib/hermes-gateway/api-server-diagnostics'
-import { waitForHermesMcpReady, isHermesPythonMcpSdkInstalled } from '@/lib/hermes-gateway/mcp-diagnostics'
+import { readApiServerLogHint } from '@/lib/hermes-gateway/api-server-diagnostics'
+import { probeHermesMcpEndpoint } from '@/lib/hermes-gateway/mcp-diagnostics'
 import { withGatewayLock } from '@/lib/hermes-gateway/gateway-lock'
 
 let bootScheduled = false
@@ -18,13 +18,31 @@ async function waitForApiServerAfterBoot() {
   )
 }
 
+/** One delayed MCP check after gateway start — restart once if CRM tools still missing. */
+function schedulePostGatewayMcpCheck() {
+  setTimeout(() => {
+    void (async () => {
+      const probe = await probeHermesMcpEndpoint({ force: true })
+      if (probe.ok) {
+        process.stdout.write(`[hermes-boot] MCP CRM OK (${probe.toolCount} tools).\n`)
+        return
+      }
+      process.stderr.write(
+        `[hermes-boot] MCP sin tools (${probe.error || 'desconocido'}). Reiniciando gateway una vez…\n`,
+      )
+      const { scheduleGatewayRestart } = await import('@/lib/hermes-gateway/supervisor')
+      void scheduleGatewayRestart()
+    })().catch(() => undefined)
+  }, 20000)
+}
+
 /** Start Hermes gateway once Next.js is listening (same process as API routes). */
 export function scheduleHermesGatewayBoot() {
   if (bootScheduled) return
   if (String(process.env.HERMES_GATEWAY_BOOT || '').trim().toLowerCase() === 'false') return
   bootScheduled = true
 
-  const delayMs = Number(process.env.HERMES_GATEWAY_BOOT_DELAY_MS || 3000)
+  const delayMs = Number(process.env.HERMES_GATEWAY_BOOT_DELAY_MS || 5000)
   setTimeout(() => {
     void withGatewayLock(async () => {
       const settings = await getHermesSettings()
@@ -32,30 +50,10 @@ export function scheduleHermesGatewayBoot() {
         process.stdout.write('[hermes-boot] Hermes desactivado — omitido.\n')
         return
       }
-      if (!isHermesAiohttpInstalled()) {
-        process.stderr.write(
-          '[hermes-boot] Falta aiohttp — el API Server del chat no arrancará. Rebuild con pip install aiohttp.\n',
-        )
-      }
 
-      if (!isHermesPythonMcpSdkInstalled()) {
-        process.stderr.write(
-          '[hermes-boot] Falta el paquete Python mcp — Hermes no registrará tools CRM. Rebuild con hermes-agent[mcp].\n',
-        )
-      }
-
-      const mcp = await waitForHermesMcpReady({ maxMs: 45000, intervalMs: 1500 })
-      if (!mcp.ok) {
-        process.stderr.write(
-          `[hermes-boot] MCP local no listo (${mcp.error || 'sin tools'}). Gateway arrancará igual; reinicia si el chat no ve el CRM.\n`,
-        )
-      } else {
-        process.stdout.write(`[hermes-boot] MCP local OK (${mcp.toolCount} tools).\n`)
-      }
-
-      const { startGateway, scheduleGatewayRestart } = await import('@/lib/hermes-gateway/supervisor')
+      const { startGateway } = await import('@/lib/hermes-gateway/supervisor')
       process.stdout.write('[hermes-boot] Arrancando gateway…\n')
-      const result = await startGateway({ boot: true, force: mcp.ok })
+      const result = await startGateway({ boot: true })
       if (!result.ok) {
         process.stderr.write(`[hermes-boot] Error: ${result.error || 'desconocido'}\n`)
         return
@@ -66,23 +64,7 @@ export function scheduleHermesGatewayBoot() {
       if (!result.apiServerReady) {
         await waitForApiServerAfterBoot()
       }
-
-      if (mcp.ok) {
-        setTimeout(() => {
-          void withGatewayLock(async () => {
-            const { readGatewayMcpLogHint } = await import('@/lib/hermes-gateway/mcp-diagnostics')
-            const hint = await readGatewayMcpLogHint()
-            if (hint && /fail|error|401|refused|0 tool|blocked|login/i.test(hint)) {
-              process.stderr.write(`[hermes-boot] MCP gateway falló (${hint}). Reiniciando gateway…\n`)
-              void scheduleGatewayRestart()
-            }
-          }).catch(() => undefined)
-        }, 12000)
-      } else {
-        process.stderr.write(
-          '[hermes-boot] Reinicia el gateway desde el CRM tras corregir MCP (Configuración → Guardar).\n',
-        )
-      }
+      schedulePostGatewayMcpCheck()
     }).catch((err) => {
       process.stderr.write(`[hermes-boot] Fatal: ${err?.message || err}\n`)
     })
