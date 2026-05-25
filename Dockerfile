@@ -2,11 +2,18 @@
 
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
-RUN npm ci
+# postinstall runs prisma generate; schema is not copied yet in this stage
+RUN npm ci --ignore-scripts
 
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -20,7 +27,7 @@ ENV PORT=3000
 ENV HERMES_HOME=/root/.hermes
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-pip git ca-certificates curl \
+  && apt-get install -y --no-install-recommends python3 python3-pip git ca-certificates curl openssl \
   && rm -rf /var/lib/apt/lists/* \
   && python3 -m pip install --break-system-packages hermes-agent \
   && mkdir -p /root/.hermes
@@ -31,6 +38,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/skills ./skills
 COPY --from=builder /app/src ./src
