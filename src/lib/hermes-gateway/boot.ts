@@ -55,7 +55,7 @@ export function scheduleHermesGatewayBoot() {
 
       const { startGateway, scheduleGatewayRestart } = await import('@/lib/hermes-gateway/supervisor')
       process.stdout.write('[hermes-boot] Arrancando gateway…\n')
-      const result = await startGateway({ boot: true })
+      const result = await startGateway({ boot: true, force: mcp.ok })
       if (!result.ok) {
         process.stderr.write(`[hermes-boot] Error: ${result.error || 'desconocido'}\n`)
         return
@@ -72,12 +72,16 @@ export function scheduleHermesGatewayBoot() {
           void withGatewayLock(async () => {
             const { readGatewayMcpLogHint } = await import('@/lib/hermes-gateway/mcp-diagnostics')
             const hint = await readGatewayMcpLogHint()
-            if (hint && /fail|error|401|refused|0 tool/i.test(hint)) {
+            if (hint && /fail|error|401|refused|0 tool|blocked|login/i.test(hint)) {
               process.stderr.write(`[hermes-boot] MCP gateway falló (${hint}). Reiniciando gateway…\n`)
               void scheduleGatewayRestart()
             }
           }).catch(() => undefined)
         }, 12000)
+      } else {
+        process.stderr.write(
+          '[hermes-boot] Reinicia el gateway desde el CRM tras corregir MCP (Configuración → Guardar).\n',
+        )
       }
     }).catch((err) => {
       process.stderr.write(`[hermes-boot] Fatal: ${err?.message || err}\n`)

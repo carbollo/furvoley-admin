@@ -14,6 +14,8 @@ Workflows CRM → ApiWass → Socios WhatsApp
 
 El chat web usa el **API Server** de Hermes (`127.0.0.1:8642`, OpenAI-compatible). Next.js actúa como proxy autenticado (`POST /api/hermes/chat`); la clave del API Server no sale al navegador.
 
+`/api/hermes/mcp` usa **Bearer MCP** (no cookie NextAuth): el gateway Hermes en localhost debe poder llamarlo sin sesión de admin.
+
 ## Configuración (solo CRM)
 
 1. Entra al CRM como **admin** → pestaña **Hermes Agent** → **Configuración**.

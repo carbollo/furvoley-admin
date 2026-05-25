@@ -37,6 +37,11 @@ function redirectToLogin(req: NextRequest, clearCookies: boolean) {
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
+  // MCP Hermes: auth Bearer en la ruta, no sesión NextAuth (gateway en localhost).
+  if (path.startsWith("/api/hermes/mcp")) {
+    return NextResponse.next()
+  }
+
   // Enlaces públicos de workflows (/r/...) y API pública (sin login).
   if (path.startsWith("/r/") || path.startsWith("/api/public/")) {
     return NextResponse.next()

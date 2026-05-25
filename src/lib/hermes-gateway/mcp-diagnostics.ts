@@ -88,10 +88,14 @@ export async function probeHermesMcpEndpoint(): Promise<HermesMcpProbeResult> {
 
     const sessionId = initRes.headers.get('mcp-session-id') || undefined
     if (!sessionId) {
+      const contentType = initRes.headers.get('content-type') || ''
+      const redirected = initRes.redirected || initRes.url.includes('/login')
       return {
         ok: false,
         toolCount: 0,
-        error: 'Sin mcp-session-id en initialize',
+        error: redirected || contentType.includes('text/html')
+          ? 'MCP bloqueado por middleware (redirige a login)'
+          : 'Sin mcp-session-id en initialize',
         url,
         hasKey: true,
       }
