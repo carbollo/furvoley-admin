@@ -15,7 +15,13 @@ type HermesSettingsView = {
   allowedUsers: string[]
   allowDestructive: boolean
   gateway: { status: string; pid: number | null; message?: string }
-  whatsapp: { status: string; hasQr?: boolean }
+  whatsapp: {
+    status: string
+    hasQr?: boolean
+    bridgeHealthy?: boolean
+    bridgeConnectionState?: string | null
+    bridgePort?: number
+  }
 }
 
 type BusyAction = 'save' | 'restart' | 'reconnect' | 'mcp' | null
@@ -46,6 +52,23 @@ function applySettingsToForm(j: HermesSettingsView, setters: {
   setters.setWhatsappMode(j.whatsappMode === 'self-chat' ? 'self-chat' : 'bot')
   setters.setAllowedUsersText(Array.isArray(j.allowedUsers) ? j.allowedUsers.join(', ') : '')
   setters.setAllowDestructive(Boolean(j.allowDestructive))
+}
+
+function whatsappStatusLabel(status?: string) {
+  switch (status) {
+    case 'CONNECTED':
+      return 'Conectado (bridge activo)'
+    case 'SESSION_PAIRED':
+      return 'Emparejado — bridge sin responder'
+    case 'QR_PENDING':
+      return 'Esperando escaneo QR'
+    case 'PAIRING':
+      return 'Emparejando…'
+    case 'DISCONNECTED':
+      return 'Desconectado'
+    default:
+      return status || '—'
+  }
 }
 
 function StepCheck({ done, label }: { done: boolean; label: string }) {
@@ -135,6 +158,11 @@ export function HermesAgentSection() {
       } else if (qrJ?.connected || statusJ?.whatsapp?.status === 'CONNECTED') {
         setQrImage(null)
         setQrHint(null)
+      } else if (statusJ?.whatsapp?.status === 'SESSION_PAIRED') {
+        setQrImage(null)
+        setQrHint(
+          'Sesión WhatsApp guardada, pero el bridge no responde. Pulsa Guardar configuración o Reiniciar gateway.',
+        )
       } else if (typeof qrJ?.hint === 'string') {
         setQrHint(qrJ.hint)
       }
@@ -527,9 +555,34 @@ export function HermesAgentSection() {
 
           <div style={cardStyle}>
             <h2 style={{ margin: '0 0 14px', fontSize: 16 }}>WhatsApp admin (Hermes)</h2>
-            <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary)' }}>
-              Estado: <strong>{data?.whatsapp?.status || '—'}</strong>
+            <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text-secondary)' }}>
+              Estado: <strong>{whatsappStatusLabel(data?.whatsapp?.status)}</strong>
             </p>
+            {data?.whatsapp?.bridgePort ? (
+              <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-secondary)' }}>
+                Bridge puerto {data.whatsapp.bridgePort}
+                {data.whatsapp.bridgeConnectionState
+                  ? ` · socket ${data.whatsapp.bridgeConnectionState}`
+                  : ''}
+              </p>
+            ) : null}
+            {whatsappMode === 'self-chat' ? (
+              <p
+                style={{
+                  margin: '0 0 12px',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                Modo <strong>self-chat</strong>: escribe en WhatsApp en el chat{' '}
+                <strong>«Mensajes a ti mismo»</strong> (o «Tú»), no en un chat normal contigo. Tras guardar,
+                reinicia el gateway si el estado queda en «Emparejado — bridge sin responder».
+              </p>
+            ) : null}
             <label style={labelStyle}>Teléfonos permitidos (sin +, separados por coma)</label>
             <input
               type="text"
@@ -561,7 +614,13 @@ export function HermesAgentSection() {
                 </p>
               </div>
             ) : data?.whatsapp?.status === 'CONNECTED' ? (
-              <p style={{ fontSize: 13, color: '#15803d', marginBottom: 12 }}>WhatsApp conectado.</p>
+              <p style={{ fontSize: 13, color: '#15803d', marginBottom: 12 }}>
+                WhatsApp listo. Envía un mensaje{whatsappMode === 'self-chat' ? ' en «Mensajes a ti mismo»' : ''}.
+              </p>
+            ) : data?.whatsapp?.status === 'SESSION_PAIRED' ? (
+              <p style={{ fontSize: 13, color: '#b45309', marginBottom: 12 }}>
+                Hay sesión emparejada pero Hermes no recibe mensajes. Guarda de nuevo y pulsa «Reiniciar gateway» arriba.
+              </p>
             ) : qrHint ? (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>{qrHint}</p>
             ) : data?.whatsapp?.status === 'PAIRING' || data?.whatsapp?.status === 'QR_PENDING' ? (

@@ -90,6 +90,13 @@ export function getHermesHome() {
   return String(process.env.HERMES_HOME || '').trim() || `${process.env.HOME || '/root'}/.hermes`
 }
 
+/** WhatsApp bridge HTTP port — must not collide with Next.js (PORT, default 3000). */
+export function getHermesWhatsappBridgePort() {
+  const raw = String(process.env.HERMES_WHATSAPP_BRIDGE_PORT || '3001').trim()
+  const port = Number(raw)
+  return Number.isFinite(port) && port > 0 && port < 65536 ? port : 3001
+}
+
 export function resolveHermesMcpUrlFromEnv() {
   return String(process.env.FURVOLEY_MCP_URL || '').trim() || null
 }

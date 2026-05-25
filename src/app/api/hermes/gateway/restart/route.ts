@@ -2,15 +2,14 @@ import { NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/rbac-api'
 import { writeHermesConfigFiles } from '@/lib/hermes-gateway/config-writer'
 import { getGatewayStatus, restartGateway } from '@/lib/hermes-gateway/supervisor'
-import { resolveHermesMcpUrl } from '@/lib/hermes-mcp/config'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+export async function POST() {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
 
-  await writeHermesConfigFiles({ mcpUrl: resolveHermesMcpUrl(request) })
+  await writeHermesConfigFiles()
   const result = await restartGateway()
   const status = await getGatewayStatus()
 

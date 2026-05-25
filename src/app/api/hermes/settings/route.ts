@@ -127,7 +127,7 @@ export async function PATCH(request: Request) {
     },
   })
 
-  await writeHermesConfigFiles({ mcpUrl: resolveHermesMcpUrl(request) })
+  await writeHermesConfigFiles()
 
   let gatewayResult: { ok: boolean; error?: string } = { ok: true }
   if (enabled) {
@@ -170,7 +170,7 @@ export async function POST(request: Request) {
       create: { isDefault: true, name: 'Furvoley', hermesMcpApiKey: newKey },
     })
 
-    await writeHermesConfigFiles({ mcpUrl: resolveHermesMcpUrl(request) })
+    await writeHermesConfigFiles()
     if (await isHermesEnabled()) {
       await restartGateway()
     }
