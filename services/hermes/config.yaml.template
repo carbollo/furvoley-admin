@@ -1,5 +1,8 @@
-# Plantilla de config Hermes — sustituye variables al arrancar el contenedor.
-# Monta un volumen en /opt/data para persistir sesión WhatsApp Baileys.
+# Plantilla Hermes (plan B — servicio separado). En contenedor único el CRM genera config.yaml.
+
+model:
+  provider: ollama-cloud
+  default: "${OLLAMA_MODEL:-gpt-oss:120b}"
 
 mcp_servers:
   furvoley_crm:
@@ -8,16 +11,9 @@ mcp_servers:
       Authorization: "Bearer ${HERMES_MCP_API_KEY}"
     timeout: 180
 
-# DeepSeek (https://api-docs.deepseek.com/quick_start/agent_integrations/hermes)
-providers:
-  deepseek:
-    api_key: "${DEEPSEEK_API_KEY}"
-    base_url: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
-    model: "${DEEPSEEK_MODEL:-deepseek-chat}"
-
 platforms:
   whatsapp:
-    enabled: ${WHATSAPP_ENABLED:-true}
+    enabled: true
     mode: ${WHATSAPP_MODE:-bot}
     allowed_users:
       - "${WHATSAPP_ALLOWED_USERS}"

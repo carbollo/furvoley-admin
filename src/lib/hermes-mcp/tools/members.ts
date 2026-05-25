@@ -95,7 +95,7 @@ export function registerMemberTools(server: McpServer) {
     },
     async ({ memberId }) =>
       withHermesAudit('crm_delete_member', { memberId }, async () => {
-        if (!isHermesDestructiveAllowed()) {
+        if (!(await isHermesDestructiveAllowed())) {
           toolError('Operación destructiva deshabilitada (HERMES_ALLOW_DESTRUCTIVE=false)')
         }
         const { deleteMember } = await import('@/app/actions')

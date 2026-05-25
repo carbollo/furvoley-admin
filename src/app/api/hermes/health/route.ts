@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/rbac-api'
+import { getGatewayStatus } from '@/lib/hermes-gateway/supervisor'
+import { getHermesWhatsappStatus } from '@/lib/hermes-gateway/whatsapp-status'
 import {
-  getHermesAllowedUsers,
   getHermesMcpApiKey,
   isHermesDestructiveAllowed,
   isHermesEnabled,
-  maskApiKey,
   resolveHermesMcpUrl,
 } from '@/lib/hermes-mcp/config'
+import { getHermesSettings, maskSecret } from '@/lib/hermes-gateway/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,15 +16,21 @@ export async function GET(request: Request) {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
 
+  const settings = await getHermesSettings()
   const apiKey = await getHermesMcpApiKey()
+  const [gateway, whatsapp] = await Promise.all([getGatewayStatus(), getHermesWhatsappStatus()])
+
   return NextResponse.json({
     ok: true,
-    enabled: isHermesEnabled(),
+    enabled: await isHermesEnabled(),
     mcpUrl: resolveHermesMcpUrl(request),
     hasApiKey: Boolean(apiKey),
-    apiKeyMasked: maskApiKey(apiKey),
-    destructiveAllowed: isHermesDestructiveAllowed(),
-    allowedUsers: getHermesAllowedUsers(),
-    toolCount: 26,
+    apiKeyMasked: maskSecret(apiKey),
+    destructiveAllowed: await isHermesDestructiveAllowed(),
+    ollamaModel: settings.ollamaModel,
+    hasOllamaKey: Boolean(settings.ollamaApiKey),
+    allowedUsers: settings.allowedUsers,
+    gateway,
+    whatsapp,
   })
 }

@@ -814,6 +814,12 @@ model ClubSettings {
 
   /** API key para Hermes Agent MCP (Bearer). Env HERMES_MCP_API_KEY tiene prioridad. */
   hermesMcpApiKey          String?  @db.Text
+  hermesEnabled            Boolean  @default(false)
+  hermesOllamaApiKey       String?  @db.Text
+  hermesOllamaModel        String?  @default("gpt-oss:120b")
+  hermesWhatsappMode       String?  @default("bot")
+  hermesAllowedUsers       Json?
+  hermesAllowDestructive   Boolean  @default(false)
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

@@ -1,0 +1,32 @@
+#!/usr/bin/env npx tsx
+/**
+ * Sincroniza ClubSettings → ~/.hermes/config.yaml + .env
+ * Uso: npx tsx scripts/sync-hermes-config.ts [--start-gateway]
+ */
+import { writeHermesConfigFiles } from '@/lib/hermes-gateway/config-writer'
+import { getHermesSettings } from '@/lib/hermes-gateway/settings'
+import { startGateway } from '@/lib/hermes-gateway/supervisor'
+
+async function main() {
+  const startGatewayFlag = process.argv.includes('--start-gateway')
+  const settings = await getHermesSettings()
+  const result = await writeHermesConfigFiles()
+
+  process.stdout.write(
+    `[sync-hermes-config] home=${result.home} enabled=${result.enabled} ollamaKey=${result.hasOllamaKey} mcpKey=${result.hasMcpKey}\n`,
+  )
+
+  if (startGatewayFlag && settings.enabled) {
+    const gw = await startGateway()
+    if (!gw.ok) {
+      process.stderr.write(`[sync-hermes-config] gateway: ${gw.error}\n`)
+      process.exit(1)
+    }
+    process.stdout.write('[sync-hermes-config] gateway started.\n')
+  }
+}
+
+main().catch((e) => {
+  process.stderr.write(`[sync-hermes-config] Fatal: ${e?.message || e}\n`)
+  process.exit(1)
+})

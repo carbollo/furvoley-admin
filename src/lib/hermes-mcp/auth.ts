@@ -5,7 +5,7 @@ export type HermesAuthResult =
   | { ok: false; status: number; message: string }
 
 export async function verifyHermesMcpAuth(request: Request): Promise<HermesAuthResult> {
-  if (!isHermesEnabled()) {
+  if (!(await isHermesEnabled())) {
     return { ok: false, status: 503, message: 'Hermes MCP desactivado (HERMES_ENABLED=false)' }
   }
 

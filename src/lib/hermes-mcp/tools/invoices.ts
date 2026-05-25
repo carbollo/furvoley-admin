@@ -136,7 +136,7 @@ export function registerInvoiceTools(server: McpServer) {
         'crm_delete_invoice',
         { invoiceId },
         async () => {
-          if (!isHermesDestructiveAllowed()) {
+          if (!(await isHermesDestructiveAllowed())) {
             toolError('Operación destructiva deshabilitada (HERMES_ALLOW_DESTRUCTIVE=false)')
           }
           if (!invoice) toolError('Cobro no encontrado')

@@ -42,36 +42,22 @@ async function ensureAdminUser() {
   }
 }
 
-function startHermesGatewayIfEnabled() {
-  const enabled = String(process.env.HERMES_ENABLED || '').trim().toLowerCase() === 'true'
-  if (!enabled) {
-    process.stdout.write('[startup] Hermes gateway skipped (HERMES_ENABLED!=true).\n')
-    return null
+function syncHermesConfigAndMaybeStartGateway() {
+  process.stdout.write('[startup] Sync Hermes config from CRM database...\n')
+  const sync = spawnSync(
+    process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    ['tsx', 'scripts/sync-hermes-config.ts', '--start-gateway'],
+    { stdio: 'inherit', env: process.env },
+  )
+  if (sync.status !== 0) {
+    process.stderr.write('[startup] Hermes sync/gateway failed (continuing Next.js).\n')
   }
-
-  process.stdout.write('[startup] Starting Hermes gateway in background...\n')
-  const child = spawn('hermes', ['gateway'], {
-    stdio: 'inherit',
-    env: process.env,
-    detached: false,
-  })
-  child.on('error', (err) => {
-    process.stderr.write(`[startup] Hermes gateway failed to start: ${err?.message || err}\n`)
-  })
-  child.on('exit', (code, signal) => {
-    if (signal) {
-      process.stderr.write(`[startup] Hermes gateway exited (signal ${signal}).\n`)
-    } else if (code !== 0) {
-      process.stderr.write(`[startup] Hermes gateway exited with code ${code}.\n`)
-    }
-  })
-  return child
 }
 
 async function main() {
   await ensureSchema()
   await ensureAdminUser()
-  startHermesGatewayIfEnabled()
+  syncHermesConfigAndMaybeStartGateway()
   const child = spawn(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
     ['next', 'start'],

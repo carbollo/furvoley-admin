@@ -1,87 +1,61 @@
 # Hermes Agent + control CRM por WhatsApp
 
-Hermes Agent (Nous Research) permite controlar el CRM Furvoley conversando por WhatsApp. ApiWass sigue siendo el canal operativo hacia socios.
+Hermes Agent permite controlar el CRM Furvoley conversando por WhatsApp. **Toda la configuración operativa se hace desde el CRM** (pestaña Hermes Agent). ApiWass sigue siendo el canal hacia socios.
 
 ## Arquitectura
 
 ```
-Admin WhatsApp → Hermes Gateway → DeepSeek API
+Admin WhatsApp → Hermes Gateway → Ollama Cloud
                       ↓ MCP HTTP + Bearer
               /api/hermes/mcp → tools CRM → PostgreSQL
 Workflows CRM → ApiWass → Socios WhatsApp
 ```
 
-## Variables de entorno (CRM)
+## Configuración (solo CRM)
+
+1. Entra al CRM como **admin** → pestaña **Hermes Agent**.
+2. Activa Hermes, pega tu **Ollama Cloud API key** ([ollama.com/settings/keys](https://ollama.com/settings/keys)) y el **modelo** (p. ej. `gpt-oss:120b`).
+3. Indica **teléfonos admin** permitidos (sin `+`) y guarda.
+4. Escanea el **QR** que aparece en la misma pantalla (WhatsApp → Dispositivos vinculados).
+5. Prueba por WhatsApp: «¿Cuántos socios activos hay?»
+
+No hace falta `hermes setup`, shell ni editar YAML a mano: el CRM genera `~/.hermes/config.yaml` y `.env` automáticamente.
+
+## Railway (infraestructura)
 
 | Variable | Descripción |
 |----------|-------------|
-| `HERMES_ENABLED` | `true` activa endpoint MCP y pestaña Hermes |
-| `HERMES_MCP_API_KEY` | Clave Bearer para MCP (prioridad sobre BD) |
-| `HERMES_ALLOW_DESTRUCTIVE` | `true` habilita tools de borrado (default off) |
-| `FURVOLEY_MCP_URL` | URL pública del MCP (p. ej. `https://tu-app.up.railway.app/api/hermes/mcp`) |
+| `DATABASE_URL`, `NEXTAUTH_*`, `NEXT_PUBLIC_APP_URL` | Infra estándar del CRM |
+| Volumen montado en **`/root/.hermes`** | Persiste sesión WhatsApp entre redeploys |
 
-Opcional rate limit: `HERMES_MCP_RATE_MAX` (default 120/min), `HERMES_MCP_RATE_WINDOW_MS`.
-
-## Variables de entorno (Hermes gateway)
+Opcional (override avanzado, no necesario si usas solo el CRM):
 
 | Variable | Descripción |
 |----------|-------------|
-| `DEEPSEEK_API_KEY` | API key DeepSeek |
-| `DEEPSEEK_BASE_URL` | Default `https://api.deepseek.com` |
-| `DEEPSEEK_MODEL` | Default `deepseek-chat` |
-| `WHATSAPP_ENABLED` | `true` |
-| `WHATSAPP_MODE` | `bot` |
-| `WHATSAPP_ALLOWED_USERS` | Teléfonos admin sin `+`, separados por coma |
-| `FURVOLEY_MCP_URL` | URL MCP del CRM |
-| `HERMES_MCP_API_KEY` | Misma clave que en el CRM |
+| `HERMES_ENABLED` | Fuerza activación vía env |
+| `HERMES_MCP_API_KEY` | Override clave MCP (si no usas regenerar en CRM) |
+| `FURVOLEY_MCP_URL` | URL pública del MCP |
 
-ApiWass (`APIWASS_*`) no cambia.
+**Ollama API key y modelo se guardan en la base de datos** vía el CRM, no en Railway.
 
-## Despliegue A — un solo servicio (preferido)
+## Despliegue (contenedor único)
 
-1. Usa el `Dockerfile` en la raíz del repo.
-2. En Railway → **Volumes**, monta un volumen en **`/root/.hermes`** (no declares `VOLUME` en el Dockerfile; Railway lo rechaza).
-3. `start` ejecuta `scripts/start-with-hermes.cjs` (db push + Hermes gateway + Next.js).
-4. Recursos recomendados: 4 GB RAM / 2 vCPU.
+- `Dockerfile` raíz + volumen `/root/.hermes`
+- Arranque: `scripts/start-with-hermes.cjs` (db push → sync config desde BD → gateway → Next.js)
+- Recursos recomendados: **4 GB RAM / 2 vCPU**
 
-## Despliegue B — segundo servicio Hermes
+## Tools MCP
 
-Si el contenedor único hace OOM:
+Operaciones diarias: KPIs, socios, cobros, equipos, eventos, WhatsApp ApiWass (`crm_send_whatsapp_member`).
 
-| Servicio | Imagen | Expone |
-|----------|--------|--------|
-| `furvoley-crm` | Dockerfile raíz | HTTPS CRM + MCP |
-| `furvoley-hermes` | `services/hermes/Dockerfile` | Salida HTTPS hacia MCP (sin URL pública obligatoria) |
+Ampliadas: cuotas, contabilidad, workflows, noticias, staff.
 
-1. Crea servicio `furvoley-hermes` en el mismo proyecto Railway.
-2. Build context: `services/hermes`.
-3. En Railway → **Volumes**, monta en **`/opt/data`** para sesión WhatsApp.
-4. Variables DeepSeek + WhatsApp + `FURVOLEY_MCP_URL` + `HERMES_MCP_API_KEY` solo en Hermes.
+Destructivas (`crm_delete_*`): desactivadas salvo checkbox en CRM.
 
-Plantilla MCP en `services/hermes/config.yaml.template`.
+## ApiWass
 
-## Configuración inicial
+Sin cambios. Hermes WhatsApp es un canal **independiente** solo para el admin.
 
-1. En Railway (CRM): `HERMES_ENABLED=true`, genera `HERMES_MCP_API_KEY` (o desde pestaña Hermes Agent → Regenerar clave).
-2. `hermes setup` → DeepSeek → configura MCP apuntando a `FURVOLEY_MCP_URL`.
-3. `hermes whatsapp` → escanea QR.
-4. `hermes gateway` (o arranque automático con `start-with-hermes.cjs`).
+## Plan B (servicio Hermes separado)
 
-## Tools MCP disponibles
-
-**Operaciones diarias:** `crm_get_kpis`, `crm_search_members`, `crm_get_member`, `crm_create_member`, `crm_create_invoice`, `crm_create_team_invoices`, `crm_list_invoices`, `crm_mark_invoice_paid`, `crm_list_teams`, `crm_add_team_member`, `crm_set_team_coach`, `crm_list_events`, `crm_create_event`, `crm_send_whatsapp_member`.
-
-**Ampliadas:** cuotas, contabilidad, workflows, noticias, staff (`crm_list_membership_plans`, `crm_create_subscription`, `crm_get_tax_config`, `crm_list_accounting_movements`, `crm_create_accounting_movement`, `crm_list_workflows`, `crm_test_workflow`, `crm_list_news`, `crm_create_news`, `crm_list_staff_users`).
-
-**Destructivas (off por defecto):** `crm_delete_member`, `crm_delete_invoice`.
-
-## Verificación
-
-1. Local: `hermes chat` con MCP en `http://localhost:3000/api/hermes/mcp`.
-2. WhatsApp: «¿Cuántos socios activos hay?», «Crea un cobro de 30€ a Juan Pérez».
-3. Workflows siguen enviando por ApiWass.
-4. Tras redeploy, sesión WhatsApp persiste con volumen.
-
-## Skill opcional
-
-Monta `skills/furvoley-crm/SKILL.md` en el contenedor Hermes para instrucciones en español al agente.
+Ver [`services/hermes/README.md`](../services/hermes/README.md) si el contenedor único no tiene RAM suficiente.
