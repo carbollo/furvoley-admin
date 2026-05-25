@@ -34,6 +34,10 @@ RUN apt-get update \
   && python3 -m pip install --break-system-packages hermes-agent \
   && mkdir -p /root/.hermes
 
+COPY --from=builder /app/scripts ./scripts
+RUN python3 scripts/patch-hermes-bridge-qr.py \
+  && bash -c 'BRIDGE=$(python3 -c "from pathlib import Path; import gateway.platforms.whatsapp as w; print(Path(w.__file__).resolve().parents[2] / \"scripts/whatsapp-bridge\")") && cd "$BRIDGE" && npm install --silent'
+
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/node_modules ./node_modules
@@ -41,7 +45,6 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/skills ./skills
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json

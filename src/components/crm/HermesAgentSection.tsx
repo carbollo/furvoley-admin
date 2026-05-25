@@ -67,6 +67,7 @@ export function HermesAgentSection() {
   const [copyToast, setCopyToast] = useState(false)
   const [freshKey, setFreshKey] = useState<string | null>(null)
   const [qrImage, setQrImage] = useState<string | null>(null)
+  const [qrHint, setQrHint] = useState<string | null>(null)
 
   const [enabled, setEnabled] = useState(false)
   const [ollamaApiKey, setOllamaApiKey] = useState('')
@@ -128,8 +129,15 @@ export function HermesAgentSection() {
         )
       }
 
-      if (qrJ?.qrImage) setQrImage(qrJ.qrImage)
-      else if (qrJ?.connected || statusJ?.whatsapp?.status === 'CONNECTED') setQrImage(null)
+      if (qrJ?.qrImage) {
+        setQrImage(qrJ.qrImage)
+        setQrHint(null)
+      } else if (qrJ?.connected || statusJ?.whatsapp?.status === 'CONNECTED') {
+        setQrImage(null)
+        setQrHint(null)
+      } else if (typeof qrJ?.hint === 'string') {
+        setQrHint(qrJ.hint)
+      }
     } catch {
       //
     }
@@ -554,6 +562,12 @@ export function HermesAgentSection() {
               </div>
             ) : data?.whatsapp?.status === 'CONNECTED' ? (
               <p style={{ fontSize: 13, color: '#15803d', marginBottom: 12 }}>WhatsApp conectado.</p>
+            ) : qrHint ? (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>{qrHint}</p>
+            ) : data?.whatsapp?.status === 'PAIRING' || data?.whatsapp?.status === 'QR_PENDING' ? (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                Generando QR… puede tardar 10–30 s tras guardar. Mantén el gateway en running.
+              </p>
             ) : enabled ? (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
                 Guarda la configuración y espera el QR (puede tardar unos segundos tras arrancar el gateway).

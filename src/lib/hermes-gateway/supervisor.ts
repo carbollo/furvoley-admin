@@ -3,6 +3,11 @@ import { access, appendFile, mkdir, open, readFile, unlink, writeFile } from 'no
 import path from 'node:path'
 import { writeHermesConfigFiles } from '@/lib/hermes-gateway/config-writer'
 import { getHermesHome, getHermesSettings } from '@/lib/hermes-gateway/settings'
+import {
+  isWhatsappPaired,
+  startWhatsappPairingIfNeeded,
+  stopWhatsappPairing,
+} from '@/lib/hermes-gateway/whatsapp-pairing'
 
 export type GatewayStatus = 'running' | 'stopped' | 'error'
 
@@ -185,6 +190,11 @@ export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
 
   const existingPid = await readPidFile()
   if (existingPid && isProcessAlive(existingPid)) {
+    if (!(await isWhatsappPaired())) {
+      await startWhatsappPairingIfNeeded()
+    } else {
+      await stopWhatsappPairing()
+    }
     return { ok: true }
   }
 
@@ -212,6 +222,15 @@ export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
     }
   }
 
+  if (!(await isWhatsappPaired())) {
+    const pair = await startWhatsappPairingIfNeeded()
+    if (!pair.ok) {
+      return { ok: false, error: pair.error || 'No se pudo iniciar emparejamiento WhatsApp' }
+    }
+  } else {
+    await stopWhatsappPairing()
+  }
+
   return { ok: true }
 }
 
@@ -227,6 +246,7 @@ export async function ensureGatewayRunning(): Promise<{ ok: boolean; error?: str
 
 export async function restartGateway() {
   await stopGatewayProcess()
+  await stopWhatsappPairing()
   return startGateway()
 }
 
