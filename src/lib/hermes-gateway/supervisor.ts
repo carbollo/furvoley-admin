@@ -362,40 +362,61 @@ export async function startGateway(opts?: StartGatewayOptions): Promise<StartGat
   return { ok: true, apiServerReady: false }
 }
 
-async function restartGatewayLocked(opts?: Pick<StartGatewayOptions, 'boot' | 'skipApiWait'>) {
+async function restartGatewayLocked(opts?: Pick<StartGatewayOptions, 'boot' | 'skipApiWait'> & {
+  ignoreCooldown?: boolean
+}) {
+  if (!opts?.ignoreCooldown) {
+    const elapsed = Date.now() - lastRestartFinishedAt
+    if (elapsed < MIN_RESTART_INTERVAL_MS) {
+      const status = await getGatewayStatus()
+      if (status.status === 'running') {
+        return { ok: true, message: 'Gateway ya reiniciado recientemente' }
+      }
+    }
+  }
+
   await stopHermesGatewayProcesses()
   await stopWhatsappPairing()
   await sleep(300)
-  return startGateway({ force: true, boot: opts?.boot, skipApiWait: opts?.skipApiWait ?? true })
+  const result = await startGateway({ force: true, boot: opts?.boot, skipApiWait: opts?.skipApiWait ?? true })
+  lastRestartFinishedAt = Date.now()
+  return result
 }
 
-let scheduledRestart: Promise<StartGatewayResult> | null = null
+const MIN_RESTART_INTERVAL_MS = 8000
+let lastRestartFinishedAt = 0
+let restartInFlight: Promise<StartGatewayResult> | null = null
+let restartPending = false
 
-/** Non-blocking restart for CRM API — avoids Railway HTTP timeouts. */
+/** Non-blocking restart for CRM API — coalesces concurrent calls, no infinite chains. */
 export function scheduleGatewayRestart(): Promise<StartGatewayResult> {
-  if (scheduledRestart) {
-    return scheduledRestart.then((result) => {
-      if (result.ok) return scheduleGatewayRestart()
-      return result
-    })
+  if (restartInFlight) {
+    restartPending = true
+    return restartInFlight
   }
 
-  scheduledRestart = withGatewayLock(() => restartGatewayLocked({ skipApiWait: true }))
-    .then((result) => {
-      if (!result.ok) {
-        process.stderr.write(`[hermes-gateway] Restart failed: ${result.error || 'unknown'}\n`)
-      }
-      return result
-    })
-    .finally(() => {
-      scheduledRestart = null
-    })
+  restartInFlight = (async () => {
+    let result: StartGatewayResult = { ok: false, error: 'Sin intentos de reinicio' }
+    try {
+      do {
+        restartPending = false
+        result = await withGatewayLock(() => restartGatewayLocked({ skipApiWait: true }))
+        if (!result.ok) {
+          process.stderr.write(`[hermes-gateway] Restart failed: ${result.error || 'unknown'}\n`)
+          break
+        }
+      } while (restartPending)
+    } finally {
+      restartInFlight = null
+    }
+    return result
+  })()
 
-  return scheduledRestart
+  return restartInFlight
 }
 
 export async function restartGateway() {
-  return withGatewayLock(() => restartGatewayLocked({ skipApiWait: false }))
+  return withGatewayLock(() => restartGatewayLocked({ skipApiWait: false, ignoreCooldown: true }))
 }
 
 export async function ensureGatewayRunning(): Promise<{ ok: boolean; error?: string }> {

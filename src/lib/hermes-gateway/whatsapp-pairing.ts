@@ -11,6 +11,7 @@ declare global {
 
 let pairChild: ChildProcess | null = globalThis.__hermesWhatsappPairChild ?? null
 globalThis.__hermesWhatsappPairChild = pairChild
+let pairingRestartScheduled = false
 
 function pairPidFile() {
   return path.join(getHermesHome(), 'whatsapp', 'pair.pid')
@@ -184,9 +185,14 @@ export async function startWhatsappPairingIfNeeded(): Promise<{ ok: boolean; err
     }
     void unlink(pairPidFile()).catch(() => undefined)
     void (async () => {
-      if (await isWhatsappPaired()) {
+      if (!(await isWhatsappPaired())) return
+      if (pairingRestartScheduled) return
+      pairingRestartScheduled = true
+      try {
         const { scheduleGatewayRestart } = await import('@/lib/hermes-gateway/supervisor')
-        void scheduleGatewayRestart()
+        await scheduleGatewayRestart()
+      } finally {
+        pairingRestartScheduled = false
       }
     })()
   })

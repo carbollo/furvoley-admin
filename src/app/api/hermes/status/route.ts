@@ -3,7 +3,11 @@ import { requireRoles } from '@/lib/rbac-api'
 import { getHermesApiServerStatus } from '@/lib/hermes-gateway/api-server'
 import { getGatewayStatus } from '@/lib/hermes-gateway/supervisor'
 import { getHermesWhatsappStatus } from '@/lib/hermes-gateway/whatsapp-status'
-import { startWhatsappPairingIfNeeded } from '@/lib/hermes-gateway/whatsapp-pairing'
+import {
+  isWhatsappPaired,
+  isWhatsappPairingActive,
+  startWhatsappPairingIfNeeded,
+} from '@/lib/hermes-gateway/whatsapp-pairing'
 import { isHermesEnabled } from '@/lib/hermes-mcp/config'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +21,9 @@ export async function GET() {
   const apiServer = await getHermesApiServerStatus()
 
   if ((await isHermesEnabled()) && whatsapp.status !== 'CONNECTED' && gateway.status === 'running') {
-    await startWhatsappPairingIfNeeded()
+    if (!(await isWhatsappPaired()) && !(await isWhatsappPairingActive())) {
+      await startWhatsappPairingIfNeeded()
+    }
     whatsapp = await getHermesWhatsappStatus()
   }
 
