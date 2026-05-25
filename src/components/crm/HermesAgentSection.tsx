@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 type HermesSettingsView = {
   enabled: boolean
@@ -18,6 +18,9 @@ type HermesSettingsView = {
   whatsapp: { status: string; hasQr?: boolean }
 }
 
+type BusyAction = 'save' | 'restart' | 'reconnect' | 'mcp' | null
+type BannerKind = 'success' | 'error' | 'info'
+
 function copyText(text: string) {
   if (navigator.clipboard?.writeText) {
     void navigator.clipboard.writeText(text)
@@ -31,11 +34,37 @@ function copyText(text: string) {
   document.body.removeChild(el)
 }
 
+function applySettingsToForm(j: HermesSettingsView, setters: {
+  setEnabled: (v: boolean) => void
+  setOllamaModel: (v: string) => void
+  setWhatsappMode: (v: 'bot' | 'self-chat') => void
+  setAllowedUsersText: (v: string) => void
+  setAllowDestructive: (v: boolean) => void
+}) {
+  setters.setEnabled(Boolean(j.enabled))
+  setters.setOllamaModel(j.ollamaModel || 'gpt-oss:120b')
+  setters.setWhatsappMode(j.whatsappMode === 'self-chat' ? 'self-chat' : 'bot')
+  setters.setAllowedUsersText(Array.isArray(j.allowedUsers) ? j.allowedUsers.join(', ') : '')
+  setters.setAllowDestructive(Boolean(j.allowDestructive))
+}
+
+function StepCheck({ done, label }: { done: boolean; label: string }) {
+  return (
+    <li style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, lineHeight: 1.5 }}>
+      <span style={{ color: done ? '#15803d' : 'var(--text-secondary)', fontWeight: 700, minWidth: 18 }}>
+        {done ? '✓' : '○'}
+      </span>
+      <span style={{ color: done ? 'var(--text-primary, inherit)' : 'var(--text-secondary)' }}>{label}</span>
+    </li>
+  )
+}
+
 export function HermesAgentSection() {
   const [data, setData] = useState<HermesSettingsView | null>(null)
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const [busyAction, setBusyAction] = useState<BusyAction>(null)
+  const [banner, setBanner] = useState<{ kind: BannerKind; text: string } | null>(null)
+  const [copyToast, setCopyToast] = useState(false)
   const [freshKey, setFreshKey] = useState<string | null>(null)
   const [qrImage, setQrImage] = useState<string | null>(null)
 
@@ -46,54 +75,95 @@ export function HermesAgentSection() {
   const [allowedUsersText, setAllowedUsersText] = useState('')
   const [allowDestructive, setAllowDestructive] = useState(false)
 
-  const load = useCallback(async () => {
+  const formDirtyRef = useRef(false)
+
+  const busy = busyAction !== null
+
+  const syncFormFromServer = useCallback((j: HermesSettingsView) => {
+    applySettingsToForm(j, {
+      setEnabled,
+      setOllamaModel,
+      setWhatsappMode,
+      setAllowedUsersText,
+      setAllowDestructive,
+    })
+    formDirtyRef.current = false
+  }, [])
+
+  const loadSettings = useCallback(async () => {
     setLoading(true)
     try {
       const r = await fetch('/api/hermes/settings', { credentials: 'include' })
-      const j = await r.json()
+      const j = (await r.json()) as HermesSettingsView & { error?: string }
       if (!r.ok) throw new Error(j.error || 'No se pudo cargar Hermes')
       setData(j)
-      setEnabled(Boolean(j.enabled))
-      setOllamaModel(j.ollamaModel || 'gpt-oss:120b')
-      setWhatsappMode(j.whatsappMode === 'self-chat' ? 'self-chat' : 'bot')
-      setAllowedUsersText(Array.isArray(j.allowedUsers) ? j.allowedUsers.join(', ') : '')
-      setAllowDestructive(Boolean(j.allowDestructive))
+      if (!formDirtyRef.current) syncFormFromServer(j)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Error al cargar')
+      setBanner({ kind: 'error', text: e instanceof Error ? e.message : 'Error al cargar' })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [syncFormFromServer])
 
-  const loadQr = useCallback(async () => {
+  const refreshLiveStatus = useCallback(async () => {
     try {
-      const r = await fetch('/api/hermes/whatsapp/qr', { credentials: 'include' })
-      const j = await r.json()
-      if (r.ok && j.qrImage) setQrImage(j.qrImage)
-      else if (j.connected) setQrImage(null)
+      const [statusR, qrR] = await Promise.all([
+        fetch('/api/hermes/status', { credentials: 'include' }),
+        fetch('/api/hermes/whatsapp/qr', { credentials: 'include' }),
+      ])
+      const statusJ = statusR.ok ? await statusR.json() : null
+      const qrJ = qrR.ok ? await qrR.json() : null
+
+      if (statusJ?.gateway || statusJ?.whatsapp) {
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                gateway: statusJ.gateway ?? prev.gateway,
+                whatsapp: statusJ.whatsapp ?? prev.whatsapp,
+              }
+            : prev,
+        )
+      }
+
+      if (qrJ?.qrImage) setQrImage(qrJ.qrImage)
+      else if (qrJ?.connected || statusJ?.whatsapp?.status === 'CONNECTED') setQrImage(null)
     } catch {
       //
     }
   }, [])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void loadSettings()
+  }, [loadSettings])
 
   useEffect(() => {
     if (!data?.enabled) return
-    void loadQr()
+
+    void refreshLiveStatus()
+
+    const gatewayDone = data.gateway?.status === 'running'
+    const whatsappDone = data.whatsapp?.status === 'CONNECTED'
+    const intervalMs = gatewayDone && whatsappDone ? 15000 : 4000
+
     const t = window.setInterval(() => {
-      void load()
-      void loadQr()
-    }, 4000)
+      void refreshLiveStatus()
+    }, intervalMs)
+
     return () => window.clearInterval(t)
-  }, [data?.enabled, load, loadQr])
+  }, [data?.enabled, data?.gateway?.status, data?.whatsapp?.status, refreshLiveStatus])
+
+  function markDirty() {
+    formDirtyRef.current = true
+  }
+
+  function showBanner(kind: BannerKind, text: string) {
+    setBanner({ kind, text })
+  }
 
   async function saveSettings(e: React.FormEvent) {
     e.preventDefault()
-    setBusy(true)
-    setMessage(null)
+    setBusyAction('save')
     try {
       const body: Record<string, unknown> = {
         enabled,
@@ -115,20 +185,37 @@ export function HermesAgentSection() {
       })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || 'No se pudo guardar')
+
       setOllamaApiKey('')
-      setMessage(j.gatewayResult?.ok === false ? j.gatewayResult.error : 'Configuración guardada.')
-      await load()
-      await loadQr()
+      formDirtyRef.current = false
+
+      if (j.settings) {
+        setData(j.settings)
+        syncFormFromServer(j.settings)
+      } else {
+        await loadSettings()
+      }
+
+      if (j.generatedMcpKey) {
+        setFreshKey(j.generatedMcpKey)
+        showBanner('success', 'Configuración guardada. Se generó una clave MCP automáticamente.')
+      } else if (j.gatewayResult?.ok === false) {
+        showBanner('error', j.gatewayResult.error || 'Guardado, pero el gateway no arrancó.')
+      } else {
+        showBanner('success', 'Configuración guardada. Espera el QR si aún no está conectado.')
+      }
+
+      await refreshLiveStatus()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Error al guardar')
+      showBanner('error', e instanceof Error ? e.message : 'Error al guardar')
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
   async function regenerateKey() {
-    if (!confirm('¿Generar una nueva clave MCP? Actualiza Hermes tras regenerar.')) return
-    setBusy(true)
+    if (!confirm('¿Generar una nueva clave MCP? Hermes se reiniciará si está activo.')) return
+    setBusyAction('mcp')
     setFreshKey(null)
     try {
       const r = await fetch('/api/hermes/settings', {
@@ -140,17 +227,17 @@ export function HermesAgentSection() {
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || 'No se pudo regenerar')
       setFreshKey(j.apiKey)
-      setMessage('Nueva clave MCP generada.')
-      await load()
+      showBanner('success', 'Nueva clave MCP generada.')
+      await loadSettings()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Error')
+      showBanner('error', e instanceof Error ? e.message : 'Error')
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
   async function reconnectWhatsapp() {
-    setBusy(true)
+    setBusyAction('reconnect')
     try {
       const r = await fetch('/api/hermes/whatsapp/reconnect', {
         method: 'POST',
@@ -158,18 +245,17 @@ export function HermesAgentSection() {
       })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || 'No se pudo reconectar WhatsApp')
-      setMessage('Hermes reiniciado. Escanea el nuevo QR si aparece.')
-      await load()
-      await loadQr()
+      showBanner('info', 'Hermes reiniciado. Escanea el nuevo QR si aparece.')
+      await refreshLiveStatus()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Error')
+      showBanner('error', e instanceof Error ? e.message : 'Error')
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }
 
   async function restartGateway() {
-    setBusy(true)
+    setBusyAction('restart')
     try {
       const r = await fetch('/api/hermes/gateway/restart', {
         method: 'POST',
@@ -177,13 +263,23 @@ export function HermesAgentSection() {
       })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || 'No se pudo reiniciar el gateway')
-      setMessage('Gateway reiniciado.')
-      await load()
+      showBanner('success', 'Gateway reiniciado.')
+      if (j.status) {
+        setData((prev) => (prev ? { ...prev, gateway: j.status } : prev))
+      }
+      await refreshLiveStatus()
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Error')
+      showBanner('error', e instanceof Error ? e.message : 'Error')
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
+  }
+
+  function handleCopyUrl() {
+    if (!data?.mcpUrl) return
+    copyText(data.mcpUrl)
+    setCopyToast(true)
+    window.setTimeout(() => setCopyToast(false), 2000)
   }
 
   const cardStyle = {
@@ -211,6 +307,20 @@ export function HermesAgentSection() {
     marginBottom: 6,
   } as const
 
+  const bannerColors: Record<BannerKind, { bg: string; border: string; text: string }> = {
+    success: { bg: 'rgba(21,128,61,0.1)', border: 'rgba(21,128,61,0.35)', text: '#15803d' },
+    error: { bg: 'rgba(185,28,28,0.08)', border: 'rgba(185,28,28,0.35)', text: '#b91c1c' },
+    info: { bg: 'rgba(234,179,8,0.1)', border: 'rgba(234,179,8,0.35)', text: '#a16207' },
+  }
+
+  const setupDone = {
+    mcp: Boolean(data?.hasMcpKey),
+    ollama: Boolean(data?.hasOllamaKey),
+    phones: Boolean(data?.allowedUsers?.length),
+    gateway: data?.gateway?.status === 'running',
+    whatsapp: data?.whatsapp?.status === 'CONNECTED',
+  }
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 920 }}>
       <div style={{ marginBottom: 24 }}>
@@ -223,16 +333,61 @@ export function HermesAgentSection() {
         </p>
       </div>
 
+      {banner ? (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: '12px 16px',
+            borderRadius: 10,
+            border: `1px solid ${bannerColors[banner.kind].border}`,
+            background: bannerColors[banner.kind].bg,
+            color: bannerColors[banner.kind].text,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          {banner.text}
+        </div>
+      ) : null}
+
       {loading ? (
         <p style={{ color: 'var(--text-secondary)' }}>Cargando…</p>
       ) : (
         <form onSubmit={saveSettings} style={{ display: 'grid', gap: 16 }}>
           <div style={cardStyle}>
+            <h2 style={{ margin: '0 0 12px', fontSize: 16 }}>Configuración en 5 pasos</h2>
+            <ol style={{ margin: 0, paddingLeft: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
+              <StepCheck done={setupDone.mcp} label="Clave MCP (se genera sola al guardar si falta)" />
+              <StepCheck
+                done={setupDone.ollama}
+                label="Ollama Cloud: API key en ollama.com/settings/keys + modelo (p. ej. gpt-oss:120b)"
+              />
+              <StepCheck done={setupDone.phones} label="Tu teléfono admin sin + (ej. 34600111222)" />
+              <StepCheck
+                done={whatsappMode === 'self-chat' || whatsappMode === 'bot'}
+                label="Modo WhatsApp: Self-chat (pruebas contigo mismo) o Bot (número dedicado con QR en ese móvil)"
+              />
+              <StepCheck
+                done={setupDone.gateway && setupDone.whatsapp}
+                label="Activar + Guardar → gateway running → escanear QR → probar: «¿Cuántos socios activos hay?»"
+              />
+            </ol>
+            <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <strong>Self-chat:</strong> escaneas el QR con tu WhatsApp y te escribes a ti mismo.{' '}
+              <strong>Bot:</strong> necesitas un segundo móvil/línea; el QR se escanea en ese teléfono y ese número
+              recibe tus órdenes al CRM.
+            </p>
+          </div>
+
+          <div style={cardStyle}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={enabled}
-                onChange={(e) => setEnabled(e.target.checked)}
+                onChange={(e) => {
+                  markDirty()
+                  setEnabled(e.target.checked)
+                }}
               />
               <span style={{ fontWeight: 700 }}>Activar Hermes Agent</span>
             </label>
@@ -270,7 +425,7 @@ export function HermesAgentSection() {
                 cursor: busy ? 'not-allowed' : 'pointer',
               }}
             >
-              Reiniciar gateway
+              {busyAction === 'restart' ? 'Reiniciando…' : 'Reiniciar gateway'}
             </button>
           </div>
 
@@ -282,7 +437,10 @@ export function HermesAgentSection() {
             <input
               type="password"
               value={ollamaApiKey}
-              onChange={(e) => setOllamaApiKey(e.target.value)}
+              onChange={(e) => {
+                markDirty()
+                setOllamaApiKey(e.target.value)
+              }}
               placeholder="Pega tu OLLAMA_API_KEY (ollama.com/settings/keys)"
               style={{ ...inputStyle, marginBottom: 12 }}
             />
@@ -290,7 +448,10 @@ export function HermesAgentSection() {
             <input
               type="text"
               value={ollamaModel}
-              onChange={(e) => setOllamaModel(e.target.value)}
+              onChange={(e) => {
+                markDirty()
+                setOllamaModel(e.target.value)
+              }}
               placeholder="gpt-oss:120b"
               style={inputStyle}
             />
@@ -305,14 +466,20 @@ export function HermesAgentSection() {
             <input
               type="text"
               value={allowedUsersText}
-              onChange={(e) => setAllowedUsersText(e.target.value)}
+              onChange={(e) => {
+                markDirty()
+                setAllowedUsersText(e.target.value)
+              }}
               placeholder="34600111222, 34600999888"
               style={{ ...inputStyle, marginBottom: 12 }}
             />
             <label style={labelStyle}>Modo</label>
             <select
               value={whatsappMode}
-              onChange={(e) => setWhatsappMode(e.target.value as 'bot' | 'self-chat')}
+              onChange={(e) => {
+                markDirty()
+                setWhatsappMode(e.target.value as 'bot' | 'self-chat')
+              }}
               style={{ ...inputStyle, marginBottom: 12 }}
             >
               <option value="bot">Bot (número dedicado)</option>
@@ -344,7 +511,7 @@ export function HermesAgentSection() {
                 cursor: busy ? 'not-allowed' : 'pointer',
               }}
             >
-              Reconectar WhatsApp
+              {busyAction === 'reconnect' ? 'Reconectando…' : 'Reconectar WhatsApp'}
             </button>
           </div>
 
@@ -355,8 +522,8 @@ export function HermesAgentSection() {
               <code style={{ ...inputStyle, flex: 1, wordBreak: 'break-all' }}>{data?.mcpUrl || '—'}</code>
               <button
                 type="button"
-                disabled={!data?.mcpUrl}
-                onClick={() => data?.mcpUrl && copyText(data.mcpUrl)}
+                disabled={!data?.mcpUrl || busy}
+                onClick={handleCopyUrl}
                 style={{
                   padding: '10px 14px',
                   borderRadius: 8,
@@ -365,7 +532,7 @@ export function HermesAgentSection() {
                   cursor: 'pointer',
                 }}
               >
-                Copiar
+                {copyToast ? 'Copiado' : 'Copiar'}
               </button>
             </div>
             <label style={labelStyle}>Clave MCP ({data?.mcpApiKeyMasked || '—'})</label>
@@ -383,7 +550,7 @@ export function HermesAgentSection() {
                 cursor: busy ? 'not-allowed' : 'pointer',
               }}
             >
-              Regenerar clave MCP
+              {busyAction === 'mcp' ? 'Generando…' : 'Regenerar clave MCP'}
             </button>
             {freshKey ? (
               <code
@@ -408,7 +575,10 @@ export function HermesAgentSection() {
               <input
                 type="checkbox"
                 checked={allowDestructive}
-                onChange={(e) => setAllowDestructive(e.target.checked)}
+                onChange={(e) => {
+                  markDirty()
+                  setAllowDestructive(e.target.checked)
+                }}
               />
               <span>Permitir tools destructivos (borrar socios/cobros)</span>
             </label>
@@ -437,12 +607,8 @@ export function HermesAgentSection() {
               justifySelf: 'start',
             }}
           >
-            {busy ? 'Guardando…' : 'Guardar configuración'}
+            {busyAction === 'save' ? 'Guardando…' : 'Guardar configuración'}
           </button>
-
-          {message ? (
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>{message}</p>
-          ) : null}
         </form>
       )}
     </div>

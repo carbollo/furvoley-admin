@@ -9,12 +9,7 @@ import {
   normalizeAllowedUsers,
   normalizeWhatsappMode,
 } from '@/lib/hermes-gateway/settings'
-import {
-  ensureGatewayRunning,
-  getGatewayStatus,
-  restartGateway,
-  stopGateway,
-} from '@/lib/hermes-gateway/supervisor'
+import { getGatewayStatus, restartGateway, stopGateway } from '@/lib/hermes-gateway/supervisor'
 import { getHermesWhatsappStatus } from '@/lib/hermes-gateway/whatsapp-status'
 import {
   getHermesMcpApiKey,
@@ -51,11 +46,6 @@ async function serializeSettings(request: Request) {
 export async function GET(request: Request) {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
-
-  if (await isHermesEnabled()) {
-    await ensureGatewayRunning()
-  }
-
   return NextResponse.json(await serializeSettings(request))
 }
 
@@ -105,6 +95,14 @@ export async function PATCH(request: Request) {
     )
   }
 
+  const fromEnvMcp = Boolean(String(process.env.HERMES_MCP_API_KEY || '').trim())
+  let mcpApiKey = current.mcpApiKey
+  let generatedMcpKey: string | null = null
+  if (enabled && !fromEnvMcp && !mcpApiKey) {
+    generatedMcpKey = randomBytes(32).toString('hex')
+    mcpApiKey = generatedMcpKey
+  }
+
   await prisma.clubSettings.upsert({
     where: { isDefault: true },
     update: {
@@ -114,6 +112,7 @@ export async function PATCH(request: Request) {
       hermesWhatsappMode: whatsappMode,
       hermesAllowedUsers: allowedUsers,
       hermesAllowDestructive: allowDestructive,
+      ...(mcpApiKey && !fromEnvMcp ? { hermesMcpApiKey: mcpApiKey } : {}),
     },
     create: {
       isDefault: true,
@@ -124,6 +123,7 @@ export async function PATCH(request: Request) {
       hermesWhatsappMode: whatsappMode,
       hermesAllowedUsers: allowedUsers,
       hermesAllowDestructive: allowDestructive,
+      hermesMcpApiKey: mcpApiKey,
     },
   })
 
@@ -140,6 +140,7 @@ export async function PATCH(request: Request) {
     ok: true,
     settings: await serializeSettings(request),
     gatewayResult,
+    generatedMcpKey,
   })
 }
 
