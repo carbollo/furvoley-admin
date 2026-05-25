@@ -43,6 +43,7 @@ export async function GET() {
     mcp: {
       url: mcp.url,
       hasKey: mcp.hasKey,
+      pythonSdkInstalled: mcp.pythonSdkInstalled,
       endpointReady: mcp.endpointReady,
       toolCount: mcp.toolCount,
       error: mcp.error,
@@ -50,8 +51,7 @@ export async function GET() {
       crmReady:
         (await isHermesEnabled()) &&
         gateway.status === 'running' &&
-        mcp.endpointReady &&
-        mcp.toolCount > 0,
+        mcp.crmToolsAvailable,
     },
   })
 }

@@ -20,7 +20,7 @@ export async function GET() {
 
   const gatewayRunning = gateway.status === 'running'
   const chatReady = enabled && gatewayRunning && apiServer.healthy
-  const crmReady = chatReady && mcp.endpointReady && mcp.toolCount > 0
+  const crmReady = chatReady && mcp.crmToolsAvailable
 
   return NextResponse.json({
     enabled,
@@ -33,6 +33,7 @@ export async function GET() {
     apiServerLogHint: apiServer.logHint,
     mcpReady: mcp.endpointReady,
     mcpToolCount: mcp.toolCount,
+    mcpPythonSdkInstalled: mcp.pythonSdkInstalled,
     mcpError: mcp.error,
     chatReady,
     crmReady,

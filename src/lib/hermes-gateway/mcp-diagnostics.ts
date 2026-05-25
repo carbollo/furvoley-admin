@@ -1,5 +1,23 @@
+import { spawnSync } from 'node:child_process'
 import { getHermesMcpApiKey, resolveHermesMcpUrlForGateway } from '@/lib/hermes-mcp/config'
 import { readGatewayLogTail } from '@/lib/hermes-gateway/supervisor'
+
+let cachedPythonMcpSdk: boolean | null = null
+
+/** Hermes skips MCP tool discovery entirely if the Python `mcp` package is missing. */
+export function isHermesPythonMcpSdkInstalled() {
+  if (cachedPythonMcpSdk !== null) return cachedPythonMcpSdk
+  const probe = spawnSync(
+    'python3',
+    [
+      '-c',
+      'import mcp; from mcp.client.streamable_http import streamable_http_client',
+    ],
+    { encoding: 'utf8', timeout: 5000 },
+  )
+  cachedPythonMcpSdk = probe.status === 0
+  return cachedPythonMcpSdk
+}
 
 export type HermesMcpProbeResult = {
   ok: boolean
@@ -161,13 +179,19 @@ export async function readGatewayMcpLogHint(): Promise<string | undefined> {
 }
 
 export async function getHermesMcpStatus() {
+  const pythonSdkInstalled = isHermesPythonMcpSdkInstalled()
   const [probe, logHint] = await Promise.all([probeHermesMcpEndpoint(), readGatewayMcpLogHint()])
+  const sdkError = pythonSdkInstalled
+    ? undefined
+    : 'Falta el paquete Python mcp en el contenedor (pip install hermes-agent[mcp])'
   return {
     url: probe.url,
     hasKey: probe.hasKey,
+    pythonSdkInstalled,
     endpointReady: probe.ok,
     toolCount: probe.toolCount,
-    error: probe.error,
+    error: sdkError || probe.error,
     logHint,
+    crmToolsAvailable: pythonSdkInstalled && probe.ok && probe.toolCount > 0,
   }
 }

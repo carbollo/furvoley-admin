@@ -34,8 +34,8 @@ ENV HERMES_API_SERVER_PORT=8642
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 python3-pip git ca-certificates curl openssl iproute2 \
   && rm -rf /var/lib/apt/lists/* \
-  && python3 -m pip install --break-system-packages hermes-agent aiohttp \
-  && python3 -c "import aiohttp; print('aiohttp OK')" \
+  && python3 -m pip install --break-system-packages 'hermes-agent[mcp,messaging]' \
+  && python3 -c "import aiohttp, mcp; from mcp.client.streamable_http import streamable_http_client; print('hermes-agent MCP OK')" \
   && mkdir -p /root/.hermes
 
 COPY --from=builder /app/scripts ./scripts

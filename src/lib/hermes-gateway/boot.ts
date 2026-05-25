@@ -1,7 +1,7 @@
 import { getHermesSettings } from '@/lib/hermes-gateway/settings'
 import { waitForHermesApiServerReady } from '@/lib/hermes-gateway/api-server'
 import { readApiServerLogHint } from '@/lib/hermes-gateway/api-server-diagnostics'
-import { waitForHermesMcpReady } from '@/lib/hermes-gateway/mcp-diagnostics'
+import { waitForHermesMcpReady, isHermesPythonMcpSdkInstalled } from '@/lib/hermes-gateway/mcp-diagnostics'
 import { withGatewayLock } from '@/lib/hermes-gateway/gateway-lock'
 
 let bootScheduled = false
@@ -32,6 +32,12 @@ export function scheduleHermesGatewayBoot() {
         process.stdout.write('[hermes-boot] Hermes desactivado — omitido.\n')
         return
       }
+      if (!isHermesPythonMcpSdkInstalled()) {
+        process.stderr.write(
+          '[hermes-boot] Falta el paquete Python mcp — Hermes no registrará tools CRM. Rebuild con hermes-agent[mcp].\n',
+        )
+      }
+
       const mcp = await waitForHermesMcpReady({ maxMs: 45000, intervalMs: 1500 })
       if (!mcp.ok) {
         process.stderr.write(
