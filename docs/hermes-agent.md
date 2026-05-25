@@ -40,7 +40,7 @@ ApiWass (`APIWASS_*`) no cambia.
 ## Despliegue A — un solo servicio (preferido)
 
 1. Usa el `Dockerfile` en la raíz del repo.
-2. Monta volumen Railway en `/root/.hermes` para persistir sesión WhatsApp.
+2. En Railway → **Volumes**, monta un volumen en **`/root/.hermes`** (no declares `VOLUME` en el Dockerfile; Railway lo rechaza).
 3. `start` ejecuta `scripts/start-with-hermes.cjs` (db push + Hermes gateway + Next.js).
 4. Recursos recomendados: 4 GB RAM / 2 vCPU.
 
@@ -55,7 +55,7 @@ Si el contenedor único hace OOM:
 
 1. Crea servicio `furvoley-hermes` en el mismo proyecto Railway.
 2. Build context: `services/hermes`.
-3. Volumen en `/opt/data` para sesión WhatsApp.
+3. En Railway → **Volumes**, monta en **`/opt/data`** para sesión WhatsApp.
 4. Variables DeepSeek + WhatsApp + `FURVOLEY_MCP_URL` + `HERMES_MCP_API_KEY` solo en Hermes.
 
 Plantilla MCP en `services/hermes/config.yaml.template`.

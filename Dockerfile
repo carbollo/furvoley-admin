@@ -37,6 +37,6 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 EXPOSE 3000
-VOLUME ["/root/.hermes"]
 
+# Persistencia WhatsApp: monta un Railway Volume en /root/.hermes (no uses VOLUME aquí).
 CMD ["node", "scripts/start-with-hermes.cjs"]
