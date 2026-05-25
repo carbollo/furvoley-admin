@@ -103,6 +103,12 @@ export async function PATCH(request: Request) {
     mcpApiKey = generatedMcpKey
   }
 
+  const fromEnvApiServer = Boolean(String(process.env.HERMES_API_SERVER_KEY || '').trim())
+  let apiServerKey = current.apiServerKey
+  if (enabled && !fromEnvApiServer && !apiServerKey) {
+    apiServerKey = randomBytes(32).toString('hex')
+  }
+
   await prisma.clubSettings.upsert({
     where: { isDefault: true },
     update: {
@@ -113,6 +119,7 @@ export async function PATCH(request: Request) {
       hermesAllowedUsers: allowedUsers,
       hermesAllowDestructive: allowDestructive,
       ...(mcpApiKey && !fromEnvMcp ? { hermesMcpApiKey: mcpApiKey } : {}),
+      ...(apiServerKey && !fromEnvApiServer ? { hermesApiServerKey: apiServerKey } : {}),
     },
     create: {
       isDefault: true,
@@ -124,6 +131,7 @@ export async function PATCH(request: Request) {
       hermesAllowedUsers: allowedUsers,
       hermesAllowDestructive: allowDestructive,
       hermesMcpApiKey: mcpApiKey,
+      hermesApiServerKey: apiServerKey,
     },
   })
 

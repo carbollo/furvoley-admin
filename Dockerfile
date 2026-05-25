@@ -29,6 +29,7 @@ ENV PATH="/usr/local/bin:${PATH}"
 ENV HERMES_BIN=hermes
 ENV HERMES_BRIDGE_SCRIPT=/opt/hermes-whatsapp-bridge/bridge.js
 ENV HERMES_WHATSAPP_BRIDGE_PORT=3001
+ENV HERMES_API_SERVER_PORT=8642
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 python3-pip git ca-certificates curl openssl \

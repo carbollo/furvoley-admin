@@ -1,9 +1,10 @@
 import { access, cp, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { getHermesMcpApiKey, resolveHermesMcpUrlForGateway } from '@/lib/hermes-mcp/config'
+import { getHermesMcpApiKey, resolveHermesMcpUrlForGateway, getHermesApiServerKey } from '@/lib/hermes-mcp/config'
 import {
   getHermesHome,
   getHermesSettings,
+  getHermesApiServerPort,
   getHermesWhatsappBridgePort,
 } from '@/lib/hermes-gateway/settings'
 import { whatsappSessionDir } from '@/lib/hermes-gateway/whatsapp-pairing'
@@ -30,8 +31,10 @@ export async function writeHermesConfigFiles() {
 
   const settings = await getHermesSettings()
   const mcpKey = (await getHermesMcpApiKey()) || settings.mcpApiKey || ''
+  const apiServerKey = (await getHermesApiServerKey()) || settings.apiServerKey || ''
   const mcpUrl = resolveHermesMcpUrlForGateway()
   const bridgePort = getHermesWhatsappBridgePort()
+  const apiServerPort = getHermesApiServerPort()
   const bridgeScript =
     process.env.HERMES_BRIDGE_SCRIPT || '/opt/hermes-whatsapp-bridge/bridge.js'
   const sessionPath = whatsappSessionDir()
@@ -80,6 +83,14 @@ ${allowedYaml}
     `WHATSAPP_ALLOWED_USERS=${allowedUsersEnv}`,
     `WHATSAPP_BRIDGE_PORT=${bridgePort}`,
   ]
+  if (settings.enabled) {
+    envLines.push('API_SERVER_ENABLED=true')
+    envLines.push('API_SERVER_HOST=127.0.0.1')
+    envLines.push(`API_SERVER_PORT=${apiServerPort}`)
+    if (apiServerKey) {
+      envLines.push(`API_SERVER_KEY=${apiServerKey}`)
+    }
+  }
   if (settings.ollamaApiKey) {
     envLines.push(`OLLAMA_API_KEY=${settings.ollamaApiKey}`)
   }

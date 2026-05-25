@@ -5,6 +5,7 @@ export type HermesWhatsappMode = 'bot' | 'self-chat'
 export type HermesSettingsRow = {
   hermesEnabled: boolean
   hermesMcpApiKey: string | null
+  hermesApiServerKey: string | null
   hermesOllamaApiKey: string | null
   hermesOllamaModel: string | null
   hermesWhatsappMode: string | null
@@ -15,6 +16,7 @@ export type HermesSettingsRow = {
 export type HermesSettings = {
   enabled: boolean
   mcpApiKey: string | null
+  apiServerKey: string | null
   ollamaApiKey: string | null
   ollamaModel: string
   whatsappMode: HermesWhatsappMode
@@ -25,6 +27,7 @@ export type HermesSettings = {
 const HERMES_SELECT = {
   hermesEnabled: true,
   hermesMcpApiKey: true,
+  hermesApiServerKey: true,
   hermesOllamaApiKey: true,
   hermesOllamaModel: true,
   hermesWhatsappMode: true,
@@ -55,6 +58,7 @@ export function mapHermesSettings(row: HermesSettingsRow | null): HermesSettings
   return {
     enabled: row?.hermesEnabled ?? false,
     mcpApiKey: row?.hermesMcpApiKey?.trim() || null,
+    apiServerKey: row?.hermesApiServerKey?.trim() || null,
     ollamaApiKey: row?.hermesOllamaApiKey?.trim() || null,
     ollamaModel: row?.hermesOllamaModel?.trim() || 'gpt-oss:120b',
     whatsappMode: normalizeWhatsappMode(row?.hermesWhatsappMode),
@@ -95,6 +99,13 @@ export function getHermesWhatsappBridgePort() {
   const raw = String(process.env.HERMES_WHATSAPP_BRIDGE_PORT || '3001').trim()
   const port = Number(raw)
   return Number.isFinite(port) && port > 0 && port < 65536 ? port : 3001
+}
+
+/** Hermes API Server port (OpenAI-compatible chat). Default 8642. */
+export function getHermesApiServerPort() {
+  const raw = String(process.env.HERMES_API_SERVER_PORT || '8642').trim()
+  const port = Number(raw)
+  return Number.isFinite(port) && port > 0 && port < 65536 ? port : 8642
 }
 
 export function resolveHermesMcpUrlFromEnv() {

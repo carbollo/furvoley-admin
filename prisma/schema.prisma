@@ -814,6 +814,8 @@ model ClubSettings {
 
   /** API key para Hermes Agent MCP (Bearer). Env HERMES_MCP_API_KEY tiene prioridad. */
   hermesMcpApiKey          String?  @db.Text
+  /** Bearer interno para el API Server de Hermes (chat web CRM). Env HERMES_API_SERVER_KEY tiene prioridad. */
+  hermesApiServerKey       String?  @db.Text
   hermesEnabled            Boolean  @default(false)
   hermesOllamaApiKey       String?  @db.Text
   hermesOllamaModel        String?  @default("gpt-oss:120b")

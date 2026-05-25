@@ -1,6 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { HermesChatPanel } from '@/components/crm/HermesChatPanel'
+
+type HermesTab = 'config' | 'chat'
 
 type HermesSettingsView = {
   enabled: boolean
@@ -21,6 +24,12 @@ type HermesSettingsView = {
     bridgeHealthy?: boolean
     bridgeConnectionState?: string | null
     bridgePort?: number
+  }
+  apiServer?: {
+    healthy?: boolean
+    port?: number
+    hasKey?: boolean
+    chatReady?: boolean
   }
 }
 
@@ -98,6 +107,7 @@ export function HermesAgentSection() {
   const [whatsappMode, setWhatsappMode] = useState<'bot' | 'self-chat'>('bot')
   const [allowedUsersText, setAllowedUsersText] = useState('')
   const [allowDestructive, setAllowDestructive] = useState(false)
+  const [activeTab, setActiveTab] = useState<HermesTab>('config')
 
   const formDirtyRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -140,13 +150,14 @@ export function HermesAgentSection() {
       const statusJ = statusR.ok ? await statusR.json() : null
       const qrJ = qrR.ok ? await qrR.json() : null
 
-      if (statusJ?.gateway || statusJ?.whatsapp) {
+      if (statusJ?.gateway || statusJ?.whatsapp || statusJ?.apiServer) {
         setData((prev) =>
           prev
             ? {
                 ...prev,
                 gateway: statusJ.gateway ?? prev.gateway,
                 whatsapp: statusJ.whatsapp ?? prev.whatsapp,
+                apiServer: statusJ.apiServer ?? prev.apiServer,
               }
             : prev,
         )
@@ -406,6 +417,9 @@ export function HermesAgentSection() {
     </div>
   )
 
+  const chatAvailable = Boolean(data?.enabled && data?.gateway?.status === 'running')
+  const chatReady = Boolean(data?.apiServer?.chatReady)
+
   const setupDone = {
     mcp: Boolean(data?.hasMcpKey),
     ollama: Boolean(data?.hasOllamaKey),
@@ -422,9 +436,48 @@ export function HermesAgentSection() {
           Hermes Agent
         </h1>
         <p style={{ color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.5 }}>
-          Controla el CRM por WhatsApp con Ollama Cloud. Configura todo aquí; no hace falta consola.
+          Controla el CRM con Ollama Cloud por WhatsApp o chat web. Configura todo aquí; no hace falta consola.
           ApiWass sigue siendo el canal hacia socios.
         </p>
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            marginTop: 16,
+            flexWrap: 'wrap',
+          }}
+        >
+          {(
+            [
+              { id: 'config' as const, label: 'Configuración' },
+              { id: 'chat' as const, label: 'Chat' },
+            ] as const
+          ).map((tab) => {
+            const isActive = activeTab === tab.id
+            const disabled = tab.id === 'chat' && !chatAvailable
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                disabled={disabled}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
+                  background: isActive ? 'var(--accent)' : 'var(--surface)',
+                  color: isActive ? '#fff' : 'var(--text-primary)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  opacity: disabled ? 0.5 : 1,
+                }}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {banner ? (
@@ -446,6 +499,13 @@ export function HermesAgentSection() {
 
       {loading ? (
         <p style={{ color: 'var(--text-secondary)' }}>Cargando…</p>
+      ) : activeTab === 'chat' ? (
+        <HermesChatPanel
+          enabled={Boolean(data?.enabled)}
+          gatewayRunning={data?.gateway?.status === 'running'}
+          chatReady={chatReady}
+          onRestartGateway={() => void restartGateway()}
+        />
       ) : (
         <form onSubmit={saveSettings} style={{ display: 'grid', gap: 16 }}>
           <div style={cardStyle}>

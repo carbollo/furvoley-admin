@@ -53,3 +53,10 @@ export async function getHermesMcpApiKey(): Promise<string | null> {
   const settings = await getHermesSettings()
   return settings.mcpApiKey
 }
+
+export async function getHermesApiServerKey(): Promise<string | null> {
+  const fromEnv = String(process.env.HERMES_API_SERVER_KEY || '').trim()
+  if (fromEnv) return fromEnv
+  const settings = await getHermesSettings()
+  return settings.apiServerKey
+}
