@@ -812,8 +812,25 @@ model ClubSettings {
   stripeDetailsSubmitted   Boolean? @default(false)
   stripeAccountStatusAt    DateTime?
 
+  /** API key para Hermes Agent MCP (Bearer). Env HERMES_MCP_API_KEY tiene prioridad. */
+  hermesMcpApiKey          String?  @db.Text
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@unique([isDefault])
+}
+
+model HermesMcpAuditLog {
+  id           String   @id @default(cuid())
+  toolName     String
+  argsSummary  String   @db.Text
+  memberId     String?
+  success      Boolean
+  errorMessage String?  @db.Text
+  source       String   @default("hermes-mcp")
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([toolName])
 }

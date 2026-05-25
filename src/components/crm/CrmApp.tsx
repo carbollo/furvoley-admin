@@ -4,6 +4,7 @@
 import { WorkflowsSection } from './WorkflowsSection'
 import { CuotasSection } from './CuotasSection'
 import { ClubSettingsModal } from './ClubSettingsModal'
+import { HermesAgentSection } from './HermesAgentSection'
 import { PaymentReminderButton } from './PaymentReminderButton'
 import { InviteLinkButton } from './InviteLinkButton'
 import './crm-vars.css'
@@ -300,6 +301,7 @@ const Icon = ({ name, size = 18 }) => {
     reports: <><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>,
     workflows: <><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></>,
     whatsapp: <><path d="M20 11.2c0 4.6-3.8 8.3-8.5 8.3-1.3 0-2.6-.3-3.8-.9L3 20l1.5-4.5c-.7-1.3-1-2.7-1-4.3C3.5 6.6 7.3 3 12 3s8 3.6 8 8.2z"/><path d="M8.8 9.5c.2-.4.4-.4.6-.4h.5c.2 0 .4 0 .5.4.2.4.6 1.4.7 1.6.1.2.1.4 0 .6-.1.2-.2.3-.4.5-.2.2-.3.3-.4.5-.1.2 0 .4.1.5.2.2.9 1.5 2.3 2 .4.2.7.1.9 0 .2-.1.6-.7.8-.9.2-.2.4-.2.6-.1.2.1 1.3.6 1.6.7.2.1.4.2.4.4 0 .2 0 1.1-.7 1.7-.7.6-1.6.6-2.2.5-.6-.1-3.1-1.2-4.5-3.8-.3-.5-.8-1.6-.8-2.3 0-.6.3-.9.4-1.1z"/></>,
+    hermes: <><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></>,
     logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></>,
     plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
     search: <><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>,
@@ -435,6 +437,7 @@ const NAV = [
   { id: 'informes', label: 'Informes', icon: 'reports' },
   { id: 'workflows', label: 'Flujos', icon: 'workflows' },
   { id: 'whatsapp', label: 'Whatsapp', icon: 'whatsapp' },
+  { id: 'hermes', label: 'Hermes Agent', icon: 'hermes' },
   { id: 'personal', label: 'Personal', icon: 'users' },
 ];
 
@@ -5885,7 +5888,7 @@ function WhatsAppSection() {
 }
 
 // ── APP ROOT ─────────────────────────────────────────────────────────────────
-const CRM_SECTION_IDS = ['dashboard','socios','equipos','cuotas','contabilidad','calendario','informes','workflows','whatsapp','personal'] as const;
+const CRM_SECTION_IDS = ['dashboard','socios','equipos','cuotas','contabilidad','calendario','informes','workflows','whatsapp','hermes','personal'] as const;
 type SectionId = (typeof CRM_SECTION_IDS)[number]
 
 const SECTION_TITLES: Record<SectionId, string> = {
@@ -5898,6 +5901,7 @@ const SECTION_TITLES: Record<SectionId, string> = {
   informes: 'Informes',
   workflows: 'Flujos',
   whatsapp: 'WhatsApp',
+  hermes: 'Hermes Agent',
   personal: 'Personal',
 }
 
@@ -6120,6 +6124,7 @@ function CrmInner() {
     informes: Informes,
     workflows: Workflows,
     whatsapp: WhatsAppSection,
+    hermes: HermesAgentSection,
     personal: Personal,
   };
   const Screen = screens[safeActive] || Dashboard;

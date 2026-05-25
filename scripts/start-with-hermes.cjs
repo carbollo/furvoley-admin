@@ -1,0 +1,92 @@
+#!/usr/bin/env node
+const { spawnSync, spawn } = require('node:child_process')
+
+const MAX_ATTEMPTS = Number(process.env.DB_SYNC_RETRIES || 12)
+const RETRY_DELAY_MS = Number(process.env.DB_SYNC_RETRY_DELAY_MS || 5000)
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function ensureSchema() {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    process.stdout.write(`[startup] Prisma db push (${attempt}/${MAX_ATTEMPTS})...\n`)
+    const result = spawnSync(
+      process.platform === 'win32' ? 'npx.cmd' : 'npx',
+      ['prisma', 'db', 'push'],
+      { stdio: 'inherit', env: process.env },
+    )
+    if (result.status === 0) {
+      process.stdout.write('[startup] Prisma schema synced.\n')
+      return
+    }
+    if (attempt < MAX_ATTEMPTS) {
+      process.stdout.write(`[startup] Retry in ${Math.round(RETRY_DELAY_MS / 1000)}s...\n`)
+      await sleep(RETRY_DELAY_MS)
+    }
+  }
+  process.stderr.write('[startup] Could not sync schema after retries. Exiting.\n')
+  process.exit(1)
+}
+
+async function ensureAdminUser() {
+  process.stdout.write('[startup] Ensuring admin user (bootstrap-admin)...\n')
+  const result = spawnSync(
+    process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    ['tsx', 'prisma/bootstrap-admin.ts'],
+    { stdio: 'inherit', env: process.env },
+  )
+  if (result.status !== 0) {
+    process.stderr.write('[startup] bootstrap-admin failed.\n')
+    process.exit(1)
+  }
+}
+
+function startHermesGatewayIfEnabled() {
+  const enabled = String(process.env.HERMES_ENABLED || '').trim().toLowerCase() === 'true'
+  if (!enabled) {
+    process.stdout.write('[startup] Hermes gateway skipped (HERMES_ENABLED!=true).\n')
+    return null
+  }
+
+  process.stdout.write('[startup] Starting Hermes gateway in background...\n')
+  const child = spawn('hermes', ['gateway'], {
+    stdio: 'inherit',
+    env: process.env,
+    detached: false,
+  })
+  child.on('error', (err) => {
+    process.stderr.write(`[startup] Hermes gateway failed to start: ${err?.message || err}\n`)
+  })
+  child.on('exit', (code, signal) => {
+    if (signal) {
+      process.stderr.write(`[startup] Hermes gateway exited (signal ${signal}).\n`)
+    } else if (code !== 0) {
+      process.stderr.write(`[startup] Hermes gateway exited with code ${code}.\n`)
+    }
+  })
+  return child
+}
+
+async function main() {
+  await ensureSchema()
+  await ensureAdminUser()
+  startHermesGatewayIfEnabled()
+  const child = spawn(
+    process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    ['next', 'start'],
+    { stdio: 'inherit', env: process.env },
+  )
+  child.on('exit', (code, signal) => {
+    if (signal) {
+      process.kill(process.pid, signal)
+      return
+    }
+    process.exit(code ?? 1)
+  })
+}
+
+main().catch((error) => {
+  process.stderr.write(`[startup] Fatal error: ${error?.message || error}\n`)
+  process.exit(1)
+})
