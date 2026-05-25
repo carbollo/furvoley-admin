@@ -23,6 +23,8 @@ export async function GET() {
     apiServerHealthy: apiServer.healthy,
     apiServerPort: apiServer.port,
     hasApiServerKey: apiServer.hasKey,
+    apiServerPortOpen: apiServer.portOpen,
+    apiServerLogHint: apiServer.logHint,
     chatReady: enabled && gateway.status === 'running' && apiServer.healthy,
   })
 }

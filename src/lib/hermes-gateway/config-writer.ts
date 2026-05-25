@@ -98,6 +98,12 @@ platforms:
       unauthorized_dm_behavior: ignore
       allow_from:
 ${allowedYaml}
+  api_server:
+    enabled: ${settings.enabled && apiServerKey ? 'true' : 'false'}
+    extra:
+      port: ${apiServerPort}
+      host: 127.0.0.1
+      model_name: hermes-agent
 `
 
   const envLines = ['# Generado por Furvoley CRM']
@@ -111,6 +117,7 @@ ${allowedYaml}
     envLines.push('API_SERVER_HOST=127.0.0.1')
     envLines.push(`API_SERVER_PORT=${apiServerPort}`)
     envLines.push(`API_SERVER_KEY=${apiServerKey}`)
+    envLines.push('API_SERVER_MODEL_NAME=hermes-agent')
   } else {
     envLines.push('API_SERVER_ENABLED=false')
   }

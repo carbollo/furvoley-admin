@@ -1,7 +1,21 @@
 import { getHermesSettings } from '@/lib/hermes-gateway/settings'
+import { waitForHermesApiServerReady } from '@/lib/hermes-gateway/api-server'
+import { readApiServerLogHint } from '@/lib/hermes-gateway/api-server-diagnostics'
 import { withGatewayLock } from '@/lib/hermes-gateway/gateway-lock'
 
 let bootScheduled = false
+
+async function waitForApiServerAfterBoot() {
+  const health = await waitForHermesApiServerReady({ maxMs: 90000, intervalMs: 2000 })
+  if (health.healthy) {
+    process.stdout.write('[hermes-boot] API Server listo en puerto 8642.\n')
+    return
+  }
+  const hint = await readApiServerLogHint()
+  process.stderr.write(
+    `[hermes-boot] API Server no respondió tras 90s${hint ? `: ${hint}` : ''}\n`,
+  )
+}
 
 /** Start Hermes gateway once Next.js is listening (same process as API routes). */
 export function scheduleHermesGatewayBoot() {
@@ -27,6 +41,9 @@ export function scheduleHermesGatewayBoot() {
       process.stdout.write(
         `[hermes-boot] Gateway OK (apiServer=${result.apiServerReady ? 'ready' : 'pending'}).\n`,
       )
+      if (!result.apiServerReady) {
+        await waitForApiServerAfterBoot()
+      }
     }).catch((err) => {
       process.stderr.write(`[hermes-boot] Fatal: ${err?.message || err}\n`)
     })

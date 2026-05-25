@@ -9,7 +9,8 @@ import {
 } from '@/lib/hermes-gateway/gateway-pid'
 import { getHermesApiServerKey } from '@/lib/hermes-mcp/config'
 import { withGatewayLock } from '@/lib/hermes-gateway/gateway-lock'
-import { getHermesHome, getHermesSettings } from '@/lib/hermes-gateway/settings'
+import { getHermesApiServerPort, getHermesHome, getHermesSettings } from '@/lib/hermes-gateway/settings'
+import { killListenersOnPort } from '@/lib/hermes-gateway/port-utils'
 import {
   isWhatsappPaired,
   startWhatsappPairingIfNeeded,
@@ -174,7 +175,22 @@ async function spawnGatewayProcess(): Promise<{ ok: boolean; error?: string; pid
   )
 
   const hermesEnv = await loadHermesDotenv(home)
+  const apiPort = String(hermesEnv.API_SERVER_PORT || getHermesApiServerPort())
+  killListenersOnPort(Number(apiPort))
   const logHandle = await open(logPath, 'a')
+
+  const spawnEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    ...hermesEnv,
+    HERMES_HOME: home,
+  }
+  if (hermesEnv.API_SERVER_ENABLED === 'true' || hermesEnv.API_SERVER_KEY) {
+    spawnEnv.API_SERVER_ENABLED = 'true'
+    spawnEnv.API_SERVER_HOST = hermesEnv.API_SERVER_HOST || '127.0.0.1'
+    spawnEnv.API_SERVER_PORT = apiPort
+    if (hermesEnv.API_SERVER_KEY) spawnEnv.API_SERVER_KEY = hermesEnv.API_SERVER_KEY
+    spawnEnv.API_SERVER_MODEL_NAME = hermesEnv.API_SERVER_MODEL_NAME || 'hermes-agent'
+  }
 
   return new Promise((resolve) => {
     let settled = false
@@ -186,7 +202,7 @@ async function spawnGatewayProcess(): Promise<{ ok: boolean; error?: string; pid
     }
 
     const child = spawn(getHermesBin(), ['gateway', 'run', '--replace'], {
-      env: { ...process.env, ...hermesEnv, HERMES_HOME: home },
+      env: spawnEnv,
       detached: true,
       stdio: ['ignore', logHandle.fd, logHandle.fd],
     })
@@ -375,6 +391,7 @@ async function restartGatewayLocked(opts?: Pick<StartGatewayOptions, 'boot' | 's
     }
   }
 
+  killListenersOnPort(getHermesApiServerPort())
   await stopHermesGatewayProcesses()
   await stopWhatsappPairing()
   await sleep(300)
@@ -404,6 +421,10 @@ export function scheduleGatewayRestart(): Promise<StartGatewayResult> {
         if (!result.ok) {
           process.stderr.write(`[hermes-gateway] Restart failed: ${result.error || 'unknown'}\n`)
           break
+        }
+        const api = await waitForHermesApiServerReady({ maxMs: 45000, intervalMs: 1500 })
+        if (api.healthy) {
+          result = { ...result, apiServerReady: true }
         }
       } while (restartPending)
     } finally {

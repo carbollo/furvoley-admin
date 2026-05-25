@@ -34,6 +34,8 @@ export async function GET() {
       healthy: apiServer.healthy,
       port: apiServer.port,
       hasKey: apiServer.hasKey,
+      portOpen: apiServer.portOpen,
+      logHint: apiServer.logHint,
       chatReady:
         (await isHermesEnabled()) && gateway.status === 'running' && apiServer.healthy,
     },

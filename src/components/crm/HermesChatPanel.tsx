@@ -15,6 +15,7 @@ type ChatStatus = {
   gatewayRunning?: boolean
   apiServerHealthy?: boolean
   hasApiServerKey?: boolean
+  apiServerLogHint?: string
   enabled?: boolean
 }
 
@@ -108,6 +109,7 @@ export function HermesChatPanel({
         chatReady?: boolean
         gatewayRunning?: boolean
         apiServerHealthy?: boolean
+        apiServerLogHint?: string
         enabled?: boolean
       }
       setStatus(j)
@@ -265,6 +267,24 @@ export function HermesChatPanel({
           {status.hasApiServerKey === false
             ? 'Falta la clave del API Server. Ve a Configuración, pulsa Guardar configuración y reinicia el gateway.'
             : 'El API Server de Hermes no responde. Guarda la configuración y reinicia el gateway para activar el chat web.'}
+          {status.apiServerLogHint ? (
+            <pre
+              style={{
+                marginTop: 12,
+                padding: 10,
+                borderRadius: 8,
+                background: '#0f172a',
+                color: '#e2e8f0',
+                fontSize: 11,
+                lineHeight: 1.45,
+                overflowX: 'auto',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {status.apiServerLogHint}
+            </pre>
+          ) : null}
           {onRestartGateway ? (
             <div style={{ marginTop: 12 }}>
               <button

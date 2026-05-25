@@ -1,4 +1,6 @@
 import { getHermesApiServerPort } from '@/lib/hermes-gateway/settings'
+import { readApiServerLogHint } from '@/lib/hermes-gateway/api-server-diagnostics'
+import { isTcpPortOpen } from '@/lib/hermes-gateway/port-utils'
 import { getHermesApiServerKey } from '@/lib/hermes-mcp/config'
 
 export type HermesChatMessage = {
@@ -63,11 +65,17 @@ export async function waitForHermesApiServerReady(opts?: {
 export async function getHermesApiServerStatus() {
   const port = getHermesApiServerPort()
   const hasKey = Boolean(await getHermesApiServerKey())
-  const health = await probeHermesApiServerHealth()
+  const [health, portOpen, logHint] = await Promise.all([
+    probeHermesApiServerHealth(),
+    isTcpPortOpen(port),
+    readApiServerLogHint(),
+  ])
   return {
     port,
     hasKey,
     healthy: health.healthy,
+    portOpen,
+    logHint,
   }
 }
 
