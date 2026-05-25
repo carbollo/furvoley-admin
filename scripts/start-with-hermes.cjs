@@ -42,27 +42,44 @@ async function ensureAdminUser() {
   }
 }
 
-function syncHermesConfigAndMaybeStartGateway() {
+function syncHermesConfigOnly() {
   process.stdout.write('[startup] Sync Hermes config from CRM database...\n')
   const sync = spawnSync(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
-    ['tsx', 'scripts/sync-hermes-config.ts', '--start-gateway'],
+    ['tsx', 'scripts/sync-hermes-config.ts'],
     { stdio: 'inherit', env: process.env },
   )
   if (sync.status !== 0) {
-    process.stderr.write('[startup] Hermes sync/gateway failed (continuing Next.js).\n')
+    process.stderr.write('[startup] Hermes config sync failed (continuing Next.js).\n')
   }
+}
+
+function startHermesGatewayInBackground() {
+  process.stdout.write('[startup] Hermes gateway starting in background (non-blocking)...\n')
+  const child = spawn(
+    process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    ['tsx', 'scripts/start-hermes-gateway.ts'],
+    { stdio: 'inherit', env: process.env },
+  )
+  child.on('exit', (code, signal) => {
+    if (signal) return
+    if (code && code !== 0) {
+      process.stderr.write(`[startup] Hermes gateway helper exited with code ${code}.\n`)
+    }
+  })
 }
 
 async function main() {
   await ensureSchema()
   await ensureAdminUser()
-  syncHermesConfigAndMaybeStartGateway()
+  syncHermesConfigOnly()
   const child = spawn(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
     ['next', 'start'],
     { stdio: 'inherit', env: process.env },
   )
+  // Next.js must bind PORT before Hermes — Railway health checks HTTP, not the gateway.
+  setTimeout(() => startHermesGatewayInBackground(), 2500)
   child.on('exit', (code, signal) => {
     if (signal) {
       process.kill(process.pid, signal)

@@ -17,12 +17,14 @@ async function main() {
   )
 
   if (startGatewayFlag && settings.enabled) {
-    const gw = await startGateway()
+    const gw = await startGateway({ boot: true })
     if (!gw.ok) {
       process.stderr.write(`[sync-hermes-config] gateway: ${gw.error}\n`)
       process.exit(1)
     }
-    process.stdout.write('[sync-hermes-config] gateway started.\n')
+    process.stdout.write(
+      `[sync-hermes-config] gateway started (apiServer=${gw.apiServerReady ? 'ready' : 'pending'}).\n`,
+    )
   }
 }
 

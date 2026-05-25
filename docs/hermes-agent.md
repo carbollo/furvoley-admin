@@ -59,7 +59,7 @@ Opcional (override avanzado, no necesario si usas solo el CRM):
 ## Despliegue (contenedor único)
 
 - `Dockerfile` raíz + volumen `/root/.hermes`
-- Arranque: `scripts/start-with-hermes.cjs` (db push → sync config desde BD → gateway → Next.js)
+- Arranque: `scripts/start-with-hermes.cjs` (db push → sync config desde BD → **Next.js** → gateway Hermes en segundo plano)
 - Recursos recomendados: **4 GB RAM / 2 vCPU**
 
 ## Tools MCP

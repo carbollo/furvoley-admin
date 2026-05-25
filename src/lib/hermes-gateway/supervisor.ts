@@ -227,6 +227,8 @@ export type StartGatewayResult = {
 export type StartGatewayOptions = {
   /** Always stop and respawn — used by restartGateway after config changes. */
   force?: boolean
+  /** Container boot: short API-server wait so Next.js can bind PORT first. */
+  boot?: boolean
 }
 
 async function finishWhatsappPairingAfterGatewayStart() {
@@ -241,14 +243,23 @@ async function finishWhatsappPairingAfterGatewayStart() {
   return { ok: true as const }
 }
 
-async function waitForChatApiServerIfNeeded() {
+async function waitForChatApiServerIfNeeded(opts?: { boot?: boolean }) {
   const hasKey = Boolean(await getHermesApiServerKey())
   if (!hasKey) {
     return { ready: false, error: 'Falta la clave del API Server. Guarda la configuración de Hermes.' }
   }
 
-  const health = await waitForHermesApiServerReady({ maxMs: 25000, intervalMs: 500 })
+  const maxMs = opts?.boot ? 6000 : 18000
+  const health = await waitForHermesApiServerReady({ maxMs, intervalMs: 500 })
   if (health.healthy) return { ready: true as const }
+
+  if (opts?.boot) {
+    return {
+      ready: false as const,
+      error:
+        'Gateway en ejecución; el API Server del chat puede tardar unos segundos más en estar listo.',
+    }
+  }
 
   const logTail = await readGatewayLogTail(30)
   const apiLine = logTail
@@ -332,7 +343,7 @@ export async function startGateway(opts?: StartGatewayOptions): Promise<StartGat
   if (!whatsapp.ok) return whatsapp
 
   if (wantsApiServer) {
-    const api = await waitForChatApiServerIfNeeded()
+    const api = await waitForChatApiServerIfNeeded({ boot: opts?.boot })
     if (!api.ready) {
       return {
         ok: true,
