@@ -2,18 +2,42 @@
 """Patch Hermes bridge.js to persist WhatsApp QR payload for the CRM UI."""
 from __future__ import annotations
 
+import os
 import re
+import sys
 from pathlib import Path
 
-try:
-    import gateway.platforms.whatsapp as whatsapp_mod
-except ImportError as exc:
-    raise SystemExit(f"gateway.platforms.whatsapp not found: {exc}") from exc
 
-bridge = Path(whatsapp_mod.__file__).resolve().parents[2] / "scripts" / "whatsapp-bridge" / "bridge.js"
-if not bridge.exists():
-    raise SystemExit(f"bridge.js not found: {bridge}")
+def resolve_bridge_path() -> Path:
+    cli = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else None
+    if cli and cli.exists():
+        return cli
 
+    from_env = Path(os.environ.get("HERMES_BRIDGE_SCRIPT", "").strip())
+    if from_env.exists():
+        return from_env
+
+    bundled = Path("/opt/hermes-whatsapp-bridge/bridge.js")
+    if bundled.exists():
+        return bundled
+
+    try:
+        import gateway.platforms.whatsapp as whatsapp_mod
+
+        site_packages = Path(whatsapp_mod.__file__).resolve().parents[2]
+        pip_bridge = site_packages / "scripts" / "whatsapp-bridge" / "bridge.js"
+        if pip_bridge.exists():
+            return pip_bridge
+    except ImportError:
+        pass
+
+    raise SystemExit(
+        "bridge.js not found. Expected /opt/hermes-whatsapp-bridge/bridge.js "
+        "or pip site-packages/scripts/whatsapp-bridge/bridge.js"
+    )
+
+
+bridge = resolve_bridge_path()
 text = bridge.read_text(encoding="utf-8")
 if "latest_qr.txt" in text:
     print(f"already patched: {bridge}")

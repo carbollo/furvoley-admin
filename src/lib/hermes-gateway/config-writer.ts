@@ -36,6 +36,7 @@ platforms:
   whatsapp:
     enabled: true
     mode: ${yamlQuote(settings.whatsappMode)}
+    bridge_script: ${yamlQuote(process.env.HERMES_BRIDGE_SCRIPT || '/opt/hermes-whatsapp-bridge/bridge.js')}
     allowed_users:
 ${allowedYaml}
 `

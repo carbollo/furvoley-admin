@@ -27,6 +27,7 @@ ENV PORT=3000
 ENV HERMES_HOME=/root/.hermes
 ENV PATH="/usr/local/bin:${PATH}"
 ENV HERMES_BIN=hermes
+ENV HERMES_BRIDGE_SCRIPT=/opt/hermes-whatsapp-bridge/bridge.js
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 python3-pip git ca-certificates curl openssl \
@@ -35,8 +36,16 @@ RUN apt-get update \
   && mkdir -p /root/.hermes
 
 COPY --from=builder /app/scripts ./scripts
-RUN python3 scripts/patch-hermes-bridge-qr.py \
-  && bash -c 'BRIDGE=$(python3 -c "from pathlib import Path; import gateway.platforms.whatsapp as w; print(Path(w.__file__).resolve().parents[2] / \"scripts/whatsapp-bridge\")") && cd "$BRIDGE" && npm install --silent'
+RUN mkdir -p /opt/hermes-whatsapp-bridge \
+  && curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/whatsapp-bridge/bridge.js -o /opt/hermes-whatsapp-bridge/bridge.js \
+  && curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/whatsapp-bridge/allowlist.js -o /opt/hermes-whatsapp-bridge/allowlist.js \
+  && curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/whatsapp-bridge/package.json -o /opt/hermes-whatsapp-bridge/package.json \
+  && curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/whatsapp-bridge/package-lock.json -o /opt/hermes-whatsapp-bridge/package-lock.json \
+  && python3 scripts/patch-hermes-bridge-qr.py /opt/hermes-whatsapp-bridge/bridge.js \
+  && cd /opt/hermes-whatsapp-bridge && npm ci --silent \
+  && SITE=$(python3 -c "import site; print(site.getsitepackages()[0])") \
+  && mkdir -p "$SITE/scripts" \
+  && ln -sfn /opt/hermes-whatsapp-bridge "$SITE/scripts/whatsapp-bridge"
 
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/package-lock.json ./package-lock.json

@@ -1,5 +1,6 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { access, mkdir, open, readFile, unlink, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { getHermesHome, getHermesSettings } from '@/lib/hermes-gateway/settings'
 
@@ -56,18 +57,21 @@ function isProcessAlive(pid: number) {
 
 export function resolveHermesBridgeScript(): string | null {
   const fromEnv = String(process.env.HERMES_BRIDGE_SCRIPT || '').trim()
-  if (fromEnv) return fromEnv
+  if (fromEnv && existsSync(fromEnv)) return fromEnv
 
-  const result = spawnSync(
+  const bundled = '/opt/hermes-whatsapp-bridge/bridge.js'
+  if (existsSync(bundled)) return bundled
+
+  const legacy = spawnSync(
     'python3',
     [
       '-c',
-      "from pathlib import Path; import gateway.platforms.whatsapp as w; print(Path(w.__file__).resolve().parents[2] / 'scripts/whatsapp-bridge/bridge.js')",
+      "from pathlib import Path; import site; p=Path(site.getsitepackages()[0])/'scripts/whatsapp-bridge/bridge.js'; print(p if p.exists() else '')",
     ],
     { encoding: 'utf8' },
   )
-  const script = String(result.stdout || '').trim()
-  return script && result.status === 0 ? script : null
+  const legacyScript = String(legacy.stdout || '').trim()
+  return legacyScript && existsSync(legacyScript) ? legacyScript : null
 }
 
 async function stopPairingProcess() {
