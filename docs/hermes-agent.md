@@ -59,7 +59,7 @@ Opcional (override avanzado, no necesario si usas solo el CRM):
 
 ## Despliegue (contenedor único)
 
-- `Dockerfile` raíz + volumen `/root/.hermes` (incluye `hermes-agent[mcp,messaging]` — el extra `mcp` es obligatorio para que Hermes descubra las tools del CRM)
+- `Dockerfile` raíz + volumen `/root/.hermes` (instala `hermes-agent[mcp]`, `aiohttp==3.13.3` y `mcp` — ambos extras son obligatorios para chat web + tools CRM)
 - Arranque: `scripts/start-with-hermes.cjs` (db push → sync config → Next.js; gateway vía `instrumentation.ts`)
 - Recursos recomendados: **4 GB RAM / 2 vCPU**
 

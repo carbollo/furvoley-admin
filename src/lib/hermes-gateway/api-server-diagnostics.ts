@@ -1,6 +1,20 @@
+import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { getHermesHome } from '@/lib/hermes-gateway/settings'
+
+let cachedAiohttp: boolean | null = null
+
+/** Hermes API Server refuses to start without the Python aiohttp package. */
+export function isHermesAiohttpInstalled() {
+  if (cachedAiohttp !== null) return cachedAiohttp
+  const probe = spawnSync('python3', ['-c', 'import aiohttp'], {
+    encoding: 'utf8',
+    timeout: 5000,
+  })
+  cachedAiohttp = probe.status === 0
+  return cachedAiohttp
+}
 
 async function readGatewayLogTail(maxLines = 80): Promise<string | undefined> {
   try {

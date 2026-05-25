@@ -29,6 +29,7 @@ export async function GET() {
     apiServerHealthy: apiServer.healthy,
     apiServerPort: apiServer.port,
     hasApiServerKey: apiServer.hasKey,
+    apiServerAiohttpInstalled: apiServer.aiohttpInstalled,
     apiServerPortOpen: apiServer.portOpen,
     apiServerLogHint: apiServer.logHint,
     mcpReady: mcp.endpointReady,

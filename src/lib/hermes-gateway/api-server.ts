@@ -76,17 +76,22 @@ export async function waitForHermesApiServerReady(opts?: {
 export async function getHermesApiServerStatus() {
   const port = getHermesApiServerPort()
   const hasKey = Boolean(await getHermesApiServerKey())
+  const aiohttpInstalled = isHermesAiohttpInstalled()
   const [health, portOpen, logHint] = await Promise.all([
     probeHermesApiServerHealth(),
     isTcpPortOpen(port),
     readApiServerLogHint(),
   ])
+  const aiohttpError = aiohttpInstalled
+    ? undefined
+    : 'Falta el paquete Python aiohttp (pip install aiohttp==3.13.3)'
   return {
     port,
     hasKey,
-    healthy: health.healthy,
+    aiohttpInstalled,
+    healthy: aiohttpInstalled && health.healthy,
     portOpen,
-    logHint,
+    logHint: aiohttpError || logHint,
   }
 }
 

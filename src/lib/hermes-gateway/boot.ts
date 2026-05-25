@@ -1,6 +1,6 @@
 import { getHermesSettings } from '@/lib/hermes-gateway/settings'
 import { waitForHermesApiServerReady } from '@/lib/hermes-gateway/api-server'
-import { readApiServerLogHint } from '@/lib/hermes-gateway/api-server-diagnostics'
+import { readApiServerLogHint, isHermesAiohttpInstalled } from '@/lib/hermes-gateway/api-server-diagnostics'
 import { waitForHermesMcpReady, isHermesPythonMcpSdkInstalled } from '@/lib/hermes-gateway/mcp-diagnostics'
 import { withGatewayLock } from '@/lib/hermes-gateway/gateway-lock'
 
@@ -32,6 +32,12 @@ export function scheduleHermesGatewayBoot() {
         process.stdout.write('[hermes-boot] Hermes desactivado — omitido.\n')
         return
       }
+      if (!isHermesAiohttpInstalled()) {
+        process.stderr.write(
+          '[hermes-boot] Falta aiohttp — el API Server del chat no arrancará. Rebuild con pip install aiohttp.\n',
+        )
+      }
+
       if (!isHermesPythonMcpSdkInstalled()) {
         process.stderr.write(
           '[hermes-boot] Falta el paquete Python mcp — Hermes no registrará tools CRM. Rebuild con hermes-agent[mcp].\n',

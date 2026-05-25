@@ -35,6 +35,7 @@ export async function GET() {
       healthy: apiServer.healthy,
       port: apiServer.port,
       hasKey: apiServer.hasKey,
+      aiohttpInstalled: apiServer.aiohttpInstalled,
       portOpen: apiServer.portOpen,
       logHint: apiServer.logHint,
       chatReady:
