@@ -1,5 +1,5 @@
 import { getHermesApiServerPort } from '@/lib/hermes-gateway/settings'
-import { readApiServerLogHint } from '@/lib/hermes-gateway/api-server-diagnostics'
+import { readApiServerLogHint, isHermesAiohttpInstalled } from '@/lib/hermes-gateway/api-server-diagnostics'
 import { isTcpPortOpen } from '@/lib/hermes-gateway/port-utils'
 import { getHermesApiServerKey } from '@/lib/hermes-mcp/config'
 
