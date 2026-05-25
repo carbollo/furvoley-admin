@@ -1,11 +1,13 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { access, appendFile, mkdir, open, readFile, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { waitForHermesApiServerReady } from '@/lib/hermes-gateway/api-server'
 import { writeHermesConfigFiles } from '@/lib/hermes-gateway/config-writer'
 import {
   clearHermesGatewayPidFile,
   readHermesGatewayPid,
 } from '@/lib/hermes-gateway/gateway-pid'
+import { getHermesApiServerKey } from '@/lib/hermes-mcp/config'
 import { getHermesHome, getHermesSettings } from '@/lib/hermes-gateway/settings'
 import {
   isWhatsappPaired,
@@ -216,7 +218,52 @@ async function spawnGatewayProcess(): Promise<{ ok: boolean; error?: string; pid
   })
 }
 
-export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
+export type StartGatewayResult = {
+  ok: boolean
+  error?: string
+  apiServerReady?: boolean
+}
+
+export type StartGatewayOptions = {
+  /** Always stop and respawn — used by restartGateway after config changes. */
+  force?: boolean
+}
+
+async function finishWhatsappPairingAfterGatewayStart() {
+  if (!(await isWhatsappPaired())) {
+    const pair = await startWhatsappPairingIfNeeded()
+    if (!pair.ok) {
+      return { ok: false as const, error: pair.error || 'No se pudo iniciar emparejamiento WhatsApp' }
+    }
+  } else {
+    await stopWhatsappPairing()
+  }
+  return { ok: true as const }
+}
+
+async function waitForChatApiServerIfNeeded() {
+  const hasKey = Boolean(await getHermesApiServerKey())
+  if (!hasKey) {
+    return { ready: false, error: 'Falta la clave del API Server. Guarda la configuración de Hermes.' }
+  }
+
+  const health = await waitForHermesApiServerReady({ maxMs: 25000, intervalMs: 500 })
+  if (health.healthy) return { ready: true as const }
+
+  const logTail = await readGatewayLogTail(30)
+  const apiLine = logTail
+    ?.split('\n')
+    .find((line) => /api server|API_SERVER/i.test(line))
+  return {
+    ready: false as const,
+    error:
+      apiLine ||
+      logTail ||
+      'El API Server no respondió en el puerto 8642. Comprueba gateway.log tras reiniciar.',
+  }
+}
+
+export async function startGateway(opts?: StartGatewayOptions): Promise<StartGatewayResult> {
   const settings = await getHermesSettings()
   if (!settings.enabled) {
     return { ok: false, error: 'Hermes desactivado en el CRM' }
@@ -228,14 +275,24 @@ export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
   await writeHermesConfigFiles()
 
   const existingPid = await readHermesGatewayPid()
-  if (existingPid && isProcessAlive(existingPid)) {
-    if (!(await isWhatsappPaired())) {
-      await startWhatsappPairingIfNeeded()
+  const existingAlive = Boolean(existingPid && isProcessAlive(existingPid))
+  const wantsApiServer = Boolean(await getHermesApiServerKey())
+
+  if (existingAlive && !opts?.force) {
+    if (wantsApiServer) {
+      const health = await waitForHermesApiServerReady({ maxMs: 1500, intervalMs: 400 })
+      if (health.healthy) {
+        const whatsapp = await finishWhatsappPairingAfterGatewayStart()
+        if (!whatsapp.ok) return whatsapp
+        await clearGatewayError()
+        return { ok: true, apiServerReady: true }
+      }
     } else {
-      await stopWhatsappPairing()
+      const whatsapp = await finishWhatsappPairingAfterGatewayStart()
+      if (!whatsapp.ok) return whatsapp
+      await clearGatewayError()
+      return { ok: true, apiServerReady: false }
     }
-    await clearGatewayError()
-    return { ok: true }
   }
 
   await access(getHermesHome()).catch(async () => {
@@ -271,16 +328,22 @@ export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
 
   await clearGatewayError()
 
-  if (!(await isWhatsappPaired())) {
-    const pair = await startWhatsappPairingIfNeeded()
-    if (!pair.ok) {
-      return { ok: false, error: pair.error || 'No se pudo iniciar emparejamiento WhatsApp' }
+  const whatsapp = await finishWhatsappPairingAfterGatewayStart()
+  if (!whatsapp.ok) return whatsapp
+
+  if (wantsApiServer) {
+    const api = await waitForChatApiServerIfNeeded()
+    if (!api.ready) {
+      return {
+        ok: true,
+        apiServerReady: false,
+        error: api.error,
+      }
     }
-  } else {
-    await stopWhatsappPairing()
+    return { ok: true, apiServerReady: true }
   }
 
-  return { ok: true }
+  return { ok: true, apiServerReady: false }
 }
 
 export async function ensureGatewayRunning(): Promise<{ ok: boolean; error?: string }> {
@@ -297,7 +360,7 @@ export async function restartGateway() {
   await stopHermesGatewayProcesses()
   await stopWhatsappPairing()
   await sleep(300)
-  return startGateway()
+  return startGateway({ force: true })
 }
 
 export async function getGatewayStatus(): Promise<{

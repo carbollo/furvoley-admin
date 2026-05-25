@@ -252,6 +252,12 @@ export function HermesAgentSection() {
         showBanner('success', 'Configuración guardada. Se generó una clave MCP automáticamente.')
       } else if (j.gatewayResult?.ok === false) {
         showBanner('error', j.gatewayResult.error || 'Guardado, pero el gateway no arrancó.')
+      } else if (j.gatewayResult?.apiServerReady === false) {
+        showBanner(
+          'error',
+          j.gatewayResult.error ||
+            'Guardado y gateway en ejecución, pero el API Server del chat no responde. Pulsa Reiniciar gateway.',
+        )
       } else {
         showBanner('success', 'Configuración guardada. Espera el QR si aún no está conectado.')
       }
@@ -314,7 +320,16 @@ export function HermesAgentSection() {
       })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || 'No se pudo reiniciar el gateway')
-      showBanner('success', 'Gateway reiniciado.')
+      if (j.warning) {
+        showBanner('error', String(j.warning))
+      } else if (j.apiServerReady === false) {
+        showBanner(
+          'error',
+          'Gateway en ejecución, pero el API Server del chat aún no responde. Espera unos segundos o vuelve a reiniciar.',
+        )
+      } else {
+        showBanner('success', 'Gateway reiniciado.')
+      }
       if (j.status) {
         setData((prev) => (prev ? { ...prev, gateway: j.status } : prev))
       }

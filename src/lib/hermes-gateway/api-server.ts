@@ -11,21 +11,53 @@ function apiServerBaseUrl() {
   return `http://127.0.0.1:${port}`
 }
 
+function isHealthOkBody(data: unknown) {
+  if (!data || typeof data !== 'object') return false
+  const status = String((data as { status?: string }).status || '').toLowerCase()
+  return status === 'ok' || status === 'healthy'
+}
+
+async function probeHealthPath(path: string) {
+  const res = await fetch(`${apiServerBaseUrl()}${path}`, {
+    signal: AbortSignal.timeout(2500),
+  })
+  if (!res.ok) return false
+  const data = (await res.json()) as unknown
+  return isHealthOkBody(data)
+}
+
 export async function probeHermesApiServerHealth(): Promise<{
   healthy: boolean
   port: number
 }> {
   const port = getHermesApiServerPort()
   try {
-    const res = await fetch(`${apiServerBaseUrl()}/health`, {
-      signal: AbortSignal.timeout(2500),
-    })
-    if (!res.ok) return { healthy: false, port }
-    const data = (await res.json()) as { status?: string }
-    return { healthy: String(data?.status || '').toLowerCase() === 'ok', port }
+    for (const path of ['/health', '/v1/health']) {
+      if (await probeHealthPath(path)) return { healthy: true, port }
+    }
+    return { healthy: false, port }
   } catch {
     return { healthy: false, port }
   }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export async function waitForHermesApiServerReady(opts?: {
+  maxMs?: number
+  intervalMs?: number
+}) {
+  const maxMs = opts?.maxMs ?? 25000
+  const intervalMs = opts?.intervalMs ?? 500
+  const start = Date.now()
+  let last = await probeHermesApiServerHealth()
+  while (!last.healthy && Date.now() - start < maxMs) {
+    await sleep(intervalMs)
+    last = await probeHermesApiServerHealth()
+  }
+  return last
 }
 
 export async function getHermesApiServerStatus() {
