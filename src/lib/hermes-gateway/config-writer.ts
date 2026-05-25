@@ -1,13 +1,19 @@
+import { randomBytes } from 'node:crypto'
 import { access, cp, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { getHermesMcpApiKey, resolveHermesMcpUrlForGateway, getHermesApiServerKey } from '@/lib/hermes-mcp/config'
+import { prisma } from '@/lib/prisma'
+import {
+  getHermesMcpApiKey,
+  getHermesApiServerKey,
+  resolveHermesMcpUrlForGateway,
+} from '@/lib/hermes-mcp/config'
 import {
   getHermesHome,
   getHermesSettings,
   getHermesApiServerPort,
   getHermesWhatsappBridgePort,
 } from '@/lib/hermes-gateway/settings'
-import { whatsappSessionDir } from '@/lib/hermes-gateway/whatsapp-pairing'
+import { isWhatsappPaired, whatsappSessionDir } from '@/lib/hermes-gateway/whatsapp-pairing'
 
 function yamlQuote(value: string) {
   return JSON.stringify(value)
@@ -25,19 +31,37 @@ async function syncHermesSkills(home: string) {
   }
 }
 
+/** Backfill DB key so API_SERVER_ENABLED always has a matching API_SERVER_KEY. */
+async function ensureHermesApiServerKey(settings: Awaited<ReturnType<typeof getHermesSettings>>) {
+  const fromEnv = String(process.env.HERMES_API_SERVER_KEY || '').trim()
+  if (fromEnv) return fromEnv
+  if (settings.apiServerKey) return settings.apiServerKey
+  if (!settings.enabled) return ''
+
+  const key = randomBytes(32).toString('hex')
+  await prisma.clubSettings.upsert({
+    where: { isDefault: true },
+    update: { hermesApiServerKey: key },
+    create: { isDefault: true, name: 'Furvoley', hermesApiServerKey: key },
+  })
+  return key
+}
+
 export async function writeHermesConfigFiles() {
   const home = getHermesHome()
   await mkdir(home, { recursive: true })
 
   const settings = await getHermesSettings()
   const mcpKey = (await getHermesMcpApiKey()) || settings.mcpApiKey || ''
-  const apiServerKey = (await getHermesApiServerKey()) || settings.apiServerKey || ''
+  const apiServerKey =
+    (await getHermesApiServerKey()) || (await ensureHermesApiServerKey(settings))
   const mcpUrl = resolveHermesMcpUrlForGateway()
   const bridgePort = getHermesWhatsappBridgePort()
   const apiServerPort = getHermesApiServerPort()
   const bridgeScript =
     process.env.HERMES_BRIDGE_SCRIPT || '/opt/hermes-whatsapp-bridge/bridge.js'
   const sessionPath = whatsappSessionDir()
+  const whatsappPaired = await isWhatsappPaired()
   const allowedUsers = settings.allowedUsers
   const allowedYaml =
     allowedUsers.length > 0
@@ -66,7 +90,7 @@ ${allowedYaml}
 
 platforms:
   whatsapp:
-    enabled: true
+    enabled: ${whatsappPaired ? 'true' : 'false'}
     extra:
       bridge_port: ${bridgePort}
       bridge_script: ${yamlQuote(bridgeScript)}
@@ -76,21 +100,21 @@ platforms:
 ${allowedYaml}
 `
 
-  const envLines = [
-    '# Generado por Furvoley CRM',
-    'WHATSAPP_ENABLED=true',
-    `WHATSAPP_MODE=${settings.whatsappMode}`,
-    `WHATSAPP_ALLOWED_USERS=${allowedUsersEnv}`,
-    `WHATSAPP_BRIDGE_PORT=${bridgePort}`,
-  ]
-  if (settings.enabled) {
+  const envLines = ['# Generado por Furvoley CRM']
+  envLines.push(`WHATSAPP_ENABLED=${whatsappPaired ? 'true' : 'false'}`)
+  envLines.push(`WHATSAPP_MODE=${settings.whatsappMode}`)
+  envLines.push(`WHATSAPP_ALLOWED_USERS=${allowedUsersEnv}`)
+  envLines.push(`WHATSAPP_BRIDGE_PORT=${bridgePort}`)
+
+  if (settings.enabled && apiServerKey) {
     envLines.push('API_SERVER_ENABLED=true')
     envLines.push('API_SERVER_HOST=127.0.0.1')
     envLines.push(`API_SERVER_PORT=${apiServerPort}`)
-    if (apiServerKey) {
-      envLines.push(`API_SERVER_KEY=${apiServerKey}`)
-    }
+    envLines.push(`API_SERVER_KEY=${apiServerKey}`)
+  } else {
+    envLines.push('API_SERVER_ENABLED=false')
   }
+
   if (settings.ollamaApiKey) {
     envLines.push(`OLLAMA_API_KEY=${settings.ollamaApiKey}`)
   }
@@ -109,6 +133,7 @@ ${allowedYaml}
     enabled: settings.enabled,
     hasOllamaKey: Boolean(settings.ollamaApiKey),
     hasMcpKey: Boolean(mcpKey),
+    hasApiServerKey: Boolean(apiServerKey),
     bridgePort,
     mcpUrl,
   }

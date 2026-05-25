@@ -61,6 +61,14 @@ async function clearPidFile() {
   }
 }
 
+async function clearGatewayError() {
+  try {
+    await unlink(gatewayErrorFile())
+  } catch {
+    //
+  }
+}
+
 async function writeGatewayError(message: string) {
   const line = `[${new Date().toISOString()}] ${message}\n`
   await appendFile(gatewayErrorFile(), line, 'utf8').catch(async () => {
@@ -89,12 +97,36 @@ async function readGatewayLogTail(maxLines = 8): Promise<string | undefined> {
   }
 }
 
+async function loadHermesDotenv(home: string): Promise<Record<string, string>> {
+  const env: Record<string, string> = {}
+  try {
+    const raw = await readFile(path.join(home, '.env'), 'utf8')
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const eq = trimmed.indexOf('=')
+      if (eq <= 0) continue
+      env[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+    }
+  } catch {
+    //
+  }
+  return env
+}
+
 function isProcessAlive(pid: number) {
   try {
     process.kill(pid, 0)
     return true
   } catch {
     return false
+  }
+}
+
+async function cleanupStaleGatewayPid() {
+  const pid = await readPidFile()
+  if (pid && !isProcessAlive(pid)) {
+    await clearPidFile()
   }
 }
 
@@ -127,6 +159,7 @@ async function stopGatewayProcess() {
 async function spawnGatewayProcess(): Promise<{ ok: boolean; error?: string; pid?: number }> {
   const home = getHermesHome()
   await mkdir(home, { recursive: true })
+  await cleanupStaleGatewayPid()
 
   const logPath = gatewayLogFile()
   await appendFile(logPath, `\n--- gateway start ${new Date().toISOString()} ---\n`, 'utf8').catch(
@@ -135,6 +168,7 @@ async function spawnGatewayProcess(): Promise<{ ok: boolean; error?: string; pid
     },
   )
 
+  const hermesEnv = await loadHermesDotenv(home)
   const logHandle = await open(logPath, 'a')
 
   return new Promise((resolve) => {
@@ -147,7 +181,7 @@ async function spawnGatewayProcess(): Promise<{ ok: boolean; error?: string; pid
     }
 
     const child = spawn(getHermesBin(), ['gateway'], {
-      env: { ...process.env, HERMES_HOME: home },
+      env: { ...process.env, ...hermesEnv, HERMES_HOME: home },
       detached: true,
       stdio: ['ignore', logHandle.fd, logHandle.fd],
     })
@@ -195,6 +229,7 @@ export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
     } else {
       await stopWhatsappPairing()
     }
+    await clearGatewayError()
     return { ok: true }
   }
 
@@ -204,16 +239,16 @@ export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
 
   const spawned = await spawnGatewayProcess()
   if (!spawned.ok || !spawned.pid) {
-    const logTail = await readGatewayLogTail()
+    const logTail = await readGatewayLogTail(20)
     return {
       ok: false,
       error: spawned.error || logTail || 'No se pudo arrancar hermes gateway',
     }
   }
 
-  await sleep(800)
+  await sleep(1200)
   if (!isProcessAlive(spawned.pid)) {
-    const logTail = await readGatewayLogTail()
+    const logTail = await readGatewayLogTail(24)
     const lastError = (await readGatewayError()) || logTail
     await clearPidFile()
     return {
@@ -221,6 +256,8 @@ export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
       error: lastError || 'Hermes gateway se detuvo al arrancar. Revisa gateway.log en el volumen.',
     }
   }
+
+  await clearGatewayError()
 
   if (!(await isWhatsappPaired())) {
     const pair = await startWhatsappPairingIfNeeded()
@@ -254,6 +291,7 @@ export async function getGatewayStatus(): Promise<{
   status: GatewayStatus
   pid: number | null
   message?: string
+  logTail?: string
 }> {
   const pidFromFile = await readPidFile()
   const pid = gatewayChild?.pid || pidFromFile
@@ -262,11 +300,17 @@ export async function getGatewayStatus(): Promise<{
   }
 
   const lastError = await readGatewayError()
+  const logTail = await readGatewayLogTail(20)
   if (lastError) {
-    return { status: 'error', pid: null, message: lastError }
+    return {
+      status: 'error',
+      pid: null,
+      message: lastError,
+      logTail,
+    }
   }
 
-  return { status: 'stopped', pid: null }
+  return { status: 'stopped', pid: null, logTail }
 }
 
 export async function stopGateway() {

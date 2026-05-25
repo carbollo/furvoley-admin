@@ -17,7 +17,7 @@ type HermesSettingsView = {
   whatsappMode: 'bot' | 'self-chat'
   allowedUsers: string[]
   allowDestructive: boolean
-  gateway: { status: string; pid: number | null; message?: string }
+  gateway: { status: string; pid: number | null; message?: string; logTail?: string }
   whatsapp: {
     status: string
     hasQr?: boolean
@@ -564,9 +564,32 @@ export function HermesAgentSection() {
               {data?.gateway?.pid ? ` (PID ${data.gateway.pid})` : ''}
             </p>
             {data?.gateway?.message ? (
-              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#b91c1c', lineHeight: 1.4 }}>
-                {data.gateway.message}
-              </p>
+              <div style={{ margin: '8px 0 0' }}>
+                <p style={{ fontSize: 12, color: '#b91c1c', lineHeight: 1.4, margin: 0 }}>
+                  {data.gateway.message}
+                </p>
+                {data.gateway.logTail ? (
+                  <pre
+                    style={{
+                      marginTop: 8,
+                      padding: 10,
+                      borderRadius: 8,
+                      background: '#0f172a',
+                      color: '#e2e8f0',
+                      fontSize: 11,
+                      lineHeight: 1.45,
+                      overflowX: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {data.gateway.logTail}
+                  </pre>
+                ) : null}
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8, marginBottom: 0 }}>
+                  Prueba: pulsa «Guardar configuración» y luego «Reiniciar gateway».
+                </p>
+              </div>
             ) : null}
             <button
               type="button"

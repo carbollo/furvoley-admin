@@ -13,7 +13,7 @@ async function main() {
   const result = await writeHermesConfigFiles()
 
   process.stdout.write(
-    `[sync-hermes-config] home=${result.home} enabled=${result.enabled} ollamaKey=${result.hasOllamaKey} mcpKey=${result.hasMcpKey}\n`,
+    `[sync-hermes-config] home=${result.home} enabled=${result.enabled} ollamaKey=${result.hasOllamaKey} mcpKey=${result.hasMcpKey} apiServerKey=${result.hasApiServerKey}\n`,
   )
 
   if (startGatewayFlag && settings.enabled) {
