@@ -25,6 +25,8 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HERMES_HOME=/root/.hermes
+ENV PATH="/usr/local/bin:${PATH}"
+ENV HERMES_BIN=hermes
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 python3-pip git ca-certificates curl openssl \

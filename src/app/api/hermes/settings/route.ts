@@ -10,6 +10,7 @@ import {
   normalizeWhatsappMode,
 } from '@/lib/hermes-gateway/settings'
 import {
+  ensureGatewayRunning,
   getGatewayStatus,
   restartGateway,
   stopGateway,
@@ -50,6 +51,11 @@ async function serializeSettings(request: Request) {
 export async function GET(request: Request) {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
+
+  if (await isHermesEnabled()) {
+    await ensureGatewayRunning()
+  }
+
   return NextResponse.json(await serializeSettings(request))
 }
 

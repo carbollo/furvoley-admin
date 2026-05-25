@@ -14,7 +14,7 @@ type HermesSettingsView = {
   whatsappMode: 'bot' | 'self-chat'
   allowedUsers: string[]
   allowDestructive: boolean
-  gateway: { status: string; pid: number | null }
+  gateway: { status: string; pid: number | null; message?: string }
   whatsapp: { status: string; hasQr?: boolean }
 }
 
@@ -237,9 +237,26 @@ export function HermesAgentSection() {
               <span style={{ fontWeight: 700 }}>Activar Hermes Agent</span>
             </label>
             <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
-              Gateway: <strong>{data?.gateway?.status || '—'}</strong>
+              Gateway:{' '}
+              <strong
+                style={{
+                  color:
+                    data?.gateway?.status === 'running'
+                      ? '#15803d'
+                      : data?.gateway?.status === 'error'
+                        ? '#b91c1c'
+                        : undefined,
+                }}
+              >
+                {data?.gateway?.status || '—'}
+              </strong>
               {data?.gateway?.pid ? ` (PID ${data.gateway.pid})` : ''}
             </p>
+            {data?.gateway?.message ? (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#b91c1c', lineHeight: 1.4 }}>
+                {data.gateway.message}
+              </p>
+            ) : null}
             <button
               type="button"
               disabled={busy}
