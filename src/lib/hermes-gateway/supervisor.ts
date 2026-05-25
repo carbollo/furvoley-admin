@@ -1,7 +1,11 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { access, appendFile, mkdir, open, readFile, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { writeHermesConfigFiles } from '@/lib/hermes-gateway/config-writer'
+import {
+  clearHermesGatewayPidFile,
+  readHermesGatewayPid,
+} from '@/lib/hermes-gateway/gateway-pid'
 import { getHermesHome, getHermesSettings } from '@/lib/hermes-gateway/settings'
 import {
   isWhatsappPaired,
@@ -19,10 +23,6 @@ declare global {
 let gatewayChild: ChildProcess | null = globalThis.__hermesGatewayChild ?? null
 globalThis.__hermesGatewayChild = gatewayChild
 
-function pidFile() {
-  return path.join(getHermesHome(), 'gateway.pid')
-}
-
 function gatewayLogFile() {
   return path.join(getHermesHome(), 'gateway.log')
 }
@@ -37,28 +37,6 @@ function getHermesBin() {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-async function readPidFile(): Promise<number | null> {
-  try {
-    const raw = (await readFile(pidFile(), 'utf8')).trim()
-    const pid = Number(raw)
-    return Number.isFinite(pid) && pid > 0 ? pid : null
-  } catch {
-    return null
-  }
-}
-
-async function writePidFile(pid: number) {
-  await writeFile(pidFile(), String(pid), 'utf8')
-}
-
-async function clearPidFile() {
-  try {
-    await unlink(pidFile())
-  } catch {
-    //
-  }
 }
 
 async function clearGatewayError() {
@@ -87,7 +65,7 @@ async function readGatewayError(): Promise<string | undefined> {
   }
 }
 
-async function readGatewayLogTail(maxLines = 8): Promise<string | undefined> {
+export async function readGatewayLogTail(maxLines = 8): Promise<string | undefined> {
   try {
     const raw = (await readFile(gatewayLogFile(), 'utf8')).trim()
     if (!raw) return undefined
@@ -123,43 +101,67 @@ function isProcessAlive(pid: number) {
   }
 }
 
-async function cleanupStaleGatewayPid() {
-  const pid = await readPidFile()
-  if (pid && !isProcessAlive(pid)) {
-    await clearPidFile()
+function killProcessTree(pid: number) {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+    return
   }
+  try {
+    process.kill(pid, 'SIGTERM')
+  } catch {
+    //
+  }
+  spawnSync('kill', ['-TERM', `-${pid}`], { stdio: 'ignore' })
 }
 
-async function stopGatewayProcess() {
-  if (gatewayChild?.pid) {
+function killHermesGatewayByPattern() {
+  if (process.platform === 'win32') return
+  spawnSync('pkill', ['-TERM', '-f', 'hermes_cli.main gateway'], { stdio: 'ignore' })
+  spawnSync('pkill', ['-TERM', '-f', 'hermes gateway run'], { stdio: 'ignore' })
+}
+
+async function waitForGatewayProcessExit(pid: number | null, maxMs = 4000) {
+  const start = Date.now()
+  while (Date.now() - start < maxMs) {
+    if (!pid || !isProcessAlive(pid)) return true
+    await sleep(200)
+  }
+  if (pid && isProcessAlive(pid)) {
     try {
-      process.kill(gatewayChild.pid, 'SIGTERM')
+      process.kill(pid, 'SIGKILL')
     } catch {
       //
     }
+    if (process.platform !== 'win32') {
+      spawnSync('pkill', ['-KILL', '-f', 'hermes_cli.main gateway'], { stdio: 'ignore' })
+    }
+    await sleep(300)
+  }
+  return !pid || !isProcessAlive(pid)
+}
+
+async function stopHermesGatewayProcesses() {
+  if (gatewayChild?.pid) {
+    killProcessTree(gatewayChild.pid)
     gatewayChild = null
     globalThis.__hermesGatewayChild = null
   }
 
-  const pid = await readPidFile()
-  if (pid && isProcessAlive(pid)) {
-    try {
-      process.kill(pid, 'SIGTERM')
-      await sleep(400)
-      if (isProcessAlive(pid)) {
-        process.kill(pid, 'SIGKILL')
-      }
-    } catch {
-      //
-    }
+  const pid = await readHermesGatewayPid()
+  if (pid) {
+    killProcessTree(pid)
+    await waitForGatewayProcessExit(pid)
+  } else {
+    killHermesGatewayByPattern()
+    await sleep(400)
   }
-  await clearPidFile()
+
+  await clearHermesGatewayPidFile()
 }
 
 async function spawnGatewayProcess(): Promise<{ ok: boolean; error?: string; pid?: number }> {
   const home = getHermesHome()
   await mkdir(home, { recursive: true })
-  await cleanupStaleGatewayPid()
 
   const logPath = gatewayLogFile()
   await appendFile(logPath, `\n--- gateway start ${new Date().toISOString()} ---\n`, 'utf8').catch(
@@ -180,7 +182,7 @@ async function spawnGatewayProcess(): Promise<{ ok: boolean; error?: string; pid
       resolve(result)
     }
 
-    const child = spawn(getHermesBin(), ['gateway'], {
+    const child = spawn(getHermesBin(), ['gateway', 'run', '--replace'], {
       env: { ...process.env, ...hermesEnv, HERMES_HOME: home },
       detached: true,
       stdio: ['ignore', logHandle.fd, logHandle.fd],
@@ -196,6 +198,10 @@ async function spawnGatewayProcess(): Promise<{ ok: boolean; error?: string; pid
         const msg = `Gateway salió con código ${code}${signal ? ` (${signal})` : ''}`
         void writeGatewayError(msg)
       }
+      if (gatewayChild === child) {
+        gatewayChild = null
+        globalThis.__hermesGatewayChild = null
+      }
     })
 
     if (!child.pid) {
@@ -205,7 +211,6 @@ async function spawnGatewayProcess(): Promise<{ ok: boolean; error?: string; pid
 
     gatewayChild = child
     globalThis.__hermesGatewayChild = child
-    void writePidFile(child.pid)
     child.unref()
     finish({ ok: true, pid: child.pid })
   })
@@ -222,7 +227,7 @@ export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
 
   await writeHermesConfigFiles()
 
-  const existingPid = await readPidFile()
+  const existingPid = await readHermesGatewayPid()
   if (existingPid && isProcessAlive(existingPid)) {
     if (!(await isWhatsappPaired())) {
       await startWhatsappPairingIfNeeded()
@@ -237,6 +242,8 @@ export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
     await mkdir(getHermesHome(), { recursive: true })
   })
 
+  await stopHermesGatewayProcesses()
+
   const spawned = await spawnGatewayProcess()
   if (!spawned.ok || !spawned.pid) {
     const logTail = await readGatewayLogTail(20)
@@ -246,14 +253,19 @@ export async function startGateway(): Promise<{ ok: boolean; error?: string }> {
     }
   }
 
-  await sleep(1200)
-  if (!isProcessAlive(spawned.pid)) {
+  await sleep(1500)
+
+  const hermesPid = (await readHermesGatewayPid()) || spawned.pid
+  const alivePid = hermesPid && isProcessAlive(hermesPid) ? hermesPid : spawned.pid
+  if (!isProcessAlive(alivePid)) {
     const logTail = await readGatewayLogTail(24)
     const lastError = (await readGatewayError()) || logTail
-    await clearPidFile()
+    await clearHermesGatewayPidFile()
     return {
       ok: false,
-      error: lastError || 'Hermes gateway se detuvo al arrancar. Revisa gateway.log en el volumen.',
+      error:
+        lastError ||
+        'Hermes gateway se detuvo al arrancar. Si ves "runtime lock", pulsa Reiniciar gateway de nuevo.',
     }
   }
 
@@ -282,8 +294,9 @@ export async function ensureGatewayRunning(): Promise<{ ok: boolean; error?: str
 }
 
 export async function restartGateway() {
-  await stopGatewayProcess()
+  await stopHermesGatewayProcesses()
   await stopWhatsappPairing()
+  await sleep(300)
   return startGateway()
 }
 
@@ -293,8 +306,8 @@ export async function getGatewayStatus(): Promise<{
   message?: string
   logTail?: string
 }> {
-  const pidFromFile = await readPidFile()
-  const pid = gatewayChild?.pid || pidFromFile
+  const hermesPid = await readHermesGatewayPid()
+  const pid = hermesPid || gatewayChild?.pid || null
   if (pid && isProcessAlive(pid)) {
     return { status: 'running', pid }
   }
@@ -314,6 +327,6 @@ export async function getGatewayStatus(): Promise<{
 }
 
 export async function stopGateway() {
-  await stopGatewayProcess()
+  await stopHermesGatewayProcesses()
   return { ok: true }
 }
