@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/rbac-api'
-import { proxyChatCompletions, type HermesChatMessage } from '@/lib/hermes-gateway/api-server'
+import { proxyChatCompletions, type HermesChatMessage, HERMES_CRM_SYSTEM_PROMPT } from '@/lib/hermes-gateway/api-server'
 import { getGatewayStatus } from '@/lib/hermes-gateway/supervisor'
 import { isHermesEnabled } from '@/lib/hermes-mcp/config'
 
@@ -50,7 +50,11 @@ export async function POST(request: Request) {
   }
 
   const stream = body.stream !== false
-  const upstream = await proxyChatCompletions({ messages, stream })
+  const hasSystem = messages.some((m) => m.role === 'system')
+  const outbound = hasSystem
+    ? messages
+    : [{ role: 'system' as const, content: HERMES_CRM_SYSTEM_PROMPT }, ...messages]
+  const upstream = await proxyChatCompletions({ messages: outbound, stream })
 
   if (upstream.status >= 400) {
     const errText = await upstream.text()

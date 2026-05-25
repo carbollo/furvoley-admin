@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/rbac-api'
 import { getHermesApiServerStatus } from '@/lib/hermes-gateway/api-server'
+import { getHermesMcpStatus } from '@/lib/hermes-gateway/mcp-diagnostics'
 import { getGatewayStatus } from '@/lib/hermes-gateway/supervisor'
 import { getHermesWhatsappStatus } from '@/lib/hermes-gateway/whatsapp-status'
 import {
@@ -18,7 +19,7 @@ export async function GET() {
 
   const gateway = await getGatewayStatus()
   let whatsapp = await getHermesWhatsappStatus()
-  const apiServer = await getHermesApiServerStatus()
+  const [apiServer, mcp] = await Promise.all([getHermesApiServerStatus(), getHermesMcpStatus()])
 
   if ((await isHermesEnabled()) && whatsapp.status !== 'CONNECTED' && gateway.status === 'running') {
     if (!(await isWhatsappPaired()) && !(await isWhatsappPairingActive())) {
@@ -38,6 +39,19 @@ export async function GET() {
       logHint: apiServer.logHint,
       chatReady:
         (await isHermesEnabled()) && gateway.status === 'running' && apiServer.healthy,
+    },
+    mcp: {
+      url: mcp.url,
+      hasKey: mcp.hasKey,
+      endpointReady: mcp.endpointReady,
+      toolCount: mcp.toolCount,
+      error: mcp.error,
+      logHint: mcp.logHint,
+      crmReady:
+        (await isHermesEnabled()) &&
+        gateway.status === 'running' &&
+        mcp.endpointReady &&
+        mcp.toolCount > 0,
     },
   })
 }

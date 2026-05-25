@@ -31,6 +31,22 @@ async function syncHermesSkills(home: string) {
   }
 }
 
+/** Backfill DB key so MCP auth always matches config.yaml headers. */
+async function ensureHermesMcpApiKey(settings: Awaited<ReturnType<typeof getHermesSettings>>) {
+  const fromEnv = String(process.env.HERMES_MCP_API_KEY || '').trim()
+  if (fromEnv) return fromEnv
+  if (settings.mcpApiKey) return settings.mcpApiKey
+  if (!settings.enabled) return ''
+
+  const key = randomBytes(32).toString('hex')
+  await prisma.clubSettings.upsert({
+    where: { isDefault: true },
+    update: { hermesMcpApiKey: key },
+    create: { isDefault: true, name: 'Furvoley', hermesMcpApiKey: key },
+  })
+  return key
+}
+
 /** Backfill DB key so API_SERVER_ENABLED always has a matching API_SERVER_KEY. */
 async function ensureHermesApiServerKey(settings: Awaited<ReturnType<typeof getHermesSettings>>) {
   const fromEnv = String(process.env.HERMES_API_SERVER_KEY || '').trim()
@@ -52,7 +68,10 @@ export async function writeHermesConfigFiles() {
   await mkdir(home, { recursive: true })
 
   const settings = await getHermesSettings()
-  const mcpKey = (await getHermesMcpApiKey()) || settings.mcpApiKey || ''
+  const mcpKey =
+    (await getHermesMcpApiKey()) ||
+    settings.mcpApiKey ||
+    (await ensureHermesMcpApiKey(settings))
   const apiServerKey =
     (await getHermesApiServerKey()) || (await ensureHermesApiServerKey(settings))
   const mcpUrl = resolveHermesMcpUrlForGateway()
@@ -80,6 +99,14 @@ mcp_servers:
     headers:
       Authorization: ${yamlQuote(`Bearer ${mcpKey}`)}
     timeout: 180
+
+platform_toolsets:
+  api_server:
+    - hermes-api-server
+    - furvoley_crm
+  whatsapp:
+    - hermes-whatsapp
+    - furvoley_crm
 
 unauthorized_dm_behavior: pair
 
@@ -120,6 +147,10 @@ ${allowedYaml}
     envLines.push('API_SERVER_MODEL_NAME=hermes-agent')
   } else {
     envLines.push('API_SERVER_ENABLED=false')
+  }
+
+  if (mcpKey) {
+    envLines.push(`HERMES_MCP_API_KEY=${mcpKey}`)
   }
 
   if (settings.ollamaApiKey) {

@@ -1,6 +1,7 @@
 import { getHermesSettings } from '@/lib/hermes-gateway/settings'
 import { waitForHermesApiServerReady } from '@/lib/hermes-gateway/api-server'
 import { readApiServerLogHint } from '@/lib/hermes-gateway/api-server-diagnostics'
+import { waitForHermesMcpReady } from '@/lib/hermes-gateway/mcp-diagnostics'
 import { withGatewayLock } from '@/lib/hermes-gateway/gateway-lock'
 
 let bootScheduled = false
@@ -31,7 +32,16 @@ export function scheduleHermesGatewayBoot() {
         process.stdout.write('[hermes-boot] Hermes desactivado — omitido.\n')
         return
       }
-      const { startGateway } = await import('@/lib/hermes-gateway/supervisor')
+      const mcp = await waitForHermesMcpReady({ maxMs: 45000, intervalMs: 1500 })
+      if (!mcp.ok) {
+        process.stderr.write(
+          `[hermes-boot] MCP local no listo (${mcp.error || 'sin tools'}). Gateway arrancará igual; reinicia si el chat no ve el CRM.\n`,
+        )
+      } else {
+        process.stdout.write(`[hermes-boot] MCP local OK (${mcp.toolCount} tools).\n`)
+      }
+
+      const { startGateway, scheduleGatewayRestart } = await import('@/lib/hermes-gateway/supervisor')
       process.stdout.write('[hermes-boot] Arrancando gateway…\n')
       const result = await startGateway({ boot: true })
       if (!result.ok) {
@@ -43,6 +53,19 @@ export function scheduleHermesGatewayBoot() {
       )
       if (!result.apiServerReady) {
         await waitForApiServerAfterBoot()
+      }
+
+      if (mcp.ok) {
+        setTimeout(() => {
+          void withGatewayLock(async () => {
+            const { readGatewayMcpLogHint } = await import('@/lib/hermes-gateway/mcp-diagnostics')
+            const hint = await readGatewayMcpLogHint()
+            if (hint && /fail|error|401|refused|0 tool/i.test(hint)) {
+              process.stderr.write(`[hermes-boot] MCP gateway falló (${hint}). Reiniciando gateway…\n`)
+              void scheduleGatewayRestart()
+            }
+          }).catch(() => undefined)
+        }, 12000)
       }
     }).catch((err) => {
       process.stderr.write(`[hermes-boot] Fatal: ${err?.message || err}\n`)

@@ -22,8 +22,8 @@ export function resolveHermesMcpUrl(request?: Request) {
 
 /** MCP URL for the Hermes gateway process (same container as Next.js). */
 export function resolveHermesMcpUrlForGateway() {
-  const fromEnv = resolveHermesMcpUrlFromEnv()
-  if (fromEnv) return fromEnv
+  const explicit = String(process.env.HERMES_MCP_GATEWAY_URL || '').trim()
+  if (explicit) return explicit
   const port = String(process.env.PORT || '3000').trim() || '3000'
   return `http://127.0.0.1:${port}/api/hermes/mcp`
 }

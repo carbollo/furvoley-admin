@@ -50,9 +50,10 @@ Opcional (override avanzado, no necesario si usas solo el CRM):
 |----------|-------------|
 | `HERMES_ENABLED` | Fuerza activación vía env |
 | `HERMES_MCP_API_KEY` | Override clave MCP (si no usas regenerar en CRM) |
+| `HERMES_MCP_GATEWAY_URL` | Override URL MCP para el gateway (contenedor único: omitir; usa localhost) |
 | `HERMES_API_SERVER_KEY` | Override clave del API Server (chat web) |
 | `HERMES_API_SERVER_PORT` | Puerto del API Server (default `8642`) |
-| `FURVOLEY_MCP_URL` | URL pública del MCP |
+| `FURVOLEY_MCP_URL` | URL pública del MCP (solo plan B: servicio Hermes separado) |
 
 **Ollama API key y modelo se guardan en la base de datos** vía el CRM, no en Railway.
 
