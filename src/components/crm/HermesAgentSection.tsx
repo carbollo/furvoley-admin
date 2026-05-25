@@ -322,7 +322,8 @@ export function HermesAgentSection() {
   }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 920 }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', width: '100%', minHeight: 0 }}>
+      <div style={{ padding: '28px 32px 56px', maxWidth: 920 }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent)', margin: 0 }}>
           Hermes Agent
@@ -611,6 +612,7 @@ export function HermesAgentSection() {
           </button>
         </form>
       )}
+      </div>
     </div>
   )
 }
