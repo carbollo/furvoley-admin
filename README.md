@@ -29,7 +29,7 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
    - `PUBLIC_SPORTS_API_KEY` (opcional): Si se define, la API REST pública deportiva (`/api/public/v1/*`) exige `Authorization: Bearer <clave>` o header `X-API-Key`.
    - **Hermes Agent (control CRM por WhatsApp):**
      - Monta un **volumen Railway** en `/root/.hermes` (sesión WhatsApp).
-     - Configura Ollama Cloud API key, modelo y teléfonos admin **desde la pestaña Hermes Agent del CRM** (sin consola).
+     - Configura proveedor LLM (Ollama Cloud o DeepSeek), API key, modelo y teléfonos admin **desde la pestaña Hermes Agent del CRM** (sin consola).
      - Opcional en Railway: `HERMES_MCP_API_KEY`, `FURVOLEY_MCP_URL` (override).
      - Ver [docs/hermes-agent.md](docs/hermes-agent.md).
    - `ADMIN_EMAIL` + `ADMIN_PASSWORD` (recomendado): administrador fijo; en cada arranque y login se sincronizan en la BD. Si faltan una de las dos, se usan `admin@furvoley.com` / `admin123` al arrancar.
@@ -53,7 +53,7 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
   - visualizar QR y logs,
   - enviar mensajes manuales.
 - Los flujos (`Flujos`) incluyen la acción `Enviar WhatsApp` (`SEND_WHATSAPP`) para automatizaciones.
-- **Hermes Agent** (pestaña `Hermes Agent`, solo admin) controla el CRM por WhatsApp vía MCP + **Ollama Cloud**; configúralo todo desde el CRM. Ver [docs/hermes-agent.md](docs/hermes-agent.md).
+- **Hermes Agent** (pestaña `Hermes Agent`, solo admin) controla el CRM por WhatsApp vía MCP + **Ollama Cloud o DeepSeek**; configúralo todo desde el CRM. Ver [docs/hermes-agent.md](docs/hermes-agent.md).
 - Errores comunes:
   - API key inválida o ausente: revisar `APIWASS_API_KEY`.
   - sesión inexistente: crear sesión en pestaña `Whatsapp` o ajustar `APIWASS_DEFAULT_SESSION_ID`.

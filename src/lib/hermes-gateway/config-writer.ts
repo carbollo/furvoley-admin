@@ -12,6 +12,7 @@ import {
   getHermesSettings,
   getHermesApiServerPort,
   getHermesWhatsappBridgePort,
+  resolveActiveLlm,
 } from '@/lib/hermes-gateway/settings'
 import { isWhatsappPaired, whatsappSessionDir } from '@/lib/hermes-gateway/whatsapp-pairing'
 
@@ -87,11 +88,12 @@ export async function writeHermesConfigFiles() {
       ? allowedUsers.map((u) => `      - ${yamlQuote(u)}`).join('\n')
       : '      []'
   const allowedUsersEnv = allowedUsers.join(',')
+  const activeLlm = resolveActiveLlm(settings)
 
   const configYaml = `# Generado por Furvoley CRM — no editar a mano
 model:
-  provider: ollama-cloud
-  default: ${yamlQuote(settings.ollamaModel)}
+  provider: ${activeLlm.provider}
+  default: ${yamlQuote(activeLlm.model)}
 
 mcp_servers:
   furvoley_crm:
@@ -153,11 +155,17 @@ ${allowedYaml}
     envLines.push(`HERMES_MCP_API_KEY=${mcpKey}`)
   }
 
-  if (settings.ollamaApiKey) {
-    envLines.push(`OLLAMA_API_KEY=${settings.ollamaApiKey}`)
-  }
-  if (settings.ollamaModel) {
-    envLines.push(`OLLAMA_MODEL=${settings.ollamaModel}`)
+  if (activeLlm.provider === 'deepseek') {
+    if (activeLlm.apiKey) {
+      envLines.push(`DEEPSEEK_API_KEY=${activeLlm.apiKey}`)
+    }
+  } else {
+    if (activeLlm.apiKey) {
+      envLines.push(`OLLAMA_API_KEY=${activeLlm.apiKey}`)
+    }
+    if (activeLlm.model) {
+      envLines.push(`OLLAMA_MODEL=${activeLlm.model}`)
+    }
   }
 
   await Promise.all([
@@ -169,7 +177,10 @@ ${allowedYaml}
   return {
     home,
     enabled: settings.enabled,
+    modelProvider: activeLlm.provider,
+    hasLlmKey: Boolean(activeLlm.apiKey),
     hasOllamaKey: Boolean(settings.ollamaApiKey),
+    hasDeepseekKey: Boolean(settings.deepseekApiKey),
     hasMcpKey: Boolean(mcpKey),
     hasApiServerKey: Boolean(apiServerKey),
     bridgePort,

@@ -5,15 +5,22 @@ import { HermesChatPanel } from '@/components/crm/HermesChatPanel'
 
 type HermesTab = 'config' | 'chat'
 
+type HermesModelProvider = 'ollama-cloud' | 'deepseek'
+
 type HermesSettingsView = {
   enabled: boolean
   mcpUrl: string
   hasMcpKey: boolean
   mcpApiKeySource: string
   mcpApiKeyMasked: string
+  modelProvider: HermesModelProvider
   ollamaModel: string
   ollamaApiKeyMasked: string
   hasOllamaKey: boolean
+  deepseekModel: string
+  deepseekApiKeyMasked: string
+  hasDeepseekKey: boolean
+  hasActiveLlmKey?: boolean
   whatsappMode: 'bot' | 'self-chat'
   allowedUsers: string[]
   allowDestructive: boolean
@@ -51,13 +58,17 @@ function copyText(text: string) {
 
 function applySettingsToForm(j: HermesSettingsView, setters: {
   setEnabled: (v: boolean) => void
+  setModelProvider: (v: HermesModelProvider) => void
   setOllamaModel: (v: string) => void
+  setDeepseekModel: (v: string) => void
   setWhatsappMode: (v: 'bot' | 'self-chat') => void
   setAllowedUsersText: (v: string) => void
   setAllowDestructive: (v: boolean) => void
 }) {
   setters.setEnabled(Boolean(j.enabled))
+  setters.setModelProvider(j.modelProvider === 'deepseek' ? 'deepseek' : 'ollama-cloud')
   setters.setOllamaModel(j.ollamaModel || 'gpt-oss:120b')
+  setters.setDeepseekModel(j.deepseekModel || 'deepseek-chat')
   setters.setWhatsappMode(j.whatsappMode === 'self-chat' ? 'self-chat' : 'bot')
   setters.setAllowedUsersText(Array.isArray(j.allowedUsers) ? j.allowedUsers.join(', ') : '')
   setters.setAllowDestructive(Boolean(j.allowDestructive))
@@ -102,8 +113,11 @@ export function HermesAgentSection() {
   const [qrHint, setQrHint] = useState<string | null>(null)
 
   const [enabled, setEnabled] = useState(false)
+  const [modelProvider, setModelProvider] = useState<HermesModelProvider>('ollama-cloud')
   const [ollamaApiKey, setOllamaApiKey] = useState('')
   const [ollamaModel, setOllamaModel] = useState('gpt-oss:120b')
+  const [deepseekApiKey, setDeepseekApiKey] = useState('')
+  const [deepseekModel, setDeepseekModel] = useState('deepseek-chat')
   const [whatsappMode, setWhatsappMode] = useState<'bot' | 'self-chat'>('bot')
   const [allowedUsersText, setAllowedUsersText] = useState('')
   const [allowDestructive, setAllowDestructive] = useState(false)
@@ -117,7 +131,9 @@ export function HermesAgentSection() {
   const syncFormFromServer = useCallback((j: HermesSettingsView) => {
     applySettingsToForm(j, {
       setEnabled,
+      setModelProvider,
       setOllamaModel,
+      setDeepseekModel,
       setWhatsappMode,
       setAllowedUsersText,
       setAllowDestructive,
@@ -217,7 +233,9 @@ export function HermesAgentSection() {
     try {
       const body: Record<string, unknown> = {
         enabled,
+        modelProvider,
         ollamaModel: ollamaModel.trim(),
+        deepseekModel: deepseekModel.trim(),
         whatsappMode,
         allowedUsers: allowedUsersText
           .split(/[,;\s]+/)
@@ -226,6 +244,7 @@ export function HermesAgentSection() {
         allowDestructive,
       }
       if (ollamaApiKey.trim()) body.ollamaApiKey = ollamaApiKey.trim()
+      if (deepseekApiKey.trim()) body.deepseekApiKey = deepseekApiKey.trim()
 
       const r = await fetch('/api/hermes/settings', {
         method: 'PATCH',
@@ -237,6 +256,7 @@ export function HermesAgentSection() {
       if (!r.ok) throw new Error(j.error || 'No se pudo guardar')
 
       setOllamaApiKey('')
+      setDeepseekApiKey('')
       formDirtyRef.current = false
       setIsDirty(false)
 
@@ -437,11 +457,19 @@ export function HermesAgentSection() {
 
   const setupDone = {
     mcp: Boolean(data?.hasMcpKey),
-    ollama: Boolean(data?.hasOllamaKey),
+    llmKey:
+      modelProvider === 'deepseek'
+        ? Boolean(data?.hasDeepseekKey || deepseekApiKey.trim())
+        : Boolean(data?.hasOllamaKey || ollamaApiKey.trim()),
     phones: Boolean(data?.allowedUsers?.length),
     gateway: data?.gateway?.status === 'running',
     whatsapp: data?.whatsapp?.status === 'CONNECTED',
   }
+
+  const llmStepLabel =
+    modelProvider === 'deepseek'
+      ? 'DeepSeek: API key en platform.deepseek.com + modelo (p. ej. deepseek-chat)'
+      : 'Ollama Cloud: API key en ollama.com/settings/keys + modelo (p. ej. gpt-oss:120b)'
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', width: '100%', minHeight: 0 }}>
@@ -451,7 +479,7 @@ export function HermesAgentSection() {
           Hermes Agent
         </h1>
         <p style={{ color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.5 }}>
-          Controla el CRM con Ollama Cloud por WhatsApp o chat web. Configura todo aquí; no hace falta consola.
+          Controla el CRM con Ollama Cloud o DeepSeek por WhatsApp o chat web. Configura todo aquí; no hace falta consola.
           ApiWass sigue siendo el canal hacia socios.
         </p>
         <div
@@ -527,10 +555,7 @@ export function HermesAgentSection() {
             <h2 style={{ margin: '0 0 12px', fontSize: 16 }}>Configuración en 5 pasos</h2>
             <ol style={{ margin: 0, paddingLeft: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
               <StepCheck done={setupDone.mcp} label="Clave MCP (se genera sola al guardar si falta)" />
-              <StepCheck
-                done={setupDone.ollama}
-                label="Ollama Cloud: API key en ollama.com/settings/keys + modelo (p. ej. gpt-oss:120b)"
-              />
+              <StepCheck done={setupDone.llmKey} label={llmStepLabel} />
               <StepCheck done={setupDone.phones} label="Tu teléfono admin sin + (ej. 34600111222)" />
               <StepCheck
                 done={whatsappMode === 'self-chat' || whatsappMode === 'bot'}
@@ -624,31 +649,75 @@ export function HermesAgentSection() {
           </div>
 
           <div style={cardStyle}>
-            <h2 style={{ margin: '0 0 14px', fontSize: 16 }}>Ollama Cloud</h2>
-            <label style={labelStyle}>
-              API key {data?.ollamaApiKeyMasked ? `(${data.ollamaApiKeyMasked})` : ''}
-            </label>
-            <input
-              type="password"
-              value={ollamaApiKey}
+            <h2 style={{ margin: '0 0 14px', fontSize: 16 }}>Modelo LLM</h2>
+            <label style={labelStyle}>Proveedor</label>
+            <select
+              value={modelProvider}
               onChange={(e) => {
                 markDirty()
-                setOllamaApiKey(e.target.value)
+                setModelProvider(e.target.value as HermesModelProvider)
               }}
-              placeholder="Pega tu OLLAMA_API_KEY (ollama.com/settings/keys)"
               style={{ ...inputStyle, marginBottom: 12 }}
-            />
-            <label style={labelStyle}>Modelo</label>
-            <input
-              type="text"
-              value={ollamaModel}
-              onChange={(e) => {
-                markDirty()
-                setOllamaModel(e.target.value)
-              }}
-              placeholder="gpt-oss:120b"
-              style={inputStyle}
-            />
+            >
+              <option value="ollama-cloud">Ollama Cloud</option>
+              <option value="deepseek">DeepSeek API</option>
+            </select>
+
+            {modelProvider === 'ollama-cloud' ? (
+              <>
+                <label style={labelStyle}>
+                  API key Ollama {data?.ollamaApiKeyMasked ? `(${data.ollamaApiKeyMasked})` : ''}
+                </label>
+                <input
+                  type="password"
+                  value={ollamaApiKey}
+                  onChange={(e) => {
+                    markDirty()
+                    setOllamaApiKey(e.target.value)
+                  }}
+                  placeholder="Pega tu OLLAMA_API_KEY (ollama.com/settings/keys)"
+                  style={{ ...inputStyle, marginBottom: 12 }}
+                />
+                <label style={labelStyle}>Modelo Ollama</label>
+                <input
+                  type="text"
+                  value={ollamaModel}
+                  onChange={(e) => {
+                    markDirty()
+                    setOllamaModel(e.target.value)
+                  }}
+                  placeholder="gpt-oss:120b"
+                  style={inputStyle}
+                />
+              </>
+            ) : (
+              <>
+                <label style={labelStyle}>
+                  API key DeepSeek {data?.deepseekApiKeyMasked ? `(${data.deepseekApiKeyMasked})` : ''}
+                </label>
+                <input
+                  type="password"
+                  value={deepseekApiKey}
+                  onChange={(e) => {
+                    markDirty()
+                    setDeepseekApiKey(e.target.value)
+                  }}
+                  placeholder="Pega tu DEEPSEEK_API_KEY (platform.deepseek.com)"
+                  style={{ ...inputStyle, marginBottom: 12 }}
+                />
+                <label style={labelStyle}>Modelo DeepSeek</label>
+                <input
+                  type="text"
+                  value={deepseekModel}
+                  onChange={(e) => {
+                    markDirty()
+                    setDeepseekModel(e.target.value)
+                  }}
+                  placeholder="deepseek-chat"
+                  style={inputStyle}
+                />
+              </>
+            )}
           </div>
 
           <div style={cardStyle}>

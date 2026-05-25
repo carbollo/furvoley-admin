@@ -1,13 +1,17 @@
 import { prisma } from '@/lib/prisma'
 
 export type HermesWhatsappMode = 'bot' | 'self-chat'
+export type HermesModelProvider = 'ollama-cloud' | 'deepseek'
 
 export type HermesSettingsRow = {
   hermesEnabled: boolean
   hermesMcpApiKey: string | null
   hermesApiServerKey: string | null
+  hermesModelProvider: string | null
   hermesOllamaApiKey: string | null
   hermesOllamaModel: string | null
+  hermesDeepseekApiKey: string | null
+  hermesDeepseekModel: string | null
   hermesWhatsappMode: string | null
   hermesAllowedUsers: unknown
   hermesAllowDestructive: boolean
@@ -17,19 +21,31 @@ export type HermesSettings = {
   enabled: boolean
   mcpApiKey: string | null
   apiServerKey: string | null
+  modelProvider: HermesModelProvider
   ollamaApiKey: string | null
   ollamaModel: string
+  deepseekApiKey: string | null
+  deepseekModel: string
   whatsappMode: HermesWhatsappMode
   allowedUsers: string[]
   allowDestructive: boolean
+}
+
+export type ActiveLlmConfig = {
+  provider: HermesModelProvider
+  apiKey: string | null
+  model: string
 }
 
 const HERMES_SELECT = {
   hermesEnabled: true,
   hermesMcpApiKey: true,
   hermesApiServerKey: true,
+  hermesModelProvider: true,
   hermesOllamaApiKey: true,
   hermesOllamaModel: true,
+  hermesDeepseekApiKey: true,
+  hermesDeepseekModel: true,
   hermesWhatsappMode: true,
   hermesAllowedUsers: true,
   hermesAllowDestructive: true,
@@ -54,13 +70,43 @@ export function normalizeWhatsappMode(raw: string | null | undefined): HermesWha
   return String(raw || '').trim().toLowerCase() === 'self-chat' ? 'self-chat' : 'bot'
 }
 
+export function normalizeModelProvider(raw: string | null | undefined): HermesModelProvider {
+  return String(raw || '').trim().toLowerCase() === 'deepseek' ? 'deepseek' : 'ollama-cloud'
+}
+
+export function resolveActiveLlm(settings: HermesSettings): ActiveLlmConfig {
+  if (settings.modelProvider === 'deepseek') {
+    return {
+      provider: 'deepseek',
+      apiKey: settings.deepseekApiKey,
+      model: settings.deepseekModel,
+    }
+  }
+  return {
+    provider: 'ollama-cloud',
+    apiKey: settings.ollamaApiKey,
+    model: settings.ollamaModel,
+  }
+}
+
+export function activeLlmMissingKeyMessage(settings: HermesSettings): string {
+  const llm = resolveActiveLlm(settings)
+  if (llm.provider === 'deepseek') {
+    return 'Indica la API key de DeepSeek para activar Hermes'
+  }
+  return 'Indica la API key de Ollama Cloud para activar Hermes'
+}
+
 export function mapHermesSettings(row: HermesSettingsRow | null): HermesSettings {
   return {
     enabled: row?.hermesEnabled ?? false,
     mcpApiKey: row?.hermesMcpApiKey?.trim() || null,
     apiServerKey: row?.hermesApiServerKey?.trim() || null,
+    modelProvider: normalizeModelProvider(row?.hermesModelProvider),
     ollamaApiKey: row?.hermesOllamaApiKey?.trim() || null,
     ollamaModel: row?.hermesOllamaModel?.trim() || 'gpt-oss:120b',
+    deepseekApiKey: row?.hermesDeepseekApiKey?.trim() || null,
+    deepseekModel: row?.hermesDeepseekModel?.trim() || 'deepseek-chat',
     whatsappMode: normalizeWhatsappMode(row?.hermesWhatsappMode),
     allowedUsers: normalizeAllowedUsers(row?.hermesAllowedUsers),
     allowDestructive: row?.hermesAllowDestructive ?? false,

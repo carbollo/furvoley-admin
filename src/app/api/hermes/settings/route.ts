@@ -7,7 +7,10 @@ import {
   getHermesSettings,
   maskSecret,
   normalizeAllowedUsers,
+  normalizeModelProvider,
   normalizeWhatsappMode,
+  activeLlmMissingKeyMessage,
+  resolveActiveLlm,
 } from '@/lib/hermes-gateway/settings'
 import { getGatewayStatus, scheduleGatewayRestart, stopGateway } from '@/lib/hermes-gateway/supervisor'
 import { getHermesWhatsappStatus } from '@/lib/hermes-gateway/whatsapp-status'
@@ -32,9 +35,14 @@ async function serializeSettings(request: Request) {
     hasMcpKey: Boolean(apiKey),
     mcpApiKeySource: fromEnvMcp ? 'env' : apiKey ? 'database' : 'none',
     mcpApiKeyMasked: maskSecret(apiKey),
+    modelProvider: settings.modelProvider,
     ollamaModel: settings.ollamaModel,
     ollamaApiKeyMasked: maskSecret(settings.ollamaApiKey),
     hasOllamaKey: Boolean(settings.ollamaApiKey),
+    deepseekModel: settings.deepseekModel,
+    deepseekApiKeyMasked: maskSecret(settings.deepseekApiKey),
+    hasDeepseekKey: Boolean(settings.deepseekApiKey),
+    hasActiveLlmKey: Boolean(resolveActiveLlm(settings).apiKey),
     whatsappMode: settings.whatsappMode,
     allowedUsers: settings.allowedUsers,
     allowDestructive: await isHermesDestructiveAllowed(),
@@ -63,10 +71,18 @@ export async function PATCH(request: Request) {
   try {
   const current = await getHermesSettings()
   const enabled = typeof body.enabled === 'boolean' ? body.enabled : current.enabled
+  const modelProvider =
+    typeof body.modelProvider === 'string'
+      ? normalizeModelProvider(body.modelProvider)
+      : current.modelProvider
   const ollamaModel =
     typeof body.ollamaModel === 'string' && body.ollamaModel.trim()
       ? body.ollamaModel.trim()
       : current.ollamaModel
+  const deepseekModel =
+    typeof body.deepseekModel === 'string' && body.deepseekModel.trim()
+      ? body.deepseekModel.trim()
+      : current.deepseekModel
   const whatsappMode =
     typeof body.whatsappMode === 'string'
       ? normalizeWhatsappMode(body.whatsappMode)
@@ -83,11 +99,26 @@ export async function PATCH(request: Request) {
     ollamaApiKey = body.ollamaApiKey.trim()
   }
 
-  if (enabled && !ollamaApiKey) {
-    return NextResponse.json(
-      { error: 'Indica la API key de Ollama Cloud para activar Hermes' },
-      { status: 400 },
-    )
+  let deepseekApiKey = current.deepseekApiKey
+  if (typeof body.deepseekApiKey === 'string' && body.deepseekApiKey.trim()) {
+    deepseekApiKey = body.deepseekApiKey.trim()
+  }
+
+  const nextSettings = {
+    ...current,
+    enabled,
+    modelProvider,
+    ollamaApiKey,
+    ollamaModel,
+    deepseekApiKey,
+    deepseekModel,
+    whatsappMode,
+    allowedUsers,
+    allowDestructive,
+  }
+
+  if (enabled && !resolveActiveLlm(nextSettings).apiKey) {
+    return NextResponse.json({ error: activeLlmMissingKeyMessage(nextSettings) }, { status: 400 })
   }
   if (enabled && allowedUsers.length === 0) {
     return NextResponse.json(
@@ -114,8 +145,11 @@ export async function PATCH(request: Request) {
     where: { isDefault: true },
     update: {
       hermesEnabled: enabled,
+      hermesModelProvider: modelProvider,
       hermesOllamaApiKey: ollamaApiKey,
       hermesOllamaModel: ollamaModel,
+      hermesDeepseekApiKey: deepseekApiKey,
+      hermesDeepseekModel: deepseekModel,
       hermesWhatsappMode: whatsappMode,
       hermesAllowedUsers: allowedUsers,
       hermesAllowDestructive: allowDestructive,
@@ -126,8 +160,11 @@ export async function PATCH(request: Request) {
       isDefault: true,
       name: 'Furvoley',
       hermesEnabled: enabled,
+      hermesModelProvider: modelProvider,
       hermesOllamaApiKey: ollamaApiKey,
       hermesOllamaModel: ollamaModel,
+      hermesDeepseekApiKey: deepseekApiKey,
+      hermesDeepseekModel: deepseekModel,
       hermesWhatsappMode: whatsappMode,
       hermesAllowedUsers: allowedUsers,
       hermesAllowDestructive: allowDestructive,

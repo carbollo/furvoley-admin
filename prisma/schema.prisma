@@ -817,8 +817,12 @@ model ClubSettings {
   /** Bearer interno para el API Server de Hermes (chat web CRM). Env HERMES_API_SERVER_KEY tiene prioridad. */
   hermesApiServerKey       String?  @db.Text
   hermesEnabled            Boolean  @default(false)
+  /** LLM provider activo: ollama-cloud | deepseek */
+  hermesModelProvider      String   @default("ollama-cloud")
   hermesOllamaApiKey       String?  @db.Text
   hermesOllamaModel        String?  @default("gpt-oss:120b")
+  hermesDeepseekApiKey     String?  @db.Text
+  hermesDeepseekModel      String?  @default("deepseek-chat")
   hermesWhatsappMode       String?  @default("bot")
   hermesAllowedUsers       Json?
   hermesAllowDestructive   Boolean  @default(false)

@@ -9,7 +9,13 @@ import {
 } from '@/lib/hermes-gateway/gateway-pid'
 import { getHermesApiServerKey } from '@/lib/hermes-mcp/config'
 import { withGatewayLock } from '@/lib/hermes-gateway/gateway-lock'
-import { getHermesApiServerPort, getHermesHome, getHermesSettings } from '@/lib/hermes-gateway/settings'
+import {
+  activeLlmMissingKeyMessage,
+  getHermesApiServerPort,
+  getHermesHome,
+  getHermesSettings,
+  resolveActiveLlm,
+} from '@/lib/hermes-gateway/settings'
 import { killListenersOnPort } from '@/lib/hermes-gateway/port-utils'
 import {
   isWhatsappPaired,
@@ -300,8 +306,9 @@ export async function startGateway(opts?: StartGatewayOptions): Promise<StartGat
   if (!settings.enabled) {
     return { ok: false, error: 'Hermes desactivado en el CRM' }
   }
-  if (!settings.ollamaApiKey) {
-    return { ok: false, error: 'Falta la API key de Ollama Cloud en el CRM' }
+  const activeLlm = resolveActiveLlm(settings)
+  if (!activeLlm.apiKey) {
+    return { ok: false, error: activeLlmMissingKeyMessage(settings) }
   }
 
   await writeHermesConfigFiles()

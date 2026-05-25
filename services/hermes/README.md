@@ -2,7 +2,7 @@
 
 Cuando el contenedor único (Next + Hermes) no tiene recursos suficientes, despliega un segundo servicio Railway conectado solo al MCP del CRM.
 
-En el despliegue **recomendado (contenedor único)**, toda la config (Ollama Cloud, WhatsApp, MCP) se guarda en el CRM; este servicio solo aplica si necesitas aislar Hermes.
+En el despliegue **recomendado (contenedor único)**, toda la config (proveedor LLM Ollama/DeepSeek, WhatsApp, MCP) se guarda en el CRM; este servicio solo aplica si necesitas aislar Hermes.
 
 ## Pasos
 
@@ -12,7 +12,8 @@ En el despliegue **recomendado (contenedor único)**, toda la config (Ollama Clo
    - Dockerfile: `services/hermes/Dockerfile`
    - Volumen: `/opt/data` → persistencia WhatsApp
 3. **Variables en Hermes** (no en CRM):
-   - `OLLAMA_API_KEY`, `OLLAMA_MODEL` (p. ej. `gpt-oss:120b`)
+   - **Ollama Cloud:** `OLLAMA_API_KEY`, `OLLAMA_MODEL` (p. ej. `gpt-oss:120b`) y `model.provider: ollama-cloud` en la plantilla
+   - **DeepSeek:** `DEEPSEEK_API_KEY`, modelo p. ej. `deepseek-chat` y `model.provider: deepseek` en la plantilla
    - `WHATSAPP_ENABLED=true`, `WHATSAPP_MODE=bot`
    - `WHATSAPP_ALLOWED_USERS=34600111222` (sin `+`)
    - `FURVOLEY_MCP_URL=https://<crm>.up.railway.app/api/hermes/mcp`

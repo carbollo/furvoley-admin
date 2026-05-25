@@ -8,7 +8,7 @@ import {
   isHermesEnabled,
   resolveHermesMcpUrl,
 } from '@/lib/hermes-mcp/config'
-import { getHermesSettings, maskSecret } from '@/lib/hermes-gateway/settings'
+import { getHermesSettings, maskSecret, resolveActiveLlm } from '@/lib/hermes-gateway/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +29,10 @@ export async function GET(request: Request) {
     destructiveAllowed: await isHermesDestructiveAllowed(),
     ollamaModel: settings.ollamaModel,
     hasOllamaKey: Boolean(settings.ollamaApiKey),
+    deepseekModel: settings.deepseekModel,
+    hasDeepseekKey: Boolean(settings.deepseekApiKey),
+    modelProvider: settings.modelProvider,
+    hasActiveLlmKey: Boolean(resolveActiveLlm(settings).apiKey),
     allowedUsers: settings.allowedUsers,
     gateway,
     whatsapp,

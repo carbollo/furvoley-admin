@@ -6,7 +6,7 @@ Hermes Agent permite controlar el CRM Furvoley conversando por **WhatsApp** o po
 
 ```
 Admin WhatsApp ──┐
-                 ├── Hermes Gateway → Ollama Cloud
+                 ├── Hermes Gateway → Ollama Cloud o DeepSeek API
 Admin CRM Chat ──┘         ↓ MCP HTTP + Bearer
                     /api/hermes/mcp → tools CRM → PostgreSQL
 Workflows CRM → ApiWass → Socios WhatsApp
@@ -19,7 +19,9 @@ El chat web usa el **API Server** de Hermes (`127.0.0.1:8642`, OpenAI-compatible
 ## Configuración (solo CRM)
 
 1. Entra al CRM como **admin** → pestaña **Hermes Agent** → **Configuración**.
-2. Activa Hermes, pega tu **Ollama Cloud API key** ([ollama.com/settings/keys](https://ollama.com/settings/keys)) y el **modelo** (p. ej. `gpt-oss:120b`).
+2. Activa Hermes, elige **proveedor LLM** (Ollama Cloud o DeepSeek) y pega la API key + modelo:
+   - **Ollama Cloud:** [ollama.com/settings/keys](https://ollama.com/settings/keys), p. ej. `gpt-oss:120b`
+   - **DeepSeek:** [platform.deepseek.com](https://platform.deepseek.com), p. ej. `deepseek-chat`
 3. Indica **teléfonos admin** permitidos (sin `+`) y guarda.
 4. Comprueba que el **gateway** esté en `running` (se reinicia al guardar).
 5. **WhatsApp (opcional):** escanea el QR en Configuración.
@@ -57,7 +59,7 @@ Opcional (override avanzado, no necesario si usas solo el CRM):
 | `HERMES_API_SERVER_PORT` | Puerto del API Server (default `8642`) |
 | `FURVOLEY_MCP_URL` | URL pública del MCP (solo plan B: servicio Hermes separado) |
 
-**Ollama API key y modelo se guardan en la base de datos** vía el CRM, no en Railway.
+**Las API keys y modelos (Ollama y DeepSeek) se guardan en la base de datos** vía el CRM, no en Railway. Puedes alternar de proveedor sin perder las credenciales ya guardadas.
 
 ## Despliegue (contenedor único)
 
