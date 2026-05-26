@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { apiWassRequest } from '@/lib/apiwass'
+import { apiWassRequest, parseApiWassSessionId } from '@/lib/apiwass'
 import { getWhatsAppConfig, setLinkedWhatsAppSessionId } from '@/lib/whatsapp-config'
 
 async function assertAdmin() {
@@ -38,13 +38,14 @@ export async function POST(request: Request) {
       )
     }
     const body = await request.json().catch(() => ({}))
-    const id = String(body?.id || '').trim()
+    const idRaw = String(body?.id || '').trim()
+    const parsedId = parseApiWassSessionId(idRaw, 'id')
+    if (parsedId instanceof Response) return parsedId
     const type = String(body?.type || 'standard').trim()
-    if (!id) return NextResponse.json({ error: 'Session ID requerido' }, { status: 400 })
-    const created = await apiWassRequest('/sessions', { method: 'POST', body: { id, type } })
-    const createdId = String(created?.id || id).trim()
-    await setLinkedWhatsAppSessionId(createdId || id)
-    return NextResponse.json({ ok: true, session: created, linkedSessionId: createdId || id })
+    const created = await apiWassRequest('/sessions', { method: 'POST', body: { id: parsedId, type } })
+    const createdId = String(created?.id || parsedId).trim()
+    await setLinkedWhatsAppSessionId(createdId || parsedId)
+    return NextResponse.json({ ok: true, session: created, linkedSessionId: createdId || parsedId })
   } catch (e: any) {
     const msg = e?.message || 'No se pudo crear la sesión'
     const status = msg === 'Unauthorized' ? 401 : 400

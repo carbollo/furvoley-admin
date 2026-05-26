@@ -1,8 +1,30 @@
+import type { NextResponse } from 'next/server'
+import { validationError } from '@/lib/db-input-validation'
+
 type ApiWassMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
 type ApiWassRequestOptions = {
   method?: ApiWassMethod
   body?: unknown
+}
+
+/** ApiWass session ids are user-defined (e.g. 93_pruebas), not Prisma CUIDs. */
+const APIWASS_SESSION_ID_RE = /^[a-zA-Z0-9._-]{1,128}$/
+
+export function isApiWassSessionId(value: string | null | undefined): boolean {
+  return APIWASS_SESSION_ID_RE.test(String(value ?? '').trim())
+}
+
+export function parseApiWassSessionId(
+  value: string | null | undefined,
+  field = 'id',
+): string | NextResponse {
+  const v = String(value ?? '').trim()
+  if (!v) return validationError(`Falta "${field}".`)
+  if (!APIWASS_SESSION_ID_RE.test(v)) {
+    return validationError(`"${field}" no tiene un formato válido.`)
+  }
+  return v
 }
 
 function baseUrl() {

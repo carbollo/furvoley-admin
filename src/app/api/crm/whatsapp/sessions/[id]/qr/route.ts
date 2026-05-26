@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { parseCuid } from '@/lib/db-input-validation'
-import { apiWassRequest } from '@/lib/apiwass'
+import { parseApiWassSessionId, apiWassRequest } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 
 async function assertAdmin() {
@@ -43,7 +42,7 @@ export async function GET(
   try {
     await assertAdmin()
     const { id } = await context.params
-    const parsedId = parseCuid(id, 'id')
+    const parsedId = parseApiWassSessionId(id, 'id')
     if (parsedId instanceof Response) return parsedId
     const cfg = await getWhatsAppConfig()
     if (!cfg.linkedSessionId || cfg.linkedSessionId !== parsedId) {
