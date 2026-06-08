@@ -4,6 +4,24 @@ import path from 'node:path'
 const dataDir = String(process.env.PORTAL_DATA_DIR || '/data').trim() || '/data'
 const tenantsFile = path.join(dataDir, 'tenants.json')
 
+function normalizeBaseUrl(raw, requireHttps = false) {
+  let url = String(raw || '')
+    .trim()
+    .replace(/\/+$/, '')
+  if (!url) return ''
+  if (!/^https?:\/\//i.test(url)) url = `http://${url}`
+  if (requireHttps && !/^https:\/\//i.test(url)) return ''
+  return url
+}
+
+export function tenantVerifyBaseUrl(tenant) {
+  return normalizeBaseUrl(tenant.internalUrl || tenant.url)
+}
+
+export function tenantPublicBaseUrl(tenant) {
+  return normalizeBaseUrl(tenant.url, true)
+}
+
 function normalizeTenant(raw) {
   const id = String(raw?.id || '')
     .trim()
@@ -11,11 +29,12 @@ function normalizeTenant(raw) {
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
   const name = String(raw?.name || raw?.id || '').trim()
-  const url = String(raw?.url || '')
-    .trim()
-    .replace(/\/+$/, '')
-  if (!id || !url || !/^https?:\/\//i.test(url)) return null
-  return { id, name: name || id, url }
+  const url = normalizeBaseUrl(raw?.url, true)
+  if (!id || !url) return null
+  const internalUrl = normalizeBaseUrl(raw?.internalUrl)
+  return internalUrl && internalUrl !== url
+    ? { id, name: name || id, url, internalUrl }
+    : { id, name: name || id, url }
 }
 
 function slugify(name) {
@@ -80,7 +99,12 @@ export async function upsertTenant(input) {
   const tenants = await loadTenants()
   const id = normalizeTenant({ ...input, id: input.id || slugify(input.name) })?.id
   if (!id) throw new Error('ID o URL no válidos.')
-  const next = normalizeTenant({ id, name: input.name, url: input.url })
+  const next = normalizeTenant({
+    id,
+    name: input.name,
+    url: input.url,
+    internalUrl: input.internalUrl,
+  })
   if (!next) throw new Error('Datos del CRM no válidos.')
 
   const idx = tenants.findIndex((t) => t.id === id)

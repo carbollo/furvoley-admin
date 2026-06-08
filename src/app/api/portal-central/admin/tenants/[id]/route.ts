@@ -4,7 +4,7 @@ import {
   isPortalAdminRequest,
 } from '@/lib/portal-central/admin-auth'
 import { isPortalCentralHost } from '@/lib/portal-central/config'
-import { deleteTenant, loadTenants } from '@/lib/portal-central/tenants-store'
+import { deleteTenant, loadTenants, tenantVerifyBaseUrl } from '@/lib/portal-central/tenants-store'
 import { getPortalSsoSecret } from '@/lib/portal-sso'
 
 export const dynamic = 'force-dynamic'
@@ -54,7 +54,8 @@ export async function PUT(
   if (!tenant) return NextResponse.json({ error: 'CRM no encontrado.' }, { status: 404 })
 
   try {
-    const r = await fetch(`${tenant.url}/api/portal/verify`, {
+    const verifyBase = tenantVerifyBaseUrl(tenant)
+    const r = await fetch(`${verifyBase}/api/portal/verify`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${secret}`,
@@ -85,7 +86,7 @@ export async function PUT(
     return NextResponse.json({
       ok: false,
       reachable: false,
-      message: 'No se pudo conectar. Revisa la URL pública.',
+      message: `No se pudo conectar. Revisa la URL interna (${verifyBase}).`,
     })
   }
 }

@@ -5,7 +5,30 @@ import { getPortalDataDir } from '@/lib/portal-central/config'
 export type PortalTenant = {
   id: string
   name: string
+  /** URL pública del CRM (redirect SSO en el navegador). */
   url: string
+  /** URL privada Railway para verify server-to-server (opcional). */
+  internalUrl?: string
+}
+
+function normalizeBaseUrl(raw: string | null | undefined, requireHttps = false) {
+  let url = String(raw || '')
+    .trim()
+    .replace(/\/+$/, '')
+  if (!url) return ''
+  if (!/^https?:\/\//i.test(url)) url = `http://${url}`
+  if (requireHttps && !/^https:\/\//i.test(url)) return ''
+  return url
+}
+
+/** Base URL para llamadas internas del portal al CRM (verify, probe). */
+export function tenantVerifyBaseUrl(tenant: PortalTenant) {
+  return normalizeBaseUrl(tenant.internalUrl || tenant.url)
+}
+
+/** Base URL pública del CRM (redirect SSO). */
+export function tenantPublicBaseUrl(tenant: PortalTenant) {
+  return normalizeBaseUrl(tenant.url, true)
 }
 
 const tenantsFile = () => path.join(getPortalDataDir(), 'tenants.json')
@@ -25,6 +48,7 @@ export function normalizeTenant(raw: {
   id?: string | null
   name?: string | null
   url?: string | null
+  internalUrl?: string | null
 }): PortalTenant | null {
   const id = String(raw.id || '')
     .trim()
@@ -32,11 +56,12 @@ export function normalizeTenant(raw: {
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/^-+|-+$/g, '')
   const name = String(raw.name || raw.id || '').trim()
-  const url = String(raw.url || '')
-    .trim()
-    .replace(/\/+$/, '')
-  if (!id || !url || !/^https?:\/\//i.test(url)) return null
-  return { id, name: name || id, url }
+  const url = normalizeBaseUrl(raw.url, true)
+  if (!id || !url) return null
+  const internalUrl = normalizeBaseUrl(raw.internalUrl)
+  return internalUrl && internalUrl !== url
+    ? { id, name: name || id, url, internalUrl }
+    : { id, name: name || id, url }
 }
 
 function parseEnvTenants(): PortalTenant[] {
@@ -85,11 +110,17 @@ export async function upsertTenant(input: {
   id?: string
   name?: string
   url?: string
+  internalUrl?: string
 }) {
   const tenants = await loadTenants()
   const id = normalizeTenant({ ...input, id: input.id || slugifyTenantId(input.name || '') })?.id
   if (!id) throw new Error('ID o URL no válidos.')
-  const next = normalizeTenant({ id, name: input.name, url: input.url })
+  const next = normalizeTenant({
+    id,
+    name: input.name,
+    url: input.url,
+    internalUrl: input.internalUrl,
+  })
   if (!next) throw new Error('Datos del CRM no válidos.')
   const idx = tenants.findIndex((t) => t.id === id)
   if (idx >= 0) tenants[idx] = next

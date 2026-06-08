@@ -36,6 +36,21 @@ PORTAL_SSO_SECRET=la-misma-clave-que-en-el-portal
 
 Redeploy cada CRM.
 
+### Red privada Railway (recomendado)
+
+Si el portal y los CRMs están en el **mismo proyecto Railway**, configura en cada CRM del panel admin:
+
+| Campo | Ejemplo |
+|-------|---------|
+| URL pública | `https://furvoley.up.railway.app` |
+| URL interna | `http://furvoley-admin-copy.railway.internal:8080` |
+
+La URL interna la ves en el CRM → **Settings → Private Networking** (`<servicio>.railway.internal`).
+Añade el **puerto** del servicio (p. ej. `:8080`) si no responde sin él.
+
+El portal usa la URL interna solo para `/api/portal/verify` (server-to-server).
+El redirect SSO al usuario sigue usando la URL pública.
+
 ---
 
 ## Opción B — servicio ligero `services/portal`

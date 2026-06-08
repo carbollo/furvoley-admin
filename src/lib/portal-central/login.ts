@@ -1,5 +1,9 @@
 import { createPortalSsoToken, getPortalSsoSecret } from '@/lib/portal-sso'
-import type { PortalTenant } from '@/lib/portal-central/tenants-store'
+import {
+  tenantPublicBaseUrl,
+  tenantVerifyBaseUrl,
+  type PortalTenant,
+} from '@/lib/portal-central/tenants-store'
 
 export async function verifyOnTenant(
   tenant: PortalTenant,
@@ -10,7 +14,7 @@ export async function verifyOnTenant(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 12_000)
   try {
-    const r = await fetch(`${tenant.url}/api/portal/verify`, {
+    const r = await fetch(`${tenantVerifyBaseUrl(tenant)}/api/portal/verify`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${secret}`,
@@ -64,5 +68,5 @@ export function buildSsoRedirectUrl(
     },
     secret,
   )
-  return `${tenant.url}/api/portal/sso?token=${encodeURIComponent(token)}`
+  return `${tenantPublicBaseUrl(tenant)}/api/portal/sso?token=${encodeURIComponent(token)}`
 }

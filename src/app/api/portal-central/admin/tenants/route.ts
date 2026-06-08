@@ -31,9 +31,14 @@ export async function POST(request: Request) {
   const denied = await requireAdmin()
   if (denied) return denied
 
-  let body: { id?: string; name?: string; url?: string }
+  let body: { id?: string; name?: string; url?: string; internalUrl?: string }
   try {
-    body = (await request.json()) as { id?: string; name?: string; url?: string }
+    body = (await request.json()) as {
+      id?: string
+      name?: string
+      url?: string
+      internalUrl?: string
+    }
   } catch {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }

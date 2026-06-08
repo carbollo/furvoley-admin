@@ -15,6 +15,8 @@ import {
   deleteTenant,
   listTenants,
   loadTenants,
+  tenantPublicBaseUrl,
+  tenantVerifyBaseUrl,
   upsertTenant,
 } from './lib/tenants-store.mjs'
 
@@ -50,7 +52,7 @@ async function verifyOnTenant(tenant, email, password, secret) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 12_000)
   try {
-    const r = await fetch(`${tenant.url}/api/portal/verify`, {
+    const r = await fetch(`${tenantVerifyBaseUrl(tenant)}/api/portal/verify`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${secret}`,
@@ -188,7 +190,7 @@ const server = createServer(async (req, res) => {
     const tenant = (await listTenants()).find((t) => t.id === id)
     if (!tenant) return sendJson(res, 404, { error: 'CRM no encontrado.' })
     try {
-      const r = await fetch(`${tenant.url}/api/portal/verify`, {
+      const r = await fetch(`${tenantVerifyBaseUrl(tenant)}/api/portal/verify`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${secret}`,
@@ -219,7 +221,7 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, {
         ok: false,
         reachable: false,
-        message: 'No se pudo conectar. Revisa la URL pública del CRM.',
+        message: 'No se pudo conectar. Revisa la URL interna del CRM.',
       })
     }
   }
@@ -268,7 +270,7 @@ const server = createServer(async (req, res) => {
 
     const { tenant, user } = matches[0]
     const token = createSsoToken(user, secret)
-    const redirectUrl = `${tenant.url}/api/portal/sso?token=${encodeURIComponent(token)}`
+    const redirectUrl = `${tenantPublicBaseUrl(tenant)}/api/portal/sso?token=${encodeURIComponent(token)}`
     return sendJson(res, 200, {
       ok: true,
       tenant: { id: tenant.id, name: tenant.name, url: tenant.url },
@@ -303,7 +305,7 @@ const server = createServer(async (req, res) => {
     const token = createSsoToken(hit.user, secret)
     return sendJson(res, 200, {
       ok: true,
-      redirectUrl: `${tenant.url}/api/portal/sso?token=${encodeURIComponent(token)}`,
+      redirectUrl: `${tenantPublicBaseUrl(tenant)}/api/portal/sso?token=${encodeURIComponent(token)}`,
     })
   }
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-type Tenant = { id: string; name: string; url: string }
+type Tenant = { id: string; name: string; url: string; internalUrl?: string }
 
 export function PortalLoginForm() {
   const [email, setEmail] = useState('')
@@ -144,6 +144,7 @@ export function PortalAdminPanel() {
   const [name, setName] = useState('')
   const [id, setId] = useState('')
   const [url, setUrl] = useState('')
+  const [internalUrl, setInternalUrl] = useState('')
   const [busy, setBusy] = useState(false)
 
   const loadTenants = useCallback(async () => {
@@ -197,7 +198,12 @@ export function PortalAdminPanel() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), id: id.trim(), url: url.trim() }),
+        body: JSON.stringify({
+          name: name.trim(),
+          id: id.trim(),
+          url: url.trim(),
+          internalUrl: internalUrl.trim(),
+        }),
       })
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.error || 'Error')
@@ -205,6 +211,7 @@ export function PortalAdminPanel() {
       setName('')
       setId('')
       setUrl('')
+      setInternalUrl('')
       setOkMsg('CRM guardado.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
@@ -295,6 +302,17 @@ export function PortalAdminPanel() {
               placeholder="https://furvoley.up.railway.app"
               style={darkInput}
             />
+            <label style={labelStyle}>URL interna Railway (opcional)</label>
+            <input
+              value={internalUrl}
+              onChange={(e) => setInternalUrl(e.target.value)}
+              placeholder="http://furvoley-admin-copy.railway.internal:8080"
+              style={darkInput}
+            />
+            <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 12, lineHeight: 1.5 }}>
+              El portal usa la URL interna solo para verificar credenciales (server-to-server).
+              Tras el login, el navegador sigue yendo a la URL pública.
+            </p>
             <button type="button" disabled={busy} onClick={() => void saveTenant()} style={buttonStyle}>
               Guardar CRM
             </button>
@@ -317,6 +335,12 @@ export function PortalAdminPanel() {
                   <strong>{t.name}</strong>
                   <div style={{ color: '#94a3b8', fontSize: 13, wordBreak: 'break-all' }}>
                     {t.id} · {t.url}
+                    {t.internalUrl ? (
+                      <>
+                        <br />
+                        interna: {t.internalUrl}
+                      </>
+                    ) : null}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                     <button

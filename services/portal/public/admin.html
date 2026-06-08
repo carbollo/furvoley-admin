@@ -103,6 +103,12 @@
           <input id="crm-id" placeholder="furvoley — se genera solo si lo dejas vacío" />
           <label for="crm-url">URL pública del CRM en Railway</label>
           <input id="crm-url" placeholder="https://furvoley.up.railway.app" />
+          <label for="crm-internal-url">URL interna Railway (opcional)</label>
+          <input id="crm-internal-url" placeholder="http://furvoley-admin-copy.railway.internal:8080" />
+          <p style="margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.5">
+            La URL interna se usa solo para verificar credenciales entre servicios.
+            Tras el login, el navegador va a la URL pública.
+          </p>
           <div class="row">
             <button id="save-btn" class="btn-primary" type="button">Guardar CRM</button>
             <button id="logout-btn" class="btn-ghost" type="button">Salir</button>
@@ -154,7 +160,7 @@
           el.className = 'tenant-item'
           el.innerHTML = `
             <strong>${t.name}</strong>
-            <small>${t.id} · ${t.url}</small>
+            <small>${t.id} · ${t.url}${t.internalUrl ? `<br>interna: ${t.internalUrl}` : ''}</small>
             <div class="row" style="margin-top:10px">
               <button type="button" class="btn-ghost" data-test="${t.id}">Probar conexión</button>
               <button type="button" class="btn-danger" data-del="${t.id}">Eliminar</button>
@@ -223,12 +229,14 @@
               name: document.getElementById('crm-name').value.trim(),
               id: document.getElementById('crm-id').value.trim(),
               url: document.getElementById('crm-url').value.trim(),
+              internalUrl: document.getElementById('crm-internal-url').value.trim(),
             }),
           })
           renderTenants(data.tenants || [])
           document.getElementById('crm-name').value = ''
           document.getElementById('crm-id').value = ''
           document.getElementById('crm-url').value = ''
+          document.getElementById('crm-internal-url').value = ''
           showMsg('CRM guardado.', 'ok')
         } catch (e) {
           showMsg(e.message, 'error')
