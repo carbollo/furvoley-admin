@@ -11,6 +11,7 @@ Despliega un **servicio Railway aparte** con el **Dockerfile raíz** del repo (c
 | `PORTAL_CENTRAL_HOST` | `true` |
 | `PORTAL_ADMIN_PASSWORD` | tu contraseña secreta del panel |
 | `PORTAL_SSO_SECRET` | clave larga (igual en portal y en cada CRM) |
+| `NEXTAUTH_SECRET` | opcional — si falta, usa `PORTAL_SSO_SECRET` |
 | `NEXT_PUBLIC_APP_URL` | URL pública **de este servicio portal** |
 | `NEXTAUTH_URL` | la misma URL del portal |
 

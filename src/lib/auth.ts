@@ -9,9 +9,10 @@ import {
   getEnvAdminCredentials,
   syncEnvAdminUser,
 } from "@/lib/env-admin"
+import { resolveNextAuthSecret } from "@/lib/auth-secret"
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: resolveNextAuthSecret(),
   adapter: PrismaAdapter(prisma) as any,
   providers: [
     CredentialsProvider({

@@ -2,6 +2,7 @@ import { getToken } from "next-auth/jwt"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { normalizeRole } from "@/lib/rbac"
+import { resolveNextAuthSecret } from "@/lib/auth-secret"
 
 const PORTAL_CENTRAL_HOST =
   String(process.env.PORTAL_CENTRAL_HOST || "").trim().toLowerCase() === "true"
@@ -90,7 +91,7 @@ export async function middleware(req: NextRequest) {
   try {
     token = await getToken({
       req,
-      secret: process.env.NEXTAUTH_SECRET,
+      secret: resolveNextAuthSecret(),
     })
   } catch {
     // Cookie firmada con otro NEXTAUTH_SECRET (clon, redeploy, etc.) — no

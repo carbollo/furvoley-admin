@@ -148,8 +148,10 @@ export function parsePortalSsoToken(token: string, secret = getPortalSsoSecret()
   }
 }
 
+import { resolveNextAuthSecret } from '@/lib/auth-secret'
+
 export async function buildPortalSessionCookie(payload: PortalSsoPayload) {
-  const secret = process.env.NEXTAUTH_SECRET
+  const secret = resolveNextAuthSecret()
   if (!secret) throw new Error('NEXTAUTH_SECRET missing')
 
   const maxAge = 30 * 24 * 60 * 60
