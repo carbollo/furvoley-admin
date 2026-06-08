@@ -3,6 +3,20 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { normalizeRole } from "@/lib/rbac"
 
+const PORTAL_CENTRAL_HOST =
+  String(process.env.PORTAL_CENTRAL_HOST || "").trim().toLowerCase() === "true"
+
+function isPortalPublicPath(path: string) {
+  return (
+    path === "/portal" ||
+    path.startsWith("/portal/") ||
+    path === "/__furvoley-config" ||
+    path.startsWith("/__furvoley-config/") ||
+    path.startsWith("/api/portal-central/") ||
+    path.startsWith("/api/portal/")
+  )
+}
+
 /** Rutas con UI antigua (Tailwind) eliminada: el CRM vive en /. */
 const ADMIN_TO_CRM_TAB: { test: (p: string) => boolean; tab: string }[] = [
   { test: (p) => p === "/members" || p.startsWith("/members/"), tab: "socios" },
@@ -36,6 +50,20 @@ function redirectToLogin(req: NextRequest, clearCookies: boolean) {
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
+
+  if (isPortalPublicPath(path)) {
+    return NextResponse.next()
+  }
+
+  if (PORTAL_CENTRAL_HOST) {
+    if (path === "/") {
+      return NextResponse.redirect(new URL("/portal", req.url))
+    }
+    if (!path.startsWith("/_next") && path !== "/favicon.ico") {
+      return NextResponse.redirect(new URL("/portal", req.url))
+    }
+    return NextResponse.next()
+  }
 
   // MCP Hermes: auth Bearer en la ruta, no sesión NextAuth (gateway en localhost).
   if (path.startsWith("/api/hermes/mcp")) {

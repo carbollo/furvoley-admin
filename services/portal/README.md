@@ -1,65 +1,57 @@
 # Portal central de acceso Furvoley
 
-Login único → redirige al CRM correcto. **Configura los CRMs desde un panel admin web**, sin JSON en Railway.
+Login único → redirige al CRM correcto. **Panel admin web** para añadir URLs sin JSON.
 
-## Configuración rápida en Railway
+## Opción recomendada (mismo repo, sin `services/portal`)
 
-### Servicio portal
+Despliega un **servicio Railway aparte** con el **Dockerfile raíz** del repo (como Plantilla/furvoley), pero en modo portal:
 
-1. Root Directory: `services/portal`
-2. Rama: **`testing`**
-3. Volumen montado en **`/data`** (persiste la lista de CRMs)
-4. Variables:
+| Variable | Valor |
+|----------|--------|
+| `PORTAL_CENTRAL_HOST` | `true` |
+| `PORTAL_ADMIN_PASSWORD` | tu contraseña secreta del panel |
+| `PORTAL_SSO_SECRET` | clave larga (igual en portal y en cada CRM) |
+| `NEXT_PUBLIC_APP_URL` | URL pública **de este servicio portal** |
+| `NEXTAUTH_URL` | la misma URL del portal |
 
-| Variable | Qué poner |
-|----------|-----------|
-| `PORTAL_ADMIN_PASSWORD` | Tu contraseña secreta para el panel admin |
-| `PORTAL_SSO_SECRET` | Clave larga (la misma en portal y en cada CRM) |
+**No hace falta `DATABASE_URL`** en el servicio portal (no usa Postgres).
 
-**Ya no hace falta `PORTAL_TENANTS`** (opcional solo para migrar datos la primera vez).
+**Volumen** montado en **`/data`** (guarda la lista de CRMs).
 
-### Panel admin (tú)
+### URLs
 
-Tras el deploy, abre:
+| Ruta | Uso |
+|------|-----|
+| `/portal` | Login usuarios |
+| `/__furvoley-config` | Panel admin (tú) |
 
-```text
-https://TU-URL-PORTAL/__furvoley-config
-```
+Ejemplo: `https://furvoley-admin-production-25ee.up.railway.app/__furvoley-config`
 
-1. Contraseña = valor de `PORTAL_ADMIN_PASSWORD`
-2. **Añadir CRM:** nombre + URL pública (`https://furvoley.up.railway.app`)
-3. Pulsa **Probar conexión** → debe decir que el CRM responde y tiene SSO activo
+### En cada CRM (Plantilla, furvoley…)
 
-### Cada CRM (Plantilla, furvoley, …)
-
-Solo añade y redeploy:
-
-```text
+```env
 PORTAL_SSO_SECRET=la-misma-clave-que-en-el-portal
 ```
 
-## Login de usuarios
+Redeploy cada CRM.
 
-Los usuarios entran en la **URL raíz del portal** (`/`), no en el panel admin.
+---
 
-## Rutas
+## Opción B — servicio ligero `services/portal`
 
-| Ruta | Quién |
-|------|--------|
-| `/` | Login usuarios |
-| `/__furvoley-config` | Panel admin (secreto; cambiable con `PORTAL_ADMIN_PATH`) |
-| `/health` | Healthcheck |
+Root Directory `services/portal`, rama **`testing`**, volumen `/data`.  
+Mismas variables excepto `PORTAL_CENTRAL_HOST` (no aplica).
 
-## Variables opcionales
+---
 
-| Variable | Default |
-|----------|---------|
-| `PORTAL_ADMIN_PATH` | `__furvoley-config` |
-| `PORTAL_DATA_DIR` | `/data` |
-| `PORTAL_TENANTS` | Solo import inicial si el volumen está vacío |
+## Errores frecuentes
 
-## Notas
+| Error | Causa |
+|-------|--------|
+| `Application failed to respond` | Servicio caído: falta rama `testing`, Root Directory mal, o `DATABASE_URL` obligando db push en portal |
+| `/__furvoley-config` en un CRM normal | Ese servicio no tiene `PORTAL_CENTRAL_HOST=true` — verás un aviso, no el panel |
+| Credenciales inválidas | Falta `PORTAL_SSO_SECRET` en el CRM destino |
 
-- Monta volumen en `/data` o perderás la lista de CRMs al redeploy.
-- El token SSO caduca a 60 s.
-- Cada CRM sigue con su PostgreSQL propio.
+## Rama Git
+
+El portal está en **`testing`**. Railway debe desplegar esa rama (o merge a `master`).

@@ -33,9 +33,9 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
      - Opcional en Railway: `HERMES_MCP_API_KEY`, `FURVOLEY_MCP_URL` (override).
      - Ver [docs/hermes-agent.md](docs/hermes-agent.md).
    - **Portal central de acceso (varios clubs en Railway):**
-     - Despliega un tercer servicio con root `services/portal` (login único → redirige al CRM correcto).
-     - Variables: `PORTAL_ADMIN_PASSWORD` + `PORTAL_SSO_SECRET`; volumen en `/data`.
-     - Configura CRMs en el panel admin: `https://TU-PORTAL/__furvoley-config`
+     - Servicio aparte con **`PORTAL_CENTRAL_HOST=true`** (mismo Dockerfile raíz; sin Postgres).
+     - Variables: `PORTAL_ADMIN_PASSWORD`, `PORTAL_SSO_SECRET`, volumen `/data`.
+     - Panel admin: `https://TU-PORTAL/__furvoley-config` · Login usuarios: `/portal`
      - Ver [services/portal/README.md](services/portal/README.md).
    - `ADMIN_EMAIL` + `ADMIN_PASSWORD` (recomendado): administrador fijo; en cada arranque y login se sincronizan en la BD. Si faltan una de las dos, se usan `admin@furvoley.com` / `admin123` al arrancar.
    - `REMINDER_WEBHOOK_URL` (opcional): endpoint externo para enviar recordatorios email.

@@ -49,6 +49,10 @@ async function ensureAdminUser() {
 }
 
 async function main() {
+  if (String(process.env.PORTAL_CENTRAL_HOST || '').trim().toLowerCase() === 'true') {
+    require('./start-portal-central.cjs')
+    return
+  }
   await ensureSchema()
   await ensureAdminUser()
   const child = spawn(
