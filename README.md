@@ -32,6 +32,10 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
      - Configura proveedor LLM (Ollama Cloud o DeepSeek), API key, modelo y teléfonos admin **desde la pestaña Hermes Agent del CRM** (sin consola).
      - Opcional en Railway: `HERMES_MCP_API_KEY`, `FURVOLEY_MCP_URL` (override).
      - Ver [docs/hermes-agent.md](docs/hermes-agent.md).
+   - **Portal central de acceso (varios clubs en Railway):**
+     - Despliega un tercer servicio con root `services/portal` (login único → redirige al CRM correcto).
+     - Define `PORTAL_SSO_SECRET` (igual en portal y en cada tenant) y `PORTAL_TENANTS` en el portal.
+     - Ver [services/portal/README.md](services/portal/README.md).
    - `ADMIN_EMAIL` + `ADMIN_PASSWORD` (recomendado): administrador fijo; en cada arranque y login se sincronizan en la BD. Si faltan una de las dos, se usan `admin@furvoley.com` / `admin123` al arrancar.
    - `REMINDER_WEBHOOK_URL` (opcional): endpoint externo para enviar recordatorios email.
 5. Railway detectará automáticamente el archivo `package.json` y ejecutará los scripts de `build` y `start`.

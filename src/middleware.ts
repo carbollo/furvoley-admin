@@ -42,6 +42,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // Portal SSO: verify (server-to-server) y consume token sin sesión previa.
+  if (path.startsWith("/api/portal/")) {
+    return NextResponse.next()
+  }
+
   // Enlaces públicos de workflows (/r/...) y API pública (sin login).
   if (path.startsWith("/r/") || path.startsWith("/api/public/")) {
     return NextResponse.next()

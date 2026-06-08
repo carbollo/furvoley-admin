@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Furvoley — Acceso</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #2563eb;
+        --accent-hover: #1d4ed8;
+        --danger: #be123c;
+        --border: #e2e8f0;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        color: var(--text);
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 420px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 32px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        text-align: center;
+      }
+      p.sub {
+        margin: 0 0 24px;
+        text-align: center;
+        color: var(--muted);
+        line-height: 1.5;
+        font-size: 14px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      input, button, select {
+        width: 100%;
+        font: inherit;
+      }
+      input, select {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 14px;
+        background: #fff;
+      }
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 12px 14px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button:hover { background: var(--accent-hover); }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .error {
+        background: #fff1f2;
+        color: var(--danger);
+        border: 1px solid #fecdd3;
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 14px;
+        margin-bottom: 14px;
+        display: none;
+      }
+      .tenant-picker { display: none; margin-top: 8px; }
+      .tenant-picker h2 {
+        font-size: 16px;
+        margin: 0 0 12px;
+      }
+      .tenant-list {
+        display: grid;
+        gap: 8px;
+      }
+      .tenant-btn {
+        background: #fff;
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      .tenant-btn:hover { background: #f8fafc; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Furvoley</h1>
+      <p class="sub">Inicia sesión y te llevaremos al panel de tu club.</p>
+      <div id="error" class="error"></div>
+      <form id="login-form">
+        <label for="email">Correo electrónico</label>
+        <input id="email" name="email" type="email" autocomplete="username" required />
+        <label for="password">Contraseña</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+        <button id="submit" type="submit">Entrar</button>
+      </form>
+      <div id="tenant-picker" class="tenant-picker">
+        <h2>Elige tu club</h2>
+        <div id="tenant-list" class="tenant-list"></div>
+      </div>
+    </div>
+    <script>
+      const form = document.getElementById('login-form')
+      const errorEl = document.getElementById('error')
+      const submitBtn = document.getElementById('submit')
+      const tenantPicker = document.getElementById('tenant-picker')
+      const tenantList = document.getElementById('tenant-list')
+      let pendingCredentials = null
+
+      function showError(msg) {
+        errorEl.textContent = msg
+        errorEl.style.display = msg ? 'block' : 'none'
+      }
+
+      async function login(body) {
+        showError('')
+        submitBtn.disabled = true
+        try {
+          const r = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+          const data = await r.json().catch(() => ({}))
+          if (r.status === 409 && Array.isArray(data.tenants)) {
+            pendingCredentials = { email: body.email, password: body.password }
+            tenantPicker.style.display = 'block'
+            tenantList.innerHTML = ''
+            for (const tenant of data.tenants) {
+              const btn = document.createElement('button')
+              btn.type = 'button'
+              btn.className = 'tenant-btn'
+              btn.textContent = tenant.name || tenant.id
+              btn.addEventListener('click', () => void chooseTenant(tenant.id))
+              tenantList.appendChild(btn)
+            }
+            showError('Esta cuenta existe en varios clubs.')
+            return
+          }
+          if (!r.ok) {
+            showError(data.error || 'No se pudo iniciar sesión.')
+            return
+          }
+          if (data.redirectUrl) {
+            window.location.assign(data.redirectUrl)
+            return
+          }
+          showError('Respuesta inesperada del portal.')
+        } catch {
+          showError('Error de red. Inténtalo de nuevo.')
+        } finally {
+          submitBtn.disabled = false
+        }
+      }
+
+      async function chooseTenant(tenantId) {
+        if (!pendingCredentials) return
+        showError('')
+        submitBtn.disabled = true
+        try {
+          const r = await fetch('/api/login/tenant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...pendingCredentials, tenantId }),
+          })
+          const data = await r.json().catch(() => ({}))
+          if (!r.ok) {
+            showError(data.error || 'No se pudo iniciar sesión.')
+            return
+          }
+          if (data.redirectUrl) window.location.assign(data.redirectUrl)
+        } catch {
+          showError('Error de red. Inténtalo de nuevo.')
+        } finally {
+          submitBtn.disabled = false
+        }
+      }
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault()
+        tenantPicker.style.display = 'none'
+        pendingCredentials = null
+        login({
+          email: document.getElementById('email').value.trim(),
+          password: document.getElementById('password').value,
+        })
+      })
+    </script>
+  </body>
+</html>
