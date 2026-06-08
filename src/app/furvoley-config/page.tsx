@@ -1,7 +1,9 @@
 import { PortalAdminPanel } from '@/components/portal/PortalLoginForm'
-import { isPortalCentralHost } from '@/lib/portal-central/config'
+import { getPortalAdminPath, isPortalCentralHost } from '@/lib/portal-central/config'
 
 export default function PortalAdminPage() {
+  const adminPath = getPortalAdminPath()
+
   if (!isPortalCentralHost()) {
     return (
       <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#0f172a', color: '#f8fafc' }}>
@@ -9,7 +11,7 @@ export default function PortalAdminPage() {
           <h1 style={{ marginTop: 0 }}>Panel admin del portal</h1>
           <p>
             Este servicio es un <strong>CRM</strong>, no el portal central. El panel{' '}
-            <code>/__furvoley-config</code> solo funciona en el servicio Railway marcado como portal.
+            <code>/{adminPath}</code> solo funciona en el servicio Railway marcado como portal.
           </p>
           <p style={{ color: '#94a3b8' }}>
             Crea un servicio aparte con <code>PORTAL_CENTRAL_HOST=true</code> o usa el servicio portal

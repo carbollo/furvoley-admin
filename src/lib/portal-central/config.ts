@@ -3,8 +3,8 @@ export function isPortalCentralHost() {
 }
 
 export function getPortalAdminPath() {
-  const raw = String(process.env.PORTAL_ADMIN_PATH || '__furvoley-config').trim()
-  return raw.replace(/^\/+|\/+$/g, '') || '__furvoley-config'
+  const raw = String(process.env.PORTAL_ADMIN_PATH || 'furvoley-config').trim()
+  return raw.replace(/^\/+|\/+$/g, '') || 'furvoley-config'
 }
 
 export function getPortalDataDir() {

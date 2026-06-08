@@ -24,9 +24,11 @@ Despliega un **servicio Railway aparte** con el **Dockerfile raíz** del repo (c
 | Ruta | Uso |
 |------|-----|
 | `/portal` | Login usuarios |
-| `/__furvoley-config` | Panel admin (tú) |
+| `/furvoley-config` | Panel admin (tú) |
 
-Ejemplo: `https://furvoley-admin-production-25ee.up.railway.app/__furvoley-config`
+Ejemplo: `https://furvoley-admin-production-25ee.up.railway.app/furvoley-config`
+
+Las URLs antiguas `/__furvoley-config` y `/_furvoley-config` redirigen automáticamente.
 
 ### En cada CRM (Plantilla, furvoley…)
 
@@ -65,7 +67,7 @@ Mismas variables excepto `PORTAL_CENTRAL_HOST` (no aplica).
 | Error | Causa |
 |-------|--------|
 | `Application failed to respond` | Servicio caído: falta rama `testing`, Root Directory mal, o `DATABASE_URL` obligando db push en portal |
-| `/__furvoley-config` en un CRM normal | Ese servicio no tiene `PORTAL_CENTRAL_HOST=true` — verás un aviso, no el panel |
+| `/furvoley-config` en un CRM normal | Ese servicio no tiene `PORTAL_CENTRAL_HOST=true` — verás un aviso, no el panel |
 | Credenciales inválidas | Falta `PORTAL_SSO_SECRET` en el CRM destino |
 
 ## Rama Git

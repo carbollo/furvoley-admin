@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   }
   if (tenants.length === 0) {
     return NextResponse.json(
-      { error: 'No hay CRMs configurados. Entra a /__furvoley-config' },
+      { error: 'No hay CRMs configurados. Entra a /furvoley-config' },
       { status: 503 },
     )
   }

@@ -35,7 +35,7 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
    - **Portal central de acceso (varios clubs en Railway):**
      - Servicio aparte con **`PORTAL_CENTRAL_HOST=true`** (mismo Dockerfile raíz; sin Postgres).
      - Variables: `PORTAL_ADMIN_PASSWORD`, `PORTAL_SSO_SECRET`, volumen `/data`.
-     - Panel admin: `https://TU-PORTAL/__furvoley-config` · Login usuarios: `/portal`
+     - Panel admin: `https://TU-PORTAL/furvoley-config` · Login usuarios: `/portal`
      - Ver [services/portal/README.md](services/portal/README.md).
    - `ADMIN_EMAIL` + `ADMIN_PASSWORD` (recomendado): administrador fijo; en cada arranque y login se sincronizan en la BD. Si faltan una de las dos, se usan `admin@furvoley.com` / `admin123` al arrancar.
    - `REMINDER_WEBHOOK_URL` (opcional): endpoint externo para enviar recordatorios email.

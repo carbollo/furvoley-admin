@@ -3,16 +3,32 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { normalizeRole } from "@/lib/rbac"
 import { resolveNextAuthSecret } from "@/lib/auth-secret"
+import { getPortalAdminPath } from "@/lib/portal-central/config"
 
 const PORTAL_CENTRAL_HOST =
   String(process.env.PORTAL_CENTRAL_HOST || "").trim().toLowerCase() === "true"
 
+const LEGACY_ADMIN_PREFIXES = ["/__furvoley-config", "/_furvoley-config"]
+
+function redirectLegacyAdminPath(req: NextRequest) {
+  const path = req.nextUrl.pathname
+  for (const legacy of LEGACY_ADMIN_PREFIXES) {
+    if (path === legacy || path.startsWith(`${legacy}/`)) {
+      const adminPath = getPortalAdminPath()
+      const suffix = path.slice(legacy.length)
+      return NextResponse.redirect(new URL(`/${adminPath}${suffix}`, req.url))
+    }
+  }
+  return null
+}
+
 function isPortalPublicPath(path: string) {
+  const adminPath = `/${getPortalAdminPath()}`
   return (
     path === "/portal" ||
     path.startsWith("/portal/") ||
-    path === "/__furvoley-config" ||
-    path.startsWith("/__furvoley-config/") ||
+    path === adminPath ||
+    path.startsWith(`${adminPath}/`) ||
     path.startsWith("/api/portal-central/") ||
     path.startsWith("/api/portal/")
   )
@@ -51,6 +67,9 @@ function redirectToLogin(req: NextRequest, clearCookies: boolean) {
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
+
+  const legacyAdmin = redirectLegacyAdminPath(req)
+  if (legacyAdmin) return legacyAdmin
 
   if (isPortalPublicPath(path)) {
     return NextResponse.next()
