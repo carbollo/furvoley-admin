@@ -71,7 +71,7 @@ async function verifyOnTenant(tenant, email, password, secret) {
 }
 
 async function readPublic(fileName) {
-  return readFile(path.join(publicDir, fileName))
+  return readFile(path.join(publicDir, fileName), 'utf8')
 }
 
 async function readBody(req) {
@@ -119,8 +119,13 @@ const server = createServer(async (req, res) => {
 
   if (pathname === `/${adminPath}` || pathname === `/${adminPath}/`) {
     if (req.method === 'GET') {
-      const html = await readPublic('admin.html')
-      return sendHtml(res, html.replaceAll('__ADMIN_PATH__', adminPath))
+      try {
+        const html = await readPublic('admin.html')
+        return sendHtml(res, html.replaceAll('__ADMIN_PATH__', adminPath))
+      } catch (e) {
+        process.stderr.write(`[portal] admin page error: ${e?.message || e}\n`)
+        return sendJson(res, 500, { error: 'No se pudo cargar el panel admin.' })
+      }
     }
   }
 
