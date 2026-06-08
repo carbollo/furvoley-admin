@@ -17,11 +17,26 @@ Si la misma cuenta existe en varios clubs, el portal muestra un selector.
 
 ## Despliegue en Railway
 
+### Antes de nada: rama correcta
+
+El portal está en la rama **`testing`** del repo. Si Railway despliega **`master`**, fallará con:
+
+```text
+directory .../services/portal does not exist
+```
+
+**Solución (elige una):**
+
+1. En Railway → servicio portal → **Settings** → **Source** → cambia la rama a **`testing`**, o
+2. Haz merge de `testing` → `master` y despliega `master`.
+
 ### 1. Nuevo servicio `portal`
 
-- **Root directory:** `services/portal`
-- **Dockerfile:** `services/portal/Dockerfile`
-- **Dominio público:** p. ej. `https://acceso.tudominio.com` o el subdominio Railway que prefieras
+1. **New** → conecta el repo `furvoley-admin`.
+2. **Settings → Source → Root Directory:** `services/portal`
+3. **Settings → Build:** debe usar **Dockerfile** (no Railpack). Este repo incluye `railway.toml` para forzarlo.
+4. **No** pongas `services/portal` como ruta del Dockerfile si ya tienes Root Directory = `services/portal`; la ruta correcta es solo `Dockerfile`.
+5. **Networking:** genera dominio público.
 
 ### 2. Variables del portal
 
