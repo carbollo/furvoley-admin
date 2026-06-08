@@ -55,10 +55,9 @@ async function main() {
   }
   await ensureSchema()
   await ensureAdminUser()
-  const nextStartArgs = require('./next-start-args.cjs')
   const child = spawn(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
-    nextStartArgs(),
+    ['next', 'start'],
     { stdio: 'inherit', env: process.env },
   )
   child.on('exit', (code, signal) => {

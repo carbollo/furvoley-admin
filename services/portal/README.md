@@ -50,7 +50,7 @@ Si el portal y los CRMs están en el **mismo proyecto Railway**, configura en ca
 La URL interna la ves en el CRM → **Settings → Private Networking** (`<servicio>.railway.internal`).
 **Debe ser el hostname del servicio CRM**, no del portal. Añade el puerto del CRM (p. ej. `:8080`).
 
-Si falla la conexión interna: usa la URL pública en el panel (deja URL interna vacía) o define `HOSTNAME=::` **solo en el CRM** y redeploy (puede afectar al acceso público en entornos antiguos).
+Si falla la conexión interna: deja URL interna vacía y usa solo la URL pública del CRM.
 
 El portal usa la URL interna solo para `/api/portal/verify` (server-to-server).
 El redirect SSO al usuario sigue usando la URL pública.
