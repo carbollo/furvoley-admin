@@ -159,7 +159,7 @@ export async function buildPortalSessionCookie(payload: PortalSsoPayload) {
       id: payload.sub,
       email: payload.email,
       name: payload.name,
-      role: payload.role,
+      role: normalizeRole(payload.role),
       memberId: payload.memberId,
       mustChangePassword: payload.mustChangePassword,
     },
