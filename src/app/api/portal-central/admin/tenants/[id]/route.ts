@@ -53,8 +53,8 @@ export async function PUT(
   const tenant = (await loadTenants()).find((t) => t.id === decodeURIComponent(id))
   if (!tenant) return NextResponse.json({ error: 'CRM no encontrado.' }, { status: 404 })
 
+  const verifyBase = tenantVerifyBaseUrl(tenant)
   try {
-    const verifyBase = tenantVerifyBaseUrl(tenant)
     const r = await fetch(`${verifyBase}/api/portal/verify`, {
       method: 'POST',
       headers: {
