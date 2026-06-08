@@ -40,6 +40,37 @@ export function isPortalSsoEnabled() {
   return Boolean(getPortalSsoSecret())
 }
 
+/** Origen público del CRM (evita redirects a localhost:8080 detrás del proxy Railway). */
+export function resolvePortalPublicOrigin(request: Request) {
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+  const forwardedProto =
+    request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || 'https'
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`.replace(/\/+$/, '')
+  }
+
+  const railway = String(process.env.RAILWAY_PUBLIC_DOMAIN || '').trim()
+  if (railway) {
+    const url = railway.startsWith('http') ? railway : `https://${railway}`
+    return url.replace(/\/+$/, '')
+  }
+
+  for (const raw of [process.env.NEXTAUTH_URL, process.env.NEXT_PUBLIC_APP_URL]) {
+    const url = String(raw || '').trim().replace(/\/+$/, '')
+    if (url && !/localhost|127\.0\.0\.1/i.test(url)) return url
+  }
+
+  try {
+    const origin = new URL(request.url).origin
+    if (!/localhost|127\.0\.0\.1/i.test(origin)) return origin
+  } catch {
+    //
+  }
+
+  const fallback = String(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || '').trim()
+  return fallback.replace(/\/+$/, '') || 'http://localhost:3000'
+}
+
 export function assertPortalServerAuth(authHeader: string | null) {
   const secret = getPortalSsoSecret()
   if (!secret) {

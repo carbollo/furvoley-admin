@@ -34,6 +34,8 @@ Las URLs antiguas `/__furvoley-config` y `/_furvoley-config` redirigen automáti
 
 ```env
 PORTAL_SSO_SECRET=la-misma-clave-que-en-el-portal
+NEXTAUTH_URL=https://TU-CRM.up.railway.app
+NEXT_PUBLIC_APP_URL=https://TU-CRM.up.railway.app
 ```
 
 Redeploy cada CRM.
