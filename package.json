@@ -17,6 +17,7 @@
     "cf:deploy": "npm run cf:prepare && opennextjs-cloudflare deploy",
     "preview": "npm run cf:build && opennextjs-cloudflare preview",
     "deploy": "npm run cf:deploy",
+    "mobile": "npm --prefix apps/mobile run start",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {

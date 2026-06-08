@@ -9,6 +9,8 @@ import {
   syncEnvAdminUser,
 } from '@/lib/env-admin'
 
+import { resolveNextAuthSecret } from '@/lib/auth-secret'
+
 export type PortalVerifiedUser = {
   userId: string
   email: string
@@ -179,13 +181,45 @@ export function parsePortalSsoToken(token: string, secret = getPortalSsoSecret()
   }
 }
 
-import { resolveNextAuthSecret } from '@/lib/auth-secret'
+export const MOBILE_ACCESS_TOKEN_MAX_AGE = 30 * 24 * 60 * 60
+
+export async function issueMobileAccessToken(payload: PortalSsoPayload) {
+  const secret = resolveNextAuthSecret()
+  if (!secret) throw new Error('NEXTAUTH_SECRET missing')
+
+  const accessToken = await encode({
+    token: {
+      sub: payload.sub,
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name,
+      role: normalizeRole(payload.role),
+      memberId: payload.memberId,
+      mustChangePassword: payload.mustChangePassword,
+    },
+    secret,
+    maxAge: MOBILE_ACCESS_TOKEN_MAX_AGE,
+  })
+
+  return {
+    accessToken,
+    expiresIn: MOBILE_ACCESS_TOKEN_MAX_AGE,
+    user: {
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name,
+      role: normalizeRole(payload.role),
+      memberId: payload.memberId,
+      mustChangePassword: payload.mustChangePassword,
+    },
+  }
+}
 
 export async function buildPortalSessionCookie(payload: PortalSsoPayload) {
   const secret = resolveNextAuthSecret()
   if (!secret) throw new Error('NEXTAUTH_SECRET missing')
 
-  const maxAge = 30 * 24 * 60 * 60
+  const maxAge = MOBILE_ACCESS_TOKEN_MAX_AGE
   const token = await encode({
     token: {
       sub: payload.sub,

@@ -37,6 +37,10 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
      - Variables: `PORTAL_ADMIN_PASSWORD`, `PORTAL_SSO_SECRET`, volumen `/data`.
      - Panel admin: `https://TU-PORTAL/furvoley-config` · Login usuarios: `/portal`
      - Ver [services/portal/README.md](services/portal/README.md).
+   - **App móvil Expo (`apps/mobile`):**
+     - Login vía portal: `EXPO_PUBLIC_PORTAL_URL=https://TU-PORTAL.up.railway.app`
+     - Redeploy portal + CRMs con rutas `/api/portal-central/mobile/*` y `/api/portal/mobile/exchange`
+     - Ver [apps/mobile/README.md](apps/mobile/README.md).
    - `ADMIN_EMAIL` + `ADMIN_PASSWORD` (recomendado): administrador fijo; en cada arranque y login se sincronizan en la BD. Si faltan una de las dos, se usan `admin@furvoley.com` / `admin123` al arrancar.
    - `REMINDER_WEBHOOK_URL` (opcional): endpoint externo para enviar recordatorios email.
 5. Railway detectará automáticamente el archivo `package.json` y ejecutará los scripts de `build` y `start`.

@@ -31,7 +31,7 @@ function parsePageSizeParam(value: string | null, fallback = 50) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER', 'COACH'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER', 'COACH'], request)
   if (!auth.ok) return auth.response
 
   const url = new URL(request.url)

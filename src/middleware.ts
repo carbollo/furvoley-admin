@@ -30,7 +30,8 @@ function isPortalPublicPath(path: string) {
     path === adminPath ||
     path.startsWith(`${adminPath}/`) ||
     path.startsWith("/api/portal-central/") ||
-    path.startsWith("/api/portal/")
+    path.startsWith("/api/portal/") ||
+    path.startsWith("/api/mobile/")
   )
 }
 

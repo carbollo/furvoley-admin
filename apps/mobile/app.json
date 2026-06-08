@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Furvoley",
+    "slug": "furvoley-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "furvoley",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.furvoley.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0058be"
+      },
+      "package": "com.furvoley.mobile"
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

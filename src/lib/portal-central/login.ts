@@ -70,3 +70,35 @@ export function buildSsoRedirectUrl(
   )
   return `${tenantPublicBaseUrl(tenant)}/api/portal/sso?token=${encodeURIComponent(token)}`
 }
+
+export function buildMobileLoginPayload(
+  tenant: PortalTenant,
+  user: {
+    userId: string
+    email: string
+    name: string | null
+    role: string
+    memberId: string | null
+    mustChangePassword: boolean
+  },
+) {
+  const secret = getPortalSsoSecret()
+  if (!secret) throw new Error('Falta PORTAL_SSO_SECRET.')
+  const ssoToken = createPortalSsoToken(
+    {
+      userId: user.userId,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      memberId: user.memberId,
+      mustChangePassword: user.mustChangePassword,
+    },
+    secret,
+  )
+  return {
+    ok: true as const,
+    tenant: { id: tenant.id, name: tenant.name, url: tenantPublicBaseUrl(tenant) },
+    ssoToken,
+    user,
+  }
+}

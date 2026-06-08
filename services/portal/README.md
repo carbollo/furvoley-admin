@@ -40,6 +40,16 @@ NEXT_PUBLIC_APP_URL=https://TU-CRM.up.railway.app
 
 Redeploy cada CRM.
 
+### App móvil Expo
+
+Endpoints adicionales en portal y CRM (`apps/mobile/`):
+
+- `POST /api/portal-central/mobile/login` (+ `/tenant`)
+- `POST /api/portal/mobile/exchange`
+- `GET /api/mobile/*` en el CRM
+
+Ver [apps/mobile/README.md](../../apps/mobile/README.md).
+
 ### Red privada Railway (recomendado)
 
 Si el portal y los CRMs están en el **mismo proyecto Railway**, configura en cada CRM del panel admin:

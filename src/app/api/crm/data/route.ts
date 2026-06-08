@@ -35,8 +35,8 @@ const TYPE_LABEL: Record<string, string> = {
   OTHER: 'Otro',
 }
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN', 'COACH', 'TREASURER'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN', 'COACH', 'TREASURER'], request)
   if (!auth.ok) return auth.response
   const role = auth.role
   // Bootstrap automático de los webhook endpoints de Stripe (idempotente,

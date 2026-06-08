@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getEnvAdminCredentials } from '@/lib/env-admin'
+import { getSessionFromRequest } from '@/lib/session'
 
 export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
+  const session = await getSessionFromRequest(request)
   if (!session?.user) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
   }
