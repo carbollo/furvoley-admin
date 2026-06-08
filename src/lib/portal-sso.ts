@@ -70,7 +70,7 @@ export async function verifyPortalCredentials(
     await syncEnvAdminUser(prisma)
     const env = getEnvAdminCredentials()!
     const fixed = await prisma.user.findUnique({ where: { email: env.email } })
-    if (!fixed) return null
+    if (!fixed?.email) return null
     return {
       userId: fixed.id,
       email: fixed.email,
@@ -93,7 +93,7 @@ export async function verifyPortalCredentials(
     if (candidates.length === 1) user = candidates[0]
   }
 
-  if (!user?.password) return null
+  if (!user?.password || !user.email) return null
   const valid = await bcrypt.compare(pwd, user.password)
   if (!valid) return null
 
