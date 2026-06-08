@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Portal — Admin</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --card: #1e293b;
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #38bdf8;
+        --danger: #fb7185;
+        --ok: #4ade80;
+        --border: #334155;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        padding: 24px;
+      }
+      .wrap { max-width: 720px; margin: 0 auto; }
+      h1 { margin: 0 0 8px; font-size: 24px; }
+      p.sub { margin: 0 0 24px; color: var(--muted); line-height: 1.5; font-size: 14px; }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 24px;
+        margin-bottom: 16px;
+      }
+      label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+      input {
+        width: 100%;
+        border: 1px solid var(--border);
+        background: #0b1220;
+        color: var(--text);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        font: inherit;
+      }
+      button {
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .btn-primary { background: var(--accent); color: #082f49; }
+      .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+      .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; }
+      .msg {
+        display: none;
+        margin-bottom: 14px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        font-size: 14px;
+      }
+      .msg.error { display: block; background: rgba(251,113,133,.12); color: var(--danger); }
+      .msg.ok { display: block; background: rgba(74,222,128,.12); color: var(--ok); }
+      .tenant-item {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 10px;
+      }
+      .tenant-item strong { display: block; margin-bottom: 4px; }
+      .tenant-item small { color: var(--muted); word-break: break-all; }
+      .hidden { display: none; }
+      a { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Panel admin del portal</h1>
+      <p class="sub">
+        Añade aquí las URLs de cada CRM. Los usuarios entran por la home del portal;
+        tú gestionas los servicios desde esta página secreta.
+      </p>
+
+      <div id="msg" class="msg"></div>
+
+      <div id="login-card" class="card">
+        <label for="admin-password">Contraseña admin</label>
+        <input id="admin-password" type="password" placeholder="PORTAL_ADMIN_PASSWORD" />
+        <button id="login-btn" class="btn-primary" type="button">Entrar al panel</button>
+      </div>
+
+      <div id="panel" class="hidden">
+        <div class="card">
+          <h2 style="margin:0 0 14px;font-size:18px">Añadir CRM</h2>
+          <label for="crm-name">Nombre del club</label>
+          <input id="crm-name" placeholder="Furvoley" />
+          <label for="crm-id">Identificador (opcional)</label>
+          <input id="crm-id" placeholder="furvoley — se genera solo si lo dejas vacío" />
+          <label for="crm-url">URL pública del CRM en Railway</label>
+          <input id="crm-url" placeholder="https://furvoley.up.railway.app" />
+          <div class="row">
+            <button id="save-btn" class="btn-primary" type="button">Guardar CRM</button>
+            <button id="logout-btn" class="btn-ghost" type="button">Salir</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 style="margin:0 0 14px;font-size:18px">CRMs configurados</h2>
+          <div id="tenant-list"></div>
+          <p style="margin:12px 0 0;color:var(--muted);font-size:13px;line-height:1.5">
+            En cada CRM añade la misma <code>PORTAL_SSO_SECRET</code> que en Railway del portal y redeploy.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script>
+      const ADMIN_PATH = '__ADMIN_PATH__'
+
+      const msgEl = document.getElementById('msg')
+      const loginCard = document.getElementById('login-card')
+      const panel = document.getElementById('panel')
+      const tenantList = document.getElementById('tenant-list')
+
+      function showMsg(text, kind) {
+        msgEl.textContent = text
+        msgEl.className = 'msg' + (kind ? ' ' + kind : '')
+        msgEl.style.display = text ? 'block' : 'none'
+      }
+
+      async function api(path, opts = {}) {
+        const r = await fetch(path, {
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+          ...opts,
+        })
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(data.error || 'Error')
+        return data
+      }
+
+      function renderTenants(tenants) {
+        tenantList.innerHTML = ''
+        if (!tenants.length) {
+          tenantList.innerHTML = '<p style="color:var(--muted);margin:0">Aún no hay CRMs. Añade el primero arriba.</p>'
+          return
+        }
+        for (const t of tenants) {
+          const el = document.createElement('div')
+          el.className = 'tenant-item'
+          el.innerHTML = `
+            <strong>${t.name}</strong>
+            <small>${t.id} · ${t.url}</small>
+            <div class="row" style="margin-top:10px">
+              <button type="button" class="btn-ghost" data-test="${t.id}">Probar conexión</button>
+              <button type="button" class="btn-danger" data-del="${t.id}">Eliminar</button>
+            </div>
+          `
+          tenantList.appendChild(el)
+        }
+        tenantList.querySelectorAll('[data-del]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            if (!confirm('¿Eliminar este CRM del portal?')) return
+            try {
+              const data = await api('/api/admin/tenants/' + encodeURIComponent(btn.dataset.del), { method: 'DELETE' })
+              renderTenants(data.tenants)
+              showMsg('CRM eliminado.', 'ok')
+            } catch (e) {
+              showMsg(e.message, 'error')
+            }
+          })
+        })
+        tenantList.querySelectorAll('[data-test]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            try {
+              const data = await api('/api/admin/tenants/' + encodeURIComponent(btn.dataset.test) + '/test', { method: 'POST' })
+              showMsg(data.message || 'Listo', data.ok ? 'ok' : 'error')
+            } catch (e) {
+              showMsg(e.message, 'error')
+            }
+          })
+        })
+      }
+
+      async function loadPanel() {
+        const data = await api('/api/admin/tenants')
+        renderTenants(data.tenants || [])
+        loginCard.classList.add('hidden')
+        panel.classList.remove('hidden')
+      }
+
+      document.getElementById('login-btn').addEventListener('click', async () => {
+        showMsg('')
+        try {
+          await api('/api/admin/login', {
+            method: 'POST',
+            body: JSON.stringify({ password: document.getElementById('admin-password').value }),
+          })
+          await loadPanel()
+          showMsg('Sesión admin iniciada.', 'ok')
+        } catch (e) {
+          showMsg(e.message, 'error')
+        }
+      })
+
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        await api('/api/admin/logout', { method: 'POST' }).catch(() => undefined)
+        panel.classList.add('hidden')
+        loginCard.classList.remove('hidden')
+        showMsg('Sesión cerrada.', 'ok')
+      })
+
+      document.getElementById('save-btn').addEventListener('click', async () => {
+        showMsg('')
+        try {
+          const data = await api('/api/admin/tenants', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: document.getElementById('crm-name').value.trim(),
+              id: document.getElementById('crm-id').value.trim(),
+              url: document.getElementById('crm-url').value.trim(),
+            }),
+          })
+          renderTenants(data.tenants || [])
+          document.getElementById('crm-name').value = ''
+          document.getElementById('crm-id').value = ''
+          document.getElementById('crm-url').value = ''
+          showMsg('CRM guardado.', 'ok')
+        } catch (e) {
+          showMsg(e.message, 'error')
+        }
+      })
+
+      loadPanel().catch(() => undefined)
+    </script>
+  </body>
+</html>

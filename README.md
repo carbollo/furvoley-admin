@@ -34,7 +34,8 @@ Panel administrativo para la gestión de socios, cobros y contabilidad de un equ
      - Ver [docs/hermes-agent.md](docs/hermes-agent.md).
    - **Portal central de acceso (varios clubs en Railway):**
      - Despliega un tercer servicio con root `services/portal` (login único → redirige al CRM correcto).
-     - Define `PORTAL_SSO_SECRET` (igual en portal y en cada tenant) y `PORTAL_TENANTS` en el portal.
+     - Variables: `PORTAL_ADMIN_PASSWORD` + `PORTAL_SSO_SECRET`; volumen en `/data`.
+     - Configura CRMs en el panel admin: `https://TU-PORTAL/__furvoley-config`
      - Ver [services/portal/README.md](services/portal/README.md).
    - `ADMIN_EMAIL` + `ADMIN_PASSWORD` (recomendado): administrador fijo; en cada arranque y login se sincronizan en la BD. Si faltan una de las dos, se usan `admin@furvoley.com` / `admin123` al arrancar.
    - `REMINDER_WEBHOOK_URL` (opcional): endpoint externo para enviar recordatorios email.

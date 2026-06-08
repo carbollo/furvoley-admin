@@ -1,33 +1,30 @@
-import { createHmac } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createHmac } from 'node:crypto'
+import {
+  clearAdminSessionCookie,
+  getAdminPath,
+  isAdminConfigured,
+  isAdminRequest,
+  setAdminSessionCookie,
+  verifyAdminPassword,
+} from './lib/admin-auth.mjs'
+import {
+  deleteTenant,
+  listTenants,
+  loadTenants,
+  upsertTenant,
+} from './lib/tenants-store.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const publicDir = path.join(__dirname, 'public')
 const port = Number(process.env.PORT || 3000)
+const adminPath = getAdminPath()
 
 function getSecret() {
   return String(process.env.PORTAL_SSO_SECRET || '').trim()
-}
-
-function parseTenants() {
-  const raw = String(process.env.PORTAL_TENANTS || '').trim()
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .map((t) => ({
-        id: String(t?.id || '').trim(),
-        name: String(t?.name || t?.id || '').trim(),
-        url: String(t?.url || '').trim().replace(/\/+$/, ''),
-      }))
-      .filter((t) => t.id && t.url)
-  } catch {
-    return []
-  }
 }
 
 function signBody(body, secret) {
@@ -77,33 +74,166 @@ async function readPublic(fileName) {
   return readFile(path.join(publicDir, fileName))
 }
 
+async function readBody(req) {
+  const chunks = []
+  for await (const chunk of req) chunks.push(chunk)
+  const text = Buffer.concat(chunks).toString('utf8')
+  return text ? JSON.parse(text) : {}
+}
+
 function sendJson(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
   res.end(JSON.stringify(body))
 }
 
+function sendHtml(res, html) {
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+  res.end(html)
+}
+
+function requireAdmin(req, res) {
+  if (!isAdminConfigured()) {
+    sendJson(res, 503, { error: 'Panel admin no configurado. Define PORTAL_ADMIN_PASSWORD en Railway.' })
+    return false
+  }
+  if (!isAdminRequest(req)) {
+    sendJson(res, 401, { error: 'No autorizado.' })
+    return false
+  }
+  return true
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
+  const pathname = url.pathname
 
-  if (req.method === 'GET' && url.pathname === '/health') {
-    return sendJson(res, 200, { ok: true, tenants: parseTenants().length })
+  if (req.method === 'GET' && pathname === '/health') {
+    const tenants = await loadTenants()
+    return sendJson(res, 200, {
+      ok: true,
+      tenants: tenants.length,
+      adminConfigured: isAdminConfigured(),
+      adminPath: isAdminConfigured() ? `/${adminPath}` : null,
+    })
   }
 
-  if (req.method === 'POST' && url.pathname === '/api/login') {
+  if (pathname === `/${adminPath}` || pathname === `/${adminPath}/`) {
+    if (req.method === 'GET') {
+      const html = await readPublic('admin.html')
+      return sendHtml(res, html.replaceAll('__ADMIN_PATH__', adminPath))
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/admin/login') {
+    if (!isAdminConfigured()) {
+      return sendJson(res, 503, { error: 'Define PORTAL_ADMIN_PASSWORD en Railway.' })
+    }
+    try {
+      const body = await readBody(req)
+      if (!verifyAdminPassword(body.password)) {
+        return sendJson(res, 401, { error: 'Contraseña incorrecta.' })
+      }
+      setAdminSessionCookie(res)
+      return sendJson(res, 200, { ok: true })
+    } catch {
+      return sendJson(res, 400, { error: 'JSON inválido.' })
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/admin/logout') {
+    clearAdminSessionCookie(res)
+    return sendJson(res, 200, { ok: true })
+  }
+
+  if (req.method === 'GET' && pathname === '/api/admin/tenants') {
+    if (!requireAdmin(req, res)) return
+    const tenants = await listTenants()
+    return sendJson(res, 200, { ok: true, tenants })
+  }
+
+  if (req.method === 'POST' && pathname === '/api/admin/tenants') {
+    if (!requireAdmin(req, res)) return
+    try {
+      const body = await readBody(req)
+      const { tenant, tenants } = await upsertTenant(body)
+      return sendJson(res, 200, { ok: true, tenant, tenants })
+    } catch (e) {
+      return sendJson(res, 400, { error: e instanceof Error ? e.message : 'Error al guardar.' })
+    }
+  }
+
+  if (req.method === 'DELETE' && pathname.startsWith('/api/admin/tenants/')) {
+    if (!requireAdmin(req, res)) return
+    const id = decodeURIComponent(pathname.slice('/api/admin/tenants/'.length))
+    try {
+      const tenants = await deleteTenant(id)
+      return sendJson(res, 200, { ok: true, tenants })
+    } catch (e) {
+      return sendJson(res, 404, { error: e instanceof Error ? e.message : 'No encontrado.' })
+    }
+  }
+
+  if (req.method === 'POST' && pathname.startsWith('/api/admin/tenants/') && pathname.endsWith('/test')) {
+    if (!requireAdmin(req, res)) return
+    const id = decodeURIComponent(
+      pathname.slice('/api/admin/tenants/'.length, -'/test'.length),
+    )
     const secret = getSecret()
-    const tenants = parseTenants()
+    if (!secret) return sendJson(res, 503, { error: 'Falta PORTAL_SSO_SECRET.' })
+    const tenant = (await listTenants()).find((t) => t.id === id)
+    if (!tenant) return sendJson(res, 404, { error: 'CRM no encontrado.' })
+    try {
+      const r = await fetch(`${tenant.url}/api/portal/verify`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: '__portal_probe__', password: '__portal_probe__' }),
+      })
+      if (r.status === 401) {
+        return sendJson(res, 200, {
+          ok: true,
+          reachable: true,
+          message: 'CRM accesible (portal SSO activo).',
+        })
+      }
+      if (r.status === 503) {
+        return sendJson(res, 200, {
+          ok: false,
+          reachable: true,
+          message: 'CRM responde pero falta PORTAL_SSO_SECRET en ese servicio.',
+        })
+      }
+      return sendJson(res, 200, {
+        ok: false,
+        reachable: true,
+        message: `CRM respondió HTTP ${r.status}. Revisa URL y redeploy.`,
+      })
+    } catch {
+      return sendJson(res, 200, {
+        ok: false,
+        reachable: false,
+        message: 'No se pudo conectar. Revisa la URL pública del CRM.',
+      })
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/login') {
+    const secret = getSecret()
+    const tenants = await loadTenants()
     if (!secret) {
       return sendJson(res, 503, { error: 'Falta PORTAL_SSO_SECRET en el portal.' })
     }
     if (tenants.length === 0) {
-      return sendJson(res, 503, { error: 'Falta PORTAL_TENANTS en el portal.' })
+      return sendJson(res, 503, {
+        error: `No hay CRMs configurados. Entra al panel admin /${adminPath}`,
+      })
     }
 
     let body = {}
     try {
-      const chunks = []
-      for await (const chunk of req) chunks.push(chunk)
-      body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')
+      body = await readBody(req)
     } catch {
       return sendJson(res, 400, { error: 'JSON inválido.' })
     }
@@ -141,18 +271,16 @@ const server = createServer(async (req, res) => {
     })
   }
 
-  if (req.method === 'POST' && url.pathname === '/api/login/tenant') {
+  if (req.method === 'POST' && pathname === '/api/login/tenant') {
     const secret = getSecret()
-    const tenants = parseTenants()
+    const tenants = await loadTenants()
     if (!secret || tenants.length === 0) {
       return sendJson(res, 503, { error: 'Portal no configurado.' })
     }
 
     let body = {}
     try {
-      const chunks = []
-      for await (const chunk of req) chunks.push(chunk)
-      body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')
+      body = await readBody(req)
     } catch {
       return sendJson(res, 400, { error: 'JSON inválido.' })
     }
@@ -174,19 +302,18 @@ const server = createServer(async (req, res) => {
     })
   }
 
-  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
+  if (req.method === 'GET' && (pathname === '/' || pathname === '/index.html')) {
     const html = await readPublic('index.html')
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-    return res.end(html)
+    return sendHtml(res, html)
   }
 
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
   res.end('Not found')
 })
 
-server.listen(port, () => {
-  const tenants = parseTenants()
+server.listen(port, async () => {
+  const tenants = await loadTenants()
   process.stdout.write(
-    `[portal] listening on :${port} tenants=${tenants.length} secret=${getSecret() ? 'yes' : 'no'}\n`,
+    `[portal] listening on :${port} tenants=${tenants.length} sso=${getSecret() ? 'yes' : 'no'} admin=${isAdminConfigured() ? `/${adminPath}` : 'off'}\n`,
   )
 })

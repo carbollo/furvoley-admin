@@ -1,90 +1,65 @@
 # Portal central de acceso Furvoley
 
-Servicio ligero que muestra un **único login** y redirige al CRM correcto (Plantilla, furvoley, etc.) según las credenciales.
+Login único → redirige al CRM correcto. **Configura los CRMs desde un panel admin web**, sin JSON en Railway.
 
-## Cómo funciona
+## Configuración rápida en Railway
+
+### Servicio portal
+
+1. Root Directory: `services/portal`
+2. Rama: **`testing`**
+3. Volumen montado en **`/data`** (persiste la lista de CRMs)
+4. Variables:
+
+| Variable | Qué poner |
+|----------|-----------|
+| `PORTAL_ADMIN_PASSWORD` | Tu contraseña secreta para el panel admin |
+| `PORTAL_SSO_SECRET` | Clave larga (la misma en portal y en cada CRM) |
+
+**Ya no hace falta `PORTAL_TENANTS`** (opcional solo para migrar datos la primera vez).
+
+### Panel admin (tú)
+
+Tras el deploy, abre:
 
 ```text
-Usuario → Portal (login) → verify en cada tenant → SSO token → CRM del club
+https://TU-URL-PORTAL/__furvoley-config
 ```
 
-1. El usuario entra email + contraseña en el portal.
-2. El portal llama a `POST /api/portal/verify` en cada tenant configurado (con `PORTAL_SSO_SECRET`).
-3. Si hay una sola coincidencia, genera un token SSO y redirige a `{tenant}/api/portal/sso?token=...`.
-4. El tenant valida el token, crea la cookie de sesión NextAuth y abre el CRM.
+1. Contraseña = valor de `PORTAL_ADMIN_PASSWORD`
+2. **Añadir CRM:** nombre + URL pública (`https://furvoley.up.railway.app`)
+3. Pulsa **Probar conexión** → debe decir que el CRM responde y tiene SSO activo
 
-Si la misma cuenta existe en varios clubs, el portal muestra un selector.
+### Cada CRM (Plantilla, furvoley, …)
 
-## Despliegue en Railway
-
-### Antes de nada: rama correcta
-
-El portal está en la rama **`testing`** del repo. Si Railway despliega **`master`**, fallará con:
+Solo añade y redeploy:
 
 ```text
-directory .../services/portal does not exist
+PORTAL_SSO_SECRET=la-misma-clave-que-en-el-portal
 ```
 
-**Solución (elige una):**
+## Login de usuarios
 
-1. En Railway → servicio portal → **Settings** → **Source** → cambia la rama a **`testing`**, o
-2. Haz merge de `testing` → `master` y despliega `master`.
+Los usuarios entran en la **URL raíz del portal** (`/`), no en el panel admin.
 
-### 1. Nuevo servicio `portal`
+## Rutas
 
-1. **New** → conecta el repo `furvoley-admin`.
-2. **Settings → Source → Root Directory:** `services/portal`
-3. **Settings → Build:** debe usar **Dockerfile** (no Railpack). Este repo incluye `railway.toml` para forzarlo.
-4. **No** pongas `services/portal` como ruta del Dockerfile si ya tienes Root Directory = `services/portal`; la ruta correcta es solo `Dockerfile`.
-5. **Networking:** genera dominio público.
+| Ruta | Quién |
+|------|--------|
+| `/` | Login usuarios |
+| `/__furvoley-config` | Panel admin (secreto; cambiable con `PORTAL_ADMIN_PATH`) |
+| `/health` | Healthcheck |
 
-### 2. Variables del portal
+## Variables opcionales
 
-| Variable | Ejemplo |
+| Variable | Default |
 |----------|---------|
-| `PORTAL_SSO_SECRET` | Clave larga aleatoria (misma en portal y en **todos** los tenants) |
-| `PORTAL_TENANTS` | Ver JSON abajo |
-
-Ejemplo `PORTAL_TENANTS`:
-
-```json
-[
-  {
-    "id": "plantilla",
-    "name": "Plantilla",
-    "url": "https://plantilla-production.up.railway.app"
-  },
-  {
-    "id": "furvoley",
-    "name": "Furvoley",
-    "url": "https://furvoley.up.railway.app"
-  }
-]
-```
-
-### 3. Variables en **cada** servicio CRM (Plantilla, furvoley, …)
-
-| Variable | Descripción |
-|----------|-------------|
-| `PORTAL_SSO_SECRET` | **La misma** clave que en el portal |
-| `NEXTAUTH_SECRET` | Secret propio del tenant (sin cambios) |
-| `NEXTAUTH_URL` | URL pública **de ese tenant** (sin cambios) |
-
-Sin `PORTAL_SSO_SECRET`, el tenant sigue funcionando con su login local en `/login`; el portal simplemente no podrá verificar credenciales allí.
-
-## Endpoints del tenant (app principal)
-
-| Ruta | Uso |
-|------|-----|
-| `POST /api/portal/verify` | Solo portal (Bearer `PORTAL_SSO_SECRET`) |
-| `GET /api/portal/sso?token=...` | Consume token y abre sesión |
-
-## Healthcheck
-
-`GET /health` → `{ ok: true, tenants: N }`
+| `PORTAL_ADMIN_PATH` | `__furvoley-config` |
+| `PORTAL_DATA_DIR` | `/data` |
+| `PORTAL_TENANTS` | Solo import inicial si el volumen está vacío |
 
 ## Notas
 
-- Cada tenant tiene su **PostgreSQL** independiente; el portal no guarda usuarios.
-- El token SSO caduca a los **60 segundos**.
-- Para producción, apunta el dominio principal de acceso al servicio **portal**, no a un tenant concreto.
+- Monta volumen en `/data` o perderás la lista de CRMs al redeploy.
+- El token SSO caduca a 60 s.
+- Cada CRM sigue con su PostgreSQL propio.
