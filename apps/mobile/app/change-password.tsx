@@ -1,8 +1,11 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { useState } from 'react'
 import { useRouter } from 'expo-router'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { Field, PrimaryButton } from '@/components/ui'
 import { isStaffRole, useAuth } from '@/context/AuthContext'
 import { changePassword } from '@/lib/crm-api'
+import { theme } from '@/lib/theme'
 
 export default function ChangePasswordScreen() {
   const { session, refreshSession } = useAuth()
@@ -34,50 +37,29 @@ export default function ChangePasswordScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <Text style={styles.title}>Cambia tu contraseña</Text>
-      <Text style={styles.subtitle}>Debes actualizar la contraseña antes de continuar.</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <TextInput
-        secureTextEntry
-        placeholder="Nueva contraseña"
-        value={newPassword}
-        onChangeText={setNewPassword}
-        style={styles.input}
-      />
-      <TextInput
-        secureTextEntry
-        placeholder="Confirmar contraseña"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        style={styles.input}
-      />
-      <Pressable style={styles.button} disabled={busy} onPress={() => void onSubmit()}>
-        <Text style={styles.buttonText}>{busy ? 'Guardando…' : 'Guardar'}</Text>
-      </Pressable>
-    </View>
+    <SafeAreaView style={styles.screen}>
+      <View style={styles.card}>
+        <Text style={styles.title}>Cambia tu contraseña</Text>
+        <Text style={styles.subtitle}>Debes actualizar la contraseña antes de continuar.</Text>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Field label="Nueva contraseña" secureTextEntry value={newPassword} onChangeText={setNewPassword} />
+        <Field label="Confirmar contraseña" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
+        <PrimaryButton label={busy ? 'Guardando…' : 'Guardar y continuar'} disabled={busy} onPress={() => void onSubmit()} />
+      </View>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f8fafc', padding: 24, justifyContent: 'center' },
-  title: { fontSize: 24, fontWeight: '800', color: '#0f172a' },
-  subtitle: { marginTop: 8, marginBottom: 20, color: '#64748b' },
-  error: { color: '#be123c', marginBottom: 12 },
-  input: {
+  screen: { flex: 1, backgroundColor: theme.bg, padding: 24, justifyContent: 'center' },
+  card: {
+    backgroundColor: theme.surface,
+    borderRadius: 18,
+    padding: 24,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 14,
-    backgroundColor: '#fff',
+    borderColor: theme.border,
   },
-  button: {
-    backgroundColor: '#0058be',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  buttonText: { color: '#fff', fontWeight: '700' },
+  title: { fontSize: 24, fontWeight: '800', color: theme.text },
+  subtitle: { marginTop: 8, marginBottom: 16, color: theme.textMuted, lineHeight: 20 },
+  error: { color: theme.danger, marginBottom: 12 },
 })

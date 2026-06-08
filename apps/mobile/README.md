@@ -1,6 +1,18 @@
 # Furvoley Mobile (Expo)
 
-App nativa con login por el **portal central** y acceso al CRM del tenant con token Bearer.
+App **nativa** (React Native + Expo Router). No usa WebView ni embebe el panel web del club: toda la interfaz es propia de la app y los datos llegan por **API REST** del CRM.
+
+## Arquitectura
+
+```
+App móvil (UI nativa)
+  → Portal central: login / selector de club
+  → CRM del tenant: JWT Bearer + /api/mobile/* y /api/crm/*
+```
+
+- **Socio:** Inicio, Calendario, Pagos, Mural
+- **Staff:** Dashboard, Socios, Equipos
+- **Pagos:** la app llama `POST /api/invoices/:id/checkout` y abre Stripe en el navegador del sistema (flujo estándar de pago con tarjeta)
 
 ## Requisitos
 
@@ -55,14 +67,16 @@ Escanea el QR con Expo Go.
 1. Email/contraseña → portal `/api/portal-central/mobile/login`
 2. Si hay varios clubs → selector → `/mobile/login/tenant`
 3. Intercambio SSO → CRM `/api/portal/mobile/exchange` → JWT en SecureStore
-4. Socios → tabs Inicio / Calendario / Pagos / Mural
-5. Staff (admin/coach/tesorero) → Dashboard / Socios / Equipos
+4. La app carga branding del club (`/api/mobile/me`) y pinta la UI nativa
+5. Socios → tabs Inicio / Calendario / Pagos / Mural
+6. Staff (admin/coach/tesorero) → Dashboard / Socios / Equipos
 
 ## Checklist de prueba
 
 - [ ] Login con un solo club
 - [ ] Login con cuenta en varios clubs (409)
-- [ ] Socio ve home y facturas
+- [ ] Socio ve home, calendario y facturas
+- [ ] Pago de factura abre checkout Stripe
 - [ ] Admin ve KPIs y listado de socios
 - [ ] Logout y vuelta a login
 - [ ] Cambio de contraseña obligatorio (`mustChangePassword`)

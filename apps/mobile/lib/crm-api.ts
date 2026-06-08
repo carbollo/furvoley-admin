@@ -56,3 +56,9 @@ export function changePassword(
     body: JSON.stringify(body),
   })
 }
+
+export function createInvoiceCheckout(session: AuthSession, invoiceId: string) {
+  return crmFetch<{ url: string }>(session, `/api/invoices/${invoiceId}/checkout`, {
+    method: 'POST',
+  })
+}

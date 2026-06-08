@@ -1,7 +1,9 @@
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { useEffect } from 'react'
-import { ActivityIndicator, View } from 'react-native'
+import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, routeForSession, useAuth } from '@/context/AuthContext'
+import { ClubProvider } from '@/context/ClubContext'
+import { LoadingView } from '@/components/ui'
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth()
@@ -23,29 +25,27 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [session, loading, segments, router])
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#0058be" />
-      </View>
-    )
-  }
+  if (loading) return <LoadingView label="Iniciando app…" />
 
   return <>{children}</>
 }
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AuthGate>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="login" />
-          <Stack.Screen name="pick-club" />
-          <Stack.Screen name="change-password" />
-          <Stack.Screen name="(member)" />
-          <Stack.Screen name="(staff)" />
-        </Stack>
-      </AuthGate>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <ClubProvider>
+          <AuthGate>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="login" />
+              <Stack.Screen name="pick-club" />
+              <Stack.Screen name="change-password" />
+              <Stack.Screen name="(member)" />
+              <Stack.Screen name="(staff)" />
+            </Stack>
+          </AuthGate>
+        </ClubProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   )
 }

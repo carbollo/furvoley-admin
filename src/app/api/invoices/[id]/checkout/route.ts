@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { createInvoiceCheckoutUrl } from '@/lib/stripe-checkout'
 import { normalizeRole } from '@/lib/rbac'
+import { getSessionFromRequest } from '@/lib/session'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions)
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSessionFromRequest(req)
   if (!session?.user) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }

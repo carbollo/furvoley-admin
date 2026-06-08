@@ -1,25 +1,50 @@
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { useEffect, useState } from 'react'
+import { useRouter } from 'expo-router'
+import { useCallback, useEffect, useState } from 'react'
+import { View } from 'react-native'
+import { LogoutButton } from '@/components/LogoutButton'
+import {
+  AppScreen,
+  Card,
+  EmptyState,
+  ErrorView,
+  ListRow,
+  LoadingView,
+  PrimaryButton,
+  SectionTitle,
+  StatCard,
+} from '@/components/ui'
 import { useAuth } from '@/context/AuthContext'
 import { getHome } from '@/lib/crm-api'
+import { fmtDate, fmtMoney, theme } from '@/lib/theme'
 
 export default function MemberHomeScreen() {
   const { session } = useAuth()
+  const router = useRouter()
   const [data, setData] = useState<Record<string, unknown> | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!session) return
-    getHome(session)
-      .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
-      .finally(() => setLoading(false))
+    setError('')
+    try {
+      setData(await getHome(session))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [session])
 
+  useEffect(() => {
+    void load()
+  }, [load])
+
   if (!session) return null
-  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color="#0058be" />
-  if (error) return <Text style={styles.error}>{error}</Text>
+  if (loading) return <LoadingView />
+  if (error) return <ErrorView message={error} onRetry={() => void load()} />
 
   const firstName = String(data?.firstName || 'Socio')
   const debt = Number(data?.debt || 0)
@@ -27,57 +52,53 @@ export default function MemberHomeScreen() {
   const events = (data?.upcomingTeamEvents as Array<{ title: string; date: string }>) || []
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      <Text style={styles.greeting}>Hola, {firstName}</Text>
-      <Text style={styles.date}>{String(data?.dateStrPretty || '')}</Text>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Pagos</Text>
-        <Text style={styles.cardValue}>{debt.toFixed(2)} € pendientes</Text>
-        {data?.nextDueLabel ? <Text style={styles.muted}>{String(data.nextDueLabel)}</Text> : null}
+    <AppScreen
+      title={`Hola, ${firstName}`}
+      subtitle={String(data?.dateStrPretty || '')}
+      refreshing={refreshing}
+      onRefresh={() => {
+        setRefreshing(true)
+        void load()
+      }}
+      headerRight={<LogoutButton />}
+    >
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        <StatCard label="Deuda pendiente" value={fmtMoney(debt)} tone={debt > 0 ? 'danger' : 'primary'} />
+        <StatCard label="Equipos" value={String(teams.length)} tone="primary" />
       </View>
+
+      {debt > 0 ? (
+        <PrimaryButton label="Ver mis pagos" onPress={() => router.push('/(member)/billing')} />
+      ) : null}
+
+      {data?.nextDueLabel ? (
+        <Card>
+          <Text style={{ color: theme.textMuted, fontSize: 13 }}>Próximo vencimiento</Text>
+          <Text style={{ marginTop: 6, fontSize: 17, fontWeight: '700', color: theme.text }}>
+            {String(data.nextDueLabel)}
+          </Text>
+        </Card>
+      ) : null}
+
       {teams.length > 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Tus equipos</Text>
+        <>
+          <SectionTitle>Tus equipos</SectionTitle>
           {teams.map((t) => (
-            <Text key={t.name} style={styles.row}>
-              {t.name} · {t.role}
-            </Text>
+            <ListRow key={t.name} title={t.name} subtitle={t.role} />
           ))}
-        </View>
-      ) : null}
+        </>
+      ) : (
+        <EmptyState title="Sin equipos asignados" body="Cuando te asignen a un equipo aparecerá aquí." />
+      )}
+
       {events.length > 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Próximos eventos</Text>
+        <>
+          <SectionTitle>Próximos eventos</SectionTitle>
           {events.map((e) => (
-            <Text key={`${e.title}-${e.date}`} style={styles.row}>
-              {new Date(e.date).toLocaleDateString('es-ES')} — {e.title}
-            </Text>
+            <ListRow key={`${e.title}-${e.date}`} title={e.title} subtitle={fmtDate(e.date)} />
           ))}
-        </View>
+        </>
       ) : null}
-      <Pressable style={styles.linkBtn} onPress={() => void Linking.openURL(session.tenantUrl)}>
-        <Text style={styles.linkText}>Abrir panel web del club</Text>
-      </Pressable>
-    </ScrollView>
+    </AppScreen>
   )
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#ecedf7' },
-  greeting: { fontSize: 26, fontWeight: '800', color: '#191b23' },
-  date: { color: '#424754', marginBottom: 8 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(194,198,214,0.4)',
-  },
-  cardTitle: { fontWeight: '700', color: '#191b23', marginBottom: 8 },
-  cardValue: { fontSize: 22, fontWeight: '800', color: '#0058be' },
-  muted: { marginTop: 6, color: '#727785' },
-  row: { color: '#424754', marginBottom: 6 },
-  error: { color: '#be123c', padding: 16 },
-  linkBtn: { alignItems: 'center', padding: 12 },
-  linkText: { color: '#0058be', fontWeight: '600' },
-})

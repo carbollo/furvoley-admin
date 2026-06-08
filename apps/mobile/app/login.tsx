@@ -1,9 +1,12 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { useState } from 'react'
 import { useRouter } from 'expo-router'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { Field, PrimaryButton } from '@/components/ui'
 import { isStaffRole, useAuth } from '@/context/AuthContext'
 import { loadSession } from '@/lib/auth-storage'
 import { getPortalUrl } from '@/lib/config'
+import { theme } from '@/lib/theme'
 
 export default function LoginScreen() {
   const { login } = useAuth()
@@ -36,61 +39,45 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen}>
+      <View style={styles.hero}>
+        <Text style={styles.brand}>Furvoley</Text>
+        <Text style={styles.tagline}>Tu club en el móvil</Text>
+      </View>
       <View style={styles.card}>
-        <Text style={styles.title}>Furvoley</Text>
-        <Text style={styles.subtitle}>Inicia sesión y te llevaremos al panel de tu club.</Text>
+        <Text style={styles.title}>Iniciar sesión</Text>
+        <Text style={styles.subtitle}>Accede con tu cuenta del portal central.</Text>
         {!getPortalUrl() ? (
           <Text style={styles.error}>Define EXPO_PUBLIC_PORTAL_URL en apps/mobile/.env</Text>
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Text style={styles.label}>Correo electrónico</Text>
-        <TextInput
+        <Field
+          label="Correo electrónico"
           autoCapitalize="none"
           keyboardType="email-address"
           value={email}
           onChangeText={setEmail}
-          style={styles.input}
         />
-        <Text style={styles.label}>Contraseña</Text>
-        <TextInput secureTextEntry value={password} onChangeText={setPassword} style={styles.input} />
-        <Pressable style={[styles.button, busy && styles.buttonDisabled]} disabled={busy} onPress={onSubmit}>
-          <Text style={styles.buttonText}>{busy ? 'Entrando…' : 'Entrar'}</Text>
-        </Pressable>
+        <Field label="Contraseña" secureTextEntry value={password} onChangeText={setPassword} />
+        <PrimaryButton label={busy ? 'Entrando…' : 'Entrar'} disabled={busy} onPress={() => void onSubmit()} />
       </View>
-    </View>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f8fafc', justifyContent: 'center', padding: 24 },
+  screen: { flex: 1, backgroundColor: theme.navy, padding: 24, justifyContent: 'center' },
+  hero: { alignItems: 'center', marginBottom: 28 },
+  brand: { color: '#fff', fontSize: 34, fontWeight: '900' },
+  tagline: { color: 'rgba(255,255,255,0.72)', marginTop: 6, fontSize: 15 },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: theme.surface,
+    borderRadius: 18,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: theme.border,
   },
-  title: { fontSize: 28, fontWeight: '800', textAlign: 'center', color: '#0f172a' },
-  subtitle: { marginTop: 8, marginBottom: 20, textAlign: 'center', color: '#64748b', lineHeight: 20 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6, color: '#0f172a' },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 14,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: '#0058be',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  error: { color: '#be123c', marginBottom: 12, lineHeight: 20 },
+  title: { fontSize: 22, fontWeight: '800', color: theme.text },
+  subtitle: { marginTop: 6, marginBottom: 16, color: theme.textMuted, lineHeight: 20 },
+  error: { color: theme.danger, marginBottom: 12, lineHeight: 20 },
 })

@@ -1,48 +1,67 @@
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { Text } from 'react-native'
+import { LogoutButton } from '@/components/LogoutButton'
+import { AppScreen, Card, EmptyState, ErrorView, LoadingView } from '@/components/ui'
 import { useAuth } from '@/context/AuthContext'
 import { getMural } from '@/lib/crm-api'
+import { fmtDateTime, theme } from '@/lib/theme'
 
 export default function MemberMuralScreen() {
   const { session } = useAuth()
   const [posts, setPosts] = useState<Array<Record<string, unknown>>>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!session) return
-    getMural(session)
-      .then((d) => setPosts((d.posts as Array<Record<string, unknown>>) || []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
-      .finally(() => setLoading(false))
+    setError('')
+    try {
+      const d = await getMural(session)
+      setPosts((d.posts as Array<Record<string, unknown>>) || [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [session])
 
-  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color="#0058be" />
-  if (error) return <Text style={styles.error}>{error}</Text>
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  if (loading) return <LoadingView />
+  if (error) return <ErrorView message={error} onRetry={() => void load()} />
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={{ padding: 16, gap: 10 }}>
+    <AppScreen
+      title="Mural"
+      subtitle="Noticias y avisos del club"
+      refreshing={refreshing}
+      onRefresh={() => {
+        setRefreshing(true)
+        void load()
+      }}
+      headerRight={<LogoutButton />}
+    >
       {posts.length === 0 ? (
-        <Text style={styles.empty}>No hay noticias publicadas.</Text>
+        <EmptyState title="Sin noticias" body="El club aún no ha publicado avisos en el mural." />
       ) : (
         posts.map((post) => (
-          <View key={String(post.id)} style={styles.card}>
-            <Text style={styles.title}>{String(post.title)}</Text>
-            <Text style={styles.content}>{String(post.content)}</Text>
-            {post.authorName ? <Text style={styles.meta}>{String(post.authorName)}</Text> : null}
-          </View>
+          <Card key={String(post.id)}>
+            <Text style={{ fontSize: 17, fontWeight: '800', color: theme.text }}>{String(post.title)}</Text>
+            <Text style={{ marginTop: 10, color: theme.textSecondary, lineHeight: 22 }}>{String(post.content)}</Text>
+            {post.authorName || post.publishedAt ? (
+              <Text style={{ marginTop: 10, color: theme.textMuted, fontSize: 12 }}>
+                {[post.authorName ? String(post.authorName) : null, post.publishedAt ? fmtDateTime(String(post.publishedAt)) : null]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            ) : null}
+          </Card>
         ))
       )}
-    </ScrollView>
+    </AppScreen>
   )
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#ecedf7' },
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#e2e8f0' },
-  title: { fontWeight: '700', color: '#191b23', fontSize: 16 },
-  content: { color: '#424754', marginTop: 8, lineHeight: 20 },
-  meta: { color: '#727785', marginTop: 8, fontSize: 12 },
-  empty: { color: '#727785', textAlign: 'center', marginTop: 24 },
-  error: { color: '#be123c', padding: 16 },
-})

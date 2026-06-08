@@ -1,50 +1,64 @@
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { LogoutButton } from '@/components/LogoutButton'
+import { AppScreen, EmptyState, ErrorView, ListRow, LoadingView, SectionTitle } from '@/components/ui'
 import { useAuth } from '@/context/AuthContext'
 import { getCalendar } from '@/lib/crm-api'
+import { fmtDateTime } from '@/lib/theme'
 
 export default function MemberCalendarScreen() {
   const { session } = useAuth()
   const [events, setEvents] = useState<Array<Record<string, unknown>>>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!session) return
-    getCalendar(session)
-      .then((d) => setEvents((d.events as Array<Record<string, unknown>>) || []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Error'))
-      .finally(() => setLoading(false))
+    setError('')
+    try {
+      const d = await getCalendar(session)
+      setEvents((d.events as Array<Record<string, unknown>>) || [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [session])
 
-  if (loading) return <ActivityIndicator style={{ marginTop: 40 }} color="#0058be" />
-  if (error) return <Text style={styles.error}>{error}</Text>
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  if (loading) return <LoadingView />
+  if (error) return <ErrorView message={error} onRetry={() => void load()} />
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={{ padding: 16, gap: 10 }}>
+    <AppScreen
+      title="Calendario"
+      subtitle="Entrenamientos, partidos y eventos del club"
+      refreshing={refreshing}
+      onRefresh={() => {
+        setRefreshing(true)
+        void load()
+      }}
+      headerRight={<LogoutButton />}
+    >
       {events.length === 0 ? (
-        <Text style={styles.empty}>No hay eventos próximos.</Text>
+        <EmptyState title="Sin eventos próximos" body="No hay nada programado en las próximas semanas." />
       ) : (
         events.map((e) => (
-          <View key={String(e.id)} style={styles.card}>
-            <Text style={styles.title}>{String(e.title)}</Text>
-            <Text style={styles.meta}>
-              {new Date(String(e.date)).toLocaleString('es-ES')} · {String(e.type)}
-            </Text>
-            {e.teamName ? <Text style={styles.meta}>{String(e.teamName)}</Text> : null}
-            {e.location ? <Text style={styles.meta}>{String(e.location)}</Text> : null}
-          </View>
+          <ListRow
+            key={String(e.id)}
+            title={String(e.title)}
+            subtitle={[fmtDateTime(String(e.date)), String(e.type)].filter(Boolean).join(' · ')}
+            meta={[e.teamName ? String(e.teamName) : null, e.location ? String(e.location) : null]
+              .filter(Boolean)
+              .join(' · ')}
+          />
         ))
       )}
-    </ScrollView>
+      {events.length > 0 ? <SectionTitle>{`${events.length} eventos`}</SectionTitle> : null}
+    </AppScreen>
   )
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#ecedf7' },
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#e2e8f0' },
-  title: { fontWeight: '700', color: '#191b23', fontSize: 16 },
-  meta: { color: '#727785', marginTop: 4 },
-  empty: { color: '#727785', textAlign: 'center', marginTop: 24 },
-  error: { color: '#be123c', padding: 16 },
-})

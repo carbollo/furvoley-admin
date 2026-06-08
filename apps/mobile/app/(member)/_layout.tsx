@@ -1,35 +1,52 @@
-import { Tabs, useRouter } from 'expo-router'
-import { Pressable, Text } from 'react-native'
-import { useAuth } from '@/context/AuthContext'
-
-function LogoutButton() {
-  const { logout } = useAuth()
-  const router = useRouter()
-  return (
-    <Pressable
-      onPress={() => void logout().then(() => router.replace('/login'))}
-      style={{ marginRight: 12 }}
-    >
-      <Text style={{ color: '#0058be', fontWeight: '600' }}>Salir</Text>
-    </Pressable>
-  )
-}
+import { Ionicons } from '@expo/vector-icons'
+import { Tabs } from 'expo-router'
+import { theme } from '@/lib/theme'
 
 export default function MemberLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: true,
-        headerStyle: { backgroundColor: '#141b2b' },
-        headerTintColor: '#fff',
-        tabBarActiveTintColor: '#0058be',
-        headerRight: () => <LogoutButton />,
+        headerShown: false,
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.textMuted,
+        tabBarStyle: {
+          backgroundColor: theme.surface,
+          borderTopColor: theme.border,
+          height: 62,
+          paddingBottom: 8,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Inicio', tabBarLabel: 'Inicio' }} />
-      <Tabs.Screen name="calendar" options={{ title: 'Calendario' }} />
-      <Tabs.Screen name="billing" options={{ title: 'Mis Pagos' }} />
-      <Tabs.Screen name="mural" options={{ title: 'Mural' }} />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Inicio',
+          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: 'Calendario',
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="billing"
+        options={{
+          title: 'Pagos',
+          tabBarIcon: ({ color, size }) => <Ionicons name="card-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="mural"
+        options={{
+          title: 'Mural',
+          tabBarIcon: ({ color, size }) => <Ionicons name="newspaper-outline" size={size} color={color} />,
+        }}
+      />
     </Tabs>
   )
 }

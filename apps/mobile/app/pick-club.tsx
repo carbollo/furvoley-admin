@@ -1,8 +1,9 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
-import { useAuth } from '@/context/AuthContext'
-import { isStaffRole } from '@/context/AuthContext'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { isStaffRole, useAuth } from '@/context/AuthContext'
+import { theme } from '@/lib/theme'
 
 export default function PickClubScreen() {
   const { pendingPick, pickClub } = useAuth()
@@ -34,34 +35,35 @@ export default function PickClubScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen}>
       <Text style={styles.title}>Elige tu club</Text>
       <Text style={styles.subtitle}>Esta cuenta existe en varios clubs.</Text>
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <ScrollView contentContainerStyle={{ gap: 10 }}>
+      <ScrollView contentContainerStyle={{ gap: 10, paddingBottom: 24 }}>
         {pendingPick.tenants.map((t) => (
           <Pressable key={t.id} style={styles.item} disabled={busy} onPress={() => void choose(t.id)}>
             <Text style={styles.itemTitle}>{t.name}</Text>
-            <Text style={styles.itemUrl}>{t.url}</Text>
+            <Text style={styles.itemHint}>Pulsa para entrar en este club</Text>
           </Pressable>
         ))}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f8fafc', padding: 24, paddingTop: 64 },
-  title: { fontSize: 24, fontWeight: '800', color: '#0f172a' },
-  subtitle: { marginTop: 8, marginBottom: 20, color: '#64748b' },
-  error: { color: '#be123c', marginBottom: 12 },
+  screen: { flex: 1, backgroundColor: theme.bg, padding: 24 },
+  title: { fontSize: 28, fontWeight: '800', color: theme.text, marginTop: 12 },
+  subtitle: { marginTop: 8, marginBottom: 20, color: theme.textMuted, lineHeight: 20 },
+  error: { color: theme.danger, marginBottom: 12 },
   item: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: theme.surface,
+    borderRadius: theme.radius,
+    padding: 18,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: theme.border,
+    ...theme.shadow,
   },
-  itemTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
-  itemUrl: { marginTop: 4, color: '#64748b', fontSize: 12 },
+  itemTitle: { fontSize: 17, fontWeight: '800', color: theme.text },
+  itemHint: { marginTop: 6, color: theme.textMuted, fontSize: 13 },
 })
