@@ -48,7 +48,9 @@ Si el portal y los CRMs están en el **mismo proyecto Railway**, configura en ca
 | URL interna | `http://furvoley-admin-copy.railway.internal:8080` |
 
 La URL interna la ves en el CRM → **Settings → Private Networking** (`<servicio>.railway.internal`).
-Añade el **puerto** del servicio (p. ej. `:8080`) si no responde sin él.
+**Debe ser el hostname del servicio CRM**, no del portal. Añade el puerto del CRM (p. ej. `:8080`).
+
+Si falla la conexión: redeploy del CRM (escucha en `::` para IPv6) y define `PORTAL_SSO_SECRET` en el CRM.
 
 El portal usa la URL interna solo para `/api/portal/verify` (server-to-server).
 El redirect SSO al usuario sigue usando la URL pública.

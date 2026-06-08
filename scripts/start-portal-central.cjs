@@ -15,9 +15,11 @@ if (!String(process.env.NEXTAUTH_SECRET || '').trim()) {
   }
 }
 
+const nextStartArgs = require('./next-start-args.cjs')
+
 const child = spawn(
   process.platform === 'win32' ? 'npx.cmd' : 'npx',
-  ['next', 'start'],
+  nextStartArgs(),
   { stdio: 'inherit', env: process.env },
 )
 

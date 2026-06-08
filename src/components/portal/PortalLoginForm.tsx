@@ -240,6 +240,8 @@ export function PortalAdminPanel() {
   }
 
   async function testTenant(tenantId: string) {
+    setError('')
+    setOkMsg('')
     setBusy(true)
     try {
       const r = await fetch('/api/portal-central/admin/tenants/' + encodeURIComponent(tenantId), {
@@ -247,8 +249,11 @@ export function PortalAdminPanel() {
         credentials: 'include',
       })
       const data = await r.json().catch(() => ({}))
-      setOkMsg(data.message || 'Listo')
-      if (!data.ok) setError(data.message || 'Fallo la prueba')
+      if (data.ok) {
+        setOkMsg(data.message || 'CRM accesible.')
+      } else {
+        setError(data.message || 'Fallo la prueba')
+      }
     } catch {
       setError('Error de red')
     } finally {
@@ -306,12 +311,12 @@ export function PortalAdminPanel() {
             <input
               value={internalUrl}
               onChange={(e) => setInternalUrl(e.target.value)}
-              placeholder="http://furvoley-admin-copy.railway.internal:8080"
+              placeholder="http://furvoley.railway.internal:8080"
               style={darkInput}
             />
             <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 12, lineHeight: 1.5 }}>
-              El portal usa la URL interna solo para verificar credenciales (server-to-server).
-              Tras el login, el navegador sigue yendo a la URL pública.
+              Copia el hostname de <strong>Private Networking del servicio CRM</strong> (no del portal).
+              Sin puerto se usa :8080. La URL pública no lleva <code>/login</code>.
             </p>
             <button type="button" disabled={busy} onClick={() => void saveTenant()} style={buttonStyle}>
               Guardar CRM

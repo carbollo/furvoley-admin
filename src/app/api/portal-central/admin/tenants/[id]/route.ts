@@ -82,11 +82,12 @@ export async function PUT(
       reachable: true,
       message: `CRM respondió HTTP ${r.status}.`,
     })
-  } catch {
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
     return NextResponse.json({
       ok: false,
       reachable: false,
-      message: `No se pudo conectar. Revisa la URL interna (${verifyBase}).`,
+      message: `No se pudo conectar a ${verifyBase}. ${detail}. Comprueba host, puerto (:8080) y PORTAL_SSO_SECRET en el CRM.`,
     })
   }
 }

@@ -12,18 +12,39 @@ export type PortalTenant = {
 }
 
 function normalizeBaseUrl(raw: string | null | undefined, requireHttps = false) {
-  let url = String(raw || '')
-    .trim()
-    .replace(/\/+$/, '')
+  let url = String(raw || '').trim()
   if (!url) return ''
   if (!/^https?:\/\//i.test(url)) url = `http://${url}`
+  try {
+    const parsed = new URL(url)
+    url = `${parsed.protocol}//${parsed.host}`
+  } catch {
+    url = url.replace(/\/+$/, '')
+  }
   if (requireHttps && !/^https:\/\//i.test(url)) return ''
   return url
 }
 
+function withRailwayInternalPort(url: string) {
+  try {
+    const parsed = new URL(url)
+    if (!parsed.hostname.endsWith('.railway.internal') || parsed.port) return url
+    const fallbackPort = String(
+      process.env.PORTAL_TENANT_INTERNAL_PORT || process.env.PORT || '8080',
+    ).trim()
+    if (!fallbackPort) return url
+    parsed.port = fallbackPort
+    return parsed.origin
+  } catch {
+    return url
+  }
+}
+
 /** Base URL para llamadas internas del portal al CRM (verify, probe). */
 export function tenantVerifyBaseUrl(tenant: PortalTenant) {
-  return normalizeBaseUrl(tenant.internalUrl || tenant.url)
+  const base = normalizeBaseUrl(tenant.internalUrl || tenant.url)
+  if (tenant.internalUrl) return withRailwayInternalPort(base)
+  return base
 }
 
 /** Base URL pública del CRM (redirect SSO). */
