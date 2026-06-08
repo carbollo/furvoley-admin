@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-/** Next.js must listen on :: so Railway private networking (IPv6) can reach the app. */
+/** Optional HOSTNAME override (e.g. :: for Railway private IPv6). Default: Next.js listens on 0.0.0.0. */
 module.exports = function nextStartArgs() {
-  const host = String(process.env.HOSTNAME || '::').trim() || '::'
+  const host = String(process.env.HOSTNAME || '').trim()
+  if (!host) return ['next', 'start']
   return ['next', 'start', '-H', host]
 }
