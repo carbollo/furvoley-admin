@@ -63,9 +63,9 @@ export async function AppShell({
   }
 
   return (
-    <>
+    <div style={{ display: 'flex', width: '100%', minHeight: '100vh' }}>
       <Sidebar branding={branding} />
       <main style={flush ? mainStyleNoPad : mainStyle}>{children}</main>
-    </>
+    </div>
   )
 }

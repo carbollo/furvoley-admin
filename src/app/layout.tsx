@@ -22,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${inter.className} bg-slate-50 text-slate-900 flex`}>
+      <body className={`${inter.className} min-h-screen w-full bg-slate-50 text-slate-900`}>
         <Providers>{children}</Providers>
       </body>
     </html>

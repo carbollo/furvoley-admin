@@ -6,7 +6,19 @@ export default function PortalAdminPage() {
 
   if (!isPortalCentralHost()) {
     return (
-      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#0f172a', color: '#f8fafc' }}>
+      <div
+        style={{
+          width: '100%',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          boxSizing: 'border-box',
+          background: '#0f172a',
+          color: '#f8fafc',
+        }}
+      >
         <div style={{ maxWidth: 520, lineHeight: 1.6 }}>
           <h1 style={{ marginTop: 0 }}>Panel admin del portal</h1>
           <p>
@@ -23,7 +35,7 @@ export default function PortalAdminPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a' }}>
+    <div style={{ width: '100%', minHeight: '100vh', background: '#0f172a' }}>
       <PortalAdminPanel />
     </div>
   )

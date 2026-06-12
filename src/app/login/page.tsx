@@ -32,7 +32,18 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="w-screen min-h-screen flex items-center justify-center bg-slate-50">
+    <div
+      style={{
+        width: '100%',
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        boxSizing: 'border-box',
+        background: '#f8fafc',
+      }}
+    >
       <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100 w-full max-w-md">
         <h1 className="text-2xl font-bold text-center mb-6">Iniciar Sesión</h1>
         
