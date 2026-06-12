@@ -1,5 +1,6 @@
 import { getSafeServerSession } from '@/lib/session'
 import { redirect } from 'next/navigation'
+import { AuthCard, AuthScreen } from '@/components/auth/AuthScreen'
 import { ChangePasswordForm } from './ChangePasswordForm'
 
 export const dynamic = 'force-dynamic'
@@ -13,26 +14,17 @@ export default async function ChangePasswordPage() {
   const mustChange = (session.user as { mustChangePassword?: boolean }).mustChangePassword === true
 
   return (
-    <div
-      className="w-screen min-h-screen flex items-center justify-center"
-      style={{ background: '#f9f9ff', padding: 24 }}
-    >
-      <div
-        className="w-full rounded-2xl"
-        style={{
-          maxWidth: 480,
-          background: '#fff',
-          border: '1px solid rgba(194,198,214,0.4)',
-          boxShadow: '0 10px 30px rgba(15,23,42,0.08)',
-          padding: 36,
-        }}
-      >
-        <div className="flex flex-col items-center text-center" style={{ gap: 8 }}>
+    <AuthScreen background="#f9f9ff">
+      <AuthCard maxWidth={480} style={{ padding: 36 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 8 }}>
           <div
-            className="rounded-full flex items-center justify-center"
             style={{
               width: 64,
               height: 64,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               background: 'rgba(0,88,190,0.1)',
               color: '#0058be',
               marginBottom: 8,
@@ -64,7 +56,7 @@ export default async function ChangePasswordPage() {
         <div style={{ marginTop: 28 }}>
           <ChangePasswordForm forced={mustChange} />
         </div>
-      </div>
-    </div>
+      </AuthCard>
+    </AuthScreen>
   )
 }

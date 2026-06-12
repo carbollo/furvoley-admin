@@ -2,6 +2,39 @@
 
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
+import { AuthCard, AuthScreen } from '@/components/auth/AuthScreen'
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 14,
+  fontWeight: 600,
+  color: '#334155',
+  marginBottom: 6,
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  border: '1px solid #cbd5e1',
+  borderRadius: 10,
+  padding: '10px 14px',
+  fontSize: 16,
+  color: '#0f172a',
+  boxSizing: 'border-box',
+  marginBottom: 16,
+}
+
+const buttonStyle: React.CSSProperties = {
+  width: '100%',
+  border: 0,
+  borderRadius: 10,
+  padding: '12px 14px',
+  background: '#2563eb',
+  color: '#fff',
+  fontWeight: 700,
+  fontSize: 16,
+  cursor: 'pointer',
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -23,65 +56,53 @@ export default function LoginPage() {
     } else {
       const params = new URLSearchParams(window.location.search)
       const next = params.get('callbackUrl')
-      const safe =
-        next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
-      // Recarga completa: con router.push la cookie de sesión a veces no llega
-      // a tiempo al Server Component de "/" y aparece decryption failed / 500.
+      const safe = next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
       window.location.assign(safe)
     }
   }
 
   return (
-    <div
-      style={{
-        width: '100%',
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        boxSizing: 'border-box',
-        background: '#f8fafc',
-      }}
-    >
-      <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-100 w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6">Iniciar Sesión</h1>
-        
-        {error && (
-          <div className="bg-rose-50 text-rose-600 p-3 rounded-lg text-sm mb-4 text-center">
+    <AuthScreen>
+      <AuthCard maxWidth={448}>
+        <h1 style={{ margin: '0 0 24px', fontSize: 24, fontWeight: 800, textAlign: 'center', color: '#0f172a' }}>
+          Iniciar Sesión
+        </h1>
+
+        {error ? (
+          <div
+            style={{
+              background: '#fff1f2',
+              color: '#be123c',
+              border: '1px solid #fecdd3',
+              borderRadius: 10,
+              padding: '12px 14px',
+              fontSize: 14,
+              marginBottom: 16,
+              textAlign: 'center',
+            }}
+          >
             {error}
           </div>
-        )}
+        ) : null}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Correo electrónico</label>
-            <input 
-              type="email" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" 
-              required 
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
-            <input 
-              type="password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-slate-900" 
-              required 
-            />
-          </div>
-          <button 
-            type="submit" 
-            className="w-full bg-blue-600 text-white font-medium py-2 rounded-lg hover:bg-blue-700 transition"
-          >
+        <form onSubmit={handleSubmit}>
+          <label style={labelStyle}>Correo electrónico</label>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} required />
+
+          <label style={labelStyle}>Contraseña</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={inputStyle}
+            required
+          />
+
+          <button type="submit" style={buttonStyle}>
             Entrar
           </button>
         </form>
-      </div>
-    </div>
+      </AuthCard>
+    </AuthScreen>
   )
 }
