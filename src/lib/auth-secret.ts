@@ -1,11 +1,31 @@
-import { isPortalCentralHost } from '@/lib/portal-central/config'
+let cached: string | undefined | null = null
 
-/** NEXTAUTH_SECRET; en modo portal central puede reutilizar PORTAL_SSO_SECRET. */
-export function resolveNextAuthSecret() {
+/**
+ * Secreto para firmar JWT/cookies de NextAuth.
+ * Orden: NEXTAUTH_SECRET → PORTAL_SSO_SECRET (portal y CRMs lo comparten).
+ * Sincroniza process.env.NEXTAUTH_SECRET para que next-auth no lance NO_SECRET.
+ */
+export function resolveNextAuthSecret(): string | undefined {
+  if (cached !== null) return cached || undefined
+
   const explicit = String(process.env.NEXTAUTH_SECRET || '').trim()
-  if (explicit) return explicit
-  if (isPortalCentralHost()) {
-    return String(process.env.PORTAL_SSO_SECRET || '').trim() || undefined
+  if (explicit) {
+    cached = explicit
+    return explicit
   }
+
+  const sso = String(process.env.PORTAL_SSO_SECRET || '').trim()
+  if (sso) {
+    process.env.NEXTAUTH_SECRET = sso
+    cached = sso
+    return sso
+  }
+
+  cached = ''
   return undefined
+}
+
+/** Llamar al arranque (instrumentation) antes de cargar rutas auth. */
+export function ensureNextAuthSecret(): string | undefined {
+  return resolveNextAuthSecret()
 }
