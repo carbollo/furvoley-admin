@@ -1,0 +1,6 @@
+nombre,apellidos,email,telefono,dni,fecha_nacimiento,domicilio,deporte,fecha_alta,estado
+Ana,García López,ana.garcia@ejemplo.com,600111222,12345678A,2005-03-15,C/ Mayor 1 Vitoria,Voleibol,2026-01-10,activo
+Pedro,Ruiz Martín,pedro.ruiz@ejemplo.com,611222333,87654321B,1998-07-22,Av. Gasteiz 45,Voleibol,2026-01-15,activo
+Lucía,Fernández,,622333444,11223344C,2010-11-08,,Voleibol femenino,2026-02-01,activo
+Miguel,Torres Blanco,miguel.torres@ejemplo.com,633444555,99887766D,1995-01-30,Paseo de la Florida 12,Voleibol,2026-02-10,activo
+Sara,Navarro,,,,2008-09-05,,,2026-03-01,activo
