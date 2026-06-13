@@ -37,5 +37,5 @@ export async function POST(request: Request) {
   }
 
   const result = await runMembersBatchAction(memberIds, action, { status: body.status })
-  return NextResponse.json({ ok: result.ok, ...result })
+  return NextResponse.json(result)
 }
