@@ -222,7 +222,9 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
   const safeLabels = labels && labels.length === safeData.length ? labels : safeData.map(() => '');
   const max = Math.max(1, ...safeData, ...safeSecondary);
   const groupW = 62;
-  const chartW = safeData.length * groupW;
+  const slotCount = 12;
+  const startIdx = safeData.length >= slotCount ? 0 : Math.floor((slotCount - safeData.length) / 2);
+  const chartW = slotCount * groupW;
   const baseY = height - 28;
   const barMaxH = height - 62;
   return (
@@ -235,7 +237,8 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
         const v2 = safeSecondary[i] ?? 0;
         const h1 = max > 0 ? (v / max) * barMaxH : 0;
         const h2 = max > 0 ? (v2 / max) * barMaxH : 0;
-        const groupX = i * groupW;
+        const slot = startIdx + i;
+        const groupX = slot * groupW;
         const x = groupX + 11;
         const groupCenter = groupX + groupW / 2;
         const y1 = baseY - h1;
@@ -3697,7 +3700,8 @@ function Contabilidad({ setActive }) {
     ? Array.from({ length: 6 }, (_, i) => {
         const today = new Date()
         const d = new Date(today.getFullYear(), today.getMonth() - (5 - i), 1)
-        return d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '')
+        const raw = d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '')
+        return raw.charAt(0).toUpperCase() + raw.slice(1)
       })
     : ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
