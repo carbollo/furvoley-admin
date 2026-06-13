@@ -27,6 +27,7 @@ import {
 } from '@/lib/registration-fields'
 import { RegistrationFieldsForm } from '@/components/registration/RegistrationFieldsForm'
 import { MemberCombobox } from '@/components/crm/MemberCombobox'
+import { MembersCsvImportModal } from '@/components/crm/MembersCsvImportModal'
 
 type CrmCtx = {
   bundle: Record<string, unknown> | null
@@ -886,6 +887,7 @@ function Socios() {
   const [menuSocioId, setMenuSocioId] = useState<string | null>(null)
   const [menuSocioPos, setMenuSocioPos] = useState({ top: 0, right: 0 })
   const [showInscripcion, setShowInscripcion] = useState(false);
+  const [showCsvImport, setShowCsvImport] = useState(false);
   const [inscripcionBusy, setInscripcionBusy] = useState(false);
   const [showEditSocioModal, setShowEditSocioModal] = useState(false);
   const [editSocioBusy, setEditSocioBusy] = useState(false);
@@ -1308,6 +1310,19 @@ function Socios() {
           <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',gap:10}}>
             <InviteLinkButton />
             <PaymentReminderButton />
+            <button
+              type="button"
+              onClick={() => setShowCsvImport(true)}
+              style={{
+                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+                borderRadius:8,border:'1px solid var(--border)',cursor:'pointer',
+                background:'var(--surface-card)',color:'var(--text-primary)',
+                fontFamily:'inherit',fontSize:13,fontWeight:700,
+                transition:'all 0.15s'
+              }}
+            >
+              <Icon name="export" size={15}/>Importar CSV
+            </button>
             <button
               type="button"
               onClick={abrirFormularioInscripcion}
@@ -1866,6 +1881,19 @@ function Socios() {
             </div>
           </form>
         </div>
+      )}
+      {showCsvImport && (
+        <MembersCsvImportModal
+          open={showCsvImport}
+          onClose={() => setShowCsvImport(false)}
+          membershipPlans={membershipPlans}
+          fmtMoney={fmtMoney}
+          showAlert={showAlert}
+          onDone={async () => {
+            await reload()
+            await loadSociosDb()
+          }}
+        />
       )}
       {showInscripcion && (
         <div
