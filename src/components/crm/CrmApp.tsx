@@ -886,6 +886,9 @@ function Socios() {
   const [selected, setSelected] = useState(null);
   const [menuSocioId, setMenuSocioId] = useState<string | null>(null)
   const [menuSocioPos, setMenuSocioPos] = useState({ top: 0, right: 0 })
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [bulkMenu, setBulkMenu] = useState<{ top: number; left: number } | null>(null)
+  const [bulkBusy, setBulkBusy] = useState(false)
   const [showInscripcion, setShowInscripcion] = useState(false);
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [inscripcionBusy, setInscripcionBusy] = useState(false);
@@ -980,6 +983,7 @@ function Socios() {
       if (!(target instanceof Element)) return
       if (!target.closest('[data-socio-menu]')) {
         setMenuSocioId(null)
+        setBulkMenu(null)
       }
     }
     document.addEventListener('mousedown', closeMenu)
@@ -1148,6 +1152,89 @@ function Socios() {
     const right = Math.max(12, window.innerWidth - r.right)
     setMenuSocioPos({ top: r.bottom + 6, right })
     setMenuSocioId((prev) => (prev === socio.id ? null : socio.id))
+    setBulkMenu(null)
+  }
+
+  function toggleSelectSocio(id: string, e?: React.MouseEvent) {
+    e?.stopPropagation()
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAllOnPage(e?: React.MouseEvent) {
+    e?.stopPropagation()
+    const pageIds = filtered.map((s) => s.id)
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id))
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (allSelected) pageIds.forEach((id) => next.delete(id))
+      else pageIds.forEach((id) => next.add(id))
+      return next
+    })
+  }
+
+  function openBulkMenu(e: React.MouseEvent, seedId?: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    setMenuSocioId(null)
+    if (seedId && !selectedIds.has(seedId)) {
+      setSelectedIds(new Set([seedId]))
+    }
+    const count = seedId && !selectedIds.has(seedId) ? 1 : selectedIds.size
+    if (count === 0) return
+    setBulkMenu({ top: e.clientY, left: e.clientX })
+  }
+
+  async function runBulkAction(
+    action: 'delete' | 'reset-portal-access' | 'set-status' | 'send-payment-reminder',
+    extra?: { status?: string; confirmMessage?: string },
+  ) {
+    setBulkMenu(null)
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+
+    if (extra?.confirmMessage) {
+      let ok = false
+      try {
+        ok = await showConfirm(extra.confirmMessage)
+      } catch {
+        ok = typeof window !== 'undefined' ? window.confirm(extra.confirmMessage) : true
+      }
+      if (!ok) return
+    }
+
+    setBulkBusy(true)
+    try {
+      const r = await fetch('/api/crm/members/batch', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberIds: ids, action, status: extra?.status }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        showAlert(j.error || 'No se pudo completar la acción en lote')
+        return
+      }
+      const errCount = Number(j.failed || 0)
+      const okCount = Number(j.succeeded || 0)
+      if (errCount > 0 && Array.isArray(j.errors) && j.errors.length > 0) {
+        const sample = j.errors.slice(0, 3).map((e: { message: string }) => e.message).join(' · ')
+        showAlert(`${okCount} correctos, ${errCount} fallidos. ${sample}`)
+      } else {
+        showAlert(`Acción completada en ${okCount} socio${okCount === 1 ? '' : 's'}.`)
+      }
+      setSelectedIds(new Set())
+      if (selected && ids.includes(selected.id)) setSelected(null)
+      await reload()
+      await loadSociosDb()
+    } finally {
+      setBulkBusy(false)
+    }
   }
 
   async function eliminarSocio(socio: any) {
@@ -1451,7 +1538,11 @@ function Socios() {
         </div>
       )}
       {/* Table card: Directorio de socios */}
-      <div style={{background:'var(--surface-card)',borderRadius:12,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',overflow:'visible',position:'relative'}}>
+      <div
+        data-socio-menu
+        style={{background:'var(--surface-card)',borderRadius:12,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',overflow:'visible',position:'relative'}}
+        onContextMenu={(e) => openBulkMenu(e)}
+      >
         <div style={{padding:'24px 32px',borderBottom:'1px solid var(--border)'}}>
           <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Directorio de socios</div>
           <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>
@@ -1460,9 +1551,56 @@ function Socios() {
               : `${sociosTotal.toLocaleString('es-ES')} ${sociosTotal === 1 ? 'resultado' : 'resultados'} · página ${sociosPage} de ${sociosTotalPages}`}
           </div>
         </div>
+        {selectedIds.size > 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap',
+              padding: '12px 32px',
+              background: 'var(--accent-pill)',
+              borderBottom: '1px solid var(--border)',
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
+              {selectedIds.size} seleccionado{selectedIds.size === 1 ? '' : 's'}
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Clic derecho para acciones en lote{bulkBusy ? ' · procesando…' : ''}
+            </span>
+            <button
+              type="button"
+              disabled={bulkBusy}
+              onClick={() => setSelectedIds(new Set())}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-card)',
+                cursor: bulkBusy ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              Deseleccionar
+            </button>
+          </div>
+        ) : null}
         <table style={{width:'100%',borderCollapse:'collapse'}}>
           <thead>
             <tr style={{background:'var(--surface-low)'}}>
+              <th style={{ padding:'12px 16px', width: 44 }}>
+                <input
+                  type="checkbox"
+                  checked={filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id))}
+                  onChange={() => toggleSelectAllOnPage()}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="Seleccionar todos en la página"
+                />
+              </th>
               {['Socio','DNI','Deporte','Categoría','Cuota','Vencimiento','Estado',''].map(h => (
                 <th key={h} style={{
                   padding:'12px 32px',textAlign:'left',fontSize:11,
@@ -1473,17 +1611,29 @@ function Socios() {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={8} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>No hay socios que coincidan con los filtros.</td></tr>
+              <tr><td colSpan={9} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>No hay socios que coincidan con los filtros.</td></tr>
             )}
             {filtered.map((s) => (
-              <tr key={s.id} onClick={() => setSelected(s)} style={{
+              <tr
+                key={s.id}
+                onClick={() => setSelected(s)}
+                onContextMenu={(e) => openBulkMenu(e, s.id)}
+                style={{
                 borderTop:'1px solid var(--border)',cursor:'pointer',
-                background:selected?.id===s.id ? 'var(--accent-pill)' : 'transparent',
+                background:selectedIds.has(s.id) ? 'var(--accent-pill)' : selected?.id===s.id ? 'var(--accent-pill)' : 'transparent',
                 transition:'background 0.15s'
               }}
-              onMouseEnter={(e) => { if (selected?.id !== s.id) e.currentTarget.style.background = 'var(--surface-low)' }}
-              onMouseLeave={(e) => { if (selected?.id !== s.id) e.currentTarget.style.background = 'transparent' }}
+              onMouseEnter={(e) => { if (selected?.id !== s.id && !selectedIds.has(s.id)) e.currentTarget.style.background = 'var(--surface-low)' }}
+              onMouseLeave={(e) => { if (selected?.id !== s.id && !selectedIds.has(s.id)) e.currentTarget.style.background = 'transparent' }}
               >
+                <td style={{ padding:'16px 16px' }} onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(s.id)}
+                    onChange={() => toggleSelectSocio(s.id)}
+                    aria-label={`Seleccionar ${s.nombre}`}
+                  />
+                </td>
                 <td style={{padding:'16px 32px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:12}}>
                     <Avatar initials={s.avatar} color="var(--accent-soft)" size={36}/>
@@ -1634,6 +1784,59 @@ function Socios() {
             >
               Eliminar socio
             </button>
+          </div>
+        )}
+        {bulkMenu && selectedIds.size > 0 && (
+          <div
+            data-socio-menu
+            style={{
+              position: 'fixed',
+              top: bulkMenu.top,
+              left: bulkMenu.left,
+              minWidth: 220,
+              background: '#fff',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              boxShadow: '0 14px 26px rgba(15,23,42,0.16)',
+              zIndex: 1300,
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+              {selectedIds.size} socio{selectedIds.size === 1 ? '' : 's'}
+            </div>
+            {[
+              { label: 'Marcar como activo', action: () => void runBulkAction('set-status', { status: 'ACTIVE' }) },
+              { label: 'Marcar como inactivo', action: () => void runBulkAction('set-status', { status: 'INACTIVE' }) },
+              { label: 'Marcar en pausa', action: () => void runBulkAction('set-status', { status: 'PAUSED' }) },
+              { label: 'Resetear acceso portal', action: () => void runBulkAction('reset-portal-access', { confirmMessage: `¿Resetear acceso portal de ${selectedIds.size} socio(s)?` }) },
+              { label: 'Recordatorio de cobro (WhatsApp)', action: () => void runBulkAction('send-payment-reminder') },
+              { label: 'Eliminar seleccionados', danger: true, action: () => void runBulkAction('delete', { confirmMessage: `¿Eliminar ${selectedIds.size} socio(s)? No se puede deshacer.` }) },
+            ].map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                disabled={bulkBusy}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={item.action}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '10px 12px',
+                  border: 'none',
+                  borderBottom: '1px solid var(--border)',
+                  background: '#fff',
+                  cursor: bulkBusy ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  color: item.danger ? '#b91c1c' : '#374151',
+                  fontWeight: item.danger ? 700 : 600,
+                  opacity: bulkBusy ? 0.6 : 1,
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
         )}
       </div>
