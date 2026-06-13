@@ -221,42 +221,63 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
   const safeSecondary = secondaryData.length === safeData.length ? secondaryData : safeData.map(() => 0);
   const safeLabels = labels && labels.length === safeData.length ? labels : safeData.map(() => '');
   const max = Math.max(1, ...safeData, ...safeSecondary);
+  const slotCount = safeData.length;
   const groupW = 62;
-  const slotCount = 12;
-  const startIdx = safeData.length >= slotCount ? 0 : Math.floor((slotCount - safeData.length) / 2);
   const chartW = slotCount * groupW;
-  const baseY = height - 28;
-  const barMaxH = height - 62;
+  const svgHeight = height - 26;
+  const baseY = svgHeight - 8;
+  const barMaxH = svgHeight - 42;
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${chartW} ${height}`} preserveAspectRatio="none">
-      {[0, 1, 2, 3].map((r) => {
-        const y = 18 + r * ((baseY - 18) / 3);
-        return <line key={r} x1="0" y1={y} x2={chartW} y2={y} stroke="#e2e8f0" strokeWidth="1" />;
-      })}
-      {safeData.map((v, i) => {
-        const v2 = safeSecondary[i] ?? 0;
-        const h1 = max > 0 ? (v / max) * barMaxH : 0;
-        const h2 = max > 0 ? (v2 / max) * barMaxH : 0;
-        const slot = startIdx + i;
-        const groupX = slot * groupW;
-        const x = groupX + 11;
-        const groupCenter = groupX + groupW / 2;
-        const y1 = baseY - h1;
-        const y2 = baseY - h2;
-        return (
-          <g key={i}>
-            <rect x={x} y={y1} width="16" height={h1} rx="5" fill={color} opacity="0.9" />
-            <rect x={x + 24} y={y2} width="16" height={h2} rx="5" fill={secondaryColor} opacity="0.88" />
-            <rect x={groupX} y={18} width={groupW} height={baseY - 10} fill="transparent">
-              <title>{`${safeLabels[i]} · Ingresos: ${Math.round(v)} · Gastos: ${Math.round(v2)}`}</title>
-            </rect>
-            <text x={groupCenter} y={height - 8} textAnchor="middle" fontSize="10.5" fill="#64748b" fontFamily="Plus Jakarta Sans" fontWeight="600">
-              {safeLabels[i]}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+    <div style={{ width: '100%' }}>
+      <svg width="100%" height={svgHeight} viewBox={`0 0 ${chartW} ${svgHeight}`} preserveAspectRatio="none">
+        {[0, 1, 2, 3].map((r) => {
+          const y = 12 + r * ((baseY - 12) / 3);
+          return <line key={r} x1="0" y1={y} x2={chartW} y2={y} stroke="#e2e8f0" strokeWidth="1" />;
+        })}
+        {safeData.map((v, i) => {
+          const v2 = safeSecondary[i] ?? 0;
+          const h1 = max > 0 ? (v / max) * barMaxH : 0;
+          const h2 = max > 0 ? (v2 / max) * barMaxH : 0;
+          const groupX = i * groupW;
+          const x = groupX + 11;
+          const y1 = baseY - h1;
+          const y2 = baseY - h2;
+          return (
+            <g key={i}>
+              <rect x={x} y={y1} width="16" height={h1} rx="5" fill={color} opacity="0.9" />
+              <rect x={x + 24} y={y2} width="16" height={h2} rx="5" fill={secondaryColor} opacity="0.88" />
+              <rect x={groupX} y={12} width={groupW} height={baseY - 4} fill="transparent">
+                <title>{`${safeLabels[i]} · Ingresos: ${Math.round(v)} · Gastos: ${Math.round(v2)}`}</title>
+              </rect>
+            </g>
+          );
+        })}
+      </svg>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: 6,
+          padding: '0 18px',
+        }}
+      >
+        {safeLabels.map((label, i) => (
+          <span
+            key={`${label}-${i}`}
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              fontSize: 11,
+              fontWeight: 600,
+              color: '#64748b',
+              letterSpacing: '0.01em',
+            }}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
