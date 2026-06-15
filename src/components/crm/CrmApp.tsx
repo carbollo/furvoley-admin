@@ -1128,6 +1128,17 @@ function Socios() {
     const savedId = selected.id;
     const name = String(formEditSocio.name || '').trim();
     if (!name) return;
+
+    let ok = false;
+    try {
+      ok = await showConfirm(`¿Guardar los cambios en el perfil de "${name}"?`);
+    } catch {
+      ok = typeof window !== 'undefined'
+        ? window.confirm(`¿Guardar los cambios en el perfil de "${name}"?`)
+        : true;
+    }
+    if (!ok) return;
+
     setEditSocioBusy(true);
     try {
       const r = await fetch('/api/crm/members/' + savedId, {
@@ -1155,6 +1166,7 @@ function Socios() {
         return;
       }
       setShowEditSocioModal(false);
+      showAlert(`Datos de "${name}" actualizados correctamente.`);
       await reload();
       await loadSociosDb()
       const detailR = await fetch(`/api/crm/members?id=${encodeURIComponent(savedId)}`, {
