@@ -76,10 +76,33 @@ function CrmProvider({ children }: { children: ReactNode }) {
   }, [reload]);
   const fmtMoney = useCallback((n: number) => {
     const cur = String(bundle?.currency ?? 'EUR')
+    const value = Number(n)
+    if (!Number.isFinite(value)) return '—'
     try {
-      return new Intl.NumberFormat('es-AR', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(n);
+      const fmt = new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency: cur,
+        maximumFractionDigits: 0,
+      })
+      if (value < 0) {
+        const parts = fmt.formatToParts(Math.abs(value))
+        let minusPlaced = false
+        return parts
+          .flatMap((p) => {
+            if (p.type === 'minusSign') return []
+            if (!minusPlaced && p.type === 'integer') {
+              minusPlaced = true
+              return [{ type: 'minusSign', value: '-' }, p]
+            }
+            return [p]
+          })
+          .map((p) => p.value)
+          .join('')
+      }
+      return fmt.format(value)
     } catch {
-      return '€' + Number(n).toLocaleString('es-AR');
+      const abs = Math.abs(value).toLocaleString('es-AR')
+      return value < 0 ? `€ -${abs}` : `€${abs}`
     }
   }, [bundle?.currency]);
 
