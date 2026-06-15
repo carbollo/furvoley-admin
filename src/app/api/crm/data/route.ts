@@ -311,8 +311,11 @@ export async function GET(request: Request) {
     fecha: e.date.toISOString().slice(0, 10),
     hora: `${String(e.date.getHours()).padStart(2, '0')}:${String(e.date.getMinutes()).padStart(2, '0')}`,
     tipo: TYPE_LABEL[e.type] ?? e.type,
+    typeCode: e.type,
+    teamId: e.teamId ?? '',
     equipo: e.team?.name ?? 'Club',
     lugar: e.location ?? '—',
+    location: e.location ?? '',
   }))
 
   const workflows = workflowsRaw.map((w) => {

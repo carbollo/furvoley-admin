@@ -4770,8 +4770,9 @@ function Calendario({ setActive }) {
     month: todayRef.getMonth(),
   }));
   const [selectedDay, setSelectedDay] = useState(null);
-  const [showNuevoEventoModal, setShowNuevoEventoModal] = useState(false);
-  const [nuevoEventoBusy, setNuevoEventoBusy] = useState(false);
+  const [showEventoModal, setShowEventoModal] = useState(false);
+  const [editingEventId, setEditingEventId] = useState(null);
+  const [eventoBusy, setEventoBusy] = useState(false);
   const [formEvento, setFormEvento] = useState({
     teamId: '',
     title: '',
@@ -4858,6 +4859,7 @@ function Calendario({ setActive }) {
       setActive('equipos')
       return
     }
+    setEditingEventId(null)
     setFormEvento({
       teamId: EQUIPOS_UI[0].id,
       title: '',
@@ -4865,10 +4867,23 @@ function Calendario({ setActive }) {
       datetimeLocal: datetimeLocalValue(),
       location: '',
     })
-    setShowNuevoEventoModal(true)
+    setShowEventoModal(true)
   }
 
-  async function enviarNuevoEvento(e) {
+  function openEditEventoModal(ev) {
+    const [hh = '00', mm = '00'] = String(ev.hora || '').split(':')
+    setEditingEventId(ev.id)
+    setFormEvento({
+      teamId: ev.teamId || EQUIPOS_UI[0]?.id || '',
+      title: ev.titulo || '',
+      type: ev.typeCode || 'OTHER',
+      datetimeLocal: `${ev.fecha}T${hh}:${mm}`,
+      location: ev.location || '',
+    })
+    setShowEventoModal(true)
+  }
+
+  async function enviarEvento(e) {
     e.preventDefault()
     const title = String(formEvento.title || '').trim()
     const teamId = String(formEvento.teamId || '').trim()
@@ -4878,10 +4893,11 @@ function Calendario({ setActive }) {
       showAlert('Fecha u hora no válida.')
       return
     }
-    setNuevoEventoBusy(true)
+    setEventoBusy(true)
     try {
-      const r = await fetch('/api/crm/events', {
-        method: 'POST',
+      const isEdit = Boolean(editingEventId)
+      const r = await fetch(isEdit ? `/api/crm/events/${editingEventId}` : '/api/crm/events', {
+        method: isEdit ? 'PATCH' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -4893,7 +4909,7 @@ function Calendario({ setActive }) {
         }),
       })
       if (!r.ok) {
-        let msg = 'No se pudo crear el evento'
+        let msg = isEdit ? 'No se pudo actualizar el evento' : 'No se pudo crear el evento'
         try {
           const j = await r.json()
           msg = j.error || msg
@@ -4903,10 +4919,11 @@ function Calendario({ setActive }) {
         showAlert(msg)
         return
       }
-      setShowNuevoEventoModal(false)
+      setShowEventoModal(false)
+      setEditingEventId(null)
       await reload()
     } finally {
-      setNuevoEventoBusy(false)
+      setEventoBusy(false)
     }
   }
   const year = viewYm.year, month = viewYm.month;
@@ -5084,10 +5101,27 @@ function Calendario({ setActive }) {
                     {evts.slice(0,3).map(e => {
                       const tc = tipoColors[e.tipo] || 'var(--text-muted)';
                       return (
-                      <div key={e.id} style={{
+                      <div
+                        key={e.id}
+                        role="button"
+                        tabIndex={0}
+                        title={e.titulo}
+                        onClick={(ev) => {
+                          ev.stopPropagation()
+                          openEditEventoModal(e)
+                        }}
+                        onKeyDown={(ev) => {
+                          if (ev.key === 'Enter' || ev.key === ' ') {
+                            ev.preventDefault()
+                            ev.stopPropagation()
+                            openEditEventoModal(e)
+                          }
+                        }}
+                        style={{
                         fontSize:10,fontWeight:600,padding:'2px 6px',borderRadius:4,marginBottom:2,
                         background:`${tc}20`,color:tc,
-                        whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
+                        whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
+                        cursor:'pointer',
                       }}>{e.titulo}</div>
                     );})}
                     {evts.length > 3 && (
@@ -5110,15 +5144,31 @@ function Calendario({ setActive }) {
               {(selectedDay ? dayEvents(selectedDay) : monthEvents).map(e => {
                 const tc = tipoColors[e.tipo] || 'var(--text-muted)';
                 return (
-                  <div key={e.id} style={{
+                  <div
+                    key={e.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openEditEventoModal(e)}
+                    onKeyDown={(ev) => {
+                      if (ev.key === 'Enter' || ev.key === ' ') {
+                        ev.preventDefault()
+                        openEditEventoModal(e)
+                      }
+                    }}
+                    style={{
                     padding:14,borderRadius:10,
                     background:'var(--surface-low)',
-                    borderLeft:`3px solid ${tc}`
-                  }}>
+                    borderLeft:`3px solid ${tc}`,
+                    cursor:'pointer',
+                    transition:'background 0.15s',
+                  }}
+                    onMouseEnter={(ev) => { ev.currentTarget.style.background = 'var(--surface-card)' }}
+                    onMouseLeave={(ev) => { ev.currentTarget.style.background = 'var(--surface-low)' }}
+                  >
                     <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',marginBottom:4}}>{e.titulo}</div>
                     <div style={{fontSize:12,color:'var(--text-muted)',marginBottom:2}}>{new Date(e.fecha).toLocaleDateString('es-ES')} · {e.hora}</div>
-                    {e.lugar && <div style={{fontSize:12,color:'var(--text-muted)'}}>{e.lugar}</div>}
-                    <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap'}}>
+                    {e.lugar && e.lugar !== '—' && <div style={{fontSize:12,color:'var(--text-muted)'}}>{e.lugar}</div>}
+                    <div style={{display:'flex',gap:6,marginTop:8,flexWrap:'wrap',alignItems:'center'}}>
                       <span style={{
                         fontSize:11,fontWeight:700,padding:'3px 8px',borderRadius:999,
                         background:`${tc}20`,color:tc,letterSpacing:'0.02em'
@@ -5129,6 +5179,7 @@ function Calendario({ setActive }) {
                           background:'var(--surface-card)',color:'var(--text-secondary)',border:'1px solid var(--border)'
                         }}>{e.equipo}</span>
                       )}
+                      <span style={{marginLeft:'auto',fontSize:11,fontWeight:600,color:'var(--accent)'}}>Editar</span>
                     </div>
                   </div>
                 );
@@ -5141,7 +5192,7 @@ function Calendario({ setActive }) {
             </div>
           </div>
         </div>
-      {showNuevoEventoModal && (
+      {showEventoModal && (
         <div
           role="presentation"
           style={{
@@ -5155,16 +5206,17 @@ function Calendario({ setActive }) {
             padding: 20,
           }}
           onMouseDown={(e) => {
-            if (e.target !== e.currentTarget || nuevoEventoBusy) return;
-            setShowNuevoEventoModal(false);
+            if (e.target !== e.currentTarget || eventoBusy) return;
+            setShowEventoModal(false);
+            setEditingEventId(null);
           }}
         >
           <form
             role="dialog"
             aria-modal="true"
-            aria-labelledby="nuevo-evento-title"
+            aria-labelledby="evento-modal-title"
             onMouseDown={(e) => e.stopPropagation()}
-            onSubmit={enviarNuevoEvento}
+            onSubmit={enviarEvento}
             style={{
               width: '100%',
               maxWidth: 460,
@@ -5180,24 +5232,29 @@ function Calendario({ setActive }) {
           >
             <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div>
-                <h2 id="nuevo-evento-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
-                  Nuevo evento
+                <h2 id="evento-modal-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
+                  {editingEventId ? 'Editar evento' : 'Nuevo evento'}
                 </h2>
                 <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
-                  Elige equipo, tipo y fecha. Aparecerá en el calendario del club.
+                  {editingEventId
+                    ? 'Modifica equipo, tipo, fecha u hora. Los cambios se reflejan en el calendario.'
+                    : 'Elige equipo, tipo y fecha. Aparecerá en el calendario del club.'}
                 </p>
               </div>
               <button
                 type="button"
-                disabled={nuevoEventoBusy}
-                onClick={() => setShowNuevoEventoModal(false)}
+                disabled={eventoBusy}
+                onClick={() => {
+                  setShowEventoModal(false)
+                  setEditingEventId(null)
+                }}
                 style={{
                   border: 'none',
                   background: '#f1f5f9',
                   borderRadius: 10,
                   width: 36,
                   height: 36,
-                  cursor: nuevoEventoBusy ? 'not-allowed' : 'pointer',
+                  cursor: eventoBusy ? 'not-allowed' : 'pointer',
                   color: '#64748b',
                   display: 'flex',
                   alignItems: 'center',
@@ -5274,15 +5331,18 @@ function Calendario({ setActive }) {
             <div style={{ display: 'flex', gap: 10, marginTop: 26 }}>
               <button
                 type="button"
-                disabled={nuevoEventoBusy}
-                onClick={() => setShowNuevoEventoModal(false)}
+                disabled={eventoBusy}
+                onClick={() => {
+                  setShowEventoModal(false)
+                  setEditingEventId(null)
+                }}
                 style={{
                   flex: 1,
                   padding: '11px 16px',
                   borderRadius: 12,
                   border: '1.5px solid rgba(0,0,0,0.09)',
                   background: '#fff',
-                  cursor: nuevoEventoBusy ? 'not-allowed' : 'pointer',
+                  cursor: eventoBusy ? 'not-allowed' : 'pointer',
                   fontFamily: 'inherit',
                   fontSize: 14,
                   fontWeight: 600,
@@ -5293,22 +5353,24 @@ function Calendario({ setActive }) {
               </button>
               <button
                 type="submit"
-                disabled={nuevoEventoBusy}
+                disabled={eventoBusy}
                 style={{
                   flex: 1,
                   padding: '11px 16px',
                   borderRadius: 12,
                   border: 'none',
                   background: 'var(--accent)',
-                  cursor: nuevoEventoBusy ? 'not-allowed' : 'pointer',
+                  cursor: eventoBusy ? 'not-allowed' : 'pointer',
                   fontFamily: 'inherit',
                   fontSize: 14,
                   fontWeight: 600,
                   color: '#fff',
-                  opacity: nuevoEventoBusy ? 0.75 : 1,
+                  opacity: eventoBusy ? 0.75 : 1,
                 }}
               >
-                {nuevoEventoBusy ? 'Creando…' : 'Crear evento'}
+                {eventoBusy
+                  ? (editingEventId ? 'Guardando…' : 'Creando…')
+                  : (editingEventId ? 'Guardar cambios' : 'Crear evento')}
               </button>
             </div>
           </form>

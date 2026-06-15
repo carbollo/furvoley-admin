@@ -47,6 +47,7 @@ export async function updateEvent(
     location?: string
     description?: string
     status?: string
+    teamId?: string
   },
 ) {
   const prev = await prisma.event.findUnique({ where: { id } })
