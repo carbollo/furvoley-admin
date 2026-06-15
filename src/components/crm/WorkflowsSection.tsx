@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Zap, Plus, Download, Upload, BookOpen, X, Play } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { Zap, Plus, Download, Upload, BookOpen, X, Play, Search } from 'lucide-react'
 import { WORKFLOW_ACTION_OPTIONS } from '@/lib/crm-workflow-actions'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
 import { parseWorkflowsFromJson } from '@/lib/workflow-import'
@@ -145,6 +145,34 @@ export function WorkflowsSection({
   const [testMemberId, setTestMemberId] = useState('')
   const [testBusy, setTestBusy] = useState(false)
   const [testResult, setTestResult] = useState<WorkflowTestApiResult | null>(null)
+  const [search, setSearch] = useState('')
+  const [searchDebounced, setSearchDebounced] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const filteredWfs = useMemo(() => {
+    const q = searchDebounced.trim().toLowerCase()
+    if (!q) return wfs
+    return wfs.filter((w) => {
+      const nombre = String(w.nombre || '').toLowerCase()
+      const descripcion = String(w.descripcion || '').toLowerCase()
+      const trigger = String(w.trigger || '').toLowerCase()
+      const triggerLabel = workflowTriggerLabel(String(w.trigger || '')).toLowerCase()
+      const pasos = (w.pasos as Record<string, unknown>[]) || []
+      const pasosText = pasos
+        .map((p) => {
+          const action = WORKFLOW_ACTION_OPTIONS.find((o) => o.value === String(p.actionType))
+          return [String(p.actionType || ''), action?.label || ''].join(' ')
+        })
+        .join(' ')
+        .toLowerCase()
+      const estado = w.activo ? 'activo' : 'pausado'
+      return [nombre, descripcion, trigger, triggerLabel, pasosText, estado].some((s) => s.includes(q))
+    })
+  }, [wfs, searchDebounced])
 
   const activos = wfs.filter((w) => w.activo).length
   const totalPasos = wfs.reduce((a, w) => a + ((w.pasos as unknown[])?.length ?? 0), 0)
@@ -740,6 +768,45 @@ export function WorkflowsSection({
         ))}
       </div>
 
+      <div style={{ position: 'relative', maxWidth: 480 }}>
+        <span
+          style={{
+            position: 'absolute',
+            left: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--text-muted)',
+            pointerEvents: 'none',
+            display: 'flex',
+          }}
+        >
+          <Search size={16} />
+        </span>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar flujos por nombre, disparador o acción…"
+          style={{
+            width: '100%',
+            padding: '10px 12px 10px 38px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            fontFamily: 'inherit',
+            fontSize: 14,
+            background: 'var(--surface-card)',
+            outline: 'none',
+            color: 'var(--text-primary)',
+            boxSizing: 'border-box',
+          }}
+        />
+        {searchDebounced.trim() ? (
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+            {filteredWfs.length} de {wfs.length} flujos
+          </p>
+        ) : null}
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {wfs.length === 0 && (
           <div
@@ -756,7 +823,22 @@ export function WorkflowsSection({
             No hay flujos todavía. Crea uno para automatizar tareas al registrar socios.
           </div>
         )}
-        {wfs.map((w) => {
+        {wfs.length > 0 && filteredWfs.length === 0 && (
+          <div
+            style={{
+              background: 'var(--surface-card)',
+              borderRadius: 12,
+              padding: '32px 24px',
+              textAlign: 'center',
+              border: '1px dashed var(--border-strong)',
+              color: 'var(--text-muted)',
+              fontSize: 14,
+            }}
+          >
+            No hay flujos que coincidan con «{searchDebounced.trim()}».
+          </div>
+        )}
+        {filteredWfs.map((w) => {
           const pasos = (w.pasos as Record<string, unknown>[]) || []
           const first = pasos[0]
           const resumen = first
