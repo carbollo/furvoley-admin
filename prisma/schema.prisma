@@ -512,6 +512,22 @@ model BankStatementLine {
 
 // --- TEAMS AND PLANNING MODELS ---
 
+/// Categoría deportiva definida por edad (no por año de nacimiento fijo), de modo
+/// que el rango de años se recalcula solo cada temporada. Ej.: "Infantil" minAge 12,
+/// maxAge 13 → siempre los nacidos hace 12-13 años respecto al año actual.
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  minAge      Int?     // edad mínima (años). null = sin mínimo
+  maxAge      Int?     // edad máxima (años). null = sin máximo
+  defaultTeamId String? // equipo por defecto al que asignar los socios de esta categoría
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+}
+
 model Team {
   id              String       @id @default(cuid())
   name            String

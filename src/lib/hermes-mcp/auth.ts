@@ -1,8 +1,16 @@
+import { timingSafeEqual } from 'node:crypto'
 import { getHermesMcpApiKey, isHermesEnabled } from '@/lib/hermes-mcp/config'
 
 export type HermesAuthResult =
   | { ok: true; apiKey: string }
   | { ok: false; status: number; message: string }
+
+function timingSafeStringEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
 
 export async function verifyHermesMcpAuth(request: Request): Promise<HermesAuthResult> {
   if (!(await isHermesEnabled())) {
@@ -21,7 +29,7 @@ export async function verifyHermesMcpAuth(request: Request): Promise<HermesAuthR
   const header = request.headers.get('authorization') || ''
   const match = header.match(/^Bearer\s+(.+)$/i)
   const token = match?.[1]?.trim()
-  if (!token || token !== expected) {
+  if (!token || !timingSafeStringEqual(token, expected)) {
     return { ok: false, status: 401, message: 'API key MCP inválida' }
   }
 

@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
 import { findEventsStartingSoon } from '@/lib/team-calendar'
 import { runEventStartingSoonWorkflows } from '@/lib/workflow-engine'
+import { requireCronAuth } from '@/lib/cron-auth'
 
 export async function POST(request: Request) {
-  const secret = process.env.CRON_SECRET || process.env.BILLING_CRON_SECRET
-  const auth = request.headers.get('authorization')
-  if (secret && auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
 
   const events = await findEventsStartingSoon(90)
   let notified = 0

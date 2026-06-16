@@ -10,13 +10,22 @@ const ACTIONS = new Set<BatchAction>([
   'reset-portal-access',
   'set-status',
   'send-payment-reminder',
+  'assign-plan',
 ])
 
 export async function POST(request: Request) {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
 
-  let body: { memberIds?: string[]; action?: string; status?: string }
+  let body: {
+    memberIds?: string[]
+    action?: string
+    status?: string
+    planId?: string
+    startDate?: string
+    autoPay?: boolean
+    paymentRequiredOnEnrollment?: boolean
+  }
   try {
     body = await request.json()
   } catch {
@@ -36,6 +45,12 @@ export async function POST(request: Request) {
     memberIds.push(parsed)
   }
 
-  const result = await runMembersBatchAction(memberIds, action, { status: body.status })
+  const result = await runMembersBatchAction(memberIds, action, {
+    status: body.status,
+    planId: body.planId,
+    startDate: body.startDate,
+    autoPay: body.autoPay,
+    paymentRequiredOnEnrollment: body.paymentRequiredOnEnrollment,
+  })
   return NextResponse.json(result)
 }

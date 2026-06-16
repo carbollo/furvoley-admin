@@ -20,7 +20,7 @@ export default function CopyLinkButton({ eventId }: { eventId: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="inline-flex items-center justify-center p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+      className="inline-flex items-center justify-center p-2 text-stone-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
       title="Copiar enlace público"
     >
       {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}

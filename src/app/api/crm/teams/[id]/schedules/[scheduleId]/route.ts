@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
-import { requireRoles } from '@/lib/rbac-api'
+import { assertTeamAccess, requireRoles } from '@/lib/rbac-api'
 import { runTeamScheduleChangedWorkflows } from '@/lib/workflow-engine'
 
 type Params = { params: Promise<{ id: string; scheduleId: string }> }
@@ -15,6 +15,9 @@ export async function DELETE(_request: Request, { params }: Params) {
   if (parsedTeamId instanceof Response) return parsedTeamId
   const parsedScheduleId = parseCuid(scheduleId, 'scheduleId')
   if (parsedScheduleId instanceof Response) return parsedScheduleId
+
+  const denied = await assertTeamAccess(auth, parsedTeamId)
+  if (denied) return denied
   try {
     await prisma.teamSchedule.deleteMany({
       where: { id: parsedScheduleId, teamId: parsedTeamId },

@@ -87,28 +87,28 @@ export function EventGuestForm({ eventId, spotsLeft, hasPrice }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 text-left">
-      <div className="flex items-center gap-2 text-gray-900 font-semibold">
+      <div className="flex items-center gap-2 text-stone-900 font-semibold">
         <UserPlus className="h-5 w-5 text-blue-600" />
         Inscripción (invitado / público)
       </div>
       {hasPrice && (
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-stone-600">
           Precio por entrada según el evento. El pago lo coordinará el club contigo (transferencia, taquilla, etc.).
         </p>
       )}
       {spotsLeft !== null && (
-        <p className="text-sm text-gray-600">
-          Plazas disponibles: <span className="font-medium text-gray-900">{spotsLeft}</span>
+        <p className="text-sm text-stone-600">
+          Plazas disponibles: <span className="font-medium text-stone-900">{spotsLeft}</span>
         </p>
       )}
 
       {rows.map((row, index) => (
         <div
           key={row.key}
-          className="rounded-lg border border-gray-200 bg-gray-50/80 p-4 space-y-3"
+          className="rounded-lg border border-stone-200 bg-stone-50/80 p-4 space-y-3"
         >
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">
+            <span className="text-sm font-medium text-stone-700">
               {index === 0 ? "Titular (contacto)" : `Entrada ${index + 1}`}
             </span>
             {index > 0 && (
@@ -124,44 +124,44 @@ export function EventGuestForm({ eventId, spotsLeft, hasPrice }: Props) {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Nombre *</label>
+              <label className="block text-xs font-medium text-stone-600 mb-1">Nombre *</label>
               <input
                 required
                 value={row.firstName}
                 onChange={(e) => updateRow(row.key, "firstName", e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
                 autoComplete="given-name"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Apellidos *</label>
+              <label className="block text-xs font-medium text-stone-600 mb-1">Apellidos *</label>
               <input
                 required
                 value={row.lastName}
                 onChange={(e) => updateRow(row.key, "lastName", e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
                 autoComplete="family-name"
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">DNI / NIE *</label>
+              <label className="block text-xs font-medium text-stone-600 mb-1">DNI / NIE *</label>
               <input
                 required
                 value={row.dni}
                 onChange={(e) => updateRow(row.key, "dni", e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm uppercase"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm uppercase"
                 autoComplete="off"
               />
             </div>
             {index === 0 && (
               <div className="sm:col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono *</label>
+                <label className="block text-xs font-medium text-stone-600 mb-1">Teléfono *</label>
                 <input
                   required
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
                   autoComplete="tel"
                   placeholder="Ej: 612 345 678"
                 />

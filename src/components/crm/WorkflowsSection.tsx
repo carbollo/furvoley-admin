@@ -178,7 +178,7 @@ export function WorkflowsSection({
   const totalPasos = wfs.reduce((a, w) => a + ((w.pasos as unknown[])?.length ?? 0), 0)
 
   const triggerColors: Record<string, string> = { MEMBER_CREATED: '#10B981', MEMBER_UPDATED: '#0EA5E9' }
-  const colorTrig = (t: string) => triggerColors[t] || '#64748b'
+  const colorTrig = (t: string) => triggerColors[t] || '#78716c'
 
   const toggle = async (id: string) => {
     const r = await fetch(`/api/crm/workflows/${id}/toggle`, {
@@ -867,8 +867,8 @@ export function WorkflowsSection({
                     width: 44,
                     height: 44,
                     borderRadius: 12,
-                    background: w.activo ? 'var(--accent-light)' : '#F1F5F9',
-                    color: w.activo ? 'var(--accent)' : '#9ca3af',
+                    background: w.activo ? 'var(--accent-light)' : '#f4efe8',
+                    color: w.activo ? 'var(--accent)' : '#a8a29e',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -879,7 +879,7 @@ export function WorkflowsSection({
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{String(w.nombre)}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: '#1c1917' }}>{String(w.nombre)}</div>
                     {w.activo ? (
                       <span
                         style={{
@@ -900,8 +900,8 @@ export function WorkflowsSection({
                           fontWeight: 700,
                           padding: '2px 8px',
                           borderRadius: 999,
-                          background: '#F1F5F9',
-                          color: '#9ca3af',
+                          background: '#f4efe8',
+                          color: '#a8a29e',
                         }}
                       >
                         Pausado
@@ -909,7 +909,7 @@ export function WorkflowsSection({
                     )}
                   </div>
                   {w.descripcion ? (
-                    <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 8px', lineHeight: 1.45 }}>
+                    <p style={{ fontSize: 13, color: '#8c857d', margin: '0 0 8px', lineHeight: 1.45 }}>
                       {String(w.descripcion)}
                     </p>
                   ) : null}
@@ -926,10 +926,10 @@ export function WorkflowsSection({
                     >
                       ⚡ {workflowTriggerLabel(String(w.trigger))}
                     </span>
-                    <span style={{ color: '#9ca3af', fontSize: 12 }}>→</span>
-                    <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>{resumen}</span>
+                    <span style={{ color: '#a8a29e', fontSize: 12 }}>→</span>
+                    <span style={{ fontSize: 12, color: '#44403c', fontWeight: 500 }}>{resumen}</span>
                   </div>
-                  <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 8 }}>
+                  <div style={{ fontSize: 12, color: '#a8a29e', marginTop: 8 }}>
                     {pasos.length} paso{pasos.length === 1 ? '' : 's'}
                   </div>
                 </div>
@@ -969,7 +969,7 @@ export function WorkflowsSection({
                       border: '1px solid var(--border)',
                       background: '#fff',
                       cursor: catalogSaving === String(w.id) ? 'wait' : 'pointer',
-                      color: '#374151',
+                      color: '#44403c',
                       fontFamily: 'inherit',
                       fontSize: 13,
                       fontWeight: 600,
@@ -987,7 +987,7 @@ export function WorkflowsSection({
                       border: '1px solid var(--border)',
                       background: '#fff',
                       cursor: 'pointer',
-                      color: '#374151',
+                      color: '#44403c',
                       fontFamily: 'inherit',
                       fontSize: 13,
                       fontWeight: 600,
@@ -1004,7 +1004,7 @@ export function WorkflowsSection({
                       border: '1px solid var(--border)',
                       background: '#fff',
                       cursor: 'pointer',
-                      color: '#374151',
+                      color: '#44403c',
                       fontFamily: 'inherit',
                       fontSize: 13,
                       fontWeight: 600,
@@ -1038,7 +1038,7 @@ export function WorkflowsSection({
                       height: 24,
                       borderRadius: 12,
                       cursor: 'pointer',
-                      background: w.activo ? 'var(--green)' : '#D1D5DB',
+                      background: w.activo ? 'var(--green)' : '#d8cdbd',
                       position: 'relative',
                       transition: 'background 0.2s',
                       flexShrink: 0,
@@ -1153,12 +1153,12 @@ export function WorkflowsSection({
                   {testResult.ok ? 'Prueba completada' : 'Prueba con incidencias'}
                   {testResult.error ? ` — ${testResult.error}` : ''}
                 </div>
-                <div style={{ color: '#334155' }}>
+                <div style={{ color: '#44403c' }}>
                   Sujeto: <strong>{testResult.subjectName}</strong> ({testResult.subjectKind === 'lead' ? 'lead' : 'socio'})
                   · {testResult.stepsRun} paso(s)
                 </div>
                 {testResult.warnings?.length > 0 && (
-                  <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: '#64748b' }}>
+                  <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: '#78716c' }}>
                     {testResult.warnings.map((w) => (
                       <li key={w}>{w}</li>
                     ))}
@@ -1172,7 +1172,7 @@ export function WorkflowsSection({
                         style={{
                           padding: '6px 0',
                           borderTop: '1px solid rgba(0,0,0,0.06)',
-                          color: r.error ? '#b91c1c' : r.applied ? '#047857' : '#64748b',
+                          color: r.error ? '#b91c1c' : r.applied ? '#047857' : '#78716c',
                         }}
                       >
                         {actionLabel(r.actionType)}
@@ -1457,7 +1457,7 @@ export function WorkflowsSection({
                         <td style={{ padding: 8 }}>{e.area}</td>
                         <td style={{ padding: 8 }}>
                           {e.automation === 'manual' ? (
-                            <span style={{ color: '#64748b' }}>Manual</span>
+                            <span style={{ color: '#78716c' }}>Manual</span>
                           ) : e.installed ? (
                             <span style={{ color: '#16a34a', fontWeight: 600 }}>Instalado</span>
                           ) : (

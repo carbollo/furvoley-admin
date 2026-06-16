@@ -6,11 +6,11 @@ import { useState } from 'react'
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%',
-  border: '1px solid #cbd5e1',
+  border: '1px solid #d8cdbd',
   borderRadius: 10,
   padding: '10px 12px',
   fontSize: 14,
-  color: '#0f172a',
+  color: '#1c1917',
   outline: 'none',
   background: '#fff',
 }
@@ -18,7 +18,7 @@ const INPUT_STYLE: React.CSSProperties = {
 const LABEL_STYLE: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#334155',
+  color: '#44403c',
   marginBottom: 6,
   display: 'block',
 }
@@ -177,7 +177,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#64748b',
+            color: '#78716c',
             fontSize: 13,
             fontWeight: 600,
             cursor: 'pointer',

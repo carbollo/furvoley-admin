@@ -1,52 +1,59 @@
-/* Tokens del CRM "Elite Club Operations" (Stitch v2).
-   Identidad B2B/SaaS para Furvoley admin: sidebar deep slate,
-   accent azul corporativo, badges status, generous whitespace. */
+/* Sistema de diseño Furvoley — "Cálido y cercano".
+   Un único set de tokens para TODO el panel (CRM, portal del socio, sidebar):
+   neutros cálidos (stone), un azul de marca amable, esquinas redondeadas y
+   sombras suaves. Sustituye la mezcla anterior de slates fríos + morado. */
 :root {
-  /* Sidebar */
-  --sidebar-bg: #0f172a;
-  --sidebar-border: rgba(255, 255, 255, 0.06);
-  --sidebar-text: #94a3b8;
+  /* Sidebar — charcoal cálido (no slate frío) */
+  --sidebar-bg: #1c1917;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-text: #b3aaa1;
   --sidebar-text-hover: #ffffff;
   --sidebar-active: #ffffff;
-  --sidebar-active-bg: rgba(0, 74, 198, 0.14);
+  --sidebar-active-bg: rgba(37, 99, 235, 0.22);
 
-  /* Brand / accent */
-  --accent: #004ac6;
-  --accent-strong: #003ea8;
-  --accent-soft: #2563eb;
-  --accent-light: #eff4ff;
-  --accent-pill: rgba(0, 74, 198, 0.1);
+  /* Marca / acento — azul amable */
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: #3b82f6;
+  --accent-light: #eef4ff;
+  --accent-pill: rgba(37, 99, 235, 0.1);
 
-  /* Surfaces */
-  --surface: #f8f9ff;
+  /* Superficies — blanco roto cálido */
+  --surface: #faf7f2;
   --surface-card: #ffffff;
-  --surface-low: #eff4ff;
-  --surface-mid: #e5eeff;
-  --surface-high: #dce9ff;
-  --surface-tint: #0053db;
+  --surface-low: #f4efe8;
+  --surface-mid: #ece4d9;
+  --surface-high: #e3d9cb;
+  --surface-tint: #2563eb;
 
-  /* Text */
-  --text-primary: #0b1c30;
-  --text-secondary: #434655;
-  --text-muted: #737686;
+  /* Texto — casi negro cálido / stone */
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-muted: #8c857d;
 
-  /* Status */
-  --green: #059669;
-  --green-light: #ecfdf5;
-  --green-soft: rgba(5, 150, 105, 0.1);
+  /* Estado */
+  --green: #15803d;
+  --green-light: #f0fdf4;
+  --green-soft: rgba(21, 128, 61, 0.1);
 
   --amber: #b45309;
   --amber-light: #fffbeb;
   --amber-soft: rgba(245, 158, 11, 0.14);
 
-  --red: #b91c1c;
-  --red-light: #fef2f2;
-  --red-soft: rgba(186, 26, 26, 0.1);
+  --red: #be123c;
+  --red-light: #fff1f2;
+  --red-soft: rgba(190, 18, 60, 0.1);
 
-  /* Lines / shadows */
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-  --card-shadow-hover: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --card-shadow-lg: 0 10px 30px rgba(15, 23, 42, 0.08);
+  /* Líneas / sombras cálidas */
+  --border: #ebe3d8;
+  --border-strong: #d8cdbd;
+  --card-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
+  --card-shadow-hover: 0 6px 16px -6px rgba(28, 25, 23, 0.12);
+  --card-shadow-lg: 0 14px 34px rgba(28, 25, 23, 0.1);
+
+  /* Radios (cálido = más redondeado) */
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
 }

@@ -614,9 +614,21 @@ async function runMemberCreatedStepAction(
       return
     }
 
-    const maxAge = readNumber(step.config, 'maxAge')
-    const minAge = readNumber(step.config, 'minAge')
-    const teamId = readString(step.config, 'teamId')
+    // Si el paso referencia una categoría, su edad min/max y equipo por defecto
+    // mandan (se recalculan solos cada temporada). Si no, se usan los valores
+    // literales del paso (compatibilidad con flujos antiguos).
+    const categoryId = readString(step.config, 'categoryId')
+    let category: { minAge: number | null; maxAge: number | null; defaultTeamId: string | null } | null = null
+    if (categoryId) {
+      category = await prisma.category.findUnique({
+        where: { id: categoryId },
+        select: { minAge: true, maxAge: true, defaultTeamId: true },
+      })
+    }
+
+    const maxAge = category ? category.maxAge : readNumber(step.config, 'maxAge')
+    const minAge = category ? category.minAge : readNumber(step.config, 'minAge')
+    const teamId = readString(step.config, 'teamId') || category?.defaultTeamId || ''
     if (!teamId) {
       await setAssignedTeamResult(null, false)
       return

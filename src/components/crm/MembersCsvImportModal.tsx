@@ -99,14 +99,14 @@ export function MembersCsvImportModal({
     }
   }
 
-  const label = { fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 6, display: 'block' as const }
+  const label = { fontSize: 12, fontWeight: 600, color: '#a8a29e', marginBottom: 6, display: 'block' as const }
   const input = {
     width: '100%',
     padding: '11px 14px',
     borderRadius: 10,
-    border: '1px solid #334155',
-    background: '#1e293b',
-    color: '#f1f5f9',
+    border: '1px solid #44403c',
+    background: '#292524',
+    color: '#f4efe8',
     fontFamily: 'inherit',
     fontSize: 14,
     outline: 'none',
@@ -136,17 +136,17 @@ export function MembersCsvImportModal({
           maxWidth: 560,
           maxHeight: '90vh',
           overflowY: 'auto',
-          background: '#111827',
-          border: '1px solid #334155',
+          background: '#1c1917',
+          border: '1px solid #44403c',
           borderRadius: 16,
           padding: 28,
           boxShadow: '0 25px 50px -12px rgba(0,0,0,0.45)',
         }}
       >
-        <h2 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 800, color: '#f8fafc' }}>
+        <h2 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 800, color: '#faf7f2' }}>
           Importar socios (CSV)
         </h2>
-        <p style={{ margin: '0 0 18px', fontSize: 13, color: '#94a3b8', lineHeight: 1.5 }}>
+        <p style={{ margin: '0 0 18px', fontSize: 13, color: '#a8a29e', lineHeight: 1.5 }}>
           Sube un CSV con cabeceras. Columnas admitidas: nombre, apellidos, email, telefono, dni,
           fecha_nacimiento, domicilio, deporte, fecha_alta, estado.
         </p>
@@ -157,7 +157,7 @@ export function MembersCsvImportModal({
             style={{
               padding: '8px 14px',
               borderRadius: 8,
-              border: '1px solid #334155',
+              border: '1px solid #44403c',
               color: '#93c5fd',
               fontSize: 13,
               fontWeight: 600,
@@ -173,9 +173,9 @@ export function MembersCsvImportModal({
             style={{
               padding: '8px 14px',
               borderRadius: 8,
-              border: '1px solid #334155',
-              background: '#1e293b',
-              color: '#f1f5f9',
+              border: '1px solid #44403c',
+              background: '#292524',
+              color: '#f4efe8',
               fontFamily: 'inherit',
               fontSize: 13,
               fontWeight: 600,
@@ -194,7 +194,7 @@ export function MembersCsvImportModal({
         </div>
 
         {fileName ? (
-          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#cbd5e1' }}>Archivo: {fileName}</p>
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#d8cdbd' }}>Archivo: {fileName}</p>
         ) : null}
 
         <label style={label}>O pega el CSV aquí</label>
@@ -233,7 +233,7 @@ export function MembersCsvImportModal({
               ))}
             </select>
             {planId ? (
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, fontSize: 13, color: '#cbd5e1', cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, fontSize: 13, color: '#d8cdbd', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={paymentRequiredOnEnrollment}
@@ -246,7 +246,7 @@ export function MembersCsvImportModal({
           </div>
         ) : null}
 
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 18, fontSize: 13, color: '#cbd5e1', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 18, fontSize: 13, color: '#d8cdbd', cursor: 'pointer' }}>
           <input type="checkbox" checked={skipExisting} onChange={(e) => setSkipExisting(e.target.checked)} disabled={busy} />
           Omitir filas cuyo email ya exista en el club
         </label>
@@ -257,10 +257,10 @@ export function MembersCsvImportModal({
               marginBottom: 16,
               padding: 14,
               borderRadius: 10,
-              background: '#0f172a',
-              border: '1px solid #334155',
+              background: '#1c1917',
+              border: '1px solid #44403c',
               fontSize: 13,
-              color: '#e2e8f0',
+              color: '#ebe3d8',
               lineHeight: 1.5,
             }}
           >
@@ -273,7 +273,7 @@ export function MembersCsvImportModal({
               </div>
             ))}
             {result.parseErrors.length + result.errors.length > 8 ? (
-              <div style={{ color: '#94a3b8', marginTop: 6 }}>…y más avisos</div>
+              <div style={{ color: '#a8a29e', marginTop: 6 }}>…y más avisos</div>
             ) : null}
           </div>
         ) : null}
@@ -289,9 +289,9 @@ export function MembersCsvImportModal({
             style={{
               padding: '10px 16px',
               borderRadius: 8,
-              border: '1px solid #475569',
+              border: '1px solid #57534e',
               background: 'transparent',
-              color: '#cbd5e1',
+              color: '#d8cdbd',
               fontFamily: 'inherit',
               cursor: busy ? 'not-allowed' : 'pointer',
             }}

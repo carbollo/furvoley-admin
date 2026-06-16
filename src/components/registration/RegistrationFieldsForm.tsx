@@ -20,12 +20,12 @@ export function RegistrationFieldsForm({
   const enabled = fields.filter((f) => f.enabled).sort((a, b) => a.order - b.order)
   const isCrm = variant === 'crm'
 
-  const joinLabelCls = 'block text-[13px] font-semibold tracking-wide text-[#64748b] mb-2'
+  const joinLabelCls = 'block text-[13px] font-semibold tracking-wide text-[#78716c] mb-2'
   const crmLabelStyle: React.CSSProperties = {
     display: 'block',
     fontSize: 12,
     fontWeight: 600,
-    color: '#94a3b8',
+    color: '#a8a29e',
     marginBottom: 6,
   }
 
@@ -34,13 +34,13 @@ export function RegistrationFieldsForm({
     padding: '10px 12px',
     fontSize: 14,
     borderRadius: 10,
-    border: '1px solid #334155',
-    background: '#0f172a',
-    color: '#f8fafc',
+    border: '1px solid #44403c',
+    background: '#1c1917',
+    color: '#faf7f2',
   }
 
   const joinInputCls =
-    'w-full rounded-xl border px-4 py-3 text-[15px] text-[#111827] placeholder:text-neutral-400 outline-none transition-[box-shadow,border-color] focus:ring-2 focus:ring-[oklch(0.62_0.14_240_/_0.35)] bg-white'
+    'w-full rounded-xl border px-4 py-3 text-[15px] text-[#1c1917] placeholder:text-stone-400 outline-none transition-[box-shadow,border-color] focus:ring-2 focus:ring-[oklch(0.62_0.14_240_/_0.35)] bg-white'
 
   const borderInput = '1px solid rgba(0, 0, 0, 0.1)'
 

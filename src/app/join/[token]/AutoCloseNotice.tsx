@@ -15,7 +15,7 @@ export function AutoCloseNotice() {
   }, [])
 
   return (
-    <p className="text-[13px] text-[#64748b] mt-6 text-center">
+    <p className="text-[13px] text-[#78716c] mt-6 text-center">
       {closedAttempted
         ? 'Puedes cerrar esta pestaña.'
         : 'Esta ventana se cerrará automáticamente en unos segundos...'}

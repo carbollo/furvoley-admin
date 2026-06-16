@@ -8,17 +8,17 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: 14,
   fontWeight: 600,
-  color: '#334155',
+  color: '#44403c',
   marginBottom: 6,
 }
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  border: '1px solid #cbd5e1',
+  border: '1px solid #d8cdbd',
   borderRadius: 10,
   padding: '10px 14px',
   fontSize: 16,
-  color: '#0f172a',
+  color: '#1c1917',
   boxSizing: 'border-box',
   marginBottom: 16,
 }
@@ -64,7 +64,7 @@ export default function LoginPage() {
   return (
     <AuthScreen>
       <AuthCard maxWidth={448}>
-        <h1 style={{ margin: '0 0 24px', fontSize: 24, fontWeight: 800, textAlign: 'center', color: '#0f172a' }}>
+        <h1 style={{ margin: '0 0 24px', fontSize: 24, fontWeight: 800, textAlign: 'center', color: '#1c1917' }}>
           Iniciar Sesión
         </h1>
 

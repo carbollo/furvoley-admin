@@ -164,10 +164,10 @@ function CrmProvider({ children }: { children: ReactNode }) {
               padding: 22,
             }}
           >
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#111827', marginBottom: 8 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#1c1917', marginBottom: 8 }}>
               {popup.kind === 'confirm' ? 'Confirmar acción' : 'Aviso'}
             </div>
-            <div style={{ fontSize: 14, color: '#475569', lineHeight: 1.5, marginBottom: 18 }}>
+            <div style={{ fontSize: 14, color: '#57534e', lineHeight: 1.5, marginBottom: 18 }}>
               {popup.message}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
@@ -180,7 +180,7 @@ function CrmProvider({ children }: { children: ReactNode }) {
                     borderRadius: 10,
                     border: '1px solid var(--border)',
                     background: '#fff',
-                    color: '#475569',
+                    color: '#57534e',
                     cursor: 'pointer',
                     fontFamily: 'inherit',
                     fontWeight: 600,
@@ -251,11 +251,12 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
   const baseY = svgHeight - 8;
   const barMaxH = svgHeight - 42;
   return (
-    <div style={{ width: '100%' }}>
-      <svg width="100%" height={svgHeight} viewBox={`0 0 ${chartW} ${svgHeight}`} preserveAspectRatio="none">
+    <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+     <div style={{ width: '100%', maxWidth: chartW }}>
+      <svg width="100%" height={svgHeight} viewBox={`0 0 ${chartW} ${svgHeight}`} preserveAspectRatio="xMidYMid meet">
         {[0, 1, 2, 3].map((r) => {
           const y = 12 + r * ((baseY - 12) / 3);
-          return <line key={r} x1="0" y1={y} x2={chartW} y2={y} stroke="#e2e8f0" strokeWidth="1" />;
+          return <line key={r} x1="0" y1={y} x2={chartW} y2={y} stroke="#ebe3d8" strokeWidth="1" />;
         })}
         {safeData.map((v, i) => {
           const v2 = safeSecondary[i] ?? 0;
@@ -292,7 +293,7 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
               textAlign: 'center',
               fontSize: 11,
               fontWeight: 600,
-              color: '#64748b',
+              color: '#78716c',
               letterSpacing: '0.01em',
             }}
           >
@@ -300,6 +301,7 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
           </span>
         ))}
       </div>
+     </div>
     </div>
   );
 }
@@ -309,7 +311,7 @@ function DonutChart({ segments, size = 100 }) {
   if (total <= 0) {
     return (
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={size / 2} cy={size / 2} r={size * 0.3} fill="none" stroke="#e5e7eb" strokeWidth={size * 0.12} />
+        <circle cx={size / 2} cy={size / 2} r={size * 0.3} fill="none" stroke="#ebe3d8" strokeWidth={size * 0.12} />
       </svg>
     );
   }
@@ -380,7 +382,7 @@ const Icon = ({ name, size = 18 }) => {
 const Badge = ({ status }) => {
   const cfg = {
     Activo: { bg: 'var(--green-light)', color: 'var(--green)', label: 'Activo' },
-    Inactivo: { bg: '#F1F5F9', color: '#64748b', label: 'Inactivo' },
+    Inactivo: { bg: '#f4efe8', color: '#78716c', label: 'Inactivo' },
     Moroso: { bg: 'var(--red-light)', color: 'var(--red)', label: 'Moroso' },
     Pagado: { bg: 'var(--green-light)', color: 'var(--green)', label: 'Pagado' },
     Pendiente: { bg: 'var(--amber-light)', color: 'var(--amber)', label: 'Pendiente' },
@@ -519,7 +521,7 @@ function Sidebar({ active, setActive, onOpenClubSettings }) {
             whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
           }}>{bundle?.club?.name || 'Furvoley'}</div>
           <div style={{
-            color:'#64748b',fontSize:11,fontWeight:700,
+            color:'#78716c',fontSize:11,fontWeight:700,
             letterSpacing:'0.08em',marginTop:6,textTransform:'uppercase'
           }}>Sistema de gestión</div>
         </div>
@@ -607,11 +609,11 @@ function Sidebar({ active, setActive, onOpenClubSettings }) {
                 whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
               }}>{bundle?.user?.name || 'Administrador'}</div>
               <div style={{
-                color:'#64748b',fontSize:11,fontWeight:700,
+                color:'#78716c',fontSize:11,fontWeight:700,
                 letterSpacing:'0.06em',textTransform:'uppercase',marginTop:2
               }}>{ROLE_LABEL[role] || 'Socio'}</div>
             </div>
-            <span aria-hidden style={{color:'#64748b',fontSize:14,flexShrink:0,opacity:0.7}}>⚙</span>
+            <span aria-hidden style={{color:'#78716c',fontSize:14,flexShrink:0,opacity:0.7}}>⚙</span>
           </button>
         ) : (
           <div style={{padding:'8px 24px 12px',display:'flex',alignItems:'center',gap:12}}>
@@ -628,7 +630,7 @@ function Sidebar({ active, setActive, onOpenClubSettings }) {
                 whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
               }}>{bundle?.user?.name || 'Administrador'}</div>
               <div style={{
-                color:'#64748b',fontSize:11,fontWeight:700,
+                color:'#78716c',fontSize:11,fontWeight:700,
                 letterSpacing:'0.06em',textTransform:'uppercase',marginTop:2
               }}>{ROLE_LABEL[role] || 'Socio'}</div>
             </div>
@@ -675,14 +677,33 @@ function Dashboard({ setActive }) {
   const GREEN = '#059669';
   const RED = '#e11d48';
   const cobrosPendMonto = kp?.cobrosPendientesMonto ?? 0
+  const clubName = (bundle?.club?.name || 'Furvoley').trim() || 'Furvoley'
+  const overdueCount = kp?.facturasVencidas ?? 0
+  const pendingCount = kp?.cobrosPendientes ?? 0
+  const fechaLarga = meta.toLocaleDateString('es-ES', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
+  const resumenHoy =
+    overdueCount > 0
+      ? `Tienes ${overdueCount} factura${overdueCount === 1 ? '' : 's'} vencida${overdueCount === 1 ? '' : 's'} por revisar.`
+      : pendingCount > 0
+        ? `${pendingCount} cobro${pendingCount === 1 ? '' : 's'} pendiente${pendingCount === 1 ? '' : 's'} de gestionar.`
+        : 'Todo al día por aquí. ¡Buen trabajo!'
   return (
     <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
-      <div style={{maxWidth:1440,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:32}}>
-        {/* KPI Grid */}
+      <div style={{maxWidth:1280,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:28}}>
+        {/* Cabecera cálida con resumen del día en lenguaje natural */}
+        <div>
+          <div style={{fontSize:13,color:'var(--text-muted)',fontWeight:600,textTransform:'capitalize'}}>{fechaLarga}</div>
+          <h1 style={{margin:'6px 0 0',fontSize:26,fontWeight:700,letterSpacing:'-0.02em',color:'var(--text-primary)'}}>Hola, {clubName}</h1>
+          <p style={{margin:'6px 0 0',fontSize:15,color:'var(--text-secondary)'}}>{resumenHoy}</p>
+        </div>
+
+        {/* KPIs: números claros, sin gráficos decorativos; aviso solo donde hay que actuar */}
         <div style={{
           display:'grid',
-          gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',
-          gap:24
+          gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',
+          gap:20
         }}>
           <KPICard
             label="Socios activos"
@@ -690,17 +711,14 @@ function Dashboard({ setActive }) {
             sub="Altas activas en el club"
             icon="users"
             color={ACCENT_SOFT}
-            badge={{ kind:'success', text:'Activo', icon:'trend_up' }}
-            chart={ingresosMes.slice(-7).length ? ingresosMes.slice(-7) : [0,0,0]}
           />
           <KPICard
             label="Cobros pendientes"
             value={kp ? fmtMoney(cobrosPendMonto) : '—'}
-            sub={`${kp?.cobrosPendientes ?? 0} factura(s) por cobrar`}
+            sub={`${pendingCount} factura${pendingCount === 1 ? '' : 's'} por cobrar`}
             icon="billing"
             color={AMBER}
-            badge={(kp?.cobrosPendientes ?? 0) > 0 ? { kind:'warning', text:'En espera' } : null}
-            chart={[2,4,3,5,4,6, kp?.cobrosPendientes ?? 0]}
+            badge={pendingCount > 0 ? { kind:'warning', text:'En espera' } : null}
           />
           <KPICard
             label="Ingresos del mes"
@@ -708,17 +726,14 @@ function Dashboard({ setActive }) {
             sub="Ingresos registrados"
             icon="reports"
             color={GREEN}
-            badge={(kp?.ingresosMes ?? 0) > 0 ? { kind:'success', text:'+', icon:'trend_up' } : null}
-            chart={ingresosMes.slice(-7)}
           />
           <KPICard
             label="Facturas vencidas"
-            value={String(kp?.facturasVencidas ?? 0)}
-            sub={(kp?.facturasVencidas ?? 0) > 0 ? 'Requieren atención' : 'Todo en orden'}
+            value={String(overdueCount)}
+            sub={overdueCount > 0 ? 'Requieren atención' : 'Todo en orden'}
             icon="billing"
-            color={RED}
-            badge={(kp?.facturasVencidas ?? 0) > 0 ? { kind:'danger', text:'Crítico' } : { kind:'success', text:'OK' }}
-            chart={[1,2,1,3,2, kp?.facturasVencidas ?? 0, kp?.facturasVencidas ?? 0]}
+            color={overdueCount > 0 ? RED : GREEN}
+            badge={overdueCount > 0 ? { kind:'danger', text:'Revisar' } : null}
           />
         </div>
 
@@ -755,7 +770,7 @@ function Dashboard({ setActive }) {
               <div style={{position:'relative',width:170,height:170}}>
                 <DonutChart
                   size={170}
-                  segments={donut.length ? donut.map(d => ({ label: d.label, value: Math.max(d.value, 1), color: d.color })) : [{ label: '—', value: 1, color: '#e2e8f0' }]}
+                  segments={donut.length ? donut.map(d => ({ label: d.label, value: Math.max(d.value, 1), color: d.color })) : [{ label: '—', value: 1, color: '#ebe3d8' }]}
                 />
                 <div style={{
                   position:'absolute',inset:0,display:'flex',flexDirection:'column',
@@ -936,6 +951,9 @@ function Socios() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [bulkMenu, setBulkMenu] = useState<{ top: number; left: number } | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkPlanModal, setBulkPlanModal] = useState(false)
+  const [bulkPlanId, setBulkPlanId] = useState('')
+  const [bulkPlanStartDate, setBulkPlanStartDate] = useState('')
   const [showInscripcion, setShowInscripcion] = useState(false);
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [inscripcionBusy, setInscripcionBusy] = useState(false);
@@ -1118,14 +1136,14 @@ function Socios() {
     }
   }
 
-  const insLabel = { fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 6, display: 'block', letterSpacing: 0.3 };
+  const insLabel = { fontSize: 12, fontWeight: 600, color: '#a8a29e', marginBottom: 6, display: 'block', letterSpacing: 0.3 };
   const insInput = {
     width: '100%',
     padding: '11px 14px',
     borderRadius: 10,
-    border: '1px solid #334155',
-    background: '#1e293b',
-    color: '#f1f5f9',
+    border: '1px solid #44403c',
+    background: '#292524',
+    color: '#f4efe8',
     fontFamily: 'inherit',
     fontSize: 14,
     outline: 'none',
@@ -1249,8 +1267,15 @@ function Socios() {
   }
 
   async function runBulkAction(
-    action: 'delete' | 'reset-portal-access' | 'set-status' | 'send-payment-reminder',
-    extra?: { status?: string; confirmMessage?: string },
+    action: 'delete' | 'reset-portal-access' | 'set-status' | 'send-payment-reminder' | 'assign-plan',
+    extra?: {
+      status?: string
+      confirmMessage?: string
+      planId?: string
+      startDate?: string
+      autoPay?: boolean
+      paymentRequiredOnEnrollment?: boolean
+    },
   ) {
     setBulkMenu(null)
     const ids = [...selectedIds]
@@ -1272,7 +1297,15 @@ function Socios() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberIds: ids, action, status: extra?.status }),
+        body: JSON.stringify({
+          memberIds: ids,
+          action,
+          status: extra?.status,
+          planId: extra?.planId,
+          startDate: extra?.startDate,
+          autoPay: extra?.autoPay,
+          paymentRequiredOnEnrollment: extra?.paymentRequiredOnEnrollment,
+        }),
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) {
@@ -1411,14 +1444,14 @@ function Socios() {
     background: '#fff',
     fontFamily: 'inherit',
     fontSize: 14,
-    color: '#111827',
+    color: '#1c1917',
     outline: 'none',
     boxSizing: 'border-box' as const,
   };
   const editLabel = {
     fontSize: 12,
     fontWeight: 600 as const,
-    color: '#64748b',
+    color: '#78716c',
     marginBottom: 6,
     display: 'block' as const,
     letterSpacing: 0.15,
@@ -1570,7 +1603,7 @@ function Socios() {
             border: `1px solid ${equipoFiltrado ? 'var(--accent)' : '#fcd34d'}`,
           }}
         >
-          <span style={{ fontSize: 14, color: '#374151', fontWeight: 500 }}>
+          <span style={{ fontSize: 14, color: '#44403c', fontWeight: 500 }}>
             {equipoFiltrado
               ? `Mostrando solo socios del equipo «${equipoFiltrado.nombre}».`
               : 'El equipo indicado en la URL no existe; no se muestran socios.'}
@@ -1584,7 +1617,7 @@ function Socios() {
               padding: '8px 14px',
               borderRadius: 10,
               border: 'none',
-              background: '#111827',
+              background: '#1c1917',
               color: '#fff',
               cursor: 'pointer',
               fontFamily: 'inherit',
@@ -1675,7 +1708,7 @@ function Socios() {
             {filtered.map((s) => (
               <tr
                 key={s.id}
-                onClick={() => setSelected(s)}
+                onClick={() => toggleSelectSocio(s.id)}
                 onContextMenu={(e) => openBulkMenu(e, s.id)}
                 style={{
                 borderTop:'1px solid var(--border)',cursor:'pointer',
@@ -1824,7 +1857,7 @@ function Socios() {
                 openEditSocioModal()
               }}
               style={{
-                width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderBottom:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#374151',fontWeight:600
+                width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderBottom:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#44403c',fontWeight:600
               }}
             >
               Editar socio
@@ -1865,6 +1898,7 @@ function Socios() {
               {selectedIds.size} socio{selectedIds.size === 1 ? '' : 's'}
             </div>
             {[
+              { label: 'Asignar cuota…', action: () => { setBulkMenu(null); setBulkPlanId(membershipPlans[0]?.id || ''); setBulkPlanStartDate(''); setBulkPlanModal(true) } },
               { label: 'Marcar como activo', action: () => void runBulkAction('set-status', { status: 'ACTIVE' }) },
               { label: 'Marcar como inactivo', action: () => void runBulkAction('set-status', { status: 'INACTIVE' }) },
               { label: 'Marcar en pausa', action: () => void runBulkAction('set-status', { status: 'PAUSED' }) },
@@ -1888,7 +1922,7 @@ function Socios() {
                   cursor: bulkBusy ? 'not-allowed' : 'pointer',
                   fontFamily: 'inherit',
                   fontSize: 13,
-                  color: item.danger ? '#b91c1c' : '#374151',
+                  color: item.danger ? '#b91c1c' : '#44403c',
                   fontWeight: item.danger ? 700 : 600,
                   opacity: bulkBusy ? 0.6 : 1,
                 }}
@@ -1906,13 +1940,13 @@ function Socios() {
           zIndex:100,padding:28,overflowY:'auto',display:'flex',flexDirection:'column',gap:20
         }}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <div style={{fontWeight:700,fontSize:16,color:'#111827'}}>Perfil del Socio</div>
-            <button onClick={()=>setSelected(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#6b7280'}}><Icon name="x" size={18}/></button>
+            <div style={{fontWeight:700,fontSize:16,color:'#1c1917'}}>Perfil del Socio</div>
+            <button onClick={()=>setSelected(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#8c857d'}}><Icon name="x" size={18}/></button>
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,padding:'16px 0',borderBottom:'1px solid var(--border)'}}>
             <Avatar initials={selected.avatar} color="#3B82F6" size={64}/>
-            <div style={{fontWeight:700,fontSize:18,color:'#111827'}}>{selected.nombre}</div>
-            <div style={{fontSize:13,color:'#6b7280'}}>{selected.email}</div>
+            <div style={{fontWeight:700,fontSize:18,color:'#1c1917'}}>{selected.nombre}</div>
+            <div style={{fontSize:13,color:'#8c857d'}}>{selected.email}</div>
             <Badge status={selected.estado}/>
           </div>
           {[
@@ -1928,12 +1962,12 @@ function Socios() {
             ['Factura pendiente', selected.pendingInvoiceId ? fmtMoney(selected.pendingInvoiceAmount || 0) : 'Ninguna'],
           ].map(([k, v], idx) => (
             <div key={idx + String(k)} style={{display:'flex',justifyContent:'space-between',padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
-              <span style={{fontSize:13,color:'#6b7280'}}>{k}</span>
-              <span style={{fontSize:13,fontWeight:600,color:'#111827'}}>{v}</span>
+              <span style={{fontSize:13,color:'#8c857d'}}>{k}</span>
+              <span style={{fontSize:13,fontWeight:600,color:'#1c1917'}}>{v}</span>
             </div>
           ))}
           <div style={{display:'flex',gap:8,marginTop:8}}>
-            <button type="button" onClick={openEditSocioModal} style={{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#374151'}}>Editar datos</button>
+            <button type="button" onClick={openEditSocioModal} style={{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#44403c'}}>Editar datos</button>
             <button type="button" onClick={registrarPagoSocio} style={{flex:1,padding:'10px',borderRadius:12,border:'none',background:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#fff'}}>Registrar Pago</button>
           </div>
           <button
@@ -1949,7 +1983,7 @@ function Socios() {
               fontFamily:'inherit',
               fontSize:13,
               fontWeight:600,
-              color:'#374151'
+              color:'#44403c'
             }}
           >
             Resetear acceso portal
@@ -2013,10 +2047,10 @@ function Socios() {
           >
             <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div>
-                <h2 id="edit-socio-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
+                <h2 id="edit-socio-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.4px' }}>
                   Editar datos del socio
                 </h2>
-                <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#8c857d', lineHeight: 1.5 }}>
                   Los cambios se guardan en el perfil del club.
                 </p>
               </div>
@@ -2026,12 +2060,12 @@ function Socios() {
                 onClick={() => setShowEditSocioModal(false)}
                 style={{
                   border: 'none',
-                  background: '#f1f5f9',
+                  background: '#f4efe8',
                   borderRadius: 10,
                   width: 36,
                   height: 36,
                   cursor: editSocioBusy ? 'not-allowed' : 'pointer',
-                  color: '#64748b',
+                  color: '#78716c',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -2116,7 +2150,7 @@ function Socios() {
                   fontFamily: 'inherit',
                   fontSize: 14,
                   fontWeight: 600,
-                  color: '#374151',
+                  color: '#44403c',
                 }}
               >
                 Cancelar
@@ -2142,6 +2176,70 @@ function Socios() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {bulkPlanModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => { if (!bulkBusy) setBulkPlanModal(false) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 20px 50px rgba(15,23,42,0.25)' }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: '#1c1917' }}>Asignar cuota en lote</h2>
+            <p style={{ margin: '0 0 18px', fontSize: 13, color: '#8c857d' }}>
+              Se asignará a los {selectedIds.size} socio{selectedIds.size === 1 ? '' : 's'} seleccionado{selectedIds.size === 1 ? '' : 's'}. La cuota activa anterior de cada socio se cancelará.
+            </p>
+            {membershipPlans.length === 0 ? (
+              <p style={{ fontSize: 13, color: '#b91c1c' }}>No hay planes de cuota. Crea uno en «Gestión de cuotas».</p>
+            ) : (
+              <>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#44403c', marginBottom: 6 }}>Plan de cuota *</label>
+                <select
+                  value={bulkPlanId}
+                  onChange={(e) => setBulkPlanId(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 14, marginBottom: 16 }}
+                >
+                  {membershipPlans.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name} · {fmtMoney(p.amount)}</option>
+                  ))}
+                </select>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#44403c', marginBottom: 6 }}>Inicio (opcional)</label>
+                <input
+                  type="date"
+                  value={bulkPlanStartDate}
+                  onChange={(e) => setBulkPlanStartDate(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 14, marginBottom: 22 }}
+                />
+              </>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                disabled={bulkBusy}
+                onClick={() => setBulkPlanModal(false)}
+                style={{ padding: '10px 16px', borderRadius: 8, border: '1px solid var(--border)', background: '#fff', cursor: bulkBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#44403c' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={bulkBusy || !bulkPlanId || membershipPlans.length === 0}
+                onClick={async () => {
+                  const plan = membershipPlans.find((p) => p.id === bulkPlanId)
+                  await runBulkAction('assign-plan', {
+                    planId: bulkPlanId,
+                    startDate: bulkPlanStartDate || undefined,
+                    paymentRequiredOnEnrollment: plan?.paymentRequiredOnEnrollment,
+                  })
+                  setBulkPlanModal(false)
+                }}
+                style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', cursor: bulkBusy || !bulkPlanId ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: '#fff', opacity: bulkBusy || !bulkPlanId ? 0.6 : 1 }}
+              >
+                {bulkBusy ? 'Asignando…' : 'Asignar cuota'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {showCsvImport && (
@@ -2181,18 +2279,18 @@ function Socios() {
               maxWidth: 520,
               maxHeight: '90vh',
               overflowY: 'auto',
-              background: '#111827',
-              border: '1px solid #334155',
+              background: '#1c1917',
+              border: '1px solid #44403c',
               borderRadius: 16,
               padding: 28,
               boxShadow: '0 25px 50px -12px rgba(0,0,0,0.45)',
             }}
           >
             <div style={{ marginBottom: 22 }}>
-              <h2 style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#f8fafc', letterSpacing: -0.3 }}>
+              <h2 style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#faf7f2', letterSpacing: -0.3 }}>
                 Inscripción de socio
               </h2>
-              <p style={{ margin: 0, fontSize: 13, color: '#94a3b8', lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: 13, color: '#a8a29e', lineHeight: 1.5 }}>
                 Completa los datos aquí mismo (sin pop-ups del navegador).
               </p>
             </div>
@@ -2244,7 +2342,7 @@ function Socios() {
                         </option>
                       ))}
                     </select>
-                    <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b', lineHeight: 1.45 }}>
+                    <p style={{ margin: '8px 0 0', fontSize: 12, color: '#78716c', lineHeight: 1.45 }}>
                       Al guardar se genera la primera factura en Mis pagos del socio.
                     </p>
                   </div>
@@ -2256,7 +2354,7 @@ function Socios() {
                         gap: 10,
                         cursor: 'pointer',
                         fontSize: 13,
-                        color: '#cbd5e1',
+                        color: '#d8cdbd',
                       }}
                     >
                       <input
@@ -2271,9 +2369,9 @@ function Socios() {
                         style={{ marginTop: 3 }}
                       />
                       <span>
-                        <strong style={{ color: '#f8fafc' }}>Pago obligatorio al alta</strong>
+                        <strong style={{ color: '#faf7f2' }}>Pago obligatorio al alta</strong>
                         <br />
-                        <span style={{ color: '#94a3b8' }}>
+                        <span style={{ color: '#a8a29e' }}>
                           El socio queda pendiente de pago hasta abonar la primera cuota en Mis pagos.
                         </span>
                       </span>
@@ -2294,9 +2392,9 @@ function Socios() {
                 style={{
                   padding: '11px 20px',
                   borderRadius: 10,
-                  border: '1px solid #475569',
+                  border: '1px solid #57534e',
                   background: 'transparent',
-                  color: '#cbd5e1',
+                  color: '#d8cdbd',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   fontWeight: 600,
@@ -2335,7 +2433,7 @@ function Socios() {
 // ── EQUIPOS ─────────────────────────────────────────────────────────────────
 function Equipos() {
   const router = useRouter()
-  const { bundle, reload, showAlert } = useCrm();
+  const { bundle, reload, showAlert, showConfirm } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
   if (!(role === 'ADMIN' || role === 'COACH')) return null
   const EQUIPOS_UI = bundle?.equipos ?? [];
@@ -2343,6 +2441,64 @@ function Equipos() {
   const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
   const [nuevoEquipoBusy, setNuevoEquipoBusy] = useState(false);
   const [formNuevoEquipo, setFormNuevoEquipo] = useState({ name: '', category: '' });
+  const [showCategoriasModal, setShowCategoriasModal] = useState(false);
+  const [categorias, setCategorias] = useState<{ id: string; name: string; minAge: number | null; maxAge: number | null; birthYearFrom: number | null; birthYearTo: number | null; defaultTeamId: string | null }[]>([]);
+  const [categoriasBusy, setCategoriasBusy] = useState(false);
+  const [formCategoria, setFormCategoria] = useState({ name: '', minAge: '', maxAge: '', defaultTeamId: '' });
+
+  const loadCategorias = useCallback(async () => {
+    try {
+      const r = await fetch('/api/crm/categories', { credentials: 'include', cache: 'no-store' });
+      if (!r.ok) return;
+      const j = await r.json();
+      setCategorias(j.categories || []);
+    } catch {
+      /* opcional */
+    }
+  }, []);
+
+  function openCategoriasModal() {
+    setFormCategoria({ name: '', minAge: '', maxAge: '', defaultTeamId: '' });
+    setShowCategoriasModal(true);
+    void loadCategorias();
+  }
+
+  async function crearCategoria() {
+    if (!formCategoria.name.trim()) { showAlert('Pon un nombre a la categoría.'); return; }
+    setCategoriasBusy(true);
+    try {
+      const r = await fetch('/api/crm/categories', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formCategoria.name.trim(),
+          minAge: formCategoria.minAge !== '' ? Number(formCategoria.minAge) : null,
+          maxAge: formCategoria.maxAge !== '' ? Number(formCategoria.maxAge) : null,
+          defaultTeamId: formCategoria.defaultTeamId || null,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { showAlert(j.error || 'No se pudo crear la categoría'); return; }
+      setFormCategoria({ name: '', minAge: '', maxAge: '', defaultTeamId: '' });
+      await loadCategorias();
+    } finally {
+      setCategoriasBusy(false);
+    }
+  }
+
+  async function eliminarCategoria(id: string) {
+    const ok = await showConfirm('¿Eliminar esta categoría?').catch(() => true);
+    if (!ok) return;
+    setCategoriasBusy(true);
+    try {
+      const r = await fetch('/api/crm/categories/' + id, { method: 'DELETE', credentials: 'include' });
+      if (!r.ok) { showAlert('No se pudo eliminar'); return; }
+      await loadCategorias();
+    } finally {
+      setCategoriasBusy(false);
+    }
+  }
 
   const teamInput = {
     width: '100%',
@@ -2352,14 +2508,14 @@ function Equipos() {
     background: '#fff',
     fontFamily: 'inherit',
     fontSize: 14,
-    color: '#111827',
+    color: '#1c1917',
     outline: 'none',
     boxSizing: 'border-box',
   };
   const teamLabel = {
     fontSize: 12,
     fontWeight: 600,
-    color: '#64748b',
+    color: '#78716c',
     marginBottom: 6,
     display: 'block',
     letterSpacing: 0.15,
@@ -2413,6 +2569,8 @@ function Equipos() {
   });
   const [coachSelectMemberId, setCoachSelectMemberId] = useState('');
   const [coachSelectLabel, setCoachSelectLabel] = useState('');
+  const [coachStaffUsers, setCoachStaffUsers] = useState<{ id: string; name: string; email: string; roleLabel: string }[]>([]);
+  const [coachSelectUserId, setCoachSelectUserId] = useState('');
   const [addAlEquipoMemberId, setAddAlEquipoMemberId] = useState('');
   const [scheduleForm, setScheduleForm] = useState({
     weekday: '1',
@@ -2442,6 +2600,18 @@ function Equipos() {
     });
     setCoachSelectMemberId(eq.coachMemberId || '');
     setCoachSelectLabel(eq.entrenador && eq.entrenador !== '—' ? eq.entrenador : '');
+    setCoachSelectUserId('');
+    void (async () => {
+      try {
+        const r = await fetch('/api/crm/users', { credentials: 'include', cache: 'no-store' });
+        if (!r.ok) return;
+        const j = await r.json();
+        const staff = (j.users || []).filter((u) => u.role && u.role !== 'MEMBER');
+        setCoachStaffUsers(staff.map((u) => ({ id: u.id, name: u.name || u.email, email: u.email, roleLabel: u.roleLabel })));
+      } catch {
+        /* opcional */
+      }
+    })();
     setAddAlEquipoMemberId('');
     setScheduleForm({
       weekday: '1',
@@ -2579,9 +2749,14 @@ function Equipos() {
     }
   }
 
-  async function aplicarEntrenador() {
-    if (!gestionarEquipo || !coachSelectMemberId) {
-      showAlert('Elige un socio como entrenador.');
+  async function aplicarEntrenador(source: 'member' | 'staff' = 'member') {
+    if (!gestionarEquipo) return;
+    const payload =
+      source === 'staff'
+        ? (coachSelectUserId ? { userId: coachSelectUserId } : null)
+        : (coachSelectMemberId ? { memberId: coachSelectMemberId } : null);
+    if (!payload) {
+      showAlert(source === 'staff' ? 'Elige una cuenta de personal.' : 'Elige un socio como entrenador.');
       return;
     }
     setGestionarBusy(true);
@@ -2590,7 +2765,7 @@ function Equipos() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberId: coachSelectMemberId }),
+        body: JSON.stringify(payload),
       });
       if (!r.ok) {
         try {
@@ -2605,6 +2780,7 @@ function Equipos() {
       if (next) {
         setGestionarEquipo(next);
         setCoachSelectMemberId(next.coachMemberId || '');
+        setCoachSelectUserId('');
       }
     } finally {
       setGestionarBusy(false);
@@ -2692,6 +2868,18 @@ function Equipos() {
                 }}>{icon}</button>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={openCategoriasModal}
+              style={{
+                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+                borderRadius:8,border:'1px solid var(--border)',cursor:'pointer',
+                background:'var(--surface-card)',color:'var(--text-secondary)',
+                fontFamily:'inherit',fontSize:13,fontWeight:700,transition:'all 0.15s'
+              }}
+            >
+              <Icon name="users" size={15}/>Categorías
+            </button>
             <button
               type="button"
               onClick={openNuevoEquipoModal}
@@ -2783,6 +2971,67 @@ function Equipos() {
             </div>
           )}
         </div>
+      {showCategoriasModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => { if (!categoriasBusy) setShowCategoriasModal(false) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 620, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(15,23,42,0.25)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1c1917' }}>Categorías</h2>
+              <button type="button" onClick={() => setShowCategoriasModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8c857d' }}><Icon name="x" size={18} /></button>
+            </div>
+            <p style={{ margin: '0 0 18px', fontSize: 13, color: '#8c857d' }}>
+              Define cada categoría por edad (no por año). El rango de años de nacimiento se recalcula solo cada temporada, así no tienes que reeditarlo. Los flujos «Asignar por rango de edad» pueden apuntar a una categoría.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 0.8fr auto', gap: 8, alignItems: 'end', marginBottom: 18 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#57534e', marginBottom: 4 }}>Nombre *</label>
+                <input value={formCategoria.name} onChange={(e) => setFormCategoria((f) => ({ ...f, name: e.target.value }))} placeholder="Infantil" style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13 }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#57534e', marginBottom: 4 }}>Edad mín.</label>
+                <input type="number" min={0} value={formCategoria.minAge} onChange={(e) => setFormCategoria((f) => ({ ...f, minAge: e.target.value }))} placeholder="12" style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13 }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#57534e', marginBottom: 4 }}>Edad máx.</label>
+                <input type="number" min={0} value={formCategoria.maxAge} onChange={(e) => setFormCategoria((f) => ({ ...f, maxAge: e.target.value }))} placeholder="13" style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13 }} />
+              </div>
+              <button type="button" disabled={categoriasBusy || !formCategoria.name.trim()} onClick={crearCategoria} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: categoriasBusy || !formCategoria.name.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, opacity: categoriasBusy || !formCategoria.name.trim() ? 0.6 : 1, height: 38 }}>Añadir</button>
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#57534e', marginBottom: 4 }}>Equipo por defecto (opcional)</label>
+              <select value={formCategoria.defaultTeamId} onChange={(e) => setFormCategoria((f) => ({ ...f, defaultTeamId: e.target.value }))} style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, background: '#fff', marginBottom: 18 }}>
+                <option value="">Sin equipo por defecto</option>
+                {EQUIPOS_UI.map((eq) => (<option key={eq.id} value={eq.id}>{eq.nombre}</option>))}
+              </select>
+            </div>
+
+            {categorias.length === 0 ? (
+              <p style={{ fontSize: 13, color: '#a8a29e', textAlign: 'center', padding: '16px 0' }}>Aún no hay categorías.</p>
+            ) : (
+              <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                {categorias.map((c) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1c1917' }}>{c.name}</div>
+                      <div style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>
+                        {c.minAge != null || c.maxAge != null ? `${c.minAge ?? '–'}–${c.maxAge ?? '–'} años` : 'Sin límite de edad'}
+                        {(c.birthYearFrom != null || c.birthYearTo != null) && ` · nacidos ${c.birthYearFrom ?? '…'}–${c.birthYearTo ?? '…'}`}
+                      </div>
+                    </div>
+                    <button type="button" disabled={categoriasBusy} onClick={() => eliminarCategoria(c.id)} style={{ padding: 7, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-card)', cursor: categoriasBusy ? 'not-allowed' : 'pointer', color: 'var(--red)' }} title="Eliminar"><Icon name="trash" size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {showNuevoEquipoModal && (
         <div
           role="presentation"
@@ -2822,10 +3071,10 @@ function Equipos() {
           >
             <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div>
-                <h2 id="nuevo-equipo-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
+                <h2 id="nuevo-equipo-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.4px' }}>
                   Nuevo equipo
                 </h2>
-                <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#8c857d', lineHeight: 1.5 }}>
                   Asigna un nombre y, si quieres, una categoría deportiva.
                 </p>
               </div>
@@ -2835,12 +3084,12 @@ function Equipos() {
                 onClick={() => setShowNuevoEquipoModal(false)}
                 style={{
                   border: 'none',
-                  background: '#f1f5f9',
+                  background: '#f4efe8',
                   borderRadius: 10,
                   width: 36,
                   height: 36,
                   cursor: nuevoEquipoBusy ? 'not-allowed' : 'pointer',
-                  color: '#64748b',
+                  color: '#78716c',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -2888,7 +3137,7 @@ function Equipos() {
                   fontFamily: 'inherit',
                   fontSize: 14,
                   fontWeight: 600,
-                  color: '#374151',
+                  color: '#44403c',
                 }}
               >
                 Cancelar
@@ -2954,10 +3203,10 @@ function Equipos() {
           >
             <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div>
-                <h2 id="gestionar-equipo-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
+                <h2 id="gestionar-equipo-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.4px' }}>
                   Gestionar equipo
                 </h2>
-                <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#8c857d', lineHeight: 1.5 }}>
                   Nombre, categoría, entrenador y plantilla.
                 </p>
               </div>
@@ -2967,12 +3216,12 @@ function Equipos() {
                 onClick={closeGestionar}
                 style={{
                   border: 'none',
-                  background: '#f1f5f9',
+                  background: '#f4efe8',
                   borderRadius: 10,
                   width: 36,
                   height: 36,
                   cursor: gestionarBusy ? 'not-allowed' : 'pointer',
-                  color: '#64748b',
+                  color: '#78716c',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -3052,9 +3301,9 @@ function Equipos() {
             </form>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20, marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Entrenador</div>
-              <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#6b7280' }}>
-                Debe ser un socio del club (si no está en el equipo, se añadirá automáticamente).
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', marginBottom: 12 }}>Entrenador</div>
+              <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#8c857d' }}>
+                Puede ser un socio del club o una cuenta de personal (entrenador/admin).
               </p>
               <MemberCombobox
                 value={coachSelectMemberId}
@@ -3069,36 +3318,73 @@ function Equipos() {
               <button
                 type="button"
                 disabled={gestionarBusy || !coachSelectMemberId}
-                onClick={aplicarEntrenador}
+                onClick={() => aplicarEntrenador('member')}
                 style={{
                   width: '100%',
                   padding: '10px 14px',
                   borderRadius: 12,
                   border: '1px solid var(--border)',
-                  background: '#f8fafc',
+                  background: '#faf7f2',
                   cursor: gestionarBusy || !coachSelectMemberId ? 'not-allowed' : 'pointer',
                   fontFamily: 'inherit',
                   fontSize: 13,
                   fontWeight: 600,
-                  color: '#334155',
+                  color: '#44403c',
                 }}
               >
                 Asignar como entrenador
               </button>
+              {coachStaffUsers.length > 0 && (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed var(--border)' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#57534e', marginBottom: 6 }}>O asignar una cuenta de personal</div>
+                  <select
+                    value={coachSelectUserId}
+                    onChange={(e) => setCoachSelectUserId(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 10, background: '#fff' }}
+                  >
+                    <option value="">Selecciona una cuenta…</option>
+                    {coachStaffUsers.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} · {u.roleLabel}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={gestionarBusy || !coachSelectUserId}
+                    onClick={() => aplicarEntrenador('staff')}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      border: '1px solid var(--border)',
+                      background: '#faf7f2',
+                      cursor: gestionarBusy || !coachSelectUserId ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#44403c',
+                    }}
+                  >
+                    Asignar cuenta como entrenador
+                  </button>
+                  <p style={{ margin: '8px 0 0', fontSize: 11, color: '#a8a29e' }}>
+                    Si la cuenta no tiene perfil de socio, se crea y vincula automáticamente.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Horarios fijos</div>
-              <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#6b7280' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', marginBottom: 12 }}>Horarios fijos</div>
+              <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#8c857d' }}>
                 Avisos al tutor (WD-1) y calendario automático de entrenamientos (WD-2).
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
                 {(gestionarEquipo.horarios ?? []).length === 0 && (
-                  <div style={{ fontSize: 13, color: '#9ca3af' }}>Sin horarios definidos.</div>
+                  <div style={{ fontSize: 13, color: '#a8a29e' }}>Sin horarios definidos.</div>
                 )}
                 {(gestionarEquipo.horarios ?? []).map((h) => (
                   <div key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', background: '#fafafa' }}>
-                    <div style={{ fontSize: 13, color: '#111827' }}>
+                    <div style={{ fontSize: 13, color: '#1c1917' }}>
                       <strong>{WEEKDAY_OPTIONS.find((d) => d.value === h.weekday)?.label ?? `Día ${h.weekday}`}</strong>
                       {' · '}{h.startTime}{h.location ? ` · ${h.location}` : ''}
                     </div>
@@ -3114,7 +3400,7 @@ function Equipos() {
                 <input type="number" min={30} max={240} step={15} value={scheduleForm.durationMinutes} onChange={(e) => setScheduleForm((f) => ({ ...f, durationMinutes: e.target.value }))} style={teamInput} placeholder="Min" title="Duración (min)" />
                 <input value={scheduleForm.location} onChange={(e) => setScheduleForm((f) => ({ ...f, location: e.target.value }))} style={teamInput} placeholder="Ubicación" />
               </div>
-              <button type="button" disabled={gestionarBusy} onClick={anadirHorarioEquipo} style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid var(--border)', background: '#f8fafc', cursor: gestionarBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 10 }}>Añadir horario</button>
+              <button type="button" disabled={gestionarBusy} onClick={anadirHorarioEquipo} style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid var(--border)', background: '#faf7f2', cursor: gestionarBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#44403c', marginBottom: 10 }}>Añadir horario</button>
               <button
                 type="button"
                 disabled={gestionarBusy || !(gestionarEquipo.horarios ?? []).length}
@@ -3136,10 +3422,10 @@ function Equipos() {
               >
                 Generar calendario ahora
               </button>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>Socios en el equipo</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', marginBottom: 12 }}>Socios en el equipo</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                 {(gestionarEquipo.miembros ?? []).length === 0 && (
-                  <div style={{ fontSize: 13, color: '#9ca3af', padding: '8px 0' }}>Nadie asignado todavía.</div>
+                  <div style={{ fontSize: 13, color: '#a8a29e', padding: '8px 0' }}>Nadie asignado todavía.</div>
                 )}
                 {(gestionarEquipo.miembros ?? []).map((m) => (
                   <div
@@ -3156,8 +3442,8 @@ function Equipos() {
                     }}
                   >
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{m.nombre}</div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: m.role === 'COACH' ? 'var(--accent)' : '#64748b', marginTop: 2 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1c1917' }}>{m.nombre}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: m.role === 'COACH' ? 'var(--accent)' : '#78716c', marginTop: 2 }}>
                         {m.role === 'COACH' ? 'Entrenador' : 'Jugador'}
                       </div>
                     </div>
@@ -3183,7 +3469,7 @@ function Equipos() {
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 8 }}>Añadir socio al equipo</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 8 }}>Añadir socio al equipo</div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <MemberCombobox
@@ -3201,8 +3487,8 @@ function Equipos() {
                     padding: '11px 18px',
                     borderRadius: 12,
                     border: 'none',
-                    background: addAlEquipoMemberId ? '#111827' : '#e5e7eb',
-                    color: addAlEquipoMemberId ? '#fff' : '#9ca3af',
+                    background: addAlEquipoMemberId ? '#1c1917' : '#ebe3d8',
+                    color: addAlEquipoMemberId ? '#fff' : '#a8a29e',
                     cursor: gestionarBusy || !addAlEquipoMemberId ? 'not-allowed' : 'pointer',
                     fontFamily: 'inherit',
                     fontSize: 13,
@@ -4044,43 +4330,43 @@ function Contabilidad({ setActive }) {
 
       <div style={{background:'var(--surface-card)',border:'1px solid var(--border)',borderRadius:12,padding:'16px 20px',display:'flex',gap:14,alignItems:'center',flexWrap:'wrap',boxShadow:'var(--card-shadow)'}}>
         <div style={{fontSize:12,fontWeight:700,color:'var(--text-primary)',minWidth:130,letterSpacing:'0.02em'}}>Configuración impuestos</div>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#57534e'}}>
           IVA ingreso %
           <input type="number" min={0} step="0.01" value={taxConfigForm.vatRateIncome} onChange={(e)=>setTaxConfigForm((s)=>({...s,vatRateIncome:e.target.value}))} style={{width:78,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,fontFamily:'inherit'}} />
         </label>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#57534e'}}>
           IVA gasto %
           <input type="number" min={0} step="0.01" value={taxConfigForm.vatRateExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,vatRateExpense:e.target.value}))} style={{width:78,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,fontFamily:'inherit'}} />
         </label>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#57534e'}}>
           Retención ingreso %
           <input type="number" min={0} step="0.01" value={taxConfigForm.withholdRateIncome} onChange={(e)=>setTaxConfigForm((s)=>({...s,withholdRateIncome:e.target.value}))} style={{width:78,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,fontFamily:'inherit'}} />
         </label>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#57534e'}}>
           Retención gasto %
           <input type="number" min={0} step="0.01" value={taxConfigForm.withholdRateExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,withholdRateExpense:e.target.value}))} style={{width:78,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:8,fontFamily:'inherit'}} />
         </label>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#57534e'}}>
           <input type="checkbox" checked={taxConfigForm.applyOnInvoices} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyOnInvoices:e.target.checked}))}/>
           Aplicar en cobros
         </label>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#57534e'}}>
           <input type="checkbox" checked={taxConfigForm.applyOnIncome} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyOnIncome:e.target.checked}))}/>
           Aplicar en ingresos
         </label>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#57534e'}}>
           <input type="checkbox" checked={taxConfigForm.applyOnExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyOnExpense:e.target.checked}))}/>
           Aplicar en gastos
         </label>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#57534e'}}>
           <input type="checkbox" checked={taxConfigForm.applyWithholdOnInvoices} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyWithholdOnInvoices:e.target.checked}))}/>
           Retención en cobros
         </label>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#57534e'}}>
           <input type="checkbox" checked={taxConfigForm.applyWithholdOnIncome} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyWithholdOnIncome:e.target.checked}))}/>
           Retención en ingresos
         </label>
-        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#475569'}}>
+        <label style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'#57534e'}}>
           <input type="checkbox" checked={taxConfigForm.applyWithholdOnExpense} onChange={(e)=>setTaxConfigForm((s)=>({...s,applyWithholdOnExpense:e.target.checked}))}/>
           Retención en gastos
         </label>
@@ -4092,15 +4378,15 @@ function Contabilidad({ setActive }) {
       {contaTab !== 'COBROS' && (
       <div style={{background:'var(--surface-card)',borderRadius:12,padding:24,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)'}}>
         {ledgerBusy ? (
-          <div style={{fontSize:13,color:'#64748b'}}>Cargando datos contables…</div>
+          <div style={{fontSize:13,color:'#78716c'}}>Cargando datos contables…</div>
         ) : contaTab === 'DIARIO' ? (
           <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
             {ledgerData.entries.map((e) => (
               <div key={e.id} style={{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10}}>
                 <div style={{display:'flex',justifyContent:'space-between',gap:12}}>
                   <div>
-                    <div style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{e.entryNumber} · {e.concept}</div>
-                    <div style={{fontSize:12,color:'#64748b'}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'#1c1917'}}>{e.entryNumber} · {e.concept}</div>
+                    <div style={{fontSize:12,color:'#78716c'}}>
                       {new Date(e.entryDate).toLocaleDateString('es-ES')} · {e.status} · {e.source}
                     </div>
                   </div>
@@ -4140,20 +4426,20 @@ function Contabilidad({ setActive }) {
                       }}>
                         {l.side === 'DEBIT' ? 'Debe' : 'Haber'}
                       </span>
-                      <span style={{color:'#374151'}}>
+                      <span style={{color:'#44403c'}}>
                         {l.account?.code} · {l.account?.name}
                         {l.lineConcept ? ` · ${l.lineConcept}` : ''}
                       </span>
-                      <span style={{fontWeight:700,color:'#111827'}}>{fmtMoney(Number(l.amount || 0))}</span>
+                      <span style={{fontWeight:700,color:'#1c1917'}}>{fmtMoney(Number(l.amount || 0))}</span>
                     </div>
                   ))}
-                  <div style={{display:'flex',justifyContent:'flex-end',fontSize:12,color:'#475569',fontWeight:700}}>
+                  <div style={{display:'flex',justifyContent:'flex-end',fontSize:12,color:'#57534e',fontWeight:700}}>
                     Total asiento: {fmtMoney((e.lines || []).reduce((a: number, l: any) => a + Number(l.amount || 0), 0) / 2)}
                   </div>
                 </div>
               </div>
             ))}
-            {ledgerData.entries.length === 0 && <div style={{fontSize:13,color:'#64748b'}}>Sin asientos.</div>}
+            {ledgerData.entries.length === 0 && <div style={{fontSize:13,color:'#78716c'}}>Sin asientos.</div>}
           </div>
         ) : contaTab === 'MAYOR' ? (
           <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
@@ -4178,11 +4464,11 @@ function Contabilidad({ setActive }) {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <div style={{padding:12,border:'1px solid var(--border)',borderRadius:10}}>
               <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Balance comprobación</div>
-              <div style={{fontSize:12,color:'#475569'}}>Debe {fmtMoney(ledgerData.reports?.totals?.debit || 0)} · Haber {fmtMoney(ledgerData.reports?.totals?.credit || 0)}</div>
+              <div style={{fontSize:12,color:'#57534e'}}>Debe {fmtMoney(ledgerData.reports?.totals?.debit || 0)} · Haber {fmtMoney(ledgerData.reports?.totals?.credit || 0)}</div>
             </div>
             <div style={{padding:12,border:'1px solid var(--border)',borderRadius:10}}>
               <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Periodos fiscales</div>
-              <div style={{fontSize:12,color:'#475569'}}>{ledgerData.periods.length} periodos ({ledgerData.periods.filter((p) => p.isClosed).length} cerrados)</div>
+              <div style={{fontSize:12,color:'#57534e'}}>{ledgerData.periods.length} periodos ({ledgerData.periods.filter((p) => p.isClosed).length} cerrados)</div>
             </div>
           </div>
         )}
@@ -4314,14 +4600,14 @@ function Contabilidad({ setActive }) {
                   type="button"
                   disabled={downloadingCobroId === cobroActivo.id}
                   onClick={async () => { setMenuCobroId(null); await abrirFactura(cobroActivo) }}
-                  style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:downloadingCobroId === cobroActivo.id ? 'not-allowed' : 'pointer',fontFamily:'inherit',fontSize:13,color:'#374151',fontWeight:500,opacity:downloadingCobroId === cobroActivo.id ? 0.65 : 1}}
+                  style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:downloadingCobroId === cobroActivo.id ? 'not-allowed' : 'pointer',fontFamily:'inherit',fontSize:13,color:'#44403c',fontWeight:500,opacity:downloadingCobroId === cobroActivo.id ? 0.65 : 1}}
                 >
                   {downloadingCobroId === cobroActivo.id ? 'Descargando…' : 'Ver factura'}
                 </button>
                 <button
                   type="button"
                   onClick={async () => { setMenuCobroId(null); await copiarIdCobro(cobroActivo) }}
-                  style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#374151',fontWeight:500}}
+                  style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#44403c',fontWeight:500}}
                 >
                   Copiar ID
                 </button>
@@ -4373,15 +4659,15 @@ function Contabilidad({ setActive }) {
             }}
           >
             <div style={{ marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#1c1917' }}>
                 {movimientoType === 'INCOME' ? 'Crear ingreso (PGC)' : 'Crear gasto (PGC)'}
               </h3>
-              <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: '#8c857d' }}>
                 Se registra simultáneamente en Diario y en movimientos económicos.
               </p>
             </div>
 
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Concepto</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Concepto</label>
             <input
               value={movimientoForm.concept}
               onChange={(e) => setMovimientoForm((f) => ({ ...f, concept: e.target.value }))}
@@ -4391,7 +4677,7 @@ function Contabilidad({ setActive }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Importe (€)</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Importe (€)</label>
                 <input
                   type="number"
                   min={0}
@@ -4402,7 +4688,7 @@ function Contabilidad({ setActive }) {
                 />
               </div>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Fecha contable</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Fecha contable</label>
                 <input
                   type="date"
                   value={movimientoForm.entryDate}
@@ -4412,7 +4698,7 @@ function Contabilidad({ setActive }) {
               </div>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
-              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#475569'}}>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#57534e'}}>
                 <input
                   type="checkbox"
                   checked={Boolean(movimientoForm.applyTax)}
@@ -4421,7 +4707,7 @@ function Contabilidad({ setActive }) {
                 Aplicar IVA
               </label>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>IVA %</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>IVA %</label>
                 <input
                   type="number"
                   min={0}
@@ -4433,7 +4719,7 @@ function Contabilidad({ setActive }) {
               </div>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
-              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#475569'}}>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#57534e'}}>
                 <input
                   type="checkbox"
                   checked={Boolean(movimientoForm.applyWithholding)}
@@ -4442,7 +4728,7 @@ function Contabilidad({ setActive }) {
                 Aplicar retención
               </label>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Retención %</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Retención %</label>
                 <input
                   type="number"
                   min={0}
@@ -4453,7 +4739,7 @@ function Contabilidad({ setActive }) {
                 />
               </div>
             </div>
-            <div style={{marginTop:10,fontSize:12,color:'#475569'}}>
+            <div style={{marginTop:10,fontSize:12,color:'#57534e'}}>
               Total movimiento (tesorería neta): {fmtMoney(
                 Number(movimientoForm.amount || 0) *
                   (1 + (Boolean(movimientoForm.applyTax) ? Number(movimientoForm.taxRate || 0) / 100 : 0)) -
@@ -4464,7 +4750,7 @@ function Contabilidad({ setActive }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Cuenta tesorería (57/56)</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Cuenta tesorería (57/56)</label>
                 <select
                   value={movimientoForm.paymentAccountCode}
                   onChange={(e) => setMovimientoForm((f) => ({ ...f, paymentAccountCode: e.target.value }))}
@@ -4476,7 +4762,7 @@ function Contabilidad({ setActive }) {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>
                   {movimientoType === 'INCOME' ? 'Cuenta ingreso (grupo 7)' : 'Cuenta gasto (grupo 6)'}
                 </label>
                 <select
@@ -4504,7 +4790,7 @@ function Contabilidad({ setActive }) {
                 type="button"
                 disabled={movimientoBusy}
                 onClick={() => setShowMovimientoModal(false)}
-                style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: movimientoBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#374151' }}
+                style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: movimientoBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#44403c' }}
               >
                 Cancelar
               </button>
@@ -4554,8 +4840,8 @@ function Contabilidad({ setActive }) {
             }}
           >
             <div style={{ marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>Nuevo cobro</h3>
-              <p style={{ margin: '6px 0 0', fontSize: 13, color: '#6b7280' }}>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#1c1917' }}>Nuevo cobro</h3>
+              <p style={{ margin: '6px 0 0', fontSize: 13, color: '#8c857d' }}>
                 Crea un cobro manual sin salir de esta vista.
               </p>
             </div>
@@ -4571,7 +4857,7 @@ function Contabilidad({ setActive }) {
                   borderRadius: 10,
                   border: nuevoCobroForm.target === 'member' ? '1.5px solid var(--accent)' : '1px solid rgba(0,0,0,0.09)',
                   background: nuevoCobroForm.target === 'member' ? 'var(--accent-soft)' : '#fff',
-                  color: nuevoCobroForm.target === 'member' ? 'var(--accent)' : '#374151',
+                  color: nuevoCobroForm.target === 'member' ? 'var(--accent)' : '#44403c',
                   cursor: sociosTotal ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit',
                   fontSize: 13,
@@ -4597,7 +4883,7 @@ function Contabilidad({ setActive }) {
                   borderRadius: 10,
                   border: nuevoCobroForm.target === 'team' ? '1.5px solid var(--accent)' : '1px solid rgba(0,0,0,0.09)',
                   background: nuevoCobroForm.target === 'team' ? 'var(--accent-soft)' : '#fff',
-                  color: nuevoCobroForm.target === 'team' ? 'var(--accent)' : '#374151',
+                  color: nuevoCobroForm.target === 'team' ? 'var(--accent)' : '#44403c',
                   cursor: equiposConJugadores.length ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit',
                   fontSize: 13,
@@ -4620,7 +4906,7 @@ function Contabilidad({ setActive }) {
               />
             ) : (
               <>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Equipo</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Equipo</label>
                 <select
                   required
                   value={nuevoCobroForm.teamId}
@@ -4634,13 +4920,13 @@ function Contabilidad({ setActive }) {
                     </option>
                   ))}
                 </select>
-                <p style={{ margin: '0 0 12px', fontSize: 12, color: '#64748b' }}>
+                <p style={{ margin: '0 0 12px', fontSize: 12, color: '#78716c' }}>
                   Se crearán {countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.teamId) || {})} cobros (solo jugadores).
                 </p>
               </>
             )}
 
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Concepto</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Concepto</label>
             <input
               value={nuevoCobroForm.concepto}
               onChange={(e) => setNuevoCobroForm((f) => ({ ...f, concepto: e.target.value }))}
@@ -4650,7 +4936,7 @@ function Contabilidad({ setActive }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Importe (€)</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Importe (€)</label>
                 <input
                   type="number"
                   min={0}
@@ -4661,7 +4947,7 @@ function Contabilidad({ setActive }) {
                 />
               </div>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Vencimiento</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Vencimiento</label>
                 <input
                   type="date"
                   value={nuevoCobroForm.dueDate}
@@ -4671,7 +4957,7 @@ function Contabilidad({ setActive }) {
               </div>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
-              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#475569'}}>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#57534e'}}>
                 <input
                   type="checkbox"
                   checked={Boolean(nuevoCobroForm.applyTax)}
@@ -4680,7 +4966,7 @@ function Contabilidad({ setActive }) {
                 Aplicar IVA
               </label>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>IVA %</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>IVA %</label>
                 <input
                   type="number"
                   min={0}
@@ -4692,7 +4978,7 @@ function Contabilidad({ setActive }) {
               </div>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:10 }}>
-              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#475569'}}>
+              <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'#57534e'}}>
                 <input
                   type="checkbox"
                   checked={Boolean(nuevoCobroForm.applyWithholding)}
@@ -4701,7 +4987,7 @@ function Contabilidad({ setActive }) {
                 Aplicar retención
               </label>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Retención %</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Retención %</label>
                 <input
                   type="number"
                   min={0}
@@ -4712,7 +4998,7 @@ function Contabilidad({ setActive }) {
                 />
               </div>
             </div>
-            <div style={{marginTop:10,fontSize:12,color:'#475569'}}>
+            <div style={{marginTop:10,fontSize:12,color:'#57534e'}}>
               {(() => {
                 const netPerMember =
                   Number(nuevoCobroForm.amount || 0) *
@@ -4741,7 +5027,7 @@ function Contabilidad({ setActive }) {
                 type="button"
                 disabled={nuevoCobroBusy}
                 onClick={() => setShowNuevoCobroModal(false)}
-                style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: nuevoCobroBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#374151' }}
+                style={{ flex: 1, padding: '12px 16px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.09)', background: '#fff', cursor: nuevoCobroBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#44403c' }}
               >
                 Cancelar
               </button>
@@ -4863,14 +5149,14 @@ function Calendario({ setActive }) {
     background: '#fff',
     fontFamily: 'inherit',
     fontSize: 14,
-    color: '#111827',
+    color: '#1c1917',
     outline: 'none',
     boxSizing: 'border-box',
   }
   const evLabel = {
     fontSize: 12,
     fontWeight: 600,
-    color: '#64748b',
+    color: '#78716c',
     marginBottom: 6,
     display: 'block',
     letterSpacing: 0.15,
@@ -4952,7 +5238,7 @@ function Calendario({ setActive }) {
   const year = viewYm.year, month = viewYm.month;
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const tipoColors = {Torneo:'#3B82F6',Entrenamiento:'#10B981',Partido:'#F59E0B',Reunión:'#8B5CF6',Competencia:'#EF4444',Especial:'#06B6D4', 'Otro': '#64748b'};
+  const tipoColors = {Torneo:'#3B82F6',Entrenamiento:'#10B981',Partido:'#F59E0B',Reunión:'#8B5CF6',Competencia:'#EF4444',Especial:'#06B6D4', 'Otro': '#78716c'};
 
   const eventosEnRango = EVENTOS_UI.filter((e) => {
     const f = String(e.fecha || '')
@@ -5255,10 +5541,10 @@ function Calendario({ setActive }) {
           >
             <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div>
-                <h2 id="evento-modal-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#111827', letterSpacing: '-0.4px' }}>
+                <h2 id="evento-modal-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.4px' }}>
                   {editingEventId ? 'Editar evento' : 'Nuevo evento'}
                 </h2>
-                <p style={{ margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: 13, color: '#8c857d', lineHeight: 1.5 }}>
                   {editingEventId
                     ? 'Modifica equipo, tipo, fecha u hora. Los cambios se reflejan en el calendario.'
                     : 'Elige equipo, tipo y fecha. Aparecerá en el calendario del club.'}
@@ -5273,12 +5559,12 @@ function Calendario({ setActive }) {
                 }}
                 style={{
                   border: 'none',
-                  background: '#f1f5f9',
+                  background: '#f4efe8',
                   borderRadius: 10,
                   width: 36,
                   height: 36,
                   cursor: eventoBusy ? 'not-allowed' : 'pointer',
-                  color: '#64748b',
+                  color: '#78716c',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -5369,7 +5655,7 @@ function Calendario({ setActive }) {
                   fontFamily: 'inherit',
                   fontSize: 14,
                   fontWeight: 600,
-                  color: '#374151',
+                  color: '#44403c',
                 }}
               >
                 Cancelar
@@ -5477,7 +5763,7 @@ function Informes({ setActive }) {
   const totalConceptos = conceptos.reduce((a, c) => a + c.value, 0);
   const donutSegments = conceptos.length
     ? conceptos
-    : [{ label: 'Sin ingresos', value: 0, color: '#CBD5E1' }];
+    : [{ label: 'Sin ingresos', value: 0, color: '#d8cdbd' }];
 
   const ratio = totIng > 0 ? Math.round(((totIng - totEgr) / totIng) * 100) : 0
 
@@ -6596,9 +6882,9 @@ function CrmInner() {
               zIndex:300,
             }}>
               <div style={{padding:'10px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                <span style={{fontSize:13,fontWeight:700,color:'#111827'}}>Notificaciones</span>
+                <span style={{fontSize:13,fontWeight:700,color:'#1c1917'}}>Notificaciones</span>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{fontSize:12,color:'#6b7280'}}>{unreadCount}</span>
+                  <span style={{fontSize:12,color:'#8c857d'}}>{unreadCount}</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -6616,7 +6902,7 @@ function CrmInner() {
                 </div>
               </div>
               {notifications.length === 0 ? (
-                <div style={{padding:'14px 12px',fontSize:13,color:'#6b7280'}}>No hay novedades ahora mismo.</div>
+                <div style={{padding:'14px 12px',fontSize:13,color:'#8c857d'}}>No hay novedades ahora mismo.</div>
               ) : (
                 notifications.map((n) => (
                   <button
@@ -6638,10 +6924,10 @@ function CrmInner() {
                     }}
                   >
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{width:7,height:7,borderRadius:'50%',background:n.priority === 'high' ? 'var(--red)' : '#94a3b8',flexShrink:0}}></span>
-                      <span style={{fontSize:13,fontWeight:600,color:'#111827'}}>{n.title}</span>
+                      <span style={{width:7,height:7,borderRadius:'50%',background:n.priority === 'high' ? 'var(--red)' : '#a8a29e',flexShrink:0}}></span>
+                      <span style={{fontSize:13,fontWeight:600,color:'#1c1917'}}>{n.title}</span>
                     </div>
-                    <div style={{fontSize:12,color:'#6b7280',marginTop:4,paddingLeft:15}}>{n.description}</div>
+                    <div style={{fontSize:12,color:'#8c857d',marginTop:4,paddingLeft:15}}>{n.description}</div>
                   </button>
                 ))
               )}

@@ -26,7 +26,7 @@ export default async function AdminOrdersPage() {
       case "CANCELLED":
         return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><XCircle className="w-3 h-3 mr-1"/> Cancelado</span>;
       default:
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{status}</span>;
+        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-800">{status}</span>;
     }
   };
 
@@ -35,61 +35,61 @@ export default async function AdminOrdersPage() {
       <div className="mb-8">
         <Link
           href="/admin/store"
-          className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700 mb-4 transition-colors"
+          className="inline-flex items-center text-sm font-medium text-stone-500 hover:text-stone-700 mb-4 transition-colors"
         >
           <ChevronLeft className="w-4 h-4 mr-1" />
           Volver a la Tienda
         </Link>
-        <h1 className="text-3xl font-bold text-gray-900">Pedidos de la Tienda</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-3xl font-bold text-stone-900">Pedidos de la Tienda</h1>
+        <p className="text-stone-500 mt-1">
           Gestiona los pedidos realizados por los miembros y el público.
         </p>
       </div>
 
-      <div className="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-white shadow-sm rounded-lg border border-stone-200 overflow-hidden">
         {orders && orders.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-stone-200">
+              <thead className="bg-stone-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Pedido
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Cliente
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Estado
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Total
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-stone-200">
                 {orders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={order.id} className="hover:bg-stone-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-900">
+                        <span className="text-sm font-bold text-stone-900">
                           {order.orderNumber}
                         </span>
-                        <span className="text-xs text-gray-500 mt-1">
+                        <span className="text-xs text-stone-500 mt-1">
                           {new Date(order.createdAt).toLocaleDateString("es-ES")}
                         </span>
-                        <span className="text-xs text-gray-500 mt-1">
+                        <span className="text-xs text-stone-500 mt-1">
                           {order.items.length} artículo(s)
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-col text-sm text-gray-900">
+                      <div className="flex flex-col text-sm text-stone-900">
                         <span className="font-medium">{order.customerName}</span>
                         {order.customerEmail && (
-                          <span className="text-gray-500 text-xs">{order.customerEmail}</span>
+                          <span className="text-stone-500 text-xs">{order.customerEmail}</span>
                         )}
                         {order.memberId && (
                           <span className="inline-flex items-center px-2 py-0.5 mt-1 rounded text-[10px] font-medium bg-blue-100 text-blue-800 w-fit">
@@ -102,7 +102,7 @@ export default async function AdminOrdersPage() {
                       {getStatusBadge(order.status)}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm font-bold text-gray-900">
+                      <span className="text-sm font-bold text-stone-900">
                         {order.totalAmount.toFixed(2)}€
                       </span>
                     </td>
@@ -121,9 +121,9 @@ export default async function AdminOrdersPage() {
           </div>
         ) : (
           <div className="text-center py-12">
-            <ShoppingBag className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No hay pedidos aún</h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <ShoppingBag className="mx-auto h-12 w-12 text-stone-400" />
+            <h3 className="mt-2 text-sm font-medium text-stone-900">No hay pedidos aún</h3>
+            <p className="mt-1 text-sm text-stone-500">
               Cuando los usuarios compren en la tienda, sus pedidos aparecerán aquí.
             </p>
           </div>

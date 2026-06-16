@@ -21,7 +21,7 @@ export function AttendanceButtons({ attendanceId, currentStatus }: { attendanceI
         className={`p-2 rounded-lg border transition flex items-center justify-center ${
           currentStatus === 'PRESENT' 
             ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-            : 'bg-white border-slate-200 text-slate-400 hover:border-emerald-200 hover:text-emerald-600'
+            : 'bg-white border-stone-200 text-stone-400 hover:border-emerald-200 hover:text-emerald-600'
         }`}
         title="Asiste"
       >
@@ -34,7 +34,7 @@ export function AttendanceButtons({ attendanceId, currentStatus }: { attendanceI
         className={`p-2 rounded-lg border transition flex items-center justify-center ${
           currentStatus === 'ABSENT' 
             ? 'bg-rose-50 border-rose-200 text-rose-700' 
-            : 'bg-white border-slate-200 text-slate-400 hover:border-rose-200 hover:text-rose-600'
+            : 'bg-white border-stone-200 text-stone-400 hover:border-rose-200 hover:text-rose-600'
         }`}
         title="Falta"
       >
@@ -47,7 +47,7 @@ export function AttendanceButtons({ attendanceId, currentStatus }: { attendanceI
         className={`p-2 rounded-lg border transition flex items-center justify-center ${
           currentStatus === 'INJURED' 
             ? 'bg-amber-50 border-amber-200 text-amber-700' 
-            : 'bg-white border-slate-200 text-slate-400 hover:border-amber-200 hover:text-amber-600'
+            : 'bg-white border-stone-200 text-stone-400 hover:border-amber-200 hover:text-amber-600'
         }`}
         title="Lesionado"
       >
@@ -59,8 +59,8 @@ export function AttendanceButtons({ attendanceId, currentStatus }: { attendanceI
         disabled={isPending}
         className={`p-2 rounded-lg border transition flex items-center justify-center ${
           currentStatus === 'PENDING' 
-            ? 'bg-slate-100 border-slate-300 text-slate-700' 
-            : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+            ? 'bg-stone-100 border-stone-300 text-stone-700' 
+            : 'bg-white border-stone-200 text-stone-400 hover:border-stone-300 hover:text-stone-600'
         }`}
         title="Pendiente"
       >

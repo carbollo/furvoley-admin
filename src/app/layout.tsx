@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import "@/components/crm/crm-vars.css";
 import Providers from "./providers";
 import { getClubBranding } from "@/lib/club-settings";
 
-const inter = Inter({ subsets: ["latin"] });
+// Tipografía cálida y cercana (humanista, redondeada) para todo el panel.
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-app",
+});
 
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getClubBranding();
@@ -22,7 +28,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${inter.className} min-h-screen w-full bg-slate-50 text-slate-900`}>
+      <body
+        className={`${jakarta.className} min-h-screen w-full`}
+        style={{ background: "var(--surface)", color: "var(--text-primary)" }}
+      >
         <Providers>{children}</Providers>
       </body>
     </html>

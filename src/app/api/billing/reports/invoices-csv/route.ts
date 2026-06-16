@@ -1,12 +1,22 @@
 import { prisma } from '@/lib/prisma'
+import { requireRoles } from '@/lib/rbac-api'
 
 function toCsvRow(fields: Array<string | number>) {
+  // Prefijo anti CSV-injection: si el campo empieza por =,+,-,@ o tab, se
+  // antepone un apóstrofo para que Excel/Sheets no lo interprete como fórmula.
   return fields
-    .map((f) => `"${String(f).replaceAll('"', '""')}"`)
+    .map((f) => {
+      let s = String(f)
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+      return `"${s.replaceAll('"', '""')}"`
+    })
     .join(',')
 }
 
 export async function GET() {
+  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  if (!auth.ok) return auth.response
+
   const invoices = await prisma.invoice.findMany({
     include: { member: true },
     orderBy: { issueDate: 'desc' },

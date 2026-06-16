@@ -121,7 +121,7 @@ export function ReconcileLineActions({ line }: Props) {
     return (
       <div className="text-sm space-y-1">
         <span className="text-emerald-700 font-medium">Vinculado</span>
-        <p className="text-slate-600">
+        <p className="text-stone-600">
           {line.matchedTransaction.description} — €{line.matchedTransaction.amount.toFixed(2)} (
           {new Date(line.matchedTransaction.date).toLocaleDateString('es-ES')})
           {line.matchedTransaction.invoice && (
@@ -145,7 +145,7 @@ export function ReconcileLineActions({ line }: Props) {
     return (
       <div className="text-sm space-y-1">
         <span className="text-indigo-700 font-medium">Asiento creado desde extracto</span>
-        <p className="text-slate-600">{line.matchedTransaction.description}</p>
+        <p className="text-stone-600">{line.matchedTransaction.description}</p>
         <button
           type="button"
           disabled={busy}
@@ -160,7 +160,7 @@ export function ReconcileLineActions({ line }: Props) {
   }
 
   if (line.status === 'IGNORED') {
-    return <span className="text-slate-400 text-sm">Ignorado</span>
+    return <span className="text-stone-400 text-sm">Ignorado</span>
   }
 
   return (
@@ -170,7 +170,7 @@ export function ReconcileLineActions({ line }: Props) {
           type="button"
           disabled={busy}
           onClick={loadSuggestions}
-          className="px-2 py-1 rounded bg-slate-100 text-slate-800 text-xs font-medium hover:bg-slate-200"
+          className="px-2 py-1 rounded bg-stone-100 text-stone-800 text-xs font-medium hover:bg-stone-200"
         >
           {busy ? '…' : 'Sugerencias'}
         </button>
@@ -186,21 +186,21 @@ export function ReconcileLineActions({ line }: Props) {
           type="button"
           disabled={busy}
           onClick={onIgnore}
-          className="px-2 py-1 rounded text-slate-500 text-xs hover:bg-slate-50"
+          className="px-2 py-1 rounded text-stone-500 text-xs hover:bg-stone-50"
         >
           Ignorar
         </button>
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-stone-500">
         {isIn ? 'Ingreso' : 'Gasto'} esperado: €{abs.toFixed(2)}
       </p>
       {suggestions && suggestions.length > 0 && (
-        <ul className="border border-slate-100 rounded-lg divide-y max-h-40 overflow-y-auto">
+        <ul className="border border-stone-100 rounded-lg divide-y max-h-40 overflow-y-auto">
           {suggestions.map((t) => (
             <li key={t.id} className="p-2 flex justify-between gap-2 items-start">
               <div>
-                <p className="text-xs font-medium text-slate-800">{t.description}</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs font-medium text-stone-800">{t.description}</p>
+                <p className="text-xs text-stone-500">
                   {new Date(t.date).toLocaleDateString('es-ES')} · €{t.amount.toFixed(2)} ·{' '}
                   {t.type}
                   {t.invoice && ` · ${t.invoice.invoiceNumber}`}
@@ -219,7 +219,7 @@ export function ReconcileLineActions({ line }: Props) {
         </ul>
       )}
       {suggestions && suggestions.length === 0 && (
-        <p className="text-xs text-slate-500">No hay asientos cercanos por importe y fecha.</p>
+        <p className="text-xs text-stone-500">No hay asientos cercanos por importe y fecha.</p>
       )}
       {err && <p className="text-rose-600 text-xs">{err}</p>}
     </div>

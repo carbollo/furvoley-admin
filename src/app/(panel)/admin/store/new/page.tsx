@@ -43,18 +43,18 @@ export default function NewProductPage() {
       <div className="mb-8">
         <Link
           href="/admin/store"
-          className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-gray-700 mb-4 transition-colors"
+          className="inline-flex items-center text-sm font-medium text-stone-500 hover:text-stone-700 mb-4 transition-colors"
         >
           <ChevronLeft className="w-4 h-4 mr-1" />
           Volver a la Tienda
         </Link>
-        <h1 className="text-3xl font-bold text-gray-900">Añadir Nuevo Producto</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-3xl font-bold text-stone-900">Añadir Nuevo Producto</h1>
+        <p className="text-stone-500 mt-1">
           Sube un nuevo artículo para vender a los miembros del club o al público general.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-xl shadow-sm border border-gray-200">
+      <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-xl shadow-sm border border-stone-200">
         {error && (
           <div className="bg-red-50 border-l-4 border-red-400 p-4 text-red-700">
             <p>{error}</p>
@@ -65,16 +65,16 @@ export default function NewProductPage() {
           {/* Columna Izquierda: Info Básica */}
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Producto *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Nombre del Producto *</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Package className="h-4 w-4 text-gray-400" />
+                  <Package className="h-4 w-4 text-stone-400" />
                 </div>
                 <input
                   type="text"
                   name="name"
                   required
-                  className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Ej: Camiseta Oficial 2026"
                 />
               </div>
@@ -82,10 +82,10 @@ export default function NewProductPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Precio (€) *</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Precio (€) *</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Euro className="h-4 w-4 text-gray-400" />
+                    <Euro className="h-4 w-4 text-stone-400" />
                   </div>
                   <input
                     type="number"
@@ -93,16 +93,16 @@ export default function NewProductPage() {
                     min="0"
                     step="0.01"
                     required
-                    className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="25.00"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Inicial *</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Stock Inicial *</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Hash className="h-4 w-4 text-gray-400" />
+                    <Hash className="h-4 w-4 text-stone-400" />
                   </div>
                   <input
                     type="number"
@@ -110,7 +110,7 @@ export default function NewProductPage() {
                     min="0"
                     required
                     defaultValue="10"
-                    className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="10"
                   />
                 </div>
@@ -118,15 +118,15 @@ export default function NewProductPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Categoría</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Tag className="h-4 w-4 text-gray-400" />
+                  <Tag className="h-4 w-4 text-stone-400" />
                 </div>
                 <input
                   type="text"
                   name="category"
-                  className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Ej: Ropa, Accesorios, Equipación"
                   list="categories"
                 />
@@ -143,57 +143,57 @@ export default function NewProductPage() {
           {/* Columna Derecha: Detalles */}
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">URL de la Imagen</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">URL de la Imagen</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <ImageIcon className="h-4 w-4 text-gray-400" />
+                  <ImageIcon className="h-4 w-4 text-stone-400" />
                 </div>
                 <input
                   type="url"
                   name="image"
-                  className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="https://ejemplo.com/imagen.jpg"
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-500">Pega el enlace de una imagen para mostrarla en la tienda.</p>
+              <p className="mt-1 text-xs text-stone-500">Pega el enlace de una imagen para mostrarla en la tienda.</p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Descripción</label>
               <div className="relative">
                 <div className="absolute top-3 left-3 pointer-events-none">
-                  <FileText className="h-4 w-4 text-gray-400" />
+                  <FileText className="h-4 w-4 text-stone-400" />
                 </div>
                 <textarea
                   name="description"
                   rows={4}
-                  className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Tallas disponibles, materiales, cuidados..."
                 ></textarea>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Estado</label>
               <div className="flex items-center space-x-4 mt-2">
                 <label className="inline-flex items-center">
-                  <input type="radio" name="isActive" value="true" defaultChecked className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300" />
-                  <span className="ml-2 text-sm text-gray-900">Activo (Visible en tienda)</span>
+                  <input type="radio" name="isActive" value="true" defaultChecked className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-stone-300" />
+                  <span className="ml-2 text-sm text-stone-900">Activo (Visible en tienda)</span>
                 </label>
                 <label className="inline-flex items-center">
-                  <input type="radio" name="isActive" value="false" className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300" />
-                  <span className="ml-2 text-sm text-gray-900">Inactivo (Oculto)</span>
+                  <input type="radio" name="isActive" value="false" className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-stone-300" />
+                  <span className="ml-2 text-sm text-stone-900">Inactivo (Oculto)</span>
                 </label>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="pt-6 border-t border-gray-200 flex justify-end space-x-4">
+        <div className="pt-6 border-t border-stone-200 flex justify-end space-x-4">
           <button
             type="button"
             onClick={() => router.back()}
-            className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+            className="px-6 py-2 border border-stone-300 rounded-md text-stone-700 hover:bg-stone-50 font-medium transition-colors"
           >
             Cancelar
           </button>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { parseCuid } from '@/lib/db-input-validation'
-import { requireRoles } from '@/lib/rbac-api'
+import { assertTeamAccess, requireRoles } from '@/lib/rbac-api'
 import { runTeamScheduleChangedWorkflows } from '@/lib/workflow-engine'
 
 type Params = { params: Promise<{ id: string }> }
@@ -36,6 +36,10 @@ export async function POST(request: Request, { params }: Params) {
   const { id: teamId } = await params
   const parsedTeamId = parseCuid(teamId, 'teamId')
   if (parsedTeamId instanceof Response) return parsedTeamId
+
+  const denied = await assertTeamAccess(auth, parsedTeamId)
+  if (denied) return denied
+
   let body: Record<string, unknown>
   try {
     body = (await request.json()) as Record<string, unknown>

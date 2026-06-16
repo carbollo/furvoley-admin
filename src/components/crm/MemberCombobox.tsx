@@ -125,7 +125,7 @@ export function MemberCombobox({
           style={{
             fontSize: 12,
             fontWeight: 600,
-            color: '#64748b',
+            color: '#78716c',
             marginBottom: 6,
             display: 'block',
           }}
@@ -175,7 +175,7 @@ export function MemberCombobox({
             top: label ? 30 : 8,
             border: 'none',
             background: 'transparent',
-            color: '#94a3b8',
+            color: '#a8a29e',
             cursor: 'pointer',
             fontSize: 16,
             lineHeight: 1,
@@ -202,9 +202,9 @@ export function MemberCombobox({
           }}
         >
           {busy ? (
-            <div style={{ padding: '12px 14px', fontSize: 13, color: '#64748b' }}>Buscando…</div>
+            <div style={{ padding: '12px 14px', fontSize: 13, color: '#78716c' }}>Buscando…</div>
           ) : options.length === 0 ? (
-            <div style={{ padding: '12px 14px', fontSize: 13, color: '#64748b' }}>
+            <div style={{ padding: '12px 14px', fontSize: 13, color: '#78716c' }}>
               {query.trim() ? 'Sin resultados' : 'Escribe para buscar socios'}
             </div>
           ) : (
@@ -229,9 +229,9 @@ export function MemberCombobox({
                   fontFamily: 'inherit',
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{opt.nombre}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>{opt.nombre}</div>
                 {opt.email ? (
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{opt.email}</div>
+                  <div style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>{opt.email}</div>
                 ) : null}
               </button>
             ))

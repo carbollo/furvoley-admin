@@ -9,7 +9,7 @@ export default function StoreFront({ products }: { products: any[] }) {
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-stone-50">
       {/* Header de la Tienda */}
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -17,7 +17,7 @@ export default function StoreFront({ products }: { products: any[] }) {
           
           <button
             onClick={() => setIsOpen(true)}
-            className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors"
+            className="relative p-2 text-stone-600 hover:text-blue-600 transition-colors"
           >
             <ShoppingCart className="w-6 h-6" />
             {cartItemsCount > 0 && (
@@ -32,23 +32,23 @@ export default function StoreFront({ products }: { products: any[] }) {
       {/* Catálogo */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-12 text-center">
-          <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Equipación Oficial</h2>
-          <p className="mt-4 max-w-2xl mx-auto text-xl text-gray-500">
+          <h2 className="text-3xl font-extrabold text-stone-900 sm:text-4xl">Equipación Oficial</h2>
+          <p className="mt-4 max-w-2xl mx-auto text-xl text-stone-500">
             Viste los colores de tu club. Haz tu pedido y coordina el pago y la entrega directamente por WhatsApp.
           </p>
         </div>
 
         {products.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-2xl shadow-sm border border-gray-100">
-            <Package className="mx-auto h-16 w-16 text-gray-300 mb-4" />
-            <h3 className="text-xl font-medium text-gray-900">Tienda vacía</h3>
-            <p className="mt-2 text-gray-500">Pronto añadiremos nuevos productos al catálogo.</p>
+          <div className="text-center py-20 bg-white rounded-2xl shadow-sm border border-stone-100">
+            <Package className="mx-auto h-16 w-16 text-stone-300 mb-4" />
+            <h3 className="text-xl font-medium text-stone-900">Tienda vacía</h3>
+            <p className="mt-2 text-stone-500">Pronto añadiremos nuevos productos al catálogo.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {products.map((product) => (
-              <div key={product.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:shadow-lg transition-shadow duration-300 group">
-                <div className="h-64 bg-gray-100 flex items-center justify-center relative overflow-hidden">
+              <div key={product.id} className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden flex flex-col hover:shadow-lg transition-shadow duration-300 group">
+                <div className="h-64 bg-stone-100 flex items-center justify-center relative overflow-hidden">
                   {product.image ? (
                     <img 
                       src={product.image} 
@@ -56,7 +56,7 @@ export default function StoreFront({ products }: { products: any[] }) {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                     />
                   ) : (
-                    <Package className="w-16 h-16 text-gray-300" />
+                    <Package className="w-16 h-16 text-stone-300" />
                   )}
                   {product.stock <= 0 && (
                     <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center">
@@ -69,7 +69,7 @@ export default function StoreFront({ products }: { products: any[] }) {
                 
                 <div className="p-6 flex-grow flex flex-col">
                   <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-xl font-bold text-gray-900 line-clamp-2" title={product.name}>
+                    <h3 className="text-xl font-bold text-stone-900 line-clamp-2" title={product.name}>
                       {product.name}
                     </h3>
                   </div>
@@ -79,12 +79,12 @@ export default function StoreFront({ products }: { products: any[] }) {
                   </div>
                   
                   {product.category && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 w-fit mb-4">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-800 w-fit mb-4">
                       <Tag className="w-3 h-3 mr-1" /> {product.category}
                     </span>
                   )}
                   
-                  <p className="text-sm text-gray-500 line-clamp-3 mb-6 flex-grow">
+                  <p className="text-sm text-stone-500 line-clamp-3 mb-6 flex-grow">
                     {product.description || "Sin descripción disponible."}
                   </p>
                   
@@ -94,7 +94,7 @@ export default function StoreFront({ products }: { products: any[] }) {
                     className={`w-full flex items-center justify-center px-4 py-3 border border-transparent text-sm font-bold rounded-xl text-white transition-colors shadow-sm ${
                       product.stock > 0 
                         ? "bg-blue-600 hover:bg-blue-700" 
-                        : "bg-gray-300 cursor-not-allowed"
+                        : "bg-stone-300 cursor-not-allowed"
                     }`}
                   >
                     {product.stock > 0 ? (

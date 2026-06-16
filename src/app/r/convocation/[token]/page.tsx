@@ -35,7 +35,7 @@ export default function ConvocationResponsePage() {
   return (
     <main style={{ maxWidth: 400, margin: '60px auto', padding: 24, fontFamily: 'system-ui', textAlign: 'center' }}>
       <h1 style={{ marginBottom: 12 }}>Convocatoria</h1>
-      <p style={{ color: '#64748b', marginBottom: 24 }}>¿Puede asistir al partido/evento?</p>
+      <p style={{ color: '#78716c', marginBottom: 24 }}>¿Puede asistir al partido/evento?</p>
       {error && <p style={{ color: '#b91c1c', marginBottom: 12 }}>{error}</p>}
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
         <button
@@ -48,7 +48,7 @@ export default function ConvocationResponsePage() {
         <button
           type="button"
           onClick={() => void answer('no')}
-          style={{ padding: '12px 24px', background: '#64748b', color: '#fff', border: 'none', borderRadius: 8 }}
+          style={{ padding: '12px 24px', background: '#78716c', color: '#fff', border: 'none', borderRadius: 8 }}
         >
           No puede
         </button>

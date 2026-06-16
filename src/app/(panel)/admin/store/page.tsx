@@ -15,15 +15,15 @@ export default async function AdminStorePage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Catálogo de Tienda</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="text-3xl font-bold text-stone-900">Catálogo de Tienda</h1>
+          <p className="text-stone-500 mt-1">
             Gestiona los productos, precios y stock de tu tienda.
           </p>
         </div>
         <div className="flex space-x-4">
           <Link
             href="/admin/store/orders"
-            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium shadow-sm"
+            className="inline-flex items-center px-4 py-2 bg-white border border-stone-300 text-stone-700 rounded-md hover:bg-stone-50 transition-colors font-medium shadow-sm"
           >
             Ver Pedidos
           </Link>
@@ -40,12 +40,12 @@ export default async function AdminStorePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {products && products.length > 0 ? (
           products.map((product) => (
-            <div key={product.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-              <div className="h-48 bg-gray-100 flex items-center justify-center relative">
+            <div key={product.id} className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+              <div className="h-48 bg-stone-100 flex items-center justify-center relative">
                 {product.image ? (
                   <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
                 ) : (
-                  <Package className="w-12 h-12 text-gray-300" />
+                  <Package className="w-12 h-12 text-stone-300" />
                 )}
                 {!product.isActive && (
                   <div className="absolute top-2 right-2 bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full flex items-center shadow-sm">
@@ -55,23 +55,23 @@ export default async function AdminStorePage() {
               </div>
               <div className="p-5 flex-grow flex flex-col">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-lg font-bold text-gray-900 line-clamp-1" title={product.name}>
+                  <h3 className="text-lg font-bold text-stone-900 line-clamp-1" title={product.name}>
                     {product.name}
                   </h3>
                   <span className="font-bold text-blue-600 ml-2">{product.price}€</span>
                 </div>
                 
                 {product.category && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 w-fit mb-3">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-800 w-fit mb-3">
                     <Tag className="w-3 h-3 mr-1" /> {product.category}
                   </span>
                 )}
                 
-                <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-grow">
+                <p className="text-sm text-stone-500 line-clamp-2 mb-4 flex-grow">
                   {product.description || "Sin descripción"}
                 </p>
                 
-                <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mt-auto pt-4 border-t border-stone-100">
                   <div className="flex items-center text-sm">
                     <span className={`font-medium ${product.stock > 10 ? 'text-green-600' : product.stock > 0 ? 'text-orange-500' : 'text-red-500'}`}>
                       {product.stock} en stock
@@ -88,10 +88,10 @@ export default async function AdminStorePage() {
             </div>
           ))
         ) : (
-          <div className="col-span-full text-center py-16 bg-white rounded-xl border border-gray-200 border-dashed">
-            <Package className="mx-auto h-12 w-12 text-gray-300" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No hay productos</h3>
-            <p className="mt-1 text-sm text-gray-500">
+          <div className="col-span-full text-center py-16 bg-white rounded-xl border border-stone-200 border-dashed">
+            <Package className="mx-auto h-12 w-12 text-stone-300" />
+            <h3 className="mt-2 text-sm font-medium text-stone-900">No hay productos</h3>
+            <p className="mt-1 text-sm text-stone-500">
               Añade productos para empezar a vender equipaciones y merchandising.
             </p>
             <div className="mt-6">

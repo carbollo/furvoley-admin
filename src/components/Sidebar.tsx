@@ -6,10 +6,13 @@ import { signOut, useSession } from 'next-auth/react'
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { normalizeRole, ROLE_LABEL, type AppRole } from '@/lib/rbac'
 
-const SIDEBAR_BG = '#111827'
-const SIDEBAR_TEXT = 'rgba(255,255,255,0.65)'
-const SIDEBAR_BORDER = 'rgba(255,255,255,0.07)'
-const ACCENT_GRADIENT = 'linear-gradient(135deg, #3B82F6, #8B5CF6)'
+// Unificado con el sistema de diseño (crm-vars.css): mismos tokens que el CRM,
+// charcoal cálido y azul de marca (sin el degradado morado anterior).
+const SIDEBAR_BG = 'var(--sidebar-bg)'
+const SIDEBAR_TEXT = 'var(--sidebar-text)'
+const SIDEBAR_BORDER = 'var(--sidebar-border)'
+const ACCENT_GRADIENT = 'var(--accent)'
+const SIDEBAR_ACTIVE_BG = 'var(--sidebar-active-bg)'
 
 type IconName =
   | 'home'
@@ -142,7 +145,7 @@ function NavLink({
     borderRadius: 10,
     border: 'none',
     cursor: 'pointer',
-    background: active ? 'rgba(255,255,255,0.10)' : 'transparent',
+    background: active ? SIDEBAR_ACTIVE_BG : 'transparent',
     color: active ? '#fff' : SIDEBAR_TEXT,
     fontFamily: 'inherit',
     fontSize: 13.5,
@@ -325,8 +328,8 @@ export function Sidebar({ branding }: { branding?: SidebarBranding } = {}) {
             <div
               style={{
                 display: 'inline-block',
-                background: 'rgba(99,102,241,0.3)',
-                color: '#a5b4fc',
+                background: 'rgba(37,99,235,0.28)',
+                color: '#bcd2fb',
                 fontSize: 9,
                 fontWeight: 700,
                 padding: '1px 7px',
@@ -389,7 +392,7 @@ export function Sidebar({ branding }: { branding?: SidebarBranding } = {}) {
                     border: 'none',
                     cursor: 'pointer',
                     background: isAccountingSectionPath(pathname)
-                      ? 'rgba(255,255,255,0.10)'
+                      ? SIDEBAR_ACTIVE_BG
                       : 'transparent',
                     color: isAccountingSectionPath(pathname) ? '#fff' : SIDEBAR_TEXT,
                     fontFamily: 'inherit',

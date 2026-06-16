@@ -54,7 +54,7 @@ export function EventRegistrationPanel({
 
   if (isFull) {
     return (
-      <p className="text-center text-gray-700 bg-gray-100 border border-gray-200 rounded-lg py-3 px-4">
+      <p className="text-center text-stone-700 bg-stone-100 border border-stone-200 rounded-lg py-3 px-4">
         Plazas completas. No es posible inscribirse en este momento.
       </p>
     );
@@ -68,16 +68,16 @@ export function EventRegistrationPanel({
 
       <div className="relative">
         <div className="absolute inset-0 flex items-center" aria-hidden>
-          <div className="w-full border-t border-gray-200" />
+          <div className="w-full border-t border-stone-200" />
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="bg-white px-3 text-gray-500">o</span>
+          <span className="bg-white px-3 text-stone-500">o</span>
         </div>
       </div>
 
       {showMemberBlock ? (
         <div className="space-y-3 text-center">
-          <p className="text-sm font-medium text-gray-700">Socio del club</p>
+          <p className="text-sm font-medium text-stone-700">Socio del club</p>
           <EventRegisterButton
             eventId={eventId}
             isLoggedIn={isLoggedIn}
@@ -90,7 +90,7 @@ export function EventRegistrationPanel({
           />
         </div>
       ) : (
-        <div className="space-y-3 text-center text-sm text-gray-600">
+        <div className="space-y-3 text-center text-sm text-stone-600">
           {!isLoggedIn ? (
             <p>
               ¿Eres socio con cuenta?{" "}
@@ -103,7 +103,7 @@ export function EventRegistrationPanel({
               para apuntarte con tu ficha de socio.
             </p>
           ) : !hasMemberProfile ? (
-            <p className="text-gray-500">
+            <p className="text-stone-500">
               Tu cuenta no tiene ficha de socio. Puedes usar el formulario de invitado o pedir al club que vincule tu
               usuario.
             </p>

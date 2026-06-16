@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { addTeamMember } from '@/app/actions/teams'
 import { parseCuid } from '@/lib/db-input-validation'
-import { requireRoles } from '@/lib/rbac-api'
+import { assertTeamAccess, requireRoles } from '@/lib/rbac-api'
 
 export async function POST(
   request: Request,
@@ -13,6 +13,10 @@ export async function POST(
   const { id: teamId } = await context.params
   const parsedTeamId = parseCuid(teamId, 'teamId')
   if (parsedTeamId instanceof Response) return parsedTeamId
+
+  const denied = await assertTeamAccess(auth, parsedTeamId)
+  if (denied) return denied
+
   let body: { memberId?: string; role?: string }
   try {
     body = await request.json()

@@ -1,6 +1,8 @@
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
+import type { Session } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { hasRole, normalizeRole, type AppRole } from '@/lib/rbac'
 import { getSessionFromRequest } from '@/lib/session'
 
@@ -27,4 +29,31 @@ export async function requireRoles(allowed: AppRole[], request?: Request) {
     session,
     role,
   }
+}
+
+/**
+ * Comprueba que el usuario puede MUTAR un equipo concreto.
+ * - ADMIN: cualquier equipo.
+ * - COACH: solo equipos que entrena (TeamMember role=COACH).
+ * Devuelve una respuesta 403 si no procede, o `null` si tiene acceso.
+ *
+ * Cierra el gap por el que un COACH podía modificar la plantilla, horarios o
+ * datos de equipos que no entrena (los endpoints solo exigían rol COACH).
+ */
+export async function assertTeamAccess(
+  auth: { role: SessionRole; session: Session },
+  teamId: string,
+): Promise<NextResponse | null> {
+  if (auth.role === 'ADMIN') return null
+  if (auth.role === 'COACH') {
+    const memberId = (auth.session.user as { memberId?: string | null } | undefined)?.memberId || null
+    if (memberId) {
+      const owns = await prisma.teamMember.findFirst({
+        where: { teamId, memberId, role: 'COACH' },
+        select: { id: true },
+      })
+      if (owns) return null
+    }
+  }
+  return NextResponse.json({ error: 'No tienes acceso a este equipo' }, { status: 403 })
 }

@@ -98,7 +98,7 @@ export default function EventForm({
   const i = initialEvent;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-xl shadow-sm border border-gray-200">
+    <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-xl shadow-sm border border-stone-200">
       {error && (
         <div className="bg-red-50 border-l-4 border-red-400 p-4 text-red-700">
           <p>{error}</p>
@@ -108,25 +108,25 @@ export default function EventForm({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Título del Evento *</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Título del Evento *</label>
             <input
               type="text"
               name="title"
               required
               defaultValue={i?.title}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-md border border-stone-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Ej: Torneo de Verano 2026"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Evento *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Tipo de Evento *</label>
               <select
                 name="type"
                 required
                 defaultValue={i?.type}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="TRAINING">Entrenamiento</option>
                 <option value="MATCH">Partido</option>
@@ -136,11 +136,11 @@ export default function EventForm({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Equipo (Opcional)</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Equipo (Opcional)</label>
               <select
                 name="teamId"
                 defaultValue={i?.teamId ?? ""}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todo el club</option>
                 {teams.map((team) => (
@@ -154,32 +154,32 @@ export default function EventForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Inicio *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Fecha de Inicio *</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Calendar className="h-4 w-4 text-gray-400" />
+                  <Calendar className="h-4 w-4 text-stone-400" />
                 </div>
                 <input
                   type="date"
                   name="date"
                   required
                   defaultValue={i ? toDateInputValue(i.date) : undefined}
-                  className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hora de Inicio *</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Hora de Inicio *</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Clock className="h-4 w-4 text-gray-400" />
+                  <Clock className="h-4 w-4 text-stone-400" />
                 </div>
                 <input
                   type="time"
                   name="time"
                   required
                   defaultValue={i ? toTimeInputValue(i.date) : undefined}
-                  className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -187,46 +187,46 @@ export default function EventForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Fin (Opcional)</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Fecha de Fin (Opcional)</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Calendar className="h-4 w-4 text-gray-400" />
+                  <Calendar className="h-4 w-4 text-stone-400" />
                 </div>
                 <input
                   type="date"
                   name="endDate"
                   defaultValue={i?.endDate ? toDateInputValue(i.endDate) : undefined}
-                  className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Hora de Fin (Opcional)</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Hora de Fin (Opcional)</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Clock className="h-4 w-4 text-gray-400" />
+                  <Clock className="h-4 w-4 text-stone-400" />
                 </div>
                 <input
                   type="time"
                   name="endTime"
                   defaultValue={i?.endDate ? toTimeInputValue(i.endDate) : undefined}
-                  className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Ubicación</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MapPin className="h-4 w-4 text-gray-400" />
+                <MapPin className="h-4 w-4 text-stone-400" />
               </div>
               <input
                 type="text"
                 name="location"
                 defaultValue={i?.location ?? undefined}
-                className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Ej: Polideportivo Municipal"
               />
             </div>
@@ -235,36 +235,36 @@ export default function EventForm({
 
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Visibilidad *</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Visibilidad *</label>
             <div className="grid grid-cols-2 gap-4">
-              <label className="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <label className="flex items-center p-4 border border-stone-200 rounded-lg cursor-pointer hover:bg-stone-50 transition-colors">
                 <input
                   type="radio"
                   name="isPublic"
                   value="false"
                   defaultChecked={i ? !i.isPublic : true}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-stone-300"
                 />
                 <div className="ml-3 flex flex-col">
-                  <span className="block text-sm font-medium text-gray-900 flex items-center">
+                  <span className="block text-sm font-medium text-stone-900 flex items-center">
                     <Lock className="w-4 h-4 mr-1" /> Privado
                   </span>
-                  <span className="block text-xs text-gray-500">Solo miembros del club</span>
+                  <span className="block text-xs text-stone-500">Solo miembros del club</span>
                 </div>
               </label>
-              <label className="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <label className="flex items-center p-4 border border-stone-200 rounded-lg cursor-pointer hover:bg-stone-50 transition-colors">
                 <input
                   type="radio"
                   name="isPublic"
                   value="true"
                   defaultChecked={i ? i.isPublic : false}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-stone-300"
                 />
                 <div className="ml-3 flex flex-col">
-                  <span className="block text-sm font-medium text-gray-900 flex items-center">
+                  <span className="block text-sm font-medium text-stone-900 flex items-center">
                     <Globe className="w-4 h-4 mr-1" /> Público
                   </span>
-                  <span className="block text-xs text-gray-500">Cualquiera con el enlace</span>
+                  <span className="block text-xs text-stone-500">Cualquiera con el enlace</span>
                 </div>
               </label>
             </div>
@@ -272,26 +272,26 @@ export default function EventForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Aforo Máximo</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Aforo Máximo</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Users className="h-4 w-4 text-gray-400" />
+                  <Users className="h-4 w-4 text-stone-400" />
                 </div>
                 <input
                   type="number"
                   name="maxAttendees"
                   min="1"
                   defaultValue={i?.maxAttendees ?? undefined}
-                  className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Sin límite"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Precio de Entrada (€)</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Precio de Entrada (€)</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Euro className="h-4 w-4 text-gray-400" />
+                  <Euro className="h-4 w-4 text-stone-400" />
                 </div>
                 <input
                   type="number"
@@ -299,7 +299,7 @@ export default function EventForm({
                   min="0"
                   step="0.01"
                   defaultValue={i?.price ?? undefined}
-                  className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="0.00 (Gratis)"
                 />
               </div>
@@ -307,16 +307,16 @@ export default function EventForm({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Descripción</label>
             <div className="relative">
               <div className="absolute top-3 left-3 pointer-events-none">
-                <FileText className="h-4 w-4 text-gray-400" />
+                <FileText className="h-4 w-4 text-stone-400" />
               </div>
               <textarea
                 name="description"
                 rows={5}
                 defaultValue={i?.description ?? undefined}
-                className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Detalles sobre el evento..."
               />
             </div>
@@ -324,11 +324,11 @@ export default function EventForm({
         </div>
       </div>
 
-      <div className="pt-6 border-t border-gray-200 flex justify-end space-x-4">
+      <div className="pt-6 border-t border-stone-200 flex justify-end space-x-4">
         <button
           type="button"
           onClick={() => router.back()}
-          className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+          className="px-6 py-2 border border-stone-300 rounded-md text-stone-700 hover:bg-stone-50 font-medium transition-colors"
         >
           Cancelar
         </button>

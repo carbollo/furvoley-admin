@@ -21,7 +21,7 @@ export default async function HomePage() {
   const role = normalizeRole((session.user as { role?: string }).role)
   if (role === 'ADMIN' || role === 'COACH' || role === 'TREASURER') {
     return (
-      <Suspense fallback={<div style={{ padding: 32, color: '#475569' }}>Cargando CRM…</div>}>
+      <Suspense fallback={<div style={{ padding: 32, color: '#57534e' }}>Cargando CRM…</div>}>
         <CrmApp />
       </Suspense>
     )

@@ -10,8 +10,22 @@ import {
   syncEnvAdminUser,
 } from "@/lib/env-admin"
 import { ensureNextAuthSecret } from "@/lib/auth-secret"
+import {
+  checkLoginRateLimit,
+  loginRateKey,
+  registerLoginFailure,
+  resetLoginAttempts,
+} from "@/lib/login-rate-limit"
 
 const authSecret = ensureNextAuthSecret()
+
+/** IP del cliente desde los headers (objeto plano) que next-auth pasa a authorize. */
+function ipFromAuthorizeReq(req: unknown): string {
+  const headers = (req as { headers?: Record<string, string> } | undefined)?.headers || {}
+  const fwd = headers['x-forwarded-for']
+  const first = typeof fwd === 'string' ? fwd.split(',')[0]?.trim() : ''
+  return first || headers['x-real-ip'] || headers['cf-connecting-ip'] || 'unknown'
+}
 
 export const authOptions: NextAuthOptions = {
   secret: authSecret,
@@ -23,7 +37,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           return null
         }
@@ -32,12 +46,20 @@ export const authOptions: NextAuthOptions = {
         const normalizedEmail = rawEmail.toLowerCase()
         const password = String(credentials.password)
 
+        // Anti fuerza bruta: bloquea tras demasiados fallos por IP+email.
+        const rlKey = loginRateKey(ipFromAuthorizeReq(req), normalizedEmail)
+        const rl = checkLoginRateLimit(rlKey)
+        if (!rl.ok) {
+          throw new Error('Demasiados intentos. Inténtalo de nuevo en unos minutos.')
+        }
+
         // Administrador fijo: ADMIN_EMAIL + ADMIN_PASSWORD en Railway siempre válidos.
         if (credentialsMatchEnvAdmin(rawEmail, password)) {
           await syncEnvAdminUser(prisma)
           const env = getEnvAdminCredentials()!
           const fixed = await prisma.user.findUnique({ where: { email: env.email } })
           if (fixed) {
+            resetLoginAttempts(rlKey)
             return {
               id: fixed.id,
               email: fixed.email,
@@ -64,15 +86,18 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (!user || !user.password) {
+          registerLoginFailure(rlKey)
           return null
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password)
 
         if (!isPasswordValid) {
+          registerLoginFailure(rlKey)
           return null
         }
 
+        resetLoginAttempts(rlKey)
         return {
           id: user.id,
           email: user.email,

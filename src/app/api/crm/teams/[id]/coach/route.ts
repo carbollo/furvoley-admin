@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { setTeamCoach } from '@/app/actions/teams'
+import { setTeamCoach, setTeamCoachFromUser } from '@/app/actions/teams'
 import { parseCuid } from '@/lib/db-input-validation'
-import { requireRoles } from '@/lib/rbac-api'
+import { assertTeamAccess, requireRoles } from '@/lib/rbac-api'
 import { runCoachAssignedWorkflows } from '@/lib/workflow-proclub-runners'
 
 export async function POST(
@@ -14,7 +14,11 @@ export async function POST(
   const { id: teamId } = await context.params
   const parsedTeamId = parseCuid(teamId, 'teamId')
   if (parsedTeamId instanceof Response) return parsedTeamId
-  let body: { memberId?: string }
+
+  const denied = await assertTeamAccess(auth, parsedTeamId)
+  if (denied) return denied
+
+  let body: { memberId?: string; userId?: string }
   try {
     body = await request.json()
   } catch {
@@ -22,17 +26,25 @@ export async function POST(
   }
 
   const memberId = String(body.memberId || '').trim()
-  if (!memberId) {
-    return NextResponse.json({ error: 'memberId es obligatorio' }, { status: 400 })
+  const userId = String(body.userId || '').trim()
+  if (!memberId && !userId) {
+    return NextResponse.json({ error: 'Indica un socio (memberId) o una cuenta de personal (userId)' }, { status: 400 })
   }
 
+  let coachMemberId = memberId
   try {
-    await setTeamCoach(parsedTeamId, memberId)
+    if (userId) {
+      const parsedUserId = parseCuid(userId, 'userId')
+      if (parsedUserId instanceof Response) return parsedUserId
+      coachMemberId = await setTeamCoachFromUser(parsedTeamId, parsedUserId)
+    } else {
+      await setTeamCoach(parsedTeamId, memberId)
+    }
   } catch {
     return NextResponse.json({ error: 'No se pudo asignar el entrenador' }, { status: 400 })
   }
 
-  void runCoachAssignedWorkflows(parsedTeamId, memberId).catch((err) => {
+  void runCoachAssignedWorkflows(parsedTeamId, coachMemberId).catch((err) => {
     console.warn('[coach] WD-14 workflow failed:', err)
   })
 

@@ -34,7 +34,7 @@ export default function MetaConfigForm({ initialData }: { initialData?: any }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-xl shadow-sm border border-gray-200">
+    <form onSubmit={handleSubmit} className="space-y-8 bg-white p-8 rounded-xl shadow-sm border border-stone-200">
       {error && (
         <div className="bg-red-50 border-l-4 border-red-400 p-4 text-red-700">
           <p>{error}</p>
@@ -53,73 +53,73 @@ export default function MetaConfigForm({ initialData }: { initialData?: any }) {
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-stone-700 mb-1">
             Token de acceso *
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Key className="h-4 w-4 text-gray-400" />
+              <Key className="h-4 w-4 text-stone-400" />
             </div>
             <input
               type="password"
               name="accessToken"
               required
               defaultValue={initialData?.accessToken || ""}
-              className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="EAABwz..."
             />
           </div>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-stone-500">
             Asegúrate de que el token tenga los permisos `ads_management` y `ads_read`.
           </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-stone-700 mb-1">
             ID de la cuenta publicitaria *
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Hash className="h-4 w-4 text-gray-400" />
+              <Hash className="h-4 w-4 text-stone-400" />
             </div>
             <input
               type="text"
               name="adAccountId"
               required
               defaultValue={initialData?.adAccountId || ""}
-              className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="act_1234567890"
             />
           </div>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-stone-500">
             Puedes incluir o no el prefijo "act_".
           </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-stone-700 mb-1">
             ID de la página de Facebook (opcional)
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <LayoutTemplate className="h-4 w-4 text-gray-400" />
+              <LayoutTemplate className="h-4 w-4 text-stone-400" />
             </div>
             <input
               type="text"
               name="pageId"
               defaultValue={initialData?.pageId || ""}
-              className="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full rounded-md border border-stone-300 pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="10123456789"
             />
           </div>
         </div>
       </div>
 
-      <div className="pt-6 border-t border-gray-200 flex justify-end space-x-4">
+      <div className="pt-6 border-t border-stone-200 flex justify-end space-x-4">
         <button
           type="button"
           onClick={() => router.back()}
-          className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+          className="px-6 py-2 border border-stone-300 rounded-md text-stone-700 hover:bg-stone-50 font-medium transition-colors"
         >
           Cancelar
         </button>

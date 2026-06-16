@@ -96,7 +96,7 @@ export default function AttendanceResponsePage() {
   return (
     <main style={{ maxWidth: 520, margin: '40px auto', padding: 24, fontFamily: 'system-ui' }}>
       <h1 style={{ fontSize: 22, marginBottom: 8 }}>{title}</h1>
-      <p style={{ color: '#64748b', marginBottom: 20 }}>Marca asistencia con un toque.</p>
+      <p style={{ color: '#78716c', marginBottom: 20 }}>Marca asistencia con un toque.</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {rows.map((r) => (
           <div
@@ -106,7 +106,7 @@ export default function AttendanceResponsePage() {
               justifyContent: 'space-between',
               alignItems: 'center',
               padding: 12,
-              border: '1px solid #e2e8f0',
+              border: '1px solid #ebe3d8',
               borderRadius: 10,
             }}
           >
@@ -121,7 +121,7 @@ export default function AttendanceResponsePage() {
                     padding: '6px 10px',
                     fontSize: 12,
                     borderRadius: 6,
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid #d8cdbd',
                     background: r.status === s ? '#dbeafe' : '#fff',
                     cursor: 'pointer',
                   }}

@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getClubIssuer } from '@/lib/club-settings'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
-import { createInvoiceStripeLink } from '@/app/actions/billing'
+import { createInvoiceStripeLink, createSubscription } from '@/app/actions/billing'
 
 export const MAX_BATCH_MEMBERS = 200
 
@@ -15,6 +15,15 @@ export type BatchAction =
   | 'reset-portal-access'
   | 'set-status'
   | 'send-payment-reminder'
+  | 'assign-plan'
+
+export type BatchOptions = {
+  status?: string
+  planId?: string
+  startDate?: string
+  autoPay?: boolean
+  paymentRequiredOnEnrollment?: boolean
+}
 
 export type BatchMemberResult = {
   ok: boolean
@@ -97,10 +106,6 @@ async function sendPaymentReminder(memberId: string) {
   const sessionId = String(waCfg.linkedSessionId || process.env.APIWASS_DEFAULT_SESSION_ID || '').trim()
   if (!sessionId) throw new Error('WhatsApp no configurado')
 
-  const now = new Date()
-  const todayStart = new Date(now)
-  todayStart.setHours(0, 0, 0, 0)
-
   const openInvoices = await prisma.invoice.findMany({
     where: {
       memberId,
@@ -117,10 +122,7 @@ async function sendPaymentReminder(memberId: string) {
   for (const invoice of openInvoices) {
     const pending = Math.max(0, invoice.totalAmount - invoice.paidAmount)
     if (pending <= 0) continue
-    const dueDay = new Date(invoice.dueDate)
-    dueDay.setHours(0, 0, 0, 0)
-    const isDue = invoice.status === 'OVERDUE' || dueDay <= todayStart
-    if (!isDue) continue
+    // Vencidas o pendientes de cobro (coherente con "Recordar cobros").
     pendingTotal += pending
     if (!oldestDueDate || invoice.dueDate < oldestDueDate) {
       oldestDueDate = invoice.dueDate
@@ -160,10 +162,39 @@ async function sendPaymentReminder(memberId: string) {
   await sendApiWassText({ sessionId, phone, message })
 }
 
+async function assignPlanToMember(memberId: string, options: BatchOptions) {
+  const planId = String(options.planId || '').trim()
+  if (!planId) throw new Error('Plan no indicado')
+
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { id: true } })
+  if (!member) throw new Error('Socio no encontrado')
+
+  let startDate: Date | undefined
+  if (options.startDate) {
+    const d = new Date(options.startDate)
+    if (Number.isNaN(d.getTime())) throw new Error('Fecha de inicio inválida')
+    startDate = d
+  }
+
+  // Cancela la suscripción activa anterior (mismo comportamiento que el alta individual).
+  await prisma.subscription.updateMany({
+    where: { memberId, status: 'ACTIVE' },
+    data: { status: 'CANCELED', endDate: new Date() },
+  })
+
+  await createSubscription({
+    memberId,
+    planId,
+    startDate,
+    autoPay: options.autoPay === true,
+    paymentRequiredOnEnrollment: options.paymentRequiredOnEnrollment,
+  })
+}
+
 export async function runMembersBatchAction(
   memberIds: string[],
   action: BatchAction,
-  options?: { status?: string },
+  options?: BatchOptions,
 ): Promise<BatchMemberResult> {
   const uniqueIds = [...new Set(memberIds.filter(Boolean))]
   if (uniqueIds.length === 0) {
@@ -186,6 +217,13 @@ export async function runMembersBatchAction(
     }
   }
 
+  if (action === 'assign-plan') {
+    const planId = String(options?.planId || '').trim()
+    if (!planId) {
+      return { ok: false, processed: 0, succeeded: 0, failed: 0, errors: [{ id: '', message: 'Selecciona una cuota' }] }
+    }
+  }
+
   const errors: { id: string; message: string }[] = []
   let succeeded = 0
 
@@ -200,6 +238,8 @@ export async function runMembersBatchAction(
         await updateMember(id, { status: options!.status! })
       } else if (action === 'send-payment-reminder') {
         await sendPaymentReminder(id)
+      } else if (action === 'assign-plan') {
+        await assignPlanToMember(id, options || {})
       }
       succeeded++
     } catch (e) {

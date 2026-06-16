@@ -42,13 +42,13 @@ function Shell({
             }}
           >
             <h1
-              className="text-[1.625rem] font-extrabold tracking-tight text-[#111827] mb-2"
+              className="text-[1.625rem] font-extrabold tracking-tight text-[#1c1917] mb-2"
               style={{ letterSpacing: '-0.5px' }}
             >
               {title}
             </h1>
             {subtitle ? (
-              <p className="text-[15px] text-[#6b7280] mb-8 leading-relaxed">{subtitle}</p>
+              <p className="text-[15px] text-[#8c857d] mb-8 leading-relaxed">{subtitle}</p>
             ) : null}
             {children}
           </div>

@@ -69,7 +69,7 @@ export default async function PublicEventPage({
   const isFree = !event.price || event.price === 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-stone-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
         {/* Cabecera del evento */}
         <div className="bg-blue-600 px-8 py-10 text-white">
@@ -99,10 +99,10 @@ export default async function PublicEventPage({
         <div className="px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             <div className="space-y-4">
-              <div className="flex items-center text-gray-700">
+              <div className="flex items-center text-stone-700">
                 <Calendar className="h-6 w-6 text-blue-500 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-500 font-medium">Fecha</p>
+                  <p className="text-sm text-stone-500 font-medium">Fecha</p>
                   <p className="font-semibold">
                     {new Date(event.date).toLocaleDateString("es-ES", {
                       weekday: "long",
@@ -114,10 +114,10 @@ export default async function PublicEventPage({
                 </div>
               </div>
 
-              <div className="flex items-center text-gray-700">
+              <div className="flex items-center text-stone-700">
                 <Clock className="h-6 w-6 text-blue-500 mr-3" />
                 <div>
-                  <p className="text-sm text-gray-500 font-medium">Hora</p>
+                  <p className="text-sm text-stone-500 font-medium">Hora</p>
                   <p className="font-semibold">
                     {new Date(event.date).toLocaleTimeString("es-ES", {
                       hour: "2-digit",
@@ -128,10 +128,10 @@ export default async function PublicEventPage({
               </div>
 
               {event.location && (
-                <div className="flex items-center text-gray-700">
+                <div className="flex items-center text-stone-700">
                   <MapPin className="h-6 w-6 text-blue-500 mr-3" />
                   <div>
-                    <p className="text-sm text-gray-500 font-medium">Lugar</p>
+                    <p className="text-sm text-stone-500 font-medium">Lugar</p>
                     <p className="font-semibold">{event.location}</p>
                   </div>
                 </div>
@@ -140,10 +140,10 @@ export default async function PublicEventPage({
 
             <div className="space-y-4">
               {event.maxAttendees && (
-                <div className="flex items-center text-gray-700">
+                <div className="flex items-center text-stone-700">
                   <Users className="h-6 w-6 text-blue-500 mr-3" />
                   <div>
-                    <p className="text-sm text-gray-500 font-medium">Aforo</p>
+                    <p className="text-sm text-stone-500 font-medium">Aforo</p>
                     <p className="font-semibold">
                       Limitado a {event.maxAttendees} personas
                     </p>
@@ -160,17 +160,17 @@ export default async function PublicEventPage({
           </div>
 
           {event.description && (
-            <div className="border-t border-gray-200 pt-8 mb-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">
+            <div className="border-t border-stone-200 pt-8 mb-8">
+              <h3 className="text-xl font-bold text-stone-900 mb-4">
                 Sobre este evento
               </h3>
-              <div className="prose prose-blue max-w-none text-gray-600 whitespace-pre-wrap">
+              <div className="prose prose-blue max-w-none text-stone-600 whitespace-pre-wrap">
                 {event.description}
               </div>
             </div>
           )}
 
-          <div className="border-t border-gray-200 pt-8 flex flex-col items-center">
+          <div className="border-t border-stone-200 pt-8 flex flex-col items-center">
             <EventRegistrationPanel
               eventId={id}
               isLoggedIn={isLoggedIn}

@@ -34,11 +34,44 @@ export async function GET(request: Request) {
   const auth = await requireRoles(['ADMIN', 'TREASURER', 'COACH'], request)
   if (!auth.ok) return auth.response
 
+  const role = auth.role
+  const sessionMemberId = (auth.session.user as { memberId?: string | null }).memberId || null
+
+  // Mínimo privilegio para entrenadores: un COACH (UI limitada a equipos+calendario)
+  // puede BUSCAR socios para construir sus plantillas, pero no descargar el
+  // directorio completo con PII sensible (DNI, teléfono, dirección, datos de cobro)
+  // ni abrir la ficha de socios ajenos a sus equipos.
+  let coachTeamIds: string[] | null = null
+  if (role === 'COACH') {
+    if (!sessionMemberId) {
+      return NextResponse.json({ error: 'Cuenta de entrenador sin perfil de socio.' }, { status: 403 })
+    }
+    const coachTeams = await prisma.teamMember.findMany({
+      where: { memberId: sessionMemberId, role: 'COACH' },
+      select: { teamId: true },
+    })
+    coachTeamIds = coachTeams.map((t) => t.teamId)
+  }
+
   const url = new URL(request.url)
   const idParam = String(url.searchParams.get('id') || '').trim()
   if (idParam) {
     const parsedId = parseCuid(idParam, 'id')
     if (parsedId instanceof NextResponse) return parsedId
+
+    // Un COACH solo ve la ficha completa de socios de sus propios equipos.
+    if (role === 'COACH') {
+      const allowed =
+        (coachTeamIds?.length ?? 0) > 0 &&
+        (await prisma.teamMember.findFirst({
+          where: { memberId: parsedId, teamId: { in: coachTeamIds! } },
+          select: { id: true },
+        }))
+      if (!allowed) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+      }
+    }
+
     const socio = await fetchMemberById(prisma, parsedId)
     if (!socio) {
       return NextResponse.json({ error: 'Socio no encontrado' }, { status: 404 })
@@ -54,8 +87,10 @@ export async function GET(request: Request) {
   const estado = String(url.searchParams.get('estado') || 'Todos').trim()
   const deporte = String(url.searchParams.get('deporte') || 'Todos').trim()
   const teamIdRaw = String(url.searchParams.get('teamId') || '').trim()
-  const lite = url.searchParams.get('lite') === '1'
-  const withStats = url.searchParams.get('stats') === '1'
+  // El listado completo (con PII) solo para ADMIN/TREASURER; el COACH siempre en
+  // modo "lite" (id, nombre, email, estado) para la búsqueda de plantillas.
+  const lite = url.searchParams.get('lite') === '1' || role === 'COACH'
+  const withStats = url.searchParams.get('stats') === '1' && role !== 'COACH'
 
   let teamId: string | undefined
   if (teamIdRaw) {

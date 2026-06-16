@@ -16,7 +16,7 @@ export default async function BankImportListPage() {
             ← Contabilidad
           </Link>
           <h1 className="text-3xl font-bold mt-2">Importar extracto bancario</h1>
-          <p className="text-slate-600 mt-1 text-sm max-w-2xl">
+          <p className="text-stone-600 mt-1 text-sm max-w-2xl">
             Sube un CSV del banco, revisa los movimientos y concílialos con los asientos ya
             registrados (cuotas, Stripe, caja…) o crea asientos nuevos. Las sugerencias buscan
             mismo importe y fechas cercanas (±10 días).
@@ -26,12 +26,12 @@ export default async function BankImportListPage() {
 
       <BankCsvUpload />
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 font-semibold text-slate-800">
+      <div className="bg-white border border-stone-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-stone-100 font-semibold text-stone-800">
           Importaciones recientes
         </div>
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-slate-600">
+          <thead className="bg-stone-50 text-stone-600">
             <tr>
               <th className="p-3">Fecha</th>
               <th className="p-3">Archivo / nota</th>
@@ -41,15 +41,15 @@ export default async function BankImportListPage() {
           </thead>
           <tbody>
             {imports.map((b) => (
-              <tr key={b.id} className="border-t border-slate-100">
-                <td className="p-3 text-slate-600">
+              <tr key={b.id} className="border-t border-stone-100">
+                <td className="p-3 text-stone-600">
                   {new Date(b.importedAt).toLocaleString('es-ES')}
                 </td>
                 <td className="p-3">
                   <Link href={`/accounting/bank-import/${b.id}`} className="text-blue-600 font-medium hover:underline">
                     {b.fileName || 'Pegado manual'}
                   </Link>
-                  {b.note && <p className="text-xs text-slate-500 mt-0.5">{b.note}</p>}
+                  {b.note && <p className="text-xs text-stone-500 mt-0.5">{b.note}</p>}
                 </td>
                 <td className="p-3">{b._count.lines}</td>
                 <td className="p-3 text-right">
@@ -76,7 +76,7 @@ export default async function BankImportListPage() {
             ))}
             {imports.length === 0 && (
               <tr>
-                <td colSpan={4} className="p-8 text-center text-slate-500">
+                <td colSpan={4} className="p-8 text-center text-stone-500">
                   Aún no hay extractos importados.
                 </td>
               </tr>

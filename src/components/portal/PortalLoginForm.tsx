@@ -101,8 +101,8 @@ export function PortalLoginForm() {
               style={{
                 ...buttonStyle,
                 background: '#fff',
-                color: '#0f172a',
-                border: '1px solid #e2e8f0',
+                color: '#1c1917',
+                border: '1px solid #ebe3d8',
               }}
             >
               {t.name}
@@ -116,7 +116,7 @@ export function PortalLoginForm() {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  border: '1px solid #e2e8f0',
+  border: '1px solid #ebe3d8',
   borderRadius: 10,
   padding: '12px 14px',
   marginBottom: 14,
@@ -262,17 +262,17 @@ export function PortalAdminPanel() {
   }
 
   const cardStyle: React.CSSProperties = {
-    background: '#1e293b',
-    border: '1px solid #334155',
+    background: '#292524',
+    border: '1px solid #44403c',
     borderRadius: 14,
     padding: 24,
     marginBottom: 16,
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto', padding: 24, color: '#f8fafc' }}>
+    <div style={{ maxWidth: 720, margin: '0 auto', padding: 24, color: '#faf7f2' }}>
       <h1 style={{ margin: '0 0 8px', fontSize: 24 }}>Panel admin del portal</h1>
-      <p style={{ margin: '0 0 20px', color: '#94a3b8', lineHeight: 1.5, fontSize: 14 }}>
+      <p style={{ margin: '0 0 20px', color: '#a8a29e', lineHeight: 1.5, fontSize: 14 }}>
         Añade las URLs de cada CRM. Los usuarios entran por <strong>/portal</strong>.
       </p>
 
@@ -314,7 +314,7 @@ export function PortalAdminPanel() {
               placeholder="http://furvoley.railway.internal:8080"
               style={darkInput}
             />
-            <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 12, lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 12px', color: '#78716c', fontSize: 12, lineHeight: 1.5 }}>
               Copia el hostname de <strong>Private Networking del servicio CRM</strong> (no del portal).
               Sin puerto se usa :8080. La URL pública no lleva <code>/login</code>.
             </p>
@@ -325,20 +325,20 @@ export function PortalAdminPanel() {
           <div style={cardStyle}>
             <h2 style={{ margin: '0 0 14px', fontSize: 18 }}>CRMs configurados</h2>
             {tenants.length === 0 ? (
-              <p style={{ color: '#94a3b8', margin: 0 }}>Aún no hay CRMs.</p>
+              <p style={{ color: '#a8a29e', margin: 0 }}>Aún no hay CRMs.</p>
             ) : (
               tenants.map((t) => (
                 <div
                   key={t.id}
                   style={{
-                    border: '1px solid #334155',
+                    border: '1px solid #44403c',
                     borderRadius: 12,
                     padding: 14,
                     marginBottom: 10,
                   }}
                 >
                   <strong>{t.name}</strong>
-                  <div style={{ color: '#94a3b8', fontSize: 13, wordBreak: 'break-all' }}>
+                  <div style={{ color: '#a8a29e', fontSize: 13, wordBreak: 'break-all' }}>
                     {t.id} · {t.url}
                     {t.internalUrl ? (
                       <>
@@ -352,7 +352,7 @@ export function PortalAdminPanel() {
                       type="button"
                       disabled={busy}
                       onClick={() => void testTenant(t.id)}
-                      style={{ ...buttonStyle, width: 'auto', background: '#334155' }}
+                      style={{ ...buttonStyle, width: 'auto', background: '#44403c' }}
                     >
                       Probar
                     </button>
@@ -405,9 +405,9 @@ const labelStyle: React.CSSProperties = {
 
 const darkInput: React.CSSProperties = {
   width: '100%',
-  border: '1px solid #334155',
+  border: '1px solid #44403c',
   background: '#0b1220',
-  color: '#f8fafc',
+  color: '#faf7f2',
   borderRadius: 10,
   padding: '12px 14px',
   marginBottom: 12,

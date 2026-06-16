@@ -192,14 +192,14 @@ const inputBase: CSSProperties = {
 const labelBase: CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#64748b',
+  color: '#78716c',
   marginBottom: 6,
   display: 'block',
 }
 
 const nodeDescriptionStyle: CSSProperties = {
   fontSize: 10,
-  color: '#64748b',
+  color: '#78716c',
   marginTop: 8,
   lineHeight: 1.4,
   marginBottom: 0,
@@ -208,14 +208,14 @@ const nodeDescriptionStyle: CSSProperties = {
 
 const panelDescriptionStyle: CSSProperties = {
   fontSize: 12,
-  color: '#475569',
+  color: '#57534e',
   marginTop: 10,
   lineHeight: 1.5,
   marginBottom: 0,
   padding: '10px 12px',
-  background: '#f8fafc',
+  background: '#faf7f2',
   borderRadius: 10,
-  border: '1px solid #e2e8f0',
+  border: '1px solid #ebe3d8',
 }
 
 const triggerCard = (selected: boolean): CSSProperties => ({
@@ -236,7 +236,7 @@ const stepBox = (selected: boolean): CSSProperties => ({
   padding: '12px 16px',
   borderRadius: 14,
   background: '#fff',
-  border: `2px solid ${selected ? 'var(--accent, #6366f1)' : 'var(--border, #e5e7eb)'}`,
+  border: `2px solid ${selected ? 'var(--accent, #6366f1)' : 'var(--border, #ebe3d8)'}`,
   minWidth: 168,
   maxWidth: 260,
   boxShadow: 'var(--card-shadow, 0 1px 3px rgba(0,0,0,0.06))',
@@ -276,10 +276,10 @@ const WorkflowStepNode = memo(function WorkflowStepNode({ id, data, selected }: 
         type="target"
         position={Position.Left}
         id="in"
-        style={{ background: '#94a3b8', width: 10, height: 10, border: '2px solid #fff' }}
+        style={{ background: '#a8a29e', width: 10, height: 10, border: '2px solid #fff' }}
       />
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>{data.label}</div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', lineHeight: 1.3, wordBreak: 'break-word' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#78716c', marginBottom: 4 }}>{data.label}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', lineHeight: 1.3, wordBreak: 'break-word' }}>
         {actionLabel}
       </div>
       {description ? <p style={nodeDescriptionStyle}>{description}</p> : null}
@@ -966,10 +966,10 @@ function WorkflowFlowEditorInner({
           }}
         >
           <div style={{ flex: 1, minWidth: 200 }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#111827' }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#1c1917' }}>
               {editingId ? 'Editar flujo' : 'Nuevo flujo'}
             </h2>
-            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#8c857d' }}>
               Arrastra pasos; el disparador no se mueve. En cada conexión hay un botón × en el centro del cable para
               quitarla. También: Supr/Retroceso con la línea seleccionada, doble clic o Alt+clic. Configuración: clic en
               disparador o paso a la derecha.
@@ -987,7 +987,7 @@ function WorkflowFlowEditorInner({
               cursor: saveBusy ? 'not-allowed' : 'pointer',
               fontFamily: 'inherit',
               fontWeight: 600,
-              color: '#64748b',
+              color: '#78716c',
             }}
           >
             Cancelar
@@ -1020,9 +1020,9 @@ function WorkflowFlowEditorInner({
               panOnScroll
               zoomOnScroll
               proOptions={{ hideAttribution: true }}
-              style={{ width: '100%', height: '100%', minHeight: 420, background: '#f1f5f9' }}
+              style={{ width: '100%', height: '100%', minHeight: 420, background: '#f4efe8' }}
             >
-              <Background gap={16} color="#cbd5e1" />
+              <Background gap={16} color="#d8cdbd" />
               <Controls showInteractive={false} />
               <MiniMap
                 nodeStrokeWidth={3}
@@ -1088,13 +1088,13 @@ function WorkflowFlowEditorInner({
 
               <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0', paddingTop: 16 }}>
                 {!selectedNode && !selectedTriggerNode && (
-                  <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
+                  <p style={{ fontSize: 13, color: '#a8a29e', margin: 0 }}>
                     Haz clic en el disparador o en un paso del lienzo para configurarlo.
                   </p>
                 )}
                 {selectedTriggerNode && (
                   <>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', marginBottom: 12 }}>
                       Disparador
                     </div>
                     <label style={labelBase}>Evento que inicia el flujo</label>
@@ -1160,7 +1160,7 @@ function WorkflowFlowEditorInner({
                             </option>
                           ))}
                         </select>
-                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.45 }}>
+                        <p style={{ fontSize: 11, color: '#a8a29e', marginTop: 8, lineHeight: 1.45 }}>
                           Ejemplo: «pasa a Baja» = INACTIVE sin filtro anterior; «de Activo a Baja» = anterior ACTIVE y
                           nuevo INACTIVE.
                         </p>
@@ -1170,21 +1170,21 @@ function WorkflowFlowEditorInner({
                 )}
                 {selectedNode && (
                   <>
-                    <div style={{ marginTop: 12, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#f8fafc' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>Salidas de este nodo</div>
+                    <div style={{ marginTop: 12, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#faf7f2' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#57534e', marginBottom: 6 }}>Salidas de este nodo</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {(selectedNode.data.outputs || outputDefsByAction(selectedNode.data.actionType)).map((out) => (
-                          <span key={out.key} style={{ fontSize: 11, color: '#334155', background: '#e2e8f0', borderRadius: 999, padding: '3px 8px' }}>
+                          <span key={out.key} style={{ fontSize: 11, color: '#44403c', background: '#ebe3d8', borderRadius: 999, padding: '3px 8px' }}>
                             {`{${out.key}}`}
                           </span>
                         ))}
                       </div>
                     </div>
-                    <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#f8fafc' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 6 }}>Insertar variable (tipo n8n)</div>
+                    <div style={{ marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#faf7f2' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#57534e', marginBottom: 6 }}>Insertar variable (tipo n8n)</div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                         {tokenTargets.length === 0 ? (
-                          <span style={{ fontSize: 11, color: '#64748b' }}>Este tipo de nodo no tiene campos con inserción rápida.</span>
+                          <span style={{ fontSize: 11, color: '#78716c' }}>Este tipo de nodo no tiene campos con inserción rápida.</span>
                         ) : (
                           tokenTargets.map((t) => (
                             <button
@@ -1193,9 +1193,9 @@ function WorkflowFlowEditorInner({
                               onClick={() => setTokenTargetField(t.key)}
                               style={{
                                 border: '1px solid',
-                                borderColor: tokenTargetField === t.key ? '#6366f1' : '#cbd5e1',
+                                borderColor: tokenTargetField === t.key ? '#6366f1' : '#d8cdbd',
                                 background: tokenTargetField === t.key ? '#eef2ff' : '#fff',
-                                color: tokenTargetField === t.key ? '#3730a3' : '#334155',
+                                color: tokenTargetField === t.key ? '#3730a3' : '#44403c',
                                 borderRadius: 999,
                                 padding: '4px 9px',
                                 fontSize: 11,
@@ -1214,15 +1214,15 @@ function WorkflowFlowEditorInner({
                         placeholder="Buscar variable..."
                         style={{ ...inputBase, padding: '8px 10px', fontSize: 12, marginBottom: 8 }}
                       />
-                      <div style={{ maxHeight: 170, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8, padding: 8, background: '#fff' }}>
+                      <div style={{ maxHeight: 170, overflowY: 'auto', border: '1px solid #ebe3d8', borderRadius: 8, padding: 8, background: '#fff' }}>
                         {!tokenTargetField ? (
-                          <div style={{ fontSize: 11, color: '#64748b' }}>Selecciona primero el campo destino.</div>
+                          <div style={{ fontSize: 11, color: '#78716c' }}>Selecciona primero el campo destino.</div>
                         ) : filteredTokenGroups.length === 0 ? (
-                          <div style={{ fontSize: 11, color: '#64748b' }}>No hay variables de nodos previos.</div>
+                          <div style={{ fontSize: 11, color: '#78716c' }}>No hay variables de nodos previos.</div>
                         ) : (
                           filteredTokenGroups.map((group) => (
                             <div key={group.sourceLabel} style={{ marginBottom: 8 }}>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>{group.sourceLabel}</div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: '#78716c', marginBottom: 4 }}>{group.sourceLabel}</div>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                                 {group.options.map((opt) => (
                                   <button
@@ -1230,9 +1230,9 @@ function WorkflowFlowEditorInner({
                                     type="button"
                                     onClick={() => insertToken(opt.token)}
                                     style={{
-                                      border: '1px solid #cbd5e1',
-                                      background: '#f8fafc',
-                                      color: '#0f172a',
+                                      border: '1px solid #d8cdbd',
+                                      background: '#faf7f2',
+                                      color: '#1c1917',
                                       borderRadius: 8,
                                       padding: '4px 8px',
                                       fontSize: 11,
@@ -1248,13 +1248,13 @@ function WorkflowFlowEditorInner({
                           ))
                         )}
                       </div>
-                      <div style={{ marginTop: 8, fontSize: 11, color: '#64748b' }}>
+                      <div style={{ marginTop: 8, fontSize: 11, color: '#78716c' }}>
                         Destino: <strong>{selectedTargetLabel || '—'}</strong>
                         {lastInsertedToken ? ` · Último insertado: ${lastInsertedToken}` : ''}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Paso seleccionado</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>Paso seleccionado</span>
                       <button
                         type="button"
                         onClick={deleteSelectedNode}
@@ -1362,7 +1362,7 @@ function WorkflowFlowEditorInner({
                             </option>
                           ))}
                         </select>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 12, color: '#57534e', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
                             checked={selectedNode.data.config.regenerate !== false}
@@ -1370,7 +1370,7 @@ function WorkflowFlowEditorInner({
                           />
                           Regenerar sesiones futuras auto-generadas
                         </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12, color: '#57534e', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
                             checked={selectedNode.data.config.untilSeasonEnd !== false}
@@ -1391,7 +1391,7 @@ function WorkflowFlowEditorInner({
                             />
                           </div>
                         )}
-                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.4 }}>
+                        <p style={{ fontSize: 11, color: '#a8a29e', marginTop: 8, lineHeight: 1.4 }}>
                           Crea entrenamientos TRAINING según horarios fijos; excluye festivos del club.
                         </p>
                       </>
@@ -1412,7 +1412,7 @@ function WorkflowFlowEditorInner({
                             </option>
                           ))}
                         </select>
-                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.4 }}>
+                        <p style={{ fontSize: 11, color: '#a8a29e', marginTop: 8, lineHeight: 1.4 }}>
                           Si dejas vacío, quitará al socio de todos los equipos.
                         </p>
                       </>
@@ -1676,7 +1676,7 @@ function WorkflowFlowEditorInner({
                           style={{ ...inputBase, minHeight: 72 }}
                           placeholder="Escribe el mensaje..."
                         />
-                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.45 }}>
+                        <p style={{ fontSize: 11, color: '#a8a29e', marginTop: 8, lineHeight: 1.45 }}>
                           Variables: {'{memberName}'}, {'{assignedTeamName}'}, {'{teamScheduleSummary}'},
                           {'{teamTrainingLocation}'}, {'{coachName}'}, {'{coachPhone}'}, {'{guardianPhone}'}
                         </p>
@@ -1709,7 +1709,7 @@ function WorkflowFlowEditorInner({
                           rows={3}
                           style={{ ...inputBase, minHeight: 72 }}
                         />
-                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8, lineHeight: 1.45 }}>
+                        <p style={{ fontSize: 11, color: '#a8a29e', marginTop: 8, lineHeight: 1.45 }}>
                           Puedes interpolar resultados previos: {'{stepActionType}'}, {'{stepApplied}'}, {'{stepError}'},
                           {'{stepHttpStatus}'}, {'{assignedTeamName}'}, {'{stepCreatedPaymentId}'}
                         </p>
@@ -1751,7 +1751,7 @@ function WorkflowFlowEditorInner({
                             placeholder="Valor"
                           />
                         </div>
-                        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, lineHeight: 1.4 }}>
+                        <p style={{ fontSize: 11, color: '#a8a29e', marginTop: 10, lineHeight: 1.4 }}>
                           Conecta las salidas «Sí» / «No» en el lienzo al paso destino; el flujo se resuelve por esas conexiones.
                         </p>
                       </>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { updateTeam } from '@/app/actions/teams'
 import { parseCuid } from '@/lib/db-input-validation'
-import { requireRoles } from '@/lib/rbac-api'
+import { assertTeamAccess, requireRoles } from '@/lib/rbac-api'
 import { parseDateInput } from '@/lib/team-calendar'
 
 export async function PATCH(
@@ -14,6 +14,9 @@ export async function PATCH(
   const { id } = await context.params
   const parsedId = parseCuid(id, 'id')
   if (parsedId instanceof Response) return parsedId
+
+  const denied = await assertTeamAccess(auth, parsedId)
+  if (denied) return denied
   let body: {
     name?: string
     category?: string | null

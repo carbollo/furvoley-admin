@@ -26,8 +26,8 @@ export default async function BankImportDetailPage({ params }: { params: Promise
           <h1 className="text-2xl font-bold">
             {batch.fileName || 'Extracto'} · {batch.lines.length} movimientos
           </h1>
-          {batch.note && <p className="text-slate-600 text-sm mt-1">{batch.note}</p>}
-          <p className="text-xs text-slate-500 mt-1">
+          {batch.note && <p className="text-stone-600 text-sm mt-1">{batch.note}</p>}
+          <p className="text-xs text-stone-500 mt-1">
             Importado {new Date(batch.importedAt).toLocaleString('es-ES')}
           </p>
         </div>
@@ -39,13 +39,13 @@ export default async function BankImportDetailPage({ params }: { params: Promise
           <span className="bg-indigo-50 text-indigo-900 px-3 py-1 rounded-full">
             Nuevo asiento: {newLedger}
           </span>
-          <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full">Ignorado: {ignored}</span>
+          <span className="bg-stone-100 text-stone-600 px-3 py-1 rounded-full">Ignorado: {ignored}</span>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+      <div className="bg-white border border-stone-200 rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+          <thead className="bg-stone-50 text-stone-600">
             <tr>
               <th className="p-3 text-left w-28">Fecha</th>
               <th className="p-3 text-left">Concepto</th>
@@ -55,14 +55,14 @@ export default async function BankImportDetailPage({ params }: { params: Promise
           </thead>
           <tbody>
             {batch.lines.map((line) => (
-              <tr key={line.id} className="border-t border-slate-100 align-top">
-                <td className="p-3 text-slate-600 whitespace-nowrap">
+              <tr key={line.id} className="border-t border-stone-100 align-top">
+                <td className="p-3 text-stone-600 whitespace-nowrap">
                   {new Date(line.date).toLocaleDateString('es-ES')}
                 </td>
                 <td className="p-3">
-                  <p className="text-slate-900">{line.description}</p>
+                  <p className="text-stone-900">{line.description}</p>
                   {line.reference && (
-                    <p className="text-xs text-slate-500 mt-1">Ref: {line.reference}</p>
+                    <p className="text-xs text-stone-500 mt-1">Ref: {line.reference}</p>
                   )}
                 </td>
                 <td

@@ -7,12 +7,12 @@ export default function PortalLoginPage() {
   return (
     <AuthScreen>
       <AuthCard>
-        <h1 style={{ margin: '0 0 8px', fontSize: 28, textAlign: 'center', color: '#0f172a' }}>Furvoley</h1>
+        <h1 style={{ margin: '0 0 8px', fontSize: 28, textAlign: 'center', color: '#1c1917' }}>Furvoley</h1>
         <p
           style={{
             margin: '0 0 24px',
             textAlign: 'center',
-            color: '#64748b',
+            color: '#78716c',
             fontSize: 14,
             lineHeight: 1.5,
           }}

@@ -102,7 +102,7 @@ export default function LeaveSurveyPage() {
     return (
       <main style={shell}>
         <h1 style={{ fontSize: 22, marginBottom: 8 }}>Gracias</h1>
-        <p style={{ color: '#64748b', lineHeight: 1.5 }}>
+        <p style={{ color: '#78716c', lineHeight: 1.5 }}>
           {used
             ? 'Este enlace ya se utilizó. Si necesitas contactar con el club, escríbenos directamente.'
             : 'Hemos recibido tus datos. Tu opinión nos ayuda a mejorar.'}
@@ -114,7 +114,7 @@ export default function LeaveSurveyPage() {
   return (
     <main style={shell}>
       <h1 style={{ fontSize: 22, marginBottom: 8 }}>Encuesta de baja</h1>
-      <p style={{ color: '#64748b', marginBottom: 20, lineHeight: 1.45 }}>
+      <p style={{ color: '#78716c', marginBottom: 20, lineHeight: 1.45 }}>
         Cuéntanos el motivo de tu baja. No hace falta iniciar sesión.
       </p>
       <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -124,7 +124,7 @@ export default function LeaveSurveyPage() {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            style={{ display: 'block', width: '100%', marginTop: 4, padding: 10, borderRadius: 8, border: '1px solid #cbd5e1' }}
+            style={{ display: 'block', width: '100%', marginTop: 4, padding: 10, borderRadius: 8, border: '1px solid #d8cdbd' }}
           />
         </label>
         <label style={{ fontSize: 13, fontWeight: 600 }}>
@@ -133,7 +133,7 @@ export default function LeaveSurveyPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            style={{ display: 'block', width: '100%', marginTop: 4, padding: 10, borderRadius: 8, border: '1px solid #cbd5e1' }}
+            style={{ display: 'block', width: '100%', marginTop: 4, padding: 10, borderRadius: 8, border: '1px solid #d8cdbd' }}
           />
         </label>
         <label style={{ fontSize: 13, fontWeight: 600 }}>
@@ -142,7 +142,7 @@ export default function LeaveSurveyPage() {
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            style={{ display: 'block', width: '100%', marginTop: 4, padding: 10, borderRadius: 8, border: '1px solid #cbd5e1' }}
+            style={{ display: 'block', width: '100%', marginTop: 4, padding: 10, borderRadius: 8, border: '1px solid #d8cdbd' }}
           />
         </label>
         <label style={{ fontSize: 13, fontWeight: 600 }}>
@@ -151,7 +151,7 @@ export default function LeaveSurveyPage() {
             required
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            style={{ display: 'block', width: '100%', marginTop: 4, padding: 10, borderRadius: 8, border: '1px solid #cbd5e1' }}
+            style={{ display: 'block', width: '100%', marginTop: 4, padding: 10, borderRadius: 8, border: '1px solid #d8cdbd' }}
           >
             <option value="">— Seleccionar —</option>
             {REASONS.map((r) => (
@@ -173,7 +173,7 @@ export default function LeaveSurveyPage() {
               marginTop: 4,
               padding: 10,
               borderRadius: 8,
-              border: '1px solid #cbd5e1',
+              border: '1px solid #d8cdbd',
               resize: 'vertical',
             }}
           />

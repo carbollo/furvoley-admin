@@ -164,7 +164,6 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
     }
   }
 
-  const now = new Date()
   const openInvoices = await prisma.invoice.findMany({
     where: {
       status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
@@ -188,16 +187,11 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
     }
   >()
 
-  const todayStart = new Date(now)
-  todayStart.setHours(0, 0, 0, 0)
-
   for (const invoice of openInvoices) {
     const pending = Math.max(0, invoice.totalAmount - invoice.paidAmount)
     if (pending <= 0) continue
-    const dueDay = new Date(invoice.dueDate)
-    dueDay.setHours(0, 0, 0, 0)
-    const isDue = invoice.status === 'OVERDUE' || dueDay <= todayStart
-    if (!isDue) continue
+    // Se recuerdan tanto facturas vencidas como pendientes de cobro (no vencidas),
+    // en coherencia con el texto del botón "facturas vencidas o pendientes de cobro".
 
     const existing = byMember.get(invoice.memberId)
     const phone =
@@ -229,10 +223,15 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
   let failed = 0
   let skippedNoPhone = 0
 
-  for (const member of byMember.values()) {
+  const members = [...byMember.values()]
+  // Envío con concurrencia limitada: antes era 1 a 1 (lento con muchos socios,
+  // cada uno generaba además su enlace Stripe en serie). 6 en paralelo acelera
+  // mucho sin saturar ApiWass.
+  const { mapWithConcurrency } = await import('@/lib/concurrency')
+  await mapWithConcurrency(members, 6, async (member) => {
     if (!member.phone) {
       skippedNoPhone++
-      continue
+      return
     }
 
     let payLine = ''
@@ -264,7 +263,7 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
       console.warn('[recordar cobros] fallo WhatsApp:', e)
       failed++
     }
-  }
+  })
 
   return { sent, failed, skippedNoPhone, totalMembersInDebt: byMember.size }
 }

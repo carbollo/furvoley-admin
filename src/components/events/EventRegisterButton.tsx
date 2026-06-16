@@ -84,7 +84,7 @@ export function EventRegisterButton({
           <span className="font-medium">Ya estás inscrito en este evento.</span>
         </div>
         {message?.type === "ok" && (
-          <p className="text-sm text-gray-600">{message.text}</p>
+          <p className="text-sm text-stone-600">{message.text}</p>
         )}
         <Link
           href={`/calendar/${eventId}`}
@@ -98,7 +98,7 @@ export function EventRegisterButton({
 
   if (isFull) {
     return (
-      <p className="text-center text-gray-700 bg-gray-100 border border-gray-200 rounded-lg py-3 px-4">
+      <p className="text-center text-stone-700 bg-stone-100 border border-stone-200 rounded-lg py-3 px-4">
         Plazas completas. No es posible inscribirse en este momento.
       </p>
     );
@@ -111,7 +111,7 @@ export function EventRegisterButton({
   return (
     <div className="space-y-4 w-full max-w-md mx-auto">
       {hasPrice && (
-        <p className="text-sm text-gray-600 text-center">
+        <p className="text-sm text-stone-600 text-center">
           Al inscribirte quedas apuntado como pendiente. El pago, si aplica, se gestionará aparte con el club.
         </p>
       )}

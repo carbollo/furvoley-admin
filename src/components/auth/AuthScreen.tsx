@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 
 export function AuthScreen({
   children,
-  background = '#f8fafc',
+  background = '#faf7f2',
 }: {
   children: ReactNode
   background?: string
@@ -43,7 +43,7 @@ export function AuthCard({
         maxWidth,
         margin: 'auto',
         background: '#fff',
-        border: '1px solid #e2e8f0',
+        border: '1px solid #ebe3d8',
         borderRadius: 16,
         padding: 32,
         boxSizing: 'border-box',

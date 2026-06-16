@@ -3,6 +3,13 @@ import { isPortalCentralHost } from '@/lib/portal-central/config'
 import { buildSsoRedirectUrl, verifyOnTenant } from '@/lib/portal-central/login'
 import { loadTenants } from '@/lib/portal-central/tenants-store'
 import { getPortalSsoSecret } from '@/lib/portal-sso'
+import {
+  checkLoginRateLimit,
+  clientIpFromHeaders,
+  loginRateKey,
+  registerLoginFailure,
+  resetLoginAttempts,
+} from '@/lib/login-rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +43,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Email y contraseña requeridos.' }, { status: 400 })
   }
 
+  const rlKey = loginRateKey(clientIpFromHeaders(request.headers), email)
+  const rl = checkLoginRateLimit(rlKey)
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'Demasiados intentos. Espera unos minutos.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+    )
+  }
+
   const matches = []
   for (const tenant of tenants) {
     const hit = await verifyOnTenant(tenant, email, password, secret)
@@ -43,8 +59,11 @@ export async function POST(request: Request) {
   }
 
   if (matches.length === 0) {
+    registerLoginFailure(rlKey)
     return NextResponse.json({ error: 'Credenciales inválidas.' }, { status: 401 })
   }
+
+  resetLoginAttempts(rlKey)
 
   if (matches.length > 1) {
     return NextResponse.json(
