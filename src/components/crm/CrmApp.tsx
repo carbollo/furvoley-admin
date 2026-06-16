@@ -251,9 +251,8 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
   const baseY = svgHeight - 8;
   const barMaxH = svgHeight - 42;
   return (
-    <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-     <div style={{ width: '100%', maxWidth: chartW }}>
-      <svg width="100%" height={svgHeight} viewBox={`0 0 ${chartW} ${svgHeight}`} preserveAspectRatio="xMidYMid meet">
+    <div style={{ width: '100%' }}>
+      <svg width="100%" height={svgHeight} viewBox={`0 0 ${chartW} ${svgHeight}`} preserveAspectRatio="none">
         {[0, 1, 2, 3].map((r) => {
           const y = 12 + r * ((baseY - 12) / 3);
           return <line key={r} x1="0" y1={y} x2={chartW} y2={y} stroke="#ebe3d8" strokeWidth="1" />;
@@ -301,7 +300,6 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
           </span>
         ))}
       </div>
-     </div>
     </div>
   );
 }
@@ -737,11 +735,12 @@ function Dashboard({ setActive }) {
           />
         </div>
 
-        {/* Bento: chart (8) + donut (4) */}
+        {/* Bento: chart (8) + donut (4) — cada card a su altura natural (sin estirar) */}
         <div style={{
           display:'grid',
           gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',
-          gap:24
+          gap:24,
+          alignItems:'start'
         }}>
           <div style={{
             background:'var(--surface-card)',borderRadius:12,padding:32,
