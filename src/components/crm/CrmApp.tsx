@@ -1479,7 +1479,7 @@ function Socios() {
         {/* Header */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
           <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Socios</h1>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Socios</h1>
             <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>
               {teamFilterId && equipoFiltrado
                 ? `${sociosTotal} socios en «${equipoFiltrado.nombre}»`
@@ -1528,7 +1528,6 @@ function Socios() {
             sub={totalSocios > 0 ? 'En base de datos' : 'Sin socios todavía'}
             icon="users"
             color="var(--accent-soft)"
-            badge={{ kind:'info', text:'Directorio' }}
           />
           <KPICard
             label="Socios activos"
@@ -1536,15 +1535,14 @@ function Socios() {
             sub={`${totalSocios > 0 ? Math.round((sociosActivosN / totalSocios) * 100) : 0}% del total`}
             icon="users"
             color="var(--green)"
-            badge={{ kind:'success', text:'Al día' }}
           />
           <KPICard
             label="Morosos"
             value={String(sociosMorososN)}
             sub={sociosMorososN > 0 ? 'Requieren cobro' : 'Sin morosidad'}
             icon="billing"
-            color="var(--red)"
-            badge={sociosMorososN > 0 ? { kind:'danger', text:'Atención' } : { kind:'success', text:'OK' }}
+            color={sociosMorososN > 0 ? 'var(--red)' : 'var(--green)'}
+            badge={sociosMorososN > 0 ? { kind:'danger', text:'Atención' } : null}
           />
           <KPICard
             label="Cuota promedio"
@@ -2853,7 +2851,7 @@ function Equipos() {
         {/* Header */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
           <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Equipos</h1>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Equipos</h1>
             <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>{EQUIPOS_UI.length} equipos activos en el club</p>
           </div>
           <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
@@ -4067,7 +4065,7 @@ function Contabilidad({ setActive }) {
         {/* Header con título accent + CTAs */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
           <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Contabilidad</h1>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Contabilidad</h1>
             <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>Gestión contable PGC y cobros</p>
           </div>
           <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
@@ -4136,7 +4134,6 @@ function Contabilidad({ setActive }) {
             sub="Cuotas + cobros + ingresos manuales"
             icon="reports"
             color="var(--green)"
-            badge={ingresosMesTotal > 0 ? { kind:'success', text:'En curso', icon:'trend_up' } : null}
           />
           <KPICard
             label="Gastos (mes)"
@@ -4144,7 +4141,6 @@ function Contabilidad({ setActive }) {
             sub={`${numFacturasGasto} ${numFacturasGasto === 1 ? 'factura' : 'facturas'}`}
             icon="billing"
             color="var(--red)"
-            badge={gastosMesMov > 0 ? { kind:'danger', text:'Salida' } : null}
           />
           {/* Card destacada accent: pendiente de cobro */}
           <div style={{
@@ -5276,7 +5272,7 @@ function Calendario({ setActive }) {
         {/* Header */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
           <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Calendario</h1>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Calendario</h1>
             <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0,textTransform:'capitalize'}}>{monthTitle}</p>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
@@ -5773,7 +5769,7 @@ function Informes({ setActive }) {
         {/* Header */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
           <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Informes</h1>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Informes</h1>
             <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>Resumen financiero y operacional del club</p>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
@@ -6426,7 +6422,7 @@ function WhatsAppSection() {
         {/* Header */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
           <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>WhatsApp</h1>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>WhatsApp</h1>
             <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>Conexión ApiWass y envío integrado con el CRM</p>
           </div>
           <span style={{
