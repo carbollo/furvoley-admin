@@ -2441,13 +2441,12 @@ function AsistenciaSection() {
     try {
       const r = await fetch(`/api/crm/events/${session.eventId}/attendance-link`, { method: 'POST', credentials: 'include' })
       const j = await r.json().catch(() => ({}))
-      if (!r.ok) { showAlert(j.error || 'No se pudo generar el enlace'); return }
-      if (j.sentTo) {
-        showAlert(`Enlace de pase de lista enviado a ${j.sentTo} por WhatsApp.`)
-      } else {
-        try { await navigator.clipboard.writeText(j.url) } catch { /* sin permiso */ }
-        showAlert(`${j.warning || 'Enlace generado.'}\n\n${j.url}\n(copiado al portapapeles)`)
-      }
+      if (!r.ok) { showAlert(j.error || 'No se pudieron enviar los enlaces'); return }
+      showAlert(
+        `${j.team}: ${j.sent}/${j.total} enlaces de asistencia enviados` +
+        `${j.toGuardians ? ` (${j.toGuardians} a familiares)` : ''}.` +
+        `${j.warning ? `\n${j.warning}` : ''}`,
+      )
     } finally { setLinkBusyId('') }
   }
 
@@ -2522,7 +2521,7 @@ function AsistenciaSection() {
                     <div style={{display:'flex',justifyContent:'flex-end',padding:'6px 0 10px'}}>
                       <button type="button" disabled={linkBusyId === s.eventId} onClick={() => generarEnlace(s)}
                         style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
-                        {linkBusyId === s.eventId ? 'Generando…' : 'Enviar checklist al entrenador'}
+                        {linkBusyId === s.eventId ? 'Enviando…' : 'Enviar formulario a los miembros'}
                       </button>
                     </div>
                     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))',gap:8}}>
@@ -7387,15 +7386,15 @@ function Calendario({ setActive }) {
       }
       setShowEventoModal(false)
       setEditingEventId(null)
-      // Resumen del pase de lista programado (enlace + envío al entrenador).
+      // Resumen del formulario de asistencia (enlace personal a cada miembro).
       const links = Array.isArray(j.attendanceLinks) ? j.attendanceLinks : []
       if (links.length > 0) {
         const lines = links.map((l) =>
-          l.sentTo
-            ? `${l.team}: enlace enviado a ${l.sentTo} por WhatsApp.`
-            : `${l.team}: ${l.warning || 'no enviado'}\n${l.url}`,
+          `${l.team}: ${l.sent}/${l.total} enlaces enviados` +
+          `${l.toGuardians ? ` (${l.toGuardians} a familiares)` : ''}` +
+          `${l.warning ? ` · ${l.warning}` : ''}`,
         )
-        showAlert(`Evento creado en ${j.created} equipo(s).\n\nPase de lista:\n${lines.join('\n')}`)
+        showAlert(`Evento creado en ${j.created} equipo(s).\n\nFormulario de asistencia:\n${lines.join('\n')}`)
       } else if (!isEdit && (j.created ?? 0) > 1) {
         showAlert(`Evento creado en ${j.created} equipos.`)
       }
@@ -7869,8 +7868,8 @@ function Calendario({ setActive }) {
                       Programar formulario de asistencia
                     </span>
                     <span style={{ display: 'block', fontSize: 12, color: '#78716c', marginTop: 2, lineHeight: 1.5 }}>
-                      Genera un enlace-checklist («¿quién vino?») y se lo envía por WhatsApp al entrenador de cada equipo.
-                      Lo que marque queda guardado en la asistencia del evento.
+                      Envía por WhatsApp a cada miembro del equipo su enlace personal para confirmar asistencia.
+                      Si el miembro es menor de edad, el enlace va a su familiar/tutor asignado.
                     </span>
                   </span>
                 </label>

@@ -54,7 +54,11 @@ export async function GET(
       select: { id: true, title: true, date: true, location: true, teamId: true },
     })
     const rows = await prisma.attendance.findMany({
-      where: { eventId: row.eventId },
+      where: {
+        eventId: row.eventId,
+        // Enlace personal (asistencia del propio socio): solo su fila.
+        ...(row.memberId ? { memberId: row.memberId } : {}),
+      },
       include: { member: { select: { name: true } } },
     })
     attendances = rows.map((a) => ({
@@ -98,13 +102,17 @@ export async function POST(
       return NextResponse.json({ error: 'attendanceId requerido' }, { status: 400 })
     }
     // La fila de asistencia debe pertenecer al evento del enlace (evita usar
-    // un token de un evento para tocar asistencias de otro).
+    // un token de un evento para tocar asistencias de otro) y, si el enlace es
+    // personal, solo puede marcar la fila de ese socio.
     const attendance = await prisma.attendance.findUnique({
       where: { id: attendanceId },
-      select: { eventId: true },
+      select: { eventId: true, memberId: true },
     })
     if (!attendance || (row.eventId && attendance.eventId !== row.eventId)) {
       return NextResponse.json({ error: 'Asistencia no válida para este enlace' }, { status: 400 })
+    }
+    if (row.memberId && attendance.memberId !== row.memberId) {
+      return NextResponse.json({ error: 'Este enlace solo permite confirmar tu propia asistencia' }, { status: 403 })
     }
     await updateAttendance(attendanceId, status, reason)
     // La checklist es multi-uso (un toque por jugador, correcciones incluidas):
