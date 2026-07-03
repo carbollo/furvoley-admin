@@ -6,7 +6,7 @@ import { getEffectiveGroupMembers, normalizeGroupRole } from '@/lib/groups'
 
 export const dynamic = 'force-dynamic'
 
-/** Miembros efectivos del grupo (directos + heredados de ancestros). */
+/** Miembros efectivos del grupo (directos + los de sus subgrupos). */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const auth = await requireRoles(['ADMIN'])
   if (!auth.ok) return auth.response
@@ -75,7 +75,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   })
   if (result.count === 0) {
     return NextResponse.json(
-      { error: 'Ese socio no es miembro directo de este grupo (quizá hereda de un grupo superior).' },
+      { error: 'Ese socio no es miembro directo de este grupo (pertenece a través de un subgrupo; quítalo desde ahí).' },
       { status: 404 },
     )
   }

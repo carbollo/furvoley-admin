@@ -1301,24 +1301,26 @@ function Organigrama() {
     return () => { cancelled = true }
   }, [ficha?.memberId])
 
-  /** Descendientes de un grupo según el árbol cargado (para "también en" de la ficha). */
-  const descendantsOf = useCallback((groupId) => {
-    const out = []
-    const findNode = (nodes) => {
+  /** Grupos superiores (ancestros) de un grupo: en ellos también "cuenta" el miembro. */
+  const ancestorsOf = useCallback((groupId) => {
+    const parentOf = new Map()
+    const nameOf = new Map()
+    const walk = (nodes) => {
       for (const n of nodes) {
-        if (n.id === groupId) return n
-        const hit = findNode(n.children || [])
-        if (hit) return hit
-      }
-      return null
-    }
-    const collect = (node) => {
-      for (const child of node?.children || []) {
-        out.push({ id: child.id, name: child.name })
-        collect(child)
+        parentOf.set(n.id, n.parentId || null)
+        nameOf.set(n.id, n.name)
+        walk(n.children || [])
       }
     }
-    collect(findNode(tree))
+    walk(tree)
+    const out = []
+    let current = parentOf.get(groupId)
+    const seen = new Set([groupId])
+    while (current && !seen.has(current)) {
+      seen.add(current)
+      out.push({ id: current, name: nameOf.get(current) || '—' })
+      current = parentOf.get(current)
+    }
     return out
   }, [tree])
 
@@ -1494,7 +1496,7 @@ function Organigrama() {
   return (
     <SectionShell
       title="Organigrama"
-      subtitle="Grupos y subgrupos con herencia: quien está en el grupo padre pertenece automáticamente a sus subgrupos"
+      subtitle="Grupos y subgrupos: cada grupo agrupa a sus miembros y a los de todos sus subgrupos"
     >
       <div style={{display:'grid',gridTemplateColumns:'minmax(240px, 1fr) minmax(0, 2.4fr)',gap:24,alignItems:'start'}}>
         {/* Árbol lateral */}
@@ -1617,7 +1619,7 @@ function Organigrama() {
                 <div>
                   <div style={{fontWeight:700,fontSize:18,color:'var(--text-primary)'}}>{groupName}</div>
                   <div style={{fontSize:13,color:'var(--text-secondary)',marginTop:2}}>
-                    {members.length} miembro{members.length === 1 ? '' : 's'} efectivo{members.length === 1 ? '' : 's'} (directos + heredados)
+                    {members.length} miembro{members.length === 1 ? '' : 's'} (directos + de sus subgrupos)
                   </div>
                 </div>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
@@ -1713,9 +1715,9 @@ function Organigrama() {
                       {GROUP_ROLE_LABELS[m.role] || m.role}
                     </span>
                     {m.inherited ? (
-                      <span title={`Pertenece por herencia de «${m.inheritedFrom}»`}
+                      <span title={`Miembro del subgrupo «${m.inheritedFrom}»; quítalo desde ese subgrupo`}
                         style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:999,background:'var(--surface-low)',color:'var(--text-muted)'}}>
-                        Heredado · {m.inheritedFrom}
+                        Subgrupo · {m.inheritedFrom}
                       </span>
                     ) : (
                       <button type="button" disabled={busy} onClick={() => quitarMiembro(m.memberId)}
@@ -1773,9 +1775,10 @@ function Organigrama() {
                 const entry = overview.find((o) => o.id === ficha.memberId)
                 const direct = entry?.groups ?? []
                 if (direct.length === 0) return <p style={{fontSize:13,color:'var(--text-muted)',margin:0}}>No pertenece a ningún grupo.</p>
-                const inheritedInto = direct.flatMap((g) =>
-                  descendantsOf(g.id).map((d) => ({ ...d, via: g.name })),
-                ).filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i && !direct.some((g) => g.id === d.id))
+                // Cuenta también en los grupos superiores de sus grupos directos.
+                const countsIn = direct.flatMap((g) =>
+                  ancestorsOf(g.id).map((a) => ({ ...a, via: g.name })),
+                ).filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i && !direct.some((g) => g.id === a.id))
                 return (
                   <div style={{display:'flex',flexDirection:'column',gap:6}}>
                     <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
@@ -1785,14 +1788,14 @@ function Organigrama() {
                         </span>
                       ))}
                     </div>
-                    {inheritedInto.length > 0 && (
+                    {countsIn.length > 0 && (
                       <>
-                        <div style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>También en (por herencia):</div>
+                        <div style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>También cuenta en (grupos superiores):</div>
                         <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                          {inheritedInto.map((d) => (
-                            <span key={d.id} title={`Hereda de «${d.via}»`}
+                          {countsIn.map((a) => (
+                            <span key={a.id} title={`Por ser miembro de «${a.via}»`}
                               style={{fontSize:11,fontWeight:600,padding:'4px 11px',borderRadius:999,background:'var(--surface-low)',color:'var(--text-secondary)'}}>
-                              {d.name}
+                              {a.name}
                             </span>
                           ))}
                         </div>
@@ -8892,7 +8895,7 @@ function ChatSection() {
                       <div key={m.memberId} style={{display:'flex',alignItems:'center',gap:8}}>
                         <Avatar initials={chatInitials(m.name)} color="#2563eb" size={26}/>
                         <span style={{fontSize:12.5,color:'var(--text-primary)',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</span>
-                        {m.inherited && <span style={{fontSize:9,fontWeight:700,color:'var(--text-muted)'}}>HEREDADO</span>}
+                        {m.inherited && <span style={{fontSize:9,fontWeight:700,color:'var(--text-muted)'}}>SUBGRUPO</span>}
                       </div>
                     ))}
                     {(info?.members?.length ?? 0) > 12 && (

@@ -101,8 +101,8 @@ model Member {
 // --- ORGANIGRAMA (grupos y subgrupos) ---
 
 /// Grupo del organigrama. Sustituye progresivamente el concepto de "equipo":
-/// estructura libre en árbol (grupo → subgrupos) con herencia hacia abajo
-/// (los miembros del grupo padre pertenecen automáticamente a los subgrupos).
+/// estructura libre en árbol (grupo → subgrupos) por contención: un grupo
+/// agrupa a sus miembros directos y a los de todos sus subgrupos.
 model Group {
   id        String   @id @default(cuid())
   name      String

@@ -1,15 +1,15 @@
 import { prisma } from '@/lib/prisma'
 
 /**
- * Organigrama: grupos y subgrupos con HERENCIA HACIA ABAJO.
+ * Organigrama: grupos y subgrupos por CONTENCIÓN (agregación hacia arriba).
  *
- * Regla de negocio (roadmap · Módulo 5.2):
- * - Meter a alguien en un grupo padre lo propaga a todos sus subgrupos
- *   (ej.: entrenador en "Entrenadores" → está en "Boliplaya" y "Bolipista").
- * - Meterlo solo en un subgrupo lo deja solo ahí.
- * La herencia se calcula al vuelo (miembros efectivos = directos + directos de
- * los ancestros), sin duplicar filas: mover o quitar a alguien del padre se
- * refleja solo en toda la rama.
+ * Regla de negocio:
+ * - Un grupo muestra a sus miembros directos Y a los de todos sus subgrupos
+ *   (ej.: "Entrenadores" agrupa a los de "Boliplaya" y "Bolipista").
+ * - Un subgrupo NO muestra a los miembros de sus grupos superiores.
+ * Se calcula al vuelo (miembros efectivos = directos + directos del subárbol),
+ * sin duplicar filas: mover o quitar a alguien en un subgrupo se refleja solo
+ * en todos sus grupos superiores.
  */
 
 export const GROUP_MEMBER_ROLES = ['PLAYER', 'COACH', 'FAMILY'] as const
@@ -107,23 +107,23 @@ export type EffectiveGroupMember = {
   name: string
   email: string
   role: GroupMemberRole
-  /** true si la pertenencia viene heredada de un grupo ancestro. */
+  /** true si la pertenencia viene de un subgrupo (no es miembro directo). */
   inherited: boolean
-  /** Nombre del grupo del que hereda (si inherited). */
+  /** Nombre del subgrupo del que viene (si inherited). */
   inheritedFrom: string | null
 }
 
 /**
- * Miembros efectivos de un grupo = directos + heredados de sus ancestros.
- * Si alguien está en el grupo y en un ancestro, gana la fila directa.
+ * Miembros efectivos de un grupo = directos + los de todos sus subgrupos.
+ * Si alguien está en el grupo y también en un subgrupo, gana la fila directa.
  */
 export async function getEffectiveGroupMembers(groupId: string): Promise<EffectiveGroupMember[]> {
   const groups = await prisma.group.findMany({ select: { id: true, name: true, parentId: true } })
   const groupName = new Map(groups.map((g) => [g.id, g.name]))
-  const ancestors = ancestorIdsOf(groupId, groups)
+  const subtree = subtreeIdsOf(groupId, groups) // incluye el propio grupo
 
   const rows = await prisma.groupMembership.findMany({
-    where: { groupId: { in: [groupId, ...ancestors] } },
+    where: { groupId: { in: subtree } },
     include: { member: { select: { id: true, name: true, email: true } } },
     orderBy: { createdAt: 'asc' },
   })
