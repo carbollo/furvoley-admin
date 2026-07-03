@@ -9131,7 +9131,14 @@ function WhatsAppSection() {
 }
 
 // ── APP ROOT ─────────────────────────────────────────────────────────────────
-const CRM_SECTION_IDS = ['dashboard','socios','equipos','cuotas','contabilidad','calendario','informes','workflows','whatsapp','hermes','personal'] as const;
+// Mantener sincronizado con CrmSectionId (src/lib/rbac.ts).
+const CRM_SECTION_IDS = [
+  'dashboard','socios','equipos','cuotas','contabilidad','calendario','informes','workflows','whatsapp','hermes','personal',
+  // Roadmap: Admin · Contabilidad · Configuración
+  'admin-sumario','organigrama','contactos','asistencia',
+  'facturas','impagos','productos','descuentos',
+  'forms','api',
+] as const;
 type SectionId = (typeof CRM_SECTION_IDS)[number]
 
 const SECTION_TITLES: Record<SectionId, string> = {
