@@ -97,8 +97,21 @@ export async function POST(
     if (!attendanceId) {
       return NextResponse.json({ error: 'attendanceId requerido' }, { status: 400 })
     }
+    // La fila de asistencia debe pertenecer al evento del enlace (evita usar
+    // un token de un evento para tocar asistencias de otro).
+    const attendance = await prisma.attendance.findUnique({
+      where: { id: attendanceId },
+      select: { eventId: true },
+    })
+    if (!attendance || (row.eventId && attendance.eventId !== row.eventId)) {
+      return NextResponse.json({ error: 'Asistencia no válida para este enlace' }, { status: 400 })
+    }
     await updateAttendance(attendanceId, status, reason)
-    await markWorkflowResponseTokenUsed(token)
+    // La checklist es multi-uso (un toque por jugador, correcciones incluidas):
+    // no se consume; caduca sola a los 7 días. El motivo de ausencia sí es de un solo uso.
+    if (row.type === 'ATTENDANCE_REASON') {
+      await markWorkflowResponseTokenUsed(token)
+    }
     return NextResponse.json({ ok: true })
   }
 

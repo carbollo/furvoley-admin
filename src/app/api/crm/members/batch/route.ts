@@ -11,6 +11,8 @@ const ACTIONS = new Set<BatchAction>([
   'set-status',
   'send-payment-reminder',
   'assign-plan',
+  'send-message',
+  'add-to-group',
 ])
 
 export async function POST(request: Request) {
@@ -25,6 +27,9 @@ export async function POST(request: Request) {
     startDate?: string
     autoPay?: boolean
     paymentRequiredOnEnrollment?: boolean
+    message?: string
+    groupId?: string
+    groupRole?: string
   }
   try {
     body = await request.json()
@@ -51,6 +56,9 @@ export async function POST(request: Request) {
     startDate: body.startDate,
     autoPay: body.autoPay,
     paymentRequiredOnEnrollment: body.paymentRequiredOnEnrollment,
+    message: body.message,
+    groupId: body.groupId,
+    groupRole: body.groupRole,
   })
   return NextResponse.json(result)
 }

@@ -15,6 +15,7 @@ import React, {
   useCallback,
   useMemo,
   useContext,
+  useRef,
   createContext,
   type ReactNode,
 } from 'react'
@@ -305,6 +306,55 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
   );
 }
 
+/** Evolución en el tiempo (línea + área). Para series mensuales tipo "altas del año". */
+function LineAreaChart({ data, labels, color = '#2563eb', height = 200 }) {
+  const safeData = data && data.length ? data.map((v) => Math.max(0, Number(v) || 0)) : [0]
+  const safeLabels = labels && labels.length === safeData.length ? labels : safeData.map(() => '')
+  const max = Math.max(1, ...safeData)
+  const stepW = 64
+  const chartW = safeData.length * stepW
+  const svgHeight = height - 26
+  const baseY = svgHeight - 10
+  const topPad = 14
+  const plotH = baseY - topPad
+
+  const points = safeData.map((v, i) => ({
+    x: i * stepW + stepW / 2,
+    y: baseY - (v / max) * plotH,
+    v,
+  }))
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${baseY} L ${points[0].x} ${baseY} Z`
+
+  return (
+    <div style={{ width: '100%' }}>
+      <svg width="100%" height={svgHeight} viewBox={`0 0 ${chartW} ${svgHeight}`} preserveAspectRatio="none">
+        {[0, 1, 2, 3].map((r) => {
+          const y = topPad + r * (plotH / 3)
+          return <line key={r} x1="0" y1={y} x2={chartW} y2={y} stroke="#ebe3d8" strokeWidth="1" />
+        })}
+        <path d={areaPath} fill={color} opacity="0.12" />
+        <path d={linePath} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r="4" fill="#fff" stroke={color} strokeWidth="2.5" />
+            <rect x={i * stepW} y={topPad} width={stepW} height={plotH + 10} fill="transparent">
+              <title>{`${safeLabels[i]}: ${p.v}`}</title>
+            </rect>
+          </g>
+        ))}
+      </svg>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+        {safeLabels.map((label, i) => (
+          <span key={`${label}-${i}`} style={{ flex: 1, textAlign: 'center', fontSize: 11, fontWeight: 600, color: '#78716c', letterSpacing: '0.01em' }}>
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function DonutChart({ segments, size = 100 }) {
   const total = segments.reduce((a, s) => a + s.value, 0);
   if (total <= 0) {
@@ -498,6 +548,7 @@ const NAV = [
     id: 'grp-conta', label: 'Contabilidad', icon: 'billing',
     children: [
       { id: 'contabilidad', label: 'Sumario' },
+      { id: 'facturas', label: 'Facturas' },
       { id: 'cuotas', label: 'Suscripciones' },
       { id: 'impagos', label: 'Impagos' },
       { id: 'productos', label: 'Productos' },
@@ -978,7 +1029,7 @@ function Dashboard({ setActive }) {
               <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Cobros recientes</div>
               <button
                 type="button"
-                onClick={() => setActive('contabilidad')}
+                onClick={() => setActive('facturas')}
                 style={{
                   fontSize:13,color:'var(--accent)',background:'transparent',
                   border:'none',cursor:'pointer',fontWeight:600,fontFamily:'inherit',padding:0
@@ -1084,13 +1135,24 @@ function AdminSumario() {
   const GENDER_COLORS = { Masculino: '#2563eb', Femenino: '#e11d48', Otro: '#f59e0b', 'Sin datos': '#d8cdbd' }
   const MES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
 
+  const generoConDato = (data?.gender ?? []).filter((g) => g.label !== 'Sin datos')
+  const generoDominante = generoConDato[0] ?? null
+  const generoTotal = generoConDato.reduce((a, g) => a + g.count, 0)
+
   return (
     <SectionShell title="Sumario" subtitle="Datos y características de los jugadores del club">
       {error && <p style={{color:'var(--red)',fontSize:14}}>{error}</p>}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:20}}>
-        <KPICard label="Socios totales" value={String(data?.total ?? '—')} sub="En base de datos" icon="users" color="var(--accent-soft)"/>
-        <KPICard label="Altas este año" value={String(data?.altasEsteAno ?? '—')} sub={`Año ${new Date().getFullYear()}`} icon="users" color="var(--green)"/>
-        <KPICard label="Sin fecha de nacimiento" value={String(data?.sinFechaNacimiento ?? '—')} sub="Completar para estadísticas de edad" icon="reports" color="var(--amber)"/>
+        <KPICard label="Socios totales" value={String(data?.total ?? '—')} sub={`${data?.activos ?? 0} activos`} icon="users" color="var(--accent-soft)"/>
+        <KPICard label="Altas este año" value={String(data?.altasEsteAno ?? '—')} sub={`Año ${new Date().getFullYear()}`} icon="reports" color="var(--green)"/>
+        <KPICard label="Edad media" value={data?.avgAge != null ? `${data.avgAge} años` : '—'} sub={data?.sinFechaNacimiento ? `${data.sinFechaNacimiento} sin fecha de nacimiento` : 'Fechas completas'} icon="users" color="var(--amber)"/>
+        <KPICard
+          label="Género mayoritario"
+          value={generoDominante ? generoDominante.label : '—'}
+          sub={generoDominante ? `${generoDominante.count} de ${generoTotal} con dato de género` : 'Añade el campo género al formulario'}
+          icon="users"
+          color="#0891b2"
+        />
       </div>
       <div style={{display:'grid',gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',gap:24,alignItems:'start'}}>
         <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
@@ -1126,9 +1188,14 @@ function AdminSumario() {
         </div>
       </div>
       <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
-        <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Altas de este año</div>
-        <div style={{fontSize:14,color:'var(--text-secondary)',margin:'4px 0 20px'}}>Nuevos socios por mes</div>
-        <BarChart data={data?.altasPorMes ?? Array(12).fill(0)} labels={MES} color="var(--green)" height={190}/>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
+          <div>
+            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Altas de este año</div>
+            <div style={{fontSize:14,color:'var(--text-secondary)',margin:'4px 0 20px'}}>Evolución mensual de nuevos socios</div>
+          </div>
+          <span style={{padding:'6px 14px',fontSize:12,fontWeight:700,borderRadius:999,background:'var(--surface-low)',color:'var(--accent)'}}>{new Date().getFullYear()}</span>
+        </div>
+        <LineAreaChart data={data?.altasPorMes ?? Array(12).fill(0)} labels={MES} color="#15803d" height={210}/>
       </div>
     </SectionShell>
   )
@@ -1164,7 +1231,7 @@ function GroupTreeNodeRow({ node, depth, selectedId, onSelect }) {
 }
 
 function Organigrama() {
-  const { bundle, showAlert, showConfirm } = useCrm()
+  const { bundle, fmtMoney, showAlert, showConfirm } = useCrm()
   const role = normalizeRole(bundle?.user?.role)
   const [tree, setTree] = useState([])
   const [selectedId, setSelectedId] = useState('')
@@ -1177,6 +1244,17 @@ function Organigrama() {
   const [addMemberRole, setAddMemberRole] = useState('PLAYER')
   const [busy, setBusy] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
+  // Vista de club (image14) + filtros (image12) + ficha (image11)
+  const [overview, setOverview] = useState([])
+  const [roleFilter, setRoleFilter] = useState('ALL')
+  const [memberFilter, setMemberFilter] = useState('')
+  const [ficha, setFicha] = useState(null) // { memberId, name }
+  const [fichaSocio, setFichaSocio] = useState(null)
+  const [msgModal, setMsgModal] = useState(false)
+  const [msgText, setMsgText] = useState('')
+  const [planModal, setPlanModal] = useState(false)
+  const [planOptions, setPlanOptions] = useState([])
+  const [planId, setPlanId] = useState('')
 
   const flatGroups = useMemo(() => {
     const out = []
@@ -1196,6 +1274,78 @@ function Organigrama() {
     const j = await r.json()
     setTree(j.tree || [])
   }, [])
+
+  const loadOverview = useCallback(async () => {
+    try {
+      const r = await fetch('/api/crm/groups/overview', { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) return
+      const j = await r.json()
+      setOverview(Array.isArray(j.members) ? j.members : [])
+    } catch { /* noop */ }
+  }, [])
+
+  useEffect(() => { void loadOverview() }, [loadOverview])
+
+  // Ficha: datos completos del socio al hacer clic (image11)
+  useEffect(() => {
+    if (!ficha?.memberId) { setFichaSocio(null); return }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch(`/api/crm/members?id=${encodeURIComponent(ficha.memberId)}`, { credentials: 'include', cache: 'no-store' })
+        if (!r.ok || cancelled) return
+        const j = await r.json()
+        if (!cancelled && j?.socio) setFichaSocio(j.socio)
+      } catch { /* noop */ }
+    })()
+    return () => { cancelled = true }
+  }, [ficha?.memberId])
+
+  /** Descendientes de un grupo según el árbol cargado (para "también en" de la ficha). */
+  const descendantsOf = useCallback((groupId) => {
+    const out = []
+    const findNode = (nodes) => {
+      for (const n of nodes) {
+        if (n.id === groupId) return n
+        const hit = findNode(n.children || [])
+        if (hit) return hit
+      }
+      return null
+    }
+    const collect = (node) => {
+      for (const child of node?.children || []) {
+        out.push({ id: child.id, name: child.name })
+        collect(child)
+      }
+    }
+    collect(findNode(tree))
+    return out
+  }, [tree])
+
+  const GROUP_ROLE_FILTERS = [
+    { value: 'ALL', label: 'Todos' },
+    { value: 'PLAYER', label: 'Jugadores' },
+    { value: 'COACH', label: 'Entrenadores' },
+    { value: 'FAMILY', label: 'Familiares' },
+  ]
+
+  const visibleMembers = members.filter((m) => {
+    if (roleFilter !== 'ALL' && m.role !== roleFilter) return false
+    if (memberFilter.trim()) {
+      const q = memberFilter.trim().toLowerCase()
+      if (!m.name.toLowerCase().includes(q) && !(m.email || '').toLowerCase().includes(q)) return false
+    }
+    return true
+  })
+
+  const visibleOverview = overview.filter((m) => {
+    if (memberFilter.trim()) {
+      const q = memberFilter.trim().toLowerCase()
+      if (!m.name.toLowerCase().includes(q) && !(m.email || '').toLowerCase().includes(q)) return false
+    }
+    if (roleFilter !== 'ALL' && !m.groups.some((g) => g.role === roleFilter)) return false
+    return true
+  })
 
   const loadMembers = useCallback(async (groupId) => {
     if (!groupId) { setMembers([]); setGroupName(''); return }
@@ -1253,7 +1403,7 @@ function Organigrama() {
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo añadir'); return }
       setAddMemberId(''); setAddMemberLabel('')
-      await Promise.all([loadMembers(selectedId), loadTree()])
+      await Promise.all([loadMembers(selectedId), loadTree(), loadOverview()])
     } finally { setBusy(false) }
   }
 
@@ -1266,7 +1416,7 @@ function Organigrama() {
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo quitar'); return }
-      await Promise.all([loadMembers(selectedId), loadTree()])
+      await Promise.all([loadMembers(selectedId), loadTree(), loadOverview()])
     } finally { setBusy(false) }
   }
 
@@ -1290,6 +1440,55 @@ function Organigrama() {
     } finally { setBulkBusy(false) }
   }
 
+  /** Mensaje de WhatsApp a todo el grupo (queda en el hilo del Chat). */
+  async function enviarMensajeGrupo() {
+    const message = msgText.trim()
+    if (!selectedId || !message) return
+    setBulkBusy(true)
+    try {
+      const r = await fetch('/api/crm/chat/messages', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId: selectedId, message }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo enviar el mensaje'); return }
+      setMsgModal(false); setMsgText('')
+      showAlert(`Mensaje enviado a ${j.sent}/${j.total} miembros.${j.skippedNoPhone ? ` ${j.skippedNoPhone} sin teléfono.` : ''}${j.failed ? ` ${j.failed} fallidos.` : ''}\nLa conversación queda en la pestaña Chat.`)
+    } finally { setBulkBusy(false) }
+  }
+
+  async function abrirPlanModal() {
+    setPlanModal(true)
+    if (planOptions.length > 0) return
+    try {
+      const r = await fetch('/api/crm/membership-plans', { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) return
+      const j = await r.json()
+      const plans = (j.plans || []).filter((p) => p.isActive !== false)
+      setPlanOptions(plans)
+      if (plans[0]?.id) setPlanId(plans[0].id)
+    } catch { /* noop */ }
+  }
+
+  async function asignarCuotaGrupo() {
+    if (!selectedId || !planId || members.length === 0) return
+    const ok = await showConfirm(`¿Asignar la cuota seleccionada a los ${members.length} miembros de «${groupName}»? La cuota activa anterior de cada socio se cancela.`).catch(() => false)
+    if (!ok) return
+    setBulkBusy(true)
+    try {
+      const r = await fetch('/api/crm/members/batch', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberIds: members.map((m) => m.memberId), action: 'assign-plan', planId }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo asignar la cuota'); return }
+      setPlanModal(false)
+      showAlert(`Cuota asignada: ${j.succeeded ?? 0} correctos, ${j.failed ?? 0} fallidos.`)
+    } finally { setBulkBusy(false) }
+  }
+
   const GROUP_ROLE_LABELS = { PLAYER: 'Jugador', COACH: 'Entrenador', FAMILY: 'Familiar' }
 
   return (
@@ -1300,7 +1499,22 @@ function Organigrama() {
       <div style={{display:'grid',gridTemplateColumns:'minmax(240px, 1fr) minmax(0, 2.4fr)',gap:24,alignItems:'start'}}>
         {/* Árbol lateral */}
         <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:16,display:'flex',flexDirection:'column',gap:12}}>
-          <div style={{fontWeight:700,fontSize:14,color:'var(--text-primary)',padding:'4px 8px'}}>Grupos</div>
+          <button
+            type="button"
+            onClick={() => setSelectedId('')}
+            style={{
+              display:'flex',alignItems:'center',gap:8,width:'100%',padding:'9px 12px',
+              border:'none',borderRadius:8,cursor:'pointer',fontFamily:'inherit',
+              background:!selectedId ? 'var(--accent-pill)' : 'transparent',
+              color:!selectedId ? 'var(--accent)' : 'var(--text-primary)',
+              fontSize:13,fontWeight:!selectedId ? 700 : 600,textAlign:'left',
+            }}
+          >
+            <span style={{opacity:0.6,display:'inline-flex'}}><Icon name="users" size={14}/></span>
+            Todos los miembros
+            <span style={{marginLeft:'auto',fontSize:11,color:'var(--text-muted)',fontWeight:600}}>{overview.length}</span>
+          </button>
+          <div style={{fontWeight:700,fontSize:14,color:'var(--text-primary)',padding:'4px 8px',borderTop:'1px solid var(--border)',paddingTop:12}}>Grupos</div>
           <div style={{display:'flex',flexDirection:'column',gap:2}}>
             {tree.length === 0 && (
               <p style={{fontSize:13,color:'var(--text-muted)',padding:'4px 8px'}}>Aún no hay grupos. Crea el primero abajo.</p>
@@ -1340,9 +1554,63 @@ function Organigrama() {
         {/* Detalle del grupo */}
         <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:24,minHeight:320}}>
           {!selectedId ? (
-            <div style={{color:'var(--text-muted)',fontSize:14,textAlign:'center',padding:'60px 20px'}}>
-              Selecciona un grupo del árbol para ver sus miembros y lanzar acciones en lote.
-            </div>
+            <>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:14}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:18,color:'var(--text-primary)'}}>Miembros del club</div>
+                  <div style={{fontSize:13,color:'var(--text-secondary)',marginTop:2}}>
+                    {visibleOverview.length} de {overview.length} · haz clic en una persona para ver su ficha
+                  </div>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginBottom:14}}>
+                <input
+                  value={memberFilter}
+                  onChange={(e) => setMemberFilter(e.target.value)}
+                  placeholder="Filtrar por nombre o email…"
+                  style={{flex:'1 1 200px',padding:'9px 12px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13}}
+                />
+                <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:999,padding:4}}>
+                  {GROUP_ROLE_FILTERS.map((f) => (
+                    <button key={f.value} type="button" onClick={() => setRoleFilter(f.value)}
+                      style={{padding:'6px 12px',borderRadius:999,border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,
+                        background:roleFilter === f.value ? 'var(--surface-card)' : 'transparent',
+                        color:roleFilter === f.value ? 'var(--accent)' : 'var(--text-muted)'}}>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{display:'flex',flexDirection:'column'}}>
+                {visibleOverview.length === 0 && (
+                  <p style={{fontSize:13,color:'var(--text-muted)',padding:'16px 0'}}>No hay miembros que coincidan con el filtro.</p>
+                )}
+                {visibleOverview.map((m) => (
+                  <button key={m.id} type="button" onClick={() => setFicha({ memberId: m.id, name: m.name })}
+                    style={{display:'flex',alignItems:'center',gap:12,padding:'10px 4px',borderTop:'1px solid var(--border)',border:'none',borderBottom:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left',width:'100%'}}>
+                    <Avatar initials={(m.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="#2563eb" size={32}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</div>
+                      <div style={{fontSize:12,color:'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.email || '—'}</div>
+                    </div>
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end',maxWidth:'50%'}}>
+                      {m.groups.length === 0 && (
+                        <span style={{fontSize:11,color:'var(--text-muted)'}}>Sin grupos</span>
+                      )}
+                      {m.groups.slice(0, 4).map((g) => (
+                        <span key={g.id} title={GROUP_ROLE_LABELS[g.role] || g.role}
+                          style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:999,background:'var(--accent-pill)',color:'var(--accent)',whiteSpace:'nowrap'}}>
+                          {g.name}{g.role !== 'PLAYER' ? ` · ${(GROUP_ROLE_LABELS[g.role] || g.role)[0]}` : ''}
+                        </span>
+                      ))}
+                      {m.groups.length > 4 && (
+                        <span style={{fontSize:11,color:'var(--text-muted)'}}>+{m.groups.length - 4}</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
           ) : (
             <>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:16}}>
@@ -1354,9 +1622,19 @@ function Organigrama() {
                 </div>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                   <button type="button" disabled={bulkBusy || members.length === 0}
+                    onClick={() => { setMsgText(''); setMsgModal(true) }}
+                    style={{padding:'8px 14px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                    Mensaje al grupo
+                  </button>
+                  <button type="button" disabled={bulkBusy || members.length === 0}
                     onClick={() => accionEnLote('send-payment-reminder', { confirmMessage: `¿Enviar recordatorio de cobro por WhatsApp a los ${members.length} miembros de «${groupName}»?` })}
                     style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--green-light)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
-                    {bulkBusy ? 'Enviando…' : 'Recordar cobros al grupo'}
+                    {bulkBusy ? 'Enviando…' : 'Recordar cobros'}
+                  </button>
+                  <button type="button" disabled={bulkBusy || members.length === 0}
+                    onClick={abrirPlanModal}
+                    style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                    Asignar cuota
                   </button>
                   <button type="button" disabled={bulkBusy || members.length === 0}
                     onClick={() => accionEnLote('set-status', { status: 'ACTIVE', confirmMessage: `¿Marcar como activos a los ${members.length} miembros de «${groupName}»?` })}
@@ -1368,6 +1646,26 @@ function Organigrama() {
                     style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--red)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
                     Eliminar grupo
                   </button>
+                </div>
+              </div>
+
+              {/* Filtros por rol y nombre (image12) */}
+              <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',paddingBottom:12}}>
+                <input
+                  value={memberFilter}
+                  onChange={(e) => setMemberFilter(e.target.value)}
+                  placeholder="Filtrar miembros…"
+                  style={{flex:'1 1 180px',padding:'8px 12px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13}}
+                />
+                <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:999,padding:4}}>
+                  {GROUP_ROLE_FILTERS.map((f) => (
+                    <button key={f.value} type="button" onClick={() => setRoleFilter(f.value)}
+                      style={{padding:'6px 12px',borderRadius:999,border:'none',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,
+                        background:roleFilter === f.value ? 'var(--surface-card)' : 'transparent',
+                        color:roleFilter === f.value ? 'var(--accent)' : 'var(--text-muted)'}}>
+                      {f.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1393,18 +1691,24 @@ function Organigrama() {
                 </button>
               </div>
 
-              {/* Lista de miembros efectivos */}
+              {/* Lista de miembros efectivos (clic → ficha) */}
               <div style={{display:'flex',flexDirection:'column'}}>
                 {members.length === 0 && (
                   <p style={{fontSize:13,color:'var(--text-muted)',padding:'16px 0'}}>Este grupo aún no tiene miembros.</p>
                 )}
-                {members.map((m) => (
+                {members.length > 0 && visibleMembers.length === 0 && (
+                  <p style={{fontSize:13,color:'var(--text-muted)',padding:'16px 0'}}>Ningún miembro coincide con el filtro.</p>
+                )}
+                {visibleMembers.map((m) => (
                   <div key={m.memberId} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
-                    <Avatar initials={(m.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="#2563eb" size={32}/>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</div>
-                      <div style={{fontSize:12,color:'var(--text-muted)'}}>{m.email || '—'}</div>
-                    </div>
+                    <button type="button" onClick={() => setFicha({ memberId: m.memberId, name: m.name })}
+                      style={{display:'flex',alignItems:'center',gap:12,flex:1,minWidth:0,border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left',padding:0}}>
+                      <Avatar initials={(m.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="#2563eb" size={32}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</div>
+                        <div style={{fontSize:12,color:'var(--text-muted)'}}>{m.email || '—'}</div>
+                      </div>
+                    </button>
                     <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:999,background:'var(--accent-pill)',color:'var(--accent)'}}>
                       {GROUP_ROLE_LABELS[m.role] || m.role}
                     </span>
@@ -1426,6 +1730,173 @@ function Organigrama() {
           )}
         </div>
       </div>
+
+      {/* ── Ficha de usuario (image11): datos, grupos, membresía, historial ── */}
+      {ficha && (
+        <div role="dialog" aria-modal="true" onClick={() => setFicha(null)}
+          style={{position:'fixed',inset:0,background:'rgba(28,25,23,0.35)',zIndex:1400,display:'flex',justifyContent:'flex-end'}}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{width:380,maxWidth:'92vw',height:'100%',background:'var(--surface-card)',boxShadow:'-8px 0 30px rgba(28,25,23,0.18)',overflowY:'auto',padding:26,display:'flex',flexDirection:'column',gap:18}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{fontWeight:700,fontSize:16,color:'var(--text-primary)'}}>Ficha del miembro</div>
+              <button type="button" onClick={() => setFicha(null)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)'}}><Icon name="x" size={18}/></button>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,paddingBottom:14,borderBottom:'1px solid var(--border)'}}>
+              <Avatar initials={(ficha.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="#2563eb" size={62}/>
+              <div style={{fontWeight:700,fontSize:18,color:'var(--text-primary)',textAlign:'center'}}>{fichaSocio?.nombre || ficha.name}</div>
+              {fichaSocio && <Badge status={fichaSocio.estado}/>}
+            </div>
+
+            {/* Datos personales */}
+            {fichaSocio ? (
+              <div style={{display:'flex',flexDirection:'column'}}>
+                {[
+                  ['Email', fichaSocio.email || '—'],
+                  ['Teléfono', fichaSocio.telefono || '—'],
+                  ['DNI', fichaSocio.dni || '—'],
+                  ['Domicilio', fichaSocio.domicilio || '—'],
+                ].map(([k, v]) => (
+                  <div key={k} style={{display:'flex',justifyContent:'space-between',gap:10,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+                    <span style={{fontSize:12,color:'var(--text-muted)'}}>{k}</span>
+                    <span style={{fontSize:12.5,fontWeight:600,color:'var(--text-primary)',textAlign:'right'}}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{fontSize:13,color:'var(--text-muted)'}}>Cargando datos…</p>
+            )}
+
+            {/* Grupos (directos + heredados hacia los subgrupos) */}
+            <div>
+              <div style={{fontSize:12,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8}}>Grupos</div>
+              {(() => {
+                const entry = overview.find((o) => o.id === ficha.memberId)
+                const direct = entry?.groups ?? []
+                if (direct.length === 0) return <p style={{fontSize:13,color:'var(--text-muted)',margin:0}}>No pertenece a ningún grupo.</p>
+                const inheritedInto = direct.flatMap((g) =>
+                  descendantsOf(g.id).map((d) => ({ ...d, via: g.name })),
+                ).filter((d, i, arr) => arr.findIndex((x) => x.id === d.id) === i && !direct.some((g) => g.id === d.id))
+                return (
+                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                      {direct.map((g) => (
+                        <span key={g.id} style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:'var(--accent-pill)',color:'var(--accent)'}}>
+                          {g.name} · {GROUP_ROLE_LABELS[g.role] || g.role}
+                        </span>
+                      ))}
+                    </div>
+                    {inheritedInto.length > 0 && (
+                      <>
+                        <div style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>También en (por herencia):</div>
+                        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                          {inheritedInto.map((d) => (
+                            <span key={d.id} title={`Hereda de «${d.via}»`}
+                              style={{fontSize:11,fontWeight:600,padding:'4px 11px',borderRadius:999,background:'var(--surface-low)',color:'var(--text-secondary)'}}>
+                              {d.name}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Membresía / estado */}
+            {fichaSocio && (
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8}}>Membresía</div>
+                <div style={{display:'flex',flexDirection:'column'}}>
+                  {[
+                    ['Cuota', fichaSocio.membershipPlanName ? `${fichaSocio.membershipPlanName} · ${fmtMoney(fichaSocio.cuota)}` : 'Sin cuota asignada'],
+                    ['Próximo vencimiento', fichaSocio.vencimiento ? new Date(fichaSocio.vencimiento).toLocaleDateString('es-ES') : '—'],
+                    ['Pendiente de pago', fichaSocio.pendingInvoiceAmount != null ? fmtMoney(fichaSocio.pendingInvoiceAmount) : 'Nada pendiente'],
+                  ].map(([k, v]) => (
+                    <div key={k} style={{display:'flex',justifyContent:'space-between',gap:10,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
+                      <span style={{fontSize:12,color:'var(--text-muted)'}}>{k}</span>
+                      <span style={{fontSize:12.5,fontWeight:600,color:'var(--text-primary)',textAlign:'right'}}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Historial */}
+            {fichaSocio && (
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8}}>Historial</div>
+                <div style={{display:'flex',justifyContent:'space-between',gap:10,padding:'8px 0'}}>
+                  <span style={{fontSize:12,color:'var(--text-muted)'}}>Alta en el club</span>
+                  <span style={{fontSize:12.5,fontWeight:600,color:'var(--text-primary)'}}>{fichaSocio.fechaAlta ? new Date(fichaSocio.fechaAlta).toLocaleDateString('es-ES') : '—'}</span>
+                </div>
+                <div style={{display:'flex',justifyContent:'space-between',gap:10,padding:'8px 0'}}>
+                  <span style={{fontSize:12,color:'var(--text-muted)'}}>Equipo (legado)</span>
+                  <span style={{fontSize:12.5,fontWeight:600,color:'var(--text-primary)'}}>{fichaSocio.equipoNombre || '—'}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: mensaje al grupo ── */}
+      {msgModal && (
+        <div role="dialog" aria-modal="true" onClick={() => { if (!bulkBusy) setMsgModal(false) }}
+          style={{position:'fixed',inset:0,background:'rgba(28,25,23,0.4)',zIndex:1400,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div onClick={(e) => e.stopPropagation()} style={{background:'#fff',borderRadius:14,padding:26,width:'100%',maxWidth:440,boxShadow:'var(--card-shadow-lg)'}}>
+            <h2 style={{margin:'0 0 6px',fontSize:17,fontWeight:700,color:'var(--text-primary)'}}>Mensaje a «{groupName}»</h2>
+            <p style={{margin:'0 0 14px',fontSize:13,color:'var(--text-secondary)'}}>
+              Se envía por WhatsApp a los {members.length} miembros del grupo y queda en la pestaña Chat.
+            </p>
+            <textarea value={msgText} onChange={(e) => setMsgText(e.target.value)} placeholder="Escribe el mensaje…"
+              style={{width:'100%',minHeight:100,padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,resize:'vertical',boxSizing:'border-box'}}/>
+            <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:14}}>
+              <button type="button" disabled={bulkBusy} onClick={() => setMsgModal(false)}
+                style={{padding:'9px 16px',borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'var(--text-secondary)'}}>
+                Cancelar
+              </button>
+              <button type="button" disabled={bulkBusy || !msgText.trim()} onClick={enviarMensajeGrupo}
+                style={{padding:'9px 16px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:bulkBusy||!msgText.trim()?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:bulkBusy||!msgText.trim()?0.6:1}}>
+                {bulkBusy ? 'Enviando…' : 'Enviar al grupo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: asignar cuota al grupo ── */}
+      {planModal && (
+        <div role="dialog" aria-modal="true" onClick={() => { if (!bulkBusy) setPlanModal(false) }}
+          style={{position:'fixed',inset:0,background:'rgba(28,25,23,0.4)',zIndex:1400,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div onClick={(e) => e.stopPropagation()} style={{background:'#fff',borderRadius:14,padding:26,width:'100%',maxWidth:420,boxShadow:'var(--card-shadow-lg)'}}>
+            <h2 style={{margin:'0 0 6px',fontSize:17,fontWeight:700,color:'var(--text-primary)'}}>Asignar cuota a «{groupName}»</h2>
+            <p style={{margin:'0 0 14px',fontSize:13,color:'var(--text-secondary)'}}>
+              Se asigna a los {members.length} miembros efectivos del grupo. La cuota activa anterior de cada socio se cancela.
+            </p>
+            {planOptions.length === 0 ? (
+              <p style={{fontSize:13,color:'var(--text-muted)'}}>Cargando planes… (si no aparecen, crea uno en Suscripciones)</p>
+            ) : (
+              <select value={planId} onChange={(e) => setPlanId(e.target.value)}
+                style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,background:'#fff',marginBottom:6}}>
+                {planOptions.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} · {fmtMoney(p.amount)}</option>
+                ))}
+              </select>
+            )}
+            <div style={{display:'flex',justifyContent:'flex-end',gap:10,marginTop:14}}>
+              <button type="button" disabled={bulkBusy} onClick={() => setPlanModal(false)}
+                style={{padding:'9px 16px',borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'var(--text-secondary)'}}>
+                Cancelar
+              </button>
+              <button type="button" disabled={bulkBusy || !planId} onClick={asignarCuotaGrupo}
+                style={{padding:'9px 16px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:bulkBusy||!planId?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:bulkBusy||!planId?0.6:1}}>
+                {bulkBusy ? 'Asignando…' : 'Asignar cuota'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </SectionShell>
   )
 }
@@ -1437,13 +1908,68 @@ function Impagos() {
   const [busyId, setBusyId] = useState('')
   const [reprogramId, setReprogramId] = useState('')
   const [reprogramDate, setReprogramDate] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   if (!(role === 'ADMIN' || role === 'TREASURER')) return null
 
   const cobros = Array.isArray(bundle?.cobros) ? bundle.cobros : []
   const impagos = cobros.filter((c) => c.estado === 'Vencido')
-  const totalVencido = impagos.reduce((a, c) => a + (c.pendingAmount ?? c.monto ?? 0), 0)
+  const importeDe = (c) => c.pendingAmount ?? c.monto ?? 0
+  const totalVencido = impagos.reduce((a, c) => a + importeDe(c), 0)
   const sociosAfectados = new Set(impagos.map((c) => c.memberId)).size
+
+  // ── Dashboard de impagos: antigüedad de la deuda y top morosos ──
+  const hoy = new Date()
+  const diasVencida = (c) => {
+    const d = new Date(c.vencimiento)
+    if (Number.isNaN(d.getTime())) return 0
+    return Math.max(0, Math.floor((hoy.getTime() - d.getTime()) / 86400000))
+  }
+  const AGING = [
+    { label: '0-30 días', min: 0, max: 30 },
+    { label: '31-60', min: 31, max: 60 },
+    { label: '61-90', min: 61, max: 90 },
+    { label: '+90', min: 91, max: Infinity },
+  ]
+  const agingAmounts = AGING.map((b) =>
+    impagos
+      .filter((c) => { const d = diasVencida(c); return d >= b.min && d <= b.max })
+      .reduce((a, c) => a + importeDe(c), 0),
+  )
+  const antiguedadMedia = impagos.length
+    ? Math.round(impagos.reduce((a, c) => a + diasVencida(c), 0) / impagos.length)
+    : 0
+  const topMorososMap = new Map()
+  for (const c of impagos) {
+    const prev = topMorososMap.get(c.memberId) || { nombre: c.socio, total: 0, facturas: 0 }
+    prev.total += importeDe(c)
+    prev.facturas++
+    topMorososMap.set(c.memberId, prev)
+  }
+  const topMorosos = [...topMorososMap.entries()]
+    .map(([id, v]) => ({ id, ...v }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5)
+  const maxMorosoTotal = topMorosos[0]?.total || 1
+
+  /** Reenviar el aviso de cobro a TODOS los socios con impagos. */
+  async function reenviarTodos() {
+    const ids = [...new Set(impagos.map((c) => c.memberId).filter(Boolean))]
+    if (ids.length === 0) return
+    const ok = await showConfirm(`¿Reenviar el aviso de cobro por WhatsApp a los ${ids.length} socios con impagos?`).catch(() => false)
+    if (!ok) return
+    setBulkBusy(true)
+    try {
+      const r = await fetch('/api/crm/members/batch', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberIds: ids, action: 'send-payment-reminder' }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudieron enviar los avisos'); return }
+      showAlert(`Avisos enviados: ${j.succeeded ?? 0} correctos, ${j.failed ?? 0} fallidos.`)
+    } finally { setBulkBusy(false) }
+  }
 
   async function reenviarAviso(c) {
     const ok = await showConfirm(`¿Reenviar aviso de cobro por WhatsApp a ${c.socio}?`).catch(() => false)
@@ -1481,12 +2007,54 @@ function Impagos() {
   }
 
   return (
-    <SectionShell title="Impagos" subtitle="Cobros vencidos pendientes: reprograma o reenvía el aviso">
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:20}}>
+    <SectionShell
+      title="Impagos"
+      subtitle="Cobros vencidos pendientes: reprograma o reenvía el aviso"
+      actions={
+        impagos.length > 0 ? (
+          <button type="button" disabled={bulkBusy} onClick={reenviarTodos}
+            style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:8,border:'none',background:'var(--green)',color:'#fff',cursor:bulkBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:bulkBusy?0.6:1}}>
+            <Icon name="whatsapp" size={15}/>
+            {bulkBusy ? 'Enviando…' : `Reenviar aviso a todos (${sociosAfectados})`}
+          </button>
+        ) : null
+      }
+    >
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))',gap:20}}>
         <KPICard label="Impagos" value={String(impagos.length)} sub="Facturas vencidas" icon="billing" color={impagos.length > 0 ? 'var(--red)' : 'var(--green)'} badge={impagos.length > 0 ? { kind:'danger', text:'Revisar' } : null}/>
         <KPICard label="Importe vencido" value={fmtMoney(totalVencido)} sub="Pendiente de cobrar" icon="billing" color="var(--amber)"/>
         <KPICard label="Socios afectados" value={String(sociosAfectados)} sub="Con al menos un impago" icon="users" color="var(--accent-soft)"/>
+        <KPICard label="Antigüedad media" value={impagos.length ? `${antiguedadMedia} días` : '—'} sub="Desde el vencimiento" icon="calendar" color={antiguedadMedia > 60 ? 'var(--red)' : 'var(--amber)'}/>
       </div>
+
+      {/* Dashboard de impagos: deuda por antigüedad + top morosos */}
+      {impagos.length > 0 && (
+        <div style={{display:'grid',gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',gap:24,alignItems:'start'}}>
+          <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
+            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Deuda por antigüedad</div>
+            <div style={{fontSize:14,color:'var(--text-secondary)',margin:'4px 0 20px'}}>Importe vencido según los días desde el vencimiento</div>
+            <BarChart data={agingAmounts} labels={AGING.map((b) => b.label)} color="#be123c" height={190}/>
+          </div>
+          <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
+            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Mayores deudores</div>
+            <div style={{fontSize:14,color:'var(--text-secondary)',margin:'4px 0 18px'}}>Top {topMorosos.length} por importe vencido</div>
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              {topMorosos.map((m) => (
+                <div key={m.id}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',gap:8,marginBottom:6}}>
+                    <span style={{fontSize:13,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.nombre}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:'var(--red)',flexShrink:0}}>{fmtMoney(m.total)}</span>
+                  </div>
+                  <div style={{height:8,background:'var(--surface-low)',borderRadius:999,overflow:'hidden'}}>
+                    <div style={{width:`${Math.max(Math.round((m.total / maxMorosoTotal) * 100), 4)}%`,height:'100%',background:'#be123c',borderRadius:999,opacity:0.85}}/>
+                  </div>
+                  <div style={{fontSize:11,color:'var(--text-muted)',marginTop:3}}>{m.facturas} factura{m.facturas === 1 ? '' : 's'} vencida{m.facturas === 1 ? '' : 's'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
         {impagos.length === 0 ? (
           <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
@@ -1542,6 +2110,170 @@ function Impagos() {
             </tbody>
           </table>
         )}
+      </div>
+    </SectionShell>
+  )
+}
+
+// ── CONTABILIDAD · SUMARIO (roadmap · 6.1): solo consulta y exportación ─────
+function ContabilidadSumario({ setActive }) {
+  const { bundle, fmtMoney } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  const [rango, setRango] = useState('semestre') // 'semestre' | 'anual'
+
+  if (!(role === 'ADMIN' || role === 'TREASURER')) return null
+
+  const kp = bundle?.kpis
+  const ingresosMensual = bundle?.ingresosMensual ?? Array(12).fill(0)
+  const egresoMensual = bundle?.egresoMensual ?? Array(12).fill(0)
+  const conceptos = bundle?.ingresosPorConcepto ?? []
+  const now = new Date()
+  const mesActual = now.getMonth()
+
+  const totalIngresos = ingresosMensual.reduce((a, b) => a + b, 0)
+  const totalGastos = egresoMensual.reduce((a, b) => a + b, 0)
+  const balanceAno = totalIngresos - totalGastos
+  const gastosMes = egresoMensual[mesActual] ?? 0
+
+  const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+  const mesLabelsSemestre = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+    const raw = d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '')
+    return raw.charAt(0).toUpperCase() + raw.slice(1)
+  })
+  const sliceSemestre = (arr) => {
+    // Últimos 6 meses reales (con envoltura de año)
+    return Array.from({ length: 6 }, (_, i) => {
+      const idx = (mesActual - (5 - i) + 12) % 12
+      return arr[idx] ?? 0
+    })
+  }
+  const dataIngresos = rango === 'semestre' ? sliceSemestre(ingresosMensual) : ingresosMensual
+  const dataGastos = rango === 'semestre' ? sliceSemestre(egresoMensual) : egresoMensual
+  const labels = rango === 'semestre' ? mesLabelsSemestre : MESES
+
+  /** Exporta los movimientos del año (bundle.reportTransactions) a CSV en cliente. */
+  function exportarMovimientosCsv() {
+    const rows = Array.isArray(bundle?.reportTransactions) ? bundle.reportTransactions : []
+    const esc = (v) => {
+      let s = String(v ?? '')
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+      return `"${s.replaceAll('"', '""')}"`
+    }
+    const lines = [
+      ['fecha', 'tipo', 'origen', 'concepto', 'importe'].join(','),
+      ...rows.map((t) => [
+        t.date,
+        t.type === 'INCOME' ? 'Ingreso' : 'Gasto',
+        t.source || '',
+        t.invoiceKind || '',
+        t.amount,
+      ].map(esc).join(',')),
+    ]
+    const blob = new Blob([`﻿${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `movimientos-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <SectionShell
+      title="Sumario"
+      subtitle="Dashboard financiero de solo consulta: aquí no se edita, solo se exporta"
+      actions={
+        <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+          <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv' }}
+            style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700}}>
+            <Icon name="export" size={15}/>Exportar facturas (CSV)
+          </button>
+          <button type="button" onClick={exportarMovimientosCsv}
+            style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700}}>
+            <Icon name="export" size={15}/>Exportar movimientos (CSV)
+          </button>
+        </div>
+      }
+    >
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:20}}>
+        <KPICard
+          label="Balance del año"
+          value={fmtMoney(balanceAno)}
+          sub="Ingresos − gastos registrados"
+          icon="billing"
+          color="var(--accent-soft)"
+          badge={balanceAno >= 0 ? { kind:'success', text:'En positivo', icon:'trend_up' } : { kind:'danger', text:'En negativo', icon:'trend_down' }}
+        />
+        <KPICard label="Ingresos (mes)" value={fmtMoney(kp?.ingresosMes ?? 0)} sub="Ingresos registrados este mes" icon="reports" color="var(--green)"/>
+        <KPICard label="Gastos (mes)" value={fmtMoney(gastosMes)} sub="Gastos registrados este mes" icon="billing" color="var(--red)"/>
+        <KPICard
+          label="Pendiente de cobro"
+          value={fmtMoney(kp?.cobrosPendientesMonto ?? 0)}
+          sub={`${kp?.facturasVencidas ?? 0} factura(s) vencida(s)`}
+          icon="billing"
+          color="var(--amber)"
+          badge={(kp?.facturasVencidas ?? 0) > 0 ? { kind:'warning', text:'Revisar en Impagos' } : null}
+        />
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',gap:24,alignItems:'start'}}>
+        <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20,gap:12,flexWrap:'wrap'}}>
+            <div>
+              <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Evolución de Tesorería</div>
+              <div style={{fontSize:14,color:'var(--text-secondary)',marginTop:4}}>Ingresos vs gastos ({rango === 'semestre' ? 'últimos 6 meses' : 'año completo'})</div>
+            </div>
+            <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:999,padding:4}}>
+              {['semestre','anual'].map((r) => (
+                <button key={r} type="button" onClick={() => setRango(r)}
+                  style={{padding:'6px 14px',fontSize:12,fontWeight:700,borderRadius:999,border:'none',cursor:'pointer',fontFamily:'inherit',
+                    background:rango === r ? 'var(--surface-card)' : 'transparent',
+                    color:rango === r ? 'var(--accent)' : 'var(--text-muted)'}}>
+                  {r === 'semestre' ? 'Semestre' : 'Anual'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <BarChart data={dataIngresos} secondaryData={dataGastos} labels={labels} color="var(--accent-soft)" secondaryColor="#be123c" height={230}/>
+          <div style={{display:'flex',gap:16,marginTop:12,justifyContent:'center'}}>
+            <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'var(--text-secondary)'}}><span style={{width:10,height:10,borderRadius:3,background:'var(--accent-soft)'}}></span>Ingresos</span>
+            <span style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'var(--text-secondary)'}}><span style={{width:10,height:10,borderRadius:3,background:'#be123c'}}></span>Gastos</span>
+          </div>
+        </div>
+
+        <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
+          <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Ingresos por concepto</div>
+          <div style={{fontSize:14,color:'var(--text-secondary)',margin:'4px 0 20px'}}>Distribución del año</div>
+          <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
+            <DonutChart size={150}
+              segments={conceptos.length
+                ? conceptos.map((c) => ({ label: c.label, value: Math.max(c.value, 0.01), color: c.color }))
+                : [{ label: '—', value: 1, color: '#ebe3d8' }]}/>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {conceptos.map((c) => (
+              <div key={c.label} style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{width:10,height:10,borderRadius:'50%',background:c.color,flexShrink:0}}></span>
+                <span style={{fontSize:13,color:'var(--text-primary)',flex:1}}>{c.label}</span>
+                <span style={{fontSize:13,fontWeight:600,color:'var(--text-secondary)'}}>{fmtMoney(c.value)}</span>
+              </div>
+            ))}
+            {conceptos.length === 0 && <span style={{fontSize:13,color:'var(--text-muted)'}}>Aún no hay ingresos registrados.</span>}
+          </div>
+        </div>
+      </div>
+
+      <div style={{
+        background:'var(--surface-low)',border:'1px solid var(--border)',borderRadius:12,
+        padding:'14px 20px',fontSize:13,color:'var(--text-secondary)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'
+      }}>
+        <span style={{fontWeight:700,color:'var(--text-primary)'}}>Solo lectura.</span>
+        La gestión (crear facturas, ingresos y gastos, marcar pagos, impuestos) está en
+        <button type="button" onClick={() => setActive('facturas')}
+          style={{border:'none',background:'transparent',color:'var(--accent)',fontWeight:700,cursor:'pointer',fontFamily:'inherit',fontSize:13,padding:0}}>
+          Contabilidad → Facturas →
+        </button>
       </div>
     </SectionShell>
   )
@@ -1610,6 +2342,22 @@ function FormsConfigSection() {
 function ApiInfoSection() {
   const { bundle } = useCrm()
   const role = normalizeRole(bundle?.user?.role)
+  // Estado en vivo de la protección: si el índice responde 401, la clave está activa.
+  const [apiStatus, setApiStatus] = useState('checking') // 'open' | 'protected' | 'checking' | 'error'
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch('/api/public/v1', { cache: 'no-store' })
+        if (cancelled) return
+        setApiStatus(r.status === 401 ? 'protected' : r.ok ? 'open' : 'error')
+      } catch {
+        if (!cancelled) setApiStatus('error')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
   if (role !== 'ADMIN') return null
   const base = typeof window !== 'undefined' ? window.location.origin : ''
   const endpoints = [
@@ -1620,8 +2368,22 @@ function ApiInfoSection() {
     ['GET', '/api/public/v1/news', 'Noticias publicadas'],
     ['POST', '/api/public/v1/query', 'Endpoint único para bots (JSON)'],
   ]
+  const STATUS_META = {
+    checking: { text: 'Comprobando…', bg: 'var(--surface-low)', color: 'var(--text-muted)' },
+    protected: { text: 'Protegida con API key', bg: 'var(--green-light)', color: 'var(--green)' },
+    open: { text: 'Abierta (sin API key configurada)', bg: 'var(--amber-light)', color: 'var(--amber)' },
+    error: { text: 'No se pudo comprobar', bg: 'var(--red-light)', color: 'var(--red)' },
+  }
+  const st = STATUS_META[apiStatus] || STATUS_META.checking
   return (
-    <SectionShell title="API" subtitle="Integraciones externas: API pública deportiva de solo lectura">
+    <SectionShell
+      title="API"
+      subtitle="Integraciones externas: API pública deportiva de solo lectura"
+      actions={
+        <span style={{padding:'8px 16px',borderRadius:999,fontSize:12,fontWeight:700,background:st.bg,color:st.color}}>
+          {st.text}
+        </span>
+      }>
       <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:24,display:'flex',flexDirection:'column',gap:16}}>
         <p style={{margin:0,fontSize:14,color:'var(--text-secondary)',lineHeight:1.6}}>
           La API pública expone datos deportivos (equipos, horarios, actividades y noticias) sin datos personales
@@ -1643,50 +2405,460 @@ function ApiInfoSection() {
 }
 
 // ── PLACEHOLDERS DEL ROADMAP (módulos con dependencias pendientes) ─────────
-function ContactosPlaceholder() {
-  return (
-    <PlaceholderSection
-      title="Contactos"
-      subtitle="Directorio con la información recogida por los formularios"
-      note="Esta pantalla heredará la vista de Socios y mostrará además lo que cada persona respondió en los formularios de registro/asistencia. Depende del motor de Forms; mientras tanto, usa la sección Socios (misma tabla, ficha y acciones en lote)."
-    />
-  )
+/** Contactos (roadmap · 5.3): la vista de Socios + data de formularios + pop-up en lote. */
+function ContactosSection() {
+  return <Socios contactosMode/>
 }
 
-function AsistenciaPlaceholder() {
+// ── ADMIN · ASISTENCIA (roadmap · 5.4): registro por grupo y fecha ──────────
+function AsistenciaSection() {
+  const { bundle, showAlert } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  const [data, setData] = useState(null)
+  const [from, setFrom] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 30)
+    return d.toISOString().slice(0, 10)
+  })
+  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10))
+  const [expandedId, setExpandedId] = useState('')
+  const [linkBusyId, setLinkBusyId] = useState('')
+
+  const loadSummary = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ from, to })
+      const r = await fetch(`/api/crm/attendance/summary?${params.toString()}`, { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) return
+      setData(await r.json())
+    } catch { /* noop */ }
+  }, [from, to])
+
+  useEffect(() => { void loadSummary() }, [loadSummary])
+
+  if (!(role === 'ADMIN' || role === 'COACH')) return null
+
+  async function generarEnlace(session) {
+    setLinkBusyId(session.eventId)
+    try {
+      const r = await fetch(`/api/crm/events/${session.eventId}/attendance-link`, { method: 'POST', credentials: 'include' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo generar el enlace'); return }
+      if (j.sentTo) {
+        showAlert(`Enlace de pase de lista enviado a ${j.sentTo} por WhatsApp.`)
+      } else {
+        try { await navigator.clipboard.writeText(j.url) } catch { /* sin permiso */ }
+        showAlert(`${j.warning || 'Enlace generado.'}\n\n${j.url}\n(copiado al portapapeles)`)
+      }
+    } finally { setLinkBusyId('') }
+  }
+
+  const ATT_STATUS = {
+    PRESENT: { label: 'Presente', bg: 'var(--green-light)', color: 'var(--green)' },
+    LATE: { label: 'Tarde', bg: 'var(--amber-light)', color: 'var(--amber)' },
+    ABSENT: { label: 'Ausente', bg: 'var(--red-light)', color: 'var(--red)' },
+    PENDING: { label: 'Sin marcar', bg: 'var(--surface-low)', color: 'var(--text-muted)' },
+  }
+  const kpis = data?.kpis
+  const sessions = data?.sessions ?? []
+
   return (
-    <PlaceholderSection
+    <SectionShell
       title="Asistencia"
-      subtitle="Checklist de «quién vino hoy» por grupo y fecha"
-      note="Se generará un enlace-checklist desde cada evento del calendario para que el entrenador marque la asistencia sin entrar al CRM. Depende de Forms + Flujos; la asistencia por evento ya existe hoy dentro de cada evento del Calendario."
-    />
+      subtitle="Quién vino a cada sesión: recuento y detalle por grupo y fecha"
+      actions={
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+            style={{padding:'8px 11px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,background:'var(--surface-card)'}}/>
+          <span style={{fontSize:13,color:'var(--text-muted)'}}>→</span>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
+            style={{padding:'8px 11px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,background:'var(--surface-card)'}}/>
+        </div>
+      }
+    >
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))',gap:20}}>
+        <KPICard label="Sesiones" value={String(kpis?.sessions ?? '—')} sub="Con pase de lista en el periodo" icon="calendar" color="var(--accent-soft)"/>
+        <KPICard label="Asistencia media" value={kpis?.avgRate != null ? `${kpis.avgRate}%` : '—'} sub="Presentes + tarde sobre marcados" icon="reports" color="var(--green)"/>
+        <KPICard label="Presencias" value={String(kpis?.presents ?? '—')} sub="Presentes y tarde" icon="users" color="var(--green)"/>
+        <KPICard label="Ausencias" value={String(kpis?.absents ?? '—')} sub="En el periodo" icon="users" color={kpis?.absents ? 'var(--red)' : 'var(--green)'}/>
+      </div>
+
+      <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
+        {sessions.length === 0 ? (
+          <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14,lineHeight:1.6}}>
+            No hay sesiones con asistencia en este periodo.<br/>
+            Crea un evento en el Calendario con «Programar formulario de asistencia».
+          </div>
+        ) : (
+          sessions.map((s, i) => {
+            const open = expandedId === s.eventId
+            const d = new Date(s.date)
+            return (
+              <div key={s.eventId} style={{borderTop:i === 0 ? 'none' : '1px solid var(--border)'}}>
+                <button type="button" onClick={() => setExpandedId(open ? '' : s.eventId)}
+                  style={{display:'flex',alignItems:'center',gap:14,width:'100%',padding:'14px 24px',border:'none',background:open ? 'var(--surface-low)' : 'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left'}}>
+                  <div style={{width:46,height:46,flexShrink:0,background:'var(--accent-pill)',borderRadius:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
+                    <span style={{fontSize:15,fontWeight:700,color:'var(--accent)',lineHeight:1}}>{d.getDate()}</span>
+                    <span style={{fontSize:9,fontWeight:700,color:'var(--accent)',marginTop:2,letterSpacing:'0.04em'}}>{d.toLocaleString('es', { month: 'short' }).replace('.','').toUpperCase()}</span>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.title}</div>
+                    <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{s.team?.name || 'Club'} · {s.marked}/{s.total} marcados</div>
+                  </div>
+                  <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end'}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:999,background:'var(--green-light)',color:'var(--green)'}}>{s.counts.present} P</span>
+                    {s.counts.late > 0 && <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:999,background:'var(--amber-light)',color:'var(--amber)'}}>{s.counts.late} T</span>}
+                    <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:999,background:'var(--red-light)',color:'var(--red)'}}>{s.counts.absent} A</span>
+                    {s.rate !== null ? (
+                      <span style={{fontSize:12,fontWeight:700,color:'var(--text-primary)',minWidth:44,textAlign:'right'}}>{s.rate}%</span>
+                    ) : (
+                      <span style={{fontSize:11,fontWeight:600,color:'var(--text-muted)'}}>Sin pasar lista</span>
+                    )}
+                    <span style={{display:'inline-flex',transform:open ? 'rotate(90deg)' : 'none',transition:'transform 0.15s',opacity:0.5}}>
+                      <Icon name="chevron" size={14}/>
+                    </span>
+                  </div>
+                </button>
+                {open && (
+                  <div style={{padding:'4px 24px 18px',background:'var(--surface-low)'}}>
+                    <div style={{display:'flex',justifyContent:'flex-end',padding:'6px 0 10px'}}>
+                      <button type="button" disabled={linkBusyId === s.eventId} onClick={() => generarEnlace(s)}
+                        style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                        {linkBusyId === s.eventId ? 'Generando…' : 'Enviar checklist al entrenador'}
+                      </button>
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill, minmax(220px, 1fr))',gap:8}}>
+                      {s.detail.map((a, idx) => {
+                        const st = ATT_STATUS[a.status] || ATT_STATUS.PENDING
+                        return (
+                          <div key={idx} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'8px 12px',background:'var(--surface-card)',border:'1px solid var(--border)',borderRadius:10}}>
+                            <span style={{fontSize:13,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={a.reason || undefined}>{a.name}</span>
+                            <span style={{fontSize:10,fontWeight:700,padding:'3px 9px',borderRadius:999,background:st.bg,color:st.color,flexShrink:0}}>{st.label}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
+      </div>
+    </SectionShell>
   )
 }
 
-function ProductosPlaceholder() {
+// ── CONTABILIDAD · PRODUCTOS (roadmap · 6.4): cobros más allá de la cuota ────
+function ProductosSection() {
+  const { bundle, fmtMoney, showAlert } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  const [products, setProducts] = useState([])
+  const [form, setForm] = useState({ name: '', type: 'ONE_TIME', price: '', description: '' })
+  const [busy, setBusy] = useState(false)
+  const [rowBusyId, setRowBusyId] = useState('')
+
+  const loadProducts = useCallback(async () => {
+    try {
+      const r = await fetch('/api/crm/products', { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) return
+      const j = await r.json()
+      setProducts(Array.isArray(j.products) ? j.products : [])
+    } catch { /* noop */ }
+  }, [])
+
+  useEffect(() => { void loadProducts() }, [loadProducts])
+
+  if (!(role === 'ADMIN' || role === 'TREASURER')) return null
+
+  const TYPE_META = {
+    ONE_TIME: { label: 'Pago único', bg: 'var(--accent-pill)', color: 'var(--accent)' },
+    EVENT: { label: 'Evento · una sola vez', bg: 'var(--amber-soft)', color: 'var(--amber)' },
+  }
+
+  async function crearProducto(e) {
+    e.preventDefault()
+    const name = form.name.trim()
+    const price = Number(form.price)
+    if (!name) { showAlert('Pon un nombre al producto.'); return }
+    if (!Number.isFinite(price) || price < 0) { showAlert('Indica un precio válido.'); return }
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/products', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, type: form.type, price, description: form.description.trim() || undefined }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo crear el producto'); return }
+      setForm({ name: '', type: 'ONE_TIME', price: '', description: '' })
+      await loadProducts()
+    } finally { setBusy(false) }
+  }
+
+  async function toggleActivo(p) {
+    setRowBusyId(p.id)
+    try {
+      const r = await fetch(`/api/crm/products/${p.id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !p.isActive }),
+      })
+      if (!r.ok) { showAlert('No se pudo actualizar'); return }
+      await loadProducts()
+    } finally { setRowBusyId('') }
+  }
+
+  const inputSt = { padding:'10px 12px', borderRadius:10, border:'1px solid var(--border)', fontFamily:'inherit', fontSize:14, boxSizing:'border-box' }
+
   return (
-    <PlaceholderSection
+    <SectionShell
       title="Productos"
-      subtitle="Cobros más allá de la cuota: pago único y productos de evento"
-      note="Aquí se crearán productos de pago único (p. ej. equipaciones) para cobrarlos a socios o grupos. La tienda actual del club ya permite gestionar productos y pedidos."
-      linkHref="/admin/store"
-      linkLabel="Abrir la tienda actual"
-    />
+      subtitle="Cobros más allá de la cuota: equipaciones, eventos y pagos únicos"
+      actions={
+        <a href="/admin/store" style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',fontFamily:'inherit',fontSize:13,fontWeight:600,textDecoration:'none'}}>
+          Tienda completa (stock, imágenes) →
+        </a>
+      }
+    >
+      {/* Pantalla de creación (nombre, tipo, precio) */}
+      <form onSubmit={crearProducto} style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:24}}>
+        <div style={{fontWeight:700,fontSize:15,color:'var(--text-primary)',marginBottom:14}}>Crear producto</div>
+        <div style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 1fr auto',gap:10,alignItems:'end'}}>
+          <div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:6}}>Nombre *</label>
+            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Ej. Equipación 2026" style={{...inputSt, width:'100%'}}/>
+          </div>
+          <div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:6}}>Tipo *</label>
+            <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+              style={{...inputSt, width:'100%', background:'#fff', cursor:'pointer'}}>
+              <option value="ONE_TIME">Pago único</option>
+              <option value="EVENT">Evento / una sola vez</option>
+            </select>
+          </div>
+          <div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:6}}>Precio (€) *</label>
+            <input type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+              placeholder="0.00" style={{...inputSt, width:'100%'}}/>
+          </div>
+          <button type="submit" disabled={busy || !form.name.trim() || form.price === ''}
+            style={{padding:'10px 20px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',cursor:busy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:busy||!form.name.trim()||form.price===''?0.6:1,height:41}}>
+            {busy ? 'Creando…' : 'Crear producto'}
+          </button>
+        </div>
+        <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+          placeholder="Descripción (opcional)…" style={{...inputSt, width:'100%', marginTop:10}}/>
+      </form>
+
+      {/* Listado */}
+      <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
+        {products.length === 0 ? (
+          <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
+            Aún no hay productos. Crea el primero arriba.
+          </div>
+        ) : (
+          <table style={{width:'100%',borderCollapse:'collapse'}}>
+            <thead>
+              <tr style={{background:'var(--surface-low)'}}>
+                {['Producto','Tipo','Precio','Ventas','Estado',''].map((h) => (
+                  <th key={h} style={{padding:'12px 24px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((p) => {
+                const meta = TYPE_META[p.type] || TYPE_META.ONE_TIME
+                return (
+                  <tr key={p.id} style={{borderTop:'1px solid var(--border)',opacity:p.isActive ? 1 : 0.55}}>
+                    <td style={{padding:'14px 24px'}}>
+                      <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)'}}>{p.name}</div>
+                      {p.description && <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{p.description}</div>}
+                    </td>
+                    <td style={{padding:'14px 24px'}}>
+                      <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:meta.bg,color:meta.color,whiteSpace:'nowrap'}}>{meta.label}</span>
+                    </td>
+                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(p.price)}</td>
+                    <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{p.sales}</td>
+                    <td style={{padding:'14px 24px'}}>
+                      <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:p.isActive ? 'var(--green-soft)' : 'var(--surface-low)',color:p.isActive ? 'var(--green)' : 'var(--text-muted)'}}>
+                        {p.isActive ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td style={{padding:'14px 24px'}}>
+                      <div style={{display:'flex',justifyContent:'flex-end'}}>
+                        <button type="button" disabled={rowBusyId === p.id} onClick={() => toggleActivo(p)}
+                          style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:p.isActive ? 'var(--red)' : 'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                          {rowBusyId === p.id ? '…' : p.isActive ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </SectionShell>
   )
 }
 
-function DescuentosPlaceholder() {
+// ── CONTABILIDAD · DESCUENTOS (roadmap · 6.5): generador de códigos ─────────
+function DescuentosSection() {
+  const { bundle, fmtMoney, showAlert } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  const [discounts, setDiscounts] = useState([])
+  const [form, setForm] = useState({ label: '', kind: 'PERCENT', value: '', code: '' })
+  const [busy, setBusy] = useState(false)
+  const [rowBusyId, setRowBusyId] = useState('')
+
+  const loadDiscounts = useCallback(async () => {
+    try {
+      const r = await fetch('/api/crm/discounts', { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) return
+      const j = await r.json()
+      setDiscounts(Array.isArray(j.discounts) ? j.discounts : [])
+    } catch { /* noop */ }
+  }, [])
+
+  useEffect(() => { void loadDiscounts() }, [loadDiscounts])
+
+  if (!(role === 'ADMIN' || role === 'TREASURER')) return null
+
+  async function generarDescuento(e) {
+    e.preventDefault()
+    const label = form.label.trim()
+    const value = Number(form.value)
+    if (!label) { showAlert('Pon una etiqueta (ej. Hermanos, Familia numerosa).'); return }
+    if (!Number.isFinite(value) || value <= 0) { showAlert('Indica un valor válido.'); return }
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/discounts', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, kind: form.kind, value, code: form.code.trim() || undefined }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo generar el código'); return }
+      setForm({ label: '', kind: 'PERCENT', value: '', code: '' })
+      await loadDiscounts()
+      showAlert(`Código generado: ${j.code}\nAplícalo al asignar una cuota en Suscripciones.`)
+    } finally { setBusy(false) }
+  }
+
+  async function toggleActivo(d) {
+    setRowBusyId(d.id)
+    try {
+      const r = await fetch(`/api/crm/discounts/${d.id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !d.isActive }),
+      })
+      if (!r.ok) { showAlert('No se pudo actualizar'); return }
+      await loadDiscounts()
+    } finally { setRowBusyId('') }
+  }
+
+  const inputSt = { padding:'10px 12px', borderRadius:10, border:'1px solid var(--border)', fontFamily:'inherit', fontSize:14, boxSizing:'border-box' }
+
   return (
-    <PlaceholderSection
+    <SectionShell
       title="Descuentos"
-      subtitle="Generador de códigos de descuento para cuotas y suscripciones"
-      note="Aquí se generarán códigos (hermanos, familia numerosa…) aplicables al crear una cuota o suscripción. Depende del módulo de Suscripciones."
-    />
+      subtitle="Genera códigos (hermanos, familia numerosa…) y aplícalos al asignar una cuota"
+    >
+      {/* Generador */}
+      <form onSubmit={generarDescuento} style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:24}}>
+        <div style={{fontWeight:700,fontSize:15,color:'var(--text-primary)',marginBottom:14}}>Generar código de descuento</div>
+        <div style={{display:'grid',gridTemplateColumns:'1.6fr 1.2fr 0.8fr 1.2fr auto',gap:10,alignItems:'end'}}>
+          <div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:6}}>Tipo de descuento *</label>
+            <input value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
+              placeholder="Hermanos, Familia numerosa…" style={{...inputSt, width:'100%'}}/>
+          </div>
+          <div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:6}}>Modalidad *</label>
+            <select value={form.kind} onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value }))}
+              style={{...inputSt, width:'100%', background:'#fff', cursor:'pointer'}}>
+              <option value="PERCENT">Porcentaje (%)</option>
+              <option value="FIXED">Importe fijo (€)</option>
+            </select>
+          </div>
+          <div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:6}}>Valor *</label>
+            <input type="number" min="0.01" step="0.01" value={form.value} onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+              placeholder={form.kind === 'PERCENT' ? '10' : '5.00'} style={{...inputSt, width:'100%'}}/>
+          </div>
+          <div>
+            <label style={{display:'block',fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:6}}>Código (opcional)</label>
+            <input value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+              placeholder="Se genera solo" style={{...inputSt, width:'100%', textTransform:'uppercase'}}/>
+          </div>
+          <button type="submit" disabled={busy || !form.label.trim() || form.value === ''}
+            style={{padding:'10px 20px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',cursor:busy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:busy||!form.label.trim()||form.value===''?0.6:1,height:41,whiteSpace:'nowrap'}}>
+            {busy ? 'Generando…' : 'Generar código'}
+          </button>
+        </div>
+      </form>
+
+      {/* Lista de códigos */}
+      <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
+        {discounts.length === 0 ? (
+          <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
+            Aún no hay códigos. Genera el primero arriba.
+          </div>
+        ) : (
+          <table style={{width:'100%',borderCollapse:'collapse'}}>
+            <thead>
+              <tr style={{background:'var(--surface-low)'}}>
+                {['Código','Tipo de descuento','Valor','En uso','Estado',''].map((h) => (
+                  <th key={h} style={{padding:'12px 24px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {discounts.map((d) => (
+                <tr key={d.id} style={{borderTop:'1px solid var(--border)',opacity:d.isActive ? 1 : 0.55}}>
+                  <td style={{padding:'14px 24px'}}>
+                    <span style={{fontFamily:'ui-monospace, monospace',fontSize:13,fontWeight:700,padding:'4px 10px',borderRadius:8,background:'var(--surface-low)',color:'var(--text-primary)',letterSpacing:'0.04em'}}>{d.code}</span>
+                  </td>
+                  <td style={{padding:'14px 24px',fontSize:14,color:'var(--text-primary)',fontWeight:600}}>{d.label}</td>
+                  <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--green)'}}>
+                    {d.kind === 'PERCENT' ? `−${d.value}%` : `−${fmtMoney(d.value)}`}
+                  </td>
+                  <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>
+                    {d.uses} suscripción{d.uses === 1 ? '' : 'es'}
+                  </td>
+                  <td style={{padding:'14px 24px'}}>
+                    <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:d.isActive ? 'var(--green-soft)' : 'var(--surface-low)',color:d.isActive ? 'var(--green)' : 'var(--text-muted)'}}>
+                      {d.isActive ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td style={{padding:'14px 24px'}}>
+                    <div style={{display:'flex',justifyContent:'flex-end'}}>
+                      <button type="button" disabled={rowBusyId === d.id} onClick={() => toggleActivo(d)}
+                        style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:d.isActive ? 'var(--red)' : 'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                        {rowBusyId === d.id ? '…' : d.isActive ? 'Desactivar' : 'Activar'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <p style={{margin:0,fontSize:12,color:'var(--text-muted)'}}>
+        El descuento se aplica en cada factura que emite la suscripción (línea de descuento visible en la factura).
+        Desactivar un código no toca las suscripciones existentes, pero deja de descontar en las siguientes facturas.
+      </p>
+    </SectionShell>
   )
 }
 
 // ── SOCIOS ──────────────────────────────────────────────────────────────────
-function Socios() {
+// contactosMode (roadmap · 5.3): misma tabla + ficha, añadiendo la data de los
+// formularios de registro y las acciones en lote del pop-up de Contactos.
+function Socios({ contactosMode = false }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm();
@@ -1728,6 +2900,56 @@ function Socios() {
   const [bulkPlanModal, setBulkPlanModal] = useState(false)
   const [bulkPlanId, setBulkPlanId] = useState('')
   const [bulkPlanStartDate, setBulkPlanStartDate] = useState('')
+  // Acciones del pop-up de Contactos (roadmap · 5.3)
+  const [bulkMsgModal, setBulkMsgModal] = useState(false)
+  const [bulkMsgText, setBulkMsgText] = useState('')
+  const [bulkGroupModal, setBulkGroupModal] = useState(false)
+  const [bulkGroupId, setBulkGroupId] = useState('')
+  const [bulkGroupRole, setBulkGroupRole] = useState('PLAYER')
+  const [gruposOptions, setGruposOptions] = useState([])
+
+  async function cargarGruposOptions() {
+    if (gruposOptions.length > 0) return
+    try {
+      const r = await fetch('/api/crm/groups', { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) return
+      const j = await r.json()
+      const out = []
+      const walk = (nodes, depth) => {
+        for (const n of nodes || []) {
+          out.push({ id: n.id, name: n.name, depth })
+          walk(n.children, depth + 1)
+        }
+      }
+      walk(j.tree, 0)
+      setGruposOptions(out)
+      if (out[0]?.id) setBulkGroupId(out[0].id)
+    } catch { /* noop */ }
+  }
+
+  /** Exportar la selección a CSV (descarga en cliente, sin backend). */
+  function exportarSeleccionCsv() {
+    const rows = SOCIOS_UI.filter((s) => selectedIds.has(s.id))
+    if (rows.length === 0) return
+    const esc = (v) => {
+      let s = String(v ?? '')
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+      return `"${s.replaceAll('"', '""')}"`
+    }
+    const header = ['nombre', 'email', 'telefono', 'dni', 'domicilio', 'estado', 'cuota', 'vencimiento']
+    const lines = [
+      header.join(','),
+      ...rows.map((s) => [s.nombre, s.email, s.telefono, s.dni, s.domicilio, s.estado, s.cuota, s.vencimiento].map(esc).join(',')),
+    ]
+    const blob = new Blob([`﻿${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `contactos-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    setBulkMenu(null)
+  }
   const [showInscripcion, setShowInscripcion] = useState(false);
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [inscripcionBusy, setInscripcionBusy] = useState(false);
@@ -2041,7 +3263,7 @@ function Socios() {
   }
 
   async function runBulkAction(
-    action: 'delete' | 'reset-portal-access' | 'set-status' | 'send-payment-reminder' | 'assign-plan',
+    action: 'delete' | 'reset-portal-access' | 'set-status' | 'send-payment-reminder' | 'assign-plan' | 'send-message' | 'add-to-group',
     extra?: {
       status?: string
       confirmMessage?: string
@@ -2049,6 +3271,9 @@ function Socios() {
       startDate?: string
       autoPay?: boolean
       paymentRequiredOnEnrollment?: boolean
+      message?: string
+      groupId?: string
+      groupRole?: string
     },
   ) {
     setBulkMenu(null)
@@ -2079,6 +3304,9 @@ function Socios() {
           startDate: extra?.startDate,
           autoPay: extra?.autoPay,
           paymentRequiredOnEnrollment: extra?.paymentRequiredOnEnrollment,
+          message: extra?.message,
+          groupId: extra?.groupId,
+          groupRole: extra?.groupRole,
         }),
       })
       const j = await r.json().catch(() => ({}))
@@ -2253,11 +3481,13 @@ function Socios() {
         {/* Header */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
           <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Socios</h1>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>{contactosMode ? 'Contactos' : 'Socios'}</h1>
             <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>
               {teamFilterId && equipoFiltrado
                 ? `${sociosTotal} socios en «${equipoFiltrado.nombre}»`
-                : `${totalSocios.toLocaleString('es-ES')} socios registrados en el club`}
+                : contactosMode
+                  ? `${totalSocios.toLocaleString('es-ES')} contactos · con la información de los formularios`
+                  : `${totalSocios.toLocaleString('es-ES')} socios registrados en el club`}
             </p>
           </div>
           <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',gap:10}}>
@@ -2670,6 +3900,9 @@ function Socios() {
               {selectedIds.size} socio{selectedIds.size === 1 ? '' : 's'}
             </div>
             {[
+              { label: 'Enviar mensaje (WhatsApp)…', action: () => { setBulkMenu(null); setBulkMsgText(''); setBulkMsgModal(true) } },
+              { label: 'Añadir a grupo…', action: () => { setBulkMenu(null); void cargarGruposOptions(); setBulkGroupModal(true) } },
+              { label: 'Exportar selección (CSV)', action: exportarSeleccionCsv },
               { label: 'Asignar cuota…', action: () => { setBulkMenu(null); setBulkPlanId(membershipPlans[0]?.id || ''); setBulkPlanStartDate(''); setBulkPlanModal(true) } },
               { label: 'Marcar como activo', action: () => void runBulkAction('set-status', { status: 'ACTIVE' }) },
               { label: 'Marcar como inactivo', action: () => void runBulkAction('set-status', { status: 'INACTIVE' }) },
@@ -2738,6 +3971,38 @@ function Socios() {
               <span style={{fontSize:13,fontWeight:600,color:'#1c1917'}}>{v}</span>
             </div>
           ))}
+          {/* Data de los formularios (roadmap · Contactos 5.3) */}
+          {contactosMode && (() => {
+            const fieldLabel = new Map(
+              (registrationFieldsConfig || []).map((f) => [f.key, f.label]),
+            )
+            const extras = Object.entries(selected.registrationExtra || {}).filter(
+              ([, v]) => String(v ?? '').trim() !== '',
+            )
+            const formRows = [
+              ['Fecha de nacimiento', selected.fechaNacimiento ? new Date(selected.fechaNacimiento).toLocaleDateString('es-ES') : ''],
+              ['Tutor legal', selected.tutorNombre || ''],
+              ['Teléfono del tutor', selected.tutorTelefono || ''],
+              ...extras.map(([key, v]) => [fieldLabel.get(key) || key, String(v)]),
+            ].filter(([, v]) => v !== '')
+            return (
+              <div style={{marginTop:4}}>
+                <div style={{fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em',padding:'12px 0 4px'}}>
+                  Formulario de registro
+                </div>
+                {formRows.length === 0 ? (
+                  <p style={{fontSize:12.5,color:'var(--text-muted)',margin:'6px 0 0'}}>Este contacto no tiene respuestas de formulario.</p>
+                ) : (
+                  formRows.map(([k, v], idx) => (
+                    <div key={`form-${idx}`} style={{display:'flex',justifyContent:'space-between',gap:10,padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
+                      <span style={{fontSize:13,color:'#8c857d'}}>{k}</span>
+                      <span style={{fontSize:13,fontWeight:600,color:'#1c1917',textAlign:'right'}}>{v}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )
+          })()}
           <div style={{display:'flex',gap:8,marginTop:8}}>
             <button type="button" onClick={openEditSocioModal} style={{flex:1,padding:'10px',borderRadius:12,border:'1.5px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#44403c'}}>Editar datos</button>
             <button type="button" onClick={registrarPagoSocio} style={{flex:1,padding:'10px',borderRadius:12,border:'none',background:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'#fff'}}>Registrar Pago</button>
@@ -2948,6 +4213,70 @@ function Socios() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {bulkMsgModal && (
+        <div role="dialog" aria-modal="true" onClick={() => { if (!bulkBusy) setBulkMsgModal(false) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(28,25,23,0.45)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 440, boxShadow: 'var(--card-shadow-lg)' }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Enviar mensaje</h2>
+            <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--text-secondary)' }}>
+              WhatsApp a los {selectedIds.size} contacto{selectedIds.size === 1 ? '' : 's'} seleccionado{selectedIds.size === 1 ? '' : 's'}. Cada envío queda en su hilo del Chat.
+            </p>
+            <textarea value={bulkMsgText} onChange={(e) => setBulkMsgText(e.target.value)} placeholder="Escribe el mensaje…"
+              style={{ width: '100%', minHeight: 100, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}/>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+              <button type="button" disabled={bulkBusy} onClick={() => setBulkMsgModal(false)}
+                style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Cancelar
+              </button>
+              <button type="button" disabled={bulkBusy || !bulkMsgText.trim()}
+                onClick={async () => { await runBulkAction('send-message', { message: bulkMsgText.trim() }); setBulkMsgModal(false) }}
+                style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: bulkBusy || !bulkMsgText.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, opacity: bulkBusy || !bulkMsgText.trim() ? 0.6 : 1 }}>
+                {bulkBusy ? 'Enviando…' : 'Enviar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {bulkGroupModal && (
+        <div role="dialog" aria-modal="true" onClick={() => { if (!bulkBusy) setBulkGroupModal(false) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(28,25,23,0.45)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 420, boxShadow: 'var(--card-shadow-lg)' }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Añadir a grupo</h2>
+            <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--text-secondary)' }}>
+              Los {selectedIds.size} seleccionados se añaden al grupo del organigrama con el rol elegido.
+            </p>
+            {gruposOptions.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No hay grupos. Créalos en Admin → Organigrama.</p>
+            ) : (
+              <>
+                <select value={bulkGroupId} onChange={(e) => setBulkGroupId(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 14, background: '#fff', marginBottom: 10 }}>
+                  {gruposOptions.map((g) => (
+                    <option key={g.id} value={g.id}>{`${'— '.repeat(g.depth)}${g.name}`}</option>
+                  ))}
+                </select>
+                <select value={bulkGroupRole} onChange={(e) => setBulkGroupRole(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 14, background: '#fff' }}>
+                  <option value="PLAYER">Jugador</option>
+                  <option value="COACH">Entrenador</option>
+                  <option value="FAMILY">Familiar</option>
+                </select>
+              </>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+              <button type="button" disabled={bulkBusy} onClick={() => setBulkGroupModal(false)}
+                style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Cancelar
+              </button>
+              <button type="button" disabled={bulkBusy || !bulkGroupId || gruposOptions.length === 0}
+                onClick={async () => { await runBulkAction('add-to-group', { groupId: bulkGroupId, groupRole: bulkGroupRole }); setBulkGroupModal(false) }}
+                style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: bulkBusy || !bulkGroupId ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, opacity: bulkBusy || !bulkGroupId ? 0.6 : 1 }}>
+                {bulkBusy ? 'Añadiendo…' : 'Añadir al grupo'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {bulkPlanModal && (
@@ -4839,8 +6168,8 @@ function Contabilidad({ setActive }) {
         {/* Header con título accent + CTAs */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
           <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Contabilidad</h1>
-            <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>Gestión contable PGC y cobros</p>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Facturas</h1>
+            <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>Meter y sacar facturas: cobros, movimientos, diario, mayor y balances</p>
           </div>
           <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
             <button
@@ -4856,6 +6185,20 @@ function Contabilidad({ setActive }) {
               onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)' }}
             >
               <Icon name="export" size={15}/>Exportar datos
+            </button>
+            <button
+              type="button"
+              onClick={openNuevoCobroModal}
+              style={{
+                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+                borderRadius:8,border:'none',background:'var(--accent)',
+                cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,color:'#fff',
+                transition:'all 0.15s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-strong)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)' }}
+            >
+              <Icon name="plus" size={15}/>Nueva factura
             </button>
             <button
               type="button"
@@ -4888,7 +6231,9 @@ function Contabilidad({ setActive }) {
           </div>
         </div>
 
-        {/* KPI grid Stitch */}
+        {/* Roadmap 6.1/6.2: los KPIs y la tesorería viven en Contabilidad → Sumario
+            (solo lectura); esta pantalla es la gestión pura de facturas y movimientos. */}
+        {false && (<>
         <div style={{
           display:'grid',
           gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',
@@ -5084,6 +6429,7 @@ function Contabilidad({ setActive }) {
             </div>
           </div>
         </div>
+        </>)}
       {/* Tabs PGC + Cobros */}
       <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:999,padding:4,width:'fit-content'}}>
         {contaTabs.map((t) => (
@@ -5287,7 +6633,7 @@ function Contabilidad({ setActive }) {
         <table style={{width:'100%',borderCollapse:'collapse',marginTop:8}}>
           <thead>
             <tr style={{background:'var(--surface-low)'}}>
-              {['Socio','Concepto','Deporte','Importe','Vencimiento','Estado',''].map(h => (
+              {['Nº','Socio','Concepto','Importe','Vencimiento','Estado',''].map(h => (
                 <th key={h} style={{padding:'12px 32px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
               ))}
             </tr>
@@ -5298,6 +6644,7 @@ function Contabilidad({ setActive }) {
             )}
             {filtered.map((c, i) => (
               <tr key={c.id} style={{borderTop:'1px solid var(--border)'}}>
+                <td style={{padding:'16px 24px',fontSize:12,fontWeight:600,color:'var(--text-muted)',whiteSpace:'nowrap',fontVariantNumeric:'tabular-nums'}}>{c.numero || '—'}</td>
                 <td style={{padding:'16px 32px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:12}}>
                     <Avatar initials={c.socio.split(' ').map(w=>w[0]).join('').slice(0,2)} color="var(--accent-soft)" size={36}/>
@@ -5305,7 +6652,6 @@ function Contabilidad({ setActive }) {
                   </div>
                 </td>
                 <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{c.concepto}</td>
-                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{c.deporte}</td>
                 <td style={{padding:'16px 32px'}}>
                   <div style={{fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(c.monto)}</div>
                   <div style={{fontSize:11,color:'var(--text-muted)',marginTop:3}}>
@@ -5854,10 +7200,13 @@ function Calendario({ setActive }) {
   const [eventoBusy, setEventoBusy] = useState(false);
   const [formEvento, setFormEvento] = useState({
     teamId: '',
+    teamIds: [],
     title: '',
     type: 'OTHER',
     datetimeLocal: '',
     location: '',
+    description: '',
+    scheduleAttendance: false,
   });
   const FESTIVOS_UI = bundle?.festivos ?? [];
   const [festivoForm, setFestivoForm] = useState({ date: '', name: '' });
@@ -5941,10 +7290,13 @@ function Calendario({ setActive }) {
     setEditingEventId(null)
     setFormEvento({
       teamId: EQUIPOS_UI[0].id,
+      teamIds: [EQUIPOS_UI[0].id],
       title: '',
       type: 'OTHER',
       datetimeLocal: datetimeLocalValue(),
       location: '',
+      description: '',
+      scheduleAttendance: false,
     })
     setShowEventoModal(true)
   }
@@ -5954,19 +7306,28 @@ function Calendario({ setActive }) {
     setEditingEventId(ev.id)
     setFormEvento({
       teamId: ev.teamId || EQUIPOS_UI[0]?.id || '',
+      teamIds: [ev.teamId || EQUIPOS_UI[0]?.id || ''],
       title: ev.titulo || '',
       type: ev.typeCode || 'OTHER',
       datetimeLocal: `${ev.fecha}T${hh}:${mm}`,
       location: ev.location || '',
+      description: ev.description || '',
+      scheduleAttendance: false,
     })
     setShowEventoModal(true)
   }
 
   async function enviarEvento(e) {
     e.preventDefault()
+    const isEdit = Boolean(editingEventId)
     const title = String(formEvento.title || '').trim()
     const teamId = String(formEvento.teamId || '').trim()
-    if (!title || !teamId) return
+    const teamIds = (formEvento.teamIds || []).filter(Boolean)
+    if (!title) return
+    if (isEdit ? !teamId : teamIds.length === 0) {
+      showAlert('Selecciona al menos un equipo.')
+      return
+    }
     const d = new Date(formEvento.datetimeLocal)
     if (Number.isNaN(d.getTime())) {
       showAlert('Fecha u hora no válida.')
@@ -5974,32 +7335,39 @@ function Calendario({ setActive }) {
     }
     setEventoBusy(true)
     try {
-      const isEdit = Boolean(editingEventId)
       const r = await fetch(isEdit ? `/api/crm/events/${editingEventId}` : '/api/crm/events', {
         method: isEdit ? 'PATCH' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
-          teamId,
+          ...(isEdit ? { teamId } : { teamIds }),
           type: formEvento.type,
           date: d.toISOString(),
           location: formEvento.location.trim() || undefined,
+          description: formEvento.description.trim() || undefined,
+          ...(isEdit ? {} : { scheduleAttendanceForm: formEvento.scheduleAttendance }),
         }),
       })
+      const j = await r.json().catch(() => ({}))
       if (!r.ok) {
-        let msg = isEdit ? 'No se pudo actualizar el evento' : 'No se pudo crear el evento'
-        try {
-          const j = await r.json()
-          msg = j.error || msg
-        } catch {
-          //
-        }
-        showAlert(msg)
+        showAlert(j.error || (isEdit ? 'No se pudo actualizar el evento' : 'No se pudo crear el evento'))
         return
       }
       setShowEventoModal(false)
       setEditingEventId(null)
+      // Resumen del pase de lista programado (enlace + envío al entrenador).
+      const links = Array.isArray(j.attendanceLinks) ? j.attendanceLinks : []
+      if (links.length > 0) {
+        const lines = links.map((l) =>
+          l.sentTo
+            ? `${l.team}: enlace enviado a ${l.sentTo} por WhatsApp.`
+            : `${l.team}: ${l.warning || 'no enviado'}\n${l.url}`,
+        )
+        showAlert(`Evento creado en ${j.created} equipo(s).\n\nPase de lista:\n${lines.join('\n')}`)
+      } else if (!isEdit && (j.created ?? 0) > 1) {
+        showAlert(`Evento creado en ${j.created} equipos.`)
+      }
       await reload()
     } finally {
       setEventoBusy(false)
@@ -6346,22 +7714,60 @@ function Calendario({ setActive }) {
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label style={evLabel}>Equipo *</label>
-                <select
-                  required
-                  value={formEvento.teamId}
-                  onChange={(e) => setFormEvento((p) => ({ ...p, teamId: e.target.value }))}
-                  style={{ ...evInput, cursor: 'pointer' }}
-                >
-                  {EQUIPOS_UI.map((eq) => (
-                    <option key={eq.id} value={eq.id}>
-                      {eq.nombre}
-                      {eq.categoria && eq.categoria !== '—' ? ` (${eq.categoria})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {editingEventId ? (
+                <div>
+                  <label style={evLabel}>Equipo *</label>
+                  <select
+                    required
+                    value={formEvento.teamId}
+                    onChange={(e) => setFormEvento((p) => ({ ...p, teamId: e.target.value }))}
+                    style={{ ...evInput, cursor: 'pointer' }}
+                  >
+                    {EQUIPOS_UI.map((eq) => (
+                      <option key={eq.id} value={eq.id}>
+                        {eq.nombre}
+                        {eq.categoria && eq.categoria !== '—' ? ` (${eq.categoria})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label style={evLabel}>Equipos * <span style={{ fontWeight: 400, textTransform: 'none' }}>(el evento se crea en todos los marcados)</span></label>
+                  <div style={{
+                    border: '1px solid rgba(0,0,0,0.09)', borderRadius: 12, background: '#fff',
+                    maxHeight: 150, overflowY: 'auto', padding: '6px 4px',
+                  }}>
+                    {EQUIPOS_UI.map((eq) => {
+                      const checked = formEvento.teamIds.includes(eq.id)
+                      return (
+                        <label key={eq.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px',
+                          borderRadius: 8, cursor: 'pointer', fontSize: 14, color: '#1c1917',
+                          background: checked ? 'var(--accent-pill)' : 'transparent',
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setFormEvento((p) => ({
+                                ...p,
+                                teamIds: checked
+                                  ? p.teamIds.filter((id) => id !== eq.id)
+                                  : [...p.teamIds, eq.id],
+                              }))
+                            }
+                          />
+                          <span>
+                            {eq.nombre}
+                            {eq.categoria && eq.categoria !== '—' ? ` (${eq.categoria})` : ''}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               <div>
                 <label style={evLabel}>Título *</label>
                 <input
@@ -6406,6 +7812,38 @@ function Calendario({ setActive }) {
                   placeholder="Pabellón, cancha…"
                 />
               </div>
+              <div>
+                <label style={evLabel}>Información (opcional)</label>
+                <textarea
+                  value={formEvento.description}
+                  onChange={(e) => setFormEvento((p) => ({ ...p, description: e.target.value }))}
+                  style={{ ...evInput, minHeight: 76, resize: 'vertical' }}
+                  placeholder="Notas para el equipo: qué llevar, indicaciones, etc."
+                />
+              </div>
+              {!editingEventId && (
+                <label style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px',
+                  borderRadius: 12, border: '1px solid rgba(0,0,0,0.09)', background: 'var(--surface-low)',
+                  cursor: 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={formEvento.scheduleAttendance}
+                    onChange={(e) => setFormEvento((p) => ({ ...p, scheduleAttendance: e.target.checked }))}
+                    style={{ marginTop: 3 }}
+                  />
+                  <span>
+                    <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1c1917' }}>
+                      Programar formulario de asistencia
+                    </span>
+                    <span style={{ display: 'block', fontSize: 12, color: '#78716c', marginTop: 2, lineHeight: 1.5 }}>
+                      Genera un enlace-checklist («¿quién vino?») y se lo envía por WhatsApp al entrenador de cada equipo.
+                      Lo que marque queda guardado en la asistencia del evento.
+                    </span>
+                  </span>
+                </label>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 26 }}>
               <button
@@ -7048,6 +8486,402 @@ function normalizePhoneE164(raw: string) {
   return only
 }
 
+// ── CHAT (roadmap · Módulo 3): lista ┃ conversación ┃ panel de info ─────────
+function chatInitials(name) {
+  return String(name || '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+function chatTimeLabel(iso) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  const hm = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+  return sameDay ? hm : `${d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })} ${hm}`
+}
+
+function ChatSection() {
+  const { bundle, showAlert } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  if (role !== 'ADMIN') return null
+
+  const [view, setView] = useState('chat') // 'chat' | 'session'
+  const [threads, setThreads] = useState([])
+  const [groups, setGroups] = useState([]) // organigrama aplanado
+  const [search, setSearch] = useState('')
+  const [searchDebounced, setSearchDebounced] = useState('')
+  const [memberResults, setMemberResults] = useState([])
+  const [sel, setSel] = useState(null) // { kind: 'member'|'group', id, name }
+  const [messages, setMessages] = useState([])
+  const [info, setInfo] = useState(null)
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const scrollRef = useRef(null)
+
+  const loadThreads = useCallback(async () => {
+    try {
+      const r = await fetch('/api/crm/chat/threads', { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) return
+      const j = await r.json()
+      setThreads(Array.isArray(j.threads) ? j.threads : [])
+    } catch { /* noop */ }
+  }, [])
+
+  const loadGroups = useCallback(async () => {
+    try {
+      const r = await fetch('/api/crm/groups', { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) return
+      const j = await r.json()
+      const out = []
+      const walk = (nodes, depth) => {
+        for (const n of nodes || []) {
+          out.push({ id: n.id, name: n.name, depth, directMemberCount: n.directMemberCount })
+          walk(n.children, depth + 1)
+        }
+      }
+      walk(j.tree, 0)
+      setGroups(out)
+    } catch { /* noop */ }
+  }, [])
+
+  useEffect(() => { void loadThreads(); void loadGroups() }, [loadThreads, loadGroups])
+
+  // Buscador con debounce (socios vía API lite + grupos en cliente)
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(search.trim()), 250)
+    return () => clearTimeout(t)
+  }, [search])
+  useEffect(() => {
+    if (!searchDebounced) { setMemberResults([]); return }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const params = new URLSearchParams({ lite: '1', page: '1', pageSize: '8', q: searchDebounced })
+        const r = await fetch(`/api/crm/members?${params.toString()}`, { credentials: 'include', cache: 'no-store' })
+        if (!r.ok || cancelled) return
+        const j = await r.json()
+        if (!cancelled) setMemberResults(Array.isArray(j.socios) ? j.socios : [])
+      } catch { /* noop */ }
+    })()
+    return () => { cancelled = true }
+  }, [searchDebounced])
+
+  const groupMatches = searchDebounced
+    ? groups.filter((g) => g.name.toLowerCase().includes(searchDebounced.toLowerCase())).slice(0, 6)
+    : []
+
+  const loadMessages = useCallback(async (thread) => {
+    if (!thread) { setMessages([]); return }
+    const key = thread.kind === 'group' ? `groupId=${thread.id}` : `memberId=${thread.id}`
+    try {
+      const r = await fetch(`/api/crm/chat/messages?${key}`, { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) { setMessages([]); return }
+      const j = await r.json()
+      setMessages(Array.isArray(j.messages) ? j.messages : [])
+    } catch { setMessages([]) }
+  }, [])
+
+  const loadInfo = useCallback(async (thread) => {
+    setInfo(null)
+    if (!thread) return
+    try {
+      if (thread.kind === 'member') {
+        const r = await fetch(`/api/crm/members?id=${encodeURIComponent(thread.id)}`, { credentials: 'include', cache: 'no-store' })
+        if (!r.ok) return
+        const j = await r.json()
+        if (j?.socio) setInfo({ kind: 'member', socio: j.socio })
+      } else {
+        const r = await fetch(`/api/crm/groups/${thread.id}/members`, { credentials: 'include', cache: 'no-store' })
+        if (!r.ok) return
+        const j = await r.json()
+        setInfo({ kind: 'group', members: j.members || [] })
+      }
+    } catch { /* noop */ }
+  }, [])
+
+  useEffect(() => { void loadMessages(sel); void loadInfo(sel) }, [sel, loadMessages, loadInfo])
+  useEffect(() => {
+    scrollRef.current?.scrollTo?.({ top: scrollRef.current.scrollHeight })
+  }, [messages])
+
+  function openThread(kind, id, name) {
+    setSel({ kind, id, name })
+    setSearch('')
+    setMemberResults([])
+  }
+
+  async function sendDraft(e) {
+    e?.preventDefault?.()
+    const message = draft.trim()
+    if (!sel || !message || sending) return
+    setSending(true)
+    try {
+      const r = await fetch('/api/crm/chat/messages', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [sel.kind === 'group' ? 'groupId' : 'memberId']: sel.id, message }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo enviar el mensaje'); return }
+      setDraft('')
+      await Promise.all([loadMessages(sel), loadThreads()])
+      if (sel.kind === 'group' && ((j.skippedNoPhone ?? 0) > 0 || (j.failed ?? 0) > 0)) {
+        showAlert(`Enviado a ${j.sent}/${j.total} miembros.${j.skippedNoPhone ? ` ${j.skippedNoPhone} sin teléfono.` : ''}${j.failed ? ` ${j.failed} fallidos.` : ''}`)
+      }
+    } finally { setSending(false) }
+  }
+
+  const STATUS_HINT = { FAILED: 'No entregado', PARTIAL: 'Entrega parcial' }
+
+  return (
+    <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,height:'100%',overflow:'hidden',background:'var(--surface)'}}>
+      {/* Barra superior de la sección */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,padding:'20px 28px 16px',flexShrink:0}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0}}>Chat</h1>
+          <p style={{margin:'2px 0 0',fontSize:13,color:'var(--text-secondary)'}}>Conversaciones de WhatsApp con socios y grupos</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setView(view === 'chat' ? 'session' : 'chat')}
+          style={{display:'flex',alignItems:'center',gap:8,padding:'9px 16px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600}}
+        >
+          <Icon name="whatsapp" size={15}/>
+          {view === 'chat' ? 'Conexión y sesión' : 'Volver al chat'}
+        </button>
+      </div>
+
+      {view === 'session' ? (
+        <div style={{flex:1,minHeight:0,display:'flex',overflow:'hidden'}}>
+          <WhatsAppSection/>
+        </div>
+      ) : (
+        <div style={{flex:1,minHeight:0,display:'flex',gap:0,margin:'0 28px 24px',border:'1px solid var(--border)',borderRadius:14,overflow:'hidden',background:'var(--surface-card)',boxShadow:'var(--card-shadow)'}}>
+          {/* ── Panel izquierdo: buscador + conversaciones ── */}
+          <div style={{width:300,flexShrink:0,borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',minHeight:0}}>
+            <div style={{padding:14,borderBottom:'1px solid var(--border)'}}>
+              <div style={{position:'relative'}}>
+                <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--text-muted)'}}>
+                  <Icon name="search" size={15}/>
+                </span>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar socio o grupo…"
+                  style={{width:'100%',padding:'9px 12px 9px 36px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,background:'var(--surface-low)',outline:'none',boxSizing:'border-box'}}
+                />
+              </div>
+            </div>
+            <div style={{flex:1,overflowY:'auto',minHeight:0}}>
+              {searchDebounced ? (
+                <>
+                  {memberResults.length > 0 && (
+                    <div style={{padding:'10px 14px 4px',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>Socios</div>
+                  )}
+                  {memberResults.map((s) => (
+                    <button key={s.id} type="button" onClick={() => openThread('member', s.id, s.nombre)}
+                      style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left'}}>
+                      <Avatar initials={s.avatar || chatInitials(s.nombre)} color="#2563eb" size={34}/>
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.nombre}</div>
+                        <div style={{fontSize:11,color:'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.email || 'Socio'}</div>
+                      </div>
+                    </button>
+                  ))}
+                  {groupMatches.length > 0 && (
+                    <div style={{padding:'10px 14px 4px',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>Grupos</div>
+                  )}
+                  {groupMatches.map((g) => (
+                    <button key={g.id} type="button" onClick={() => openThread('group', g.id, g.name)}
+                      style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left'}}>
+                      <div style={{width:34,height:34,borderRadius:'50%',background:'var(--green-soft)',color:'var(--green)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        <Icon name="teams" size={16}/>
+                      </div>
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600,color:'var(--text-primary)'}}>{g.name}</div>
+                        <div style={{fontSize:11,color:'var(--text-muted)'}}>Grupo · difusión a sus miembros</div>
+                      </div>
+                    </button>
+                  ))}
+                  {memberResults.length === 0 && groupMatches.length === 0 && (
+                    <p style={{padding:'18px 14px',fontSize:13,color:'var(--text-muted)'}}>Sin resultados para «{searchDebounced}».</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  {threads.length === 0 && (
+                    <p style={{padding:'18px 14px',fontSize:13,color:'var(--text-muted)',lineHeight:1.6}}>
+                      Aún no hay conversaciones.<br/>Busca un socio o un grupo arriba para empezar a chatear.
+                    </p>
+                  )}
+                  {threads.map((t) => {
+                    const isSel = sel && sel.kind === t.kind && sel.id === t.id
+                    return (
+                      <button key={`${t.kind}:${t.id}`} type="button" onClick={() => openThread(t.kind, t.id, t.name)}
+                        style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'11px 14px',border:'none',cursor:'pointer',fontFamily:'inherit',textAlign:'left',background:isSel ? 'var(--accent-pill)' : 'transparent',borderLeft:isSel ? '3px solid var(--accent)' : '3px solid transparent'}}>
+                        {t.kind === 'group' ? (
+                          <div style={{width:38,height:38,borderRadius:'50%',background:'var(--green-soft)',color:'var(--green)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                            <Icon name="teams" size={17}/>
+                          </div>
+                        ) : (
+                          <Avatar initials={chatInitials(t.name)} color="#2563eb" size={38}/>
+                        )}
+                        <div style={{minWidth:0,flex:1}}>
+                          <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'baseline'}}>
+                            <span style={{fontSize:13,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.name}</span>
+                            <span style={{fontSize:10,color:'var(--text-muted)',flexShrink:0}}>{chatTimeLabel(t.lastAt)}</span>
+                          </div>
+                          <div style={{fontSize:12,color:t.lastStatus === 'FAILED' ? 'var(--red)' : 'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginTop:1}}>
+                            {t.lastMessage}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── Panel central: conversación ── */}
+          <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',minHeight:0,background:'var(--surface)'}}>
+            {!sel ? (
+              <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,color:'var(--text-muted)'}}>
+                <Icon name="whatsapp" size={40}/>
+                <p style={{fontSize:14,margin:0}}>Elige una conversación o busca a alguien para empezar.</p>
+              </div>
+            ) : (
+              <>
+                <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 18px',borderBottom:'1px solid var(--border)',background:'var(--surface-card)',flexShrink:0}}>
+                  {sel.kind === 'group' ? (
+                    <div style={{width:36,height:36,borderRadius:'50%',background:'var(--green-soft)',color:'var(--green)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <Icon name="teams" size={16}/>
+                    </div>
+                  ) : (
+                    <Avatar initials={chatInitials(sel.name)} color="#2563eb" size={36}/>
+                  )}
+                  <div>
+                    <div style={{fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{sel.name}</div>
+                    <div style={{fontSize:11,color:'var(--text-muted)'}}>
+                      {sel.kind === 'group' ? 'Chat de grupo · el mensaje llega a todos sus miembros' : 'Conversación por WhatsApp'}
+                    </div>
+                  </div>
+                </div>
+                <div ref={scrollRef} style={{flex:1,overflowY:'auto',minHeight:0,padding:'18px 22px',display:'flex',flexDirection:'column',gap:10}}>
+                  {messages.length === 0 && (
+                    <p style={{fontSize:13,color:'var(--text-muted)',textAlign:'center',margin:'auto 0'}}>
+                      Sin mensajes todavía. Escribe abajo para enviar el primero.
+                    </p>
+                  )}
+                  {messages.map((m) => {
+                    const isOut = m.direction !== 'IN'
+                    return (
+                      <div key={m.id} style={{display:'flex',justifyContent:isOut ? 'flex-end' : 'flex-start'}}>
+                        <div style={{
+                          maxWidth:'72%',padding:'9px 13px',borderRadius:14,
+                          borderBottomRightRadius:isOut ? 4 : 14,borderBottomLeftRadius:isOut ? 14 : 4,
+                          background:isOut ? 'var(--accent)' : 'var(--surface-card)',
+                          color:isOut ? '#fff' : 'var(--text-primary)',
+                          border:isOut ? 'none' : '1px solid var(--border)',
+                          boxShadow:'var(--card-shadow)',
+                        }}>
+                          <div style={{fontSize:13.5,lineHeight:1.5,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{m.body}</div>
+                          <div style={{display:'flex',gap:6,justifyContent:'flex-end',alignItems:'center',marginTop:3}}>
+                            {STATUS_HINT[m.status] && (
+                              <span style={{fontSize:10,fontWeight:700,color:isOut ? 'rgba(255,255,255,0.85)' : 'var(--red)'}} title={m.error || ''}>
+                                ⚠ {STATUS_HINT[m.status]}
+                              </span>
+                            )}
+                            <span style={{fontSize:10,color:isOut ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)'}}>{chatTimeLabel(m.at)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <form onSubmit={sendDraft} style={{display:'flex',gap:10,padding:'12px 18px',borderTop:'1px solid var(--border)',background:'var(--surface-card)',flexShrink:0}}>
+                  <input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder={sel.kind === 'group' ? `Mensaje para todo «${sel.name}»…` : `Mensaje para ${sel.name}…`}
+                    style={{flex:1,padding:'11px 14px',borderRadius:999,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,background:'var(--surface-low)',outline:'none'}}
+                  />
+                  <button type="submit" disabled={sending || !draft.trim()}
+                    style={{padding:'11px 20px',borderRadius:999,border:'none',background:'var(--accent)',color:'#fff',cursor:sending||!draft.trim()?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:sending||!draft.trim()?0.6:1}}>
+                    {sending ? 'Enviando…' : 'Enviar'}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+
+          {/* ── Panel derecho: información del contacto / grupo ── */}
+          {sel && (
+            <div style={{width:280,flexShrink:0,borderLeft:'1px solid var(--border)',overflowY:'auto',minHeight:0,padding:20,display:'flex',flexDirection:'column',gap:16,background:'var(--surface-card)'}}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,paddingBottom:14,borderBottom:'1px solid var(--border)'}}>
+                {sel.kind === 'group' ? (
+                  <div style={{width:64,height:64,borderRadius:'50%',background:'var(--green-soft)',color:'var(--green)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <Icon name="teams" size={28}/>
+                  </div>
+                ) : (
+                  <Avatar initials={chatInitials(sel.name)} color="#2563eb" size={64}/>
+                )}
+                <div style={{fontSize:16,fontWeight:700,color:'var(--text-primary)',textAlign:'center'}}>{sel.name}</div>
+                {sel.kind === 'member' && info?.socio && <Badge status={info.socio.estado}/>}
+              </div>
+              {sel.kind === 'member' && info?.socio && (
+                <div style={{display:'flex',flexDirection:'column',gap:0}}>
+                  {[
+                    ['Teléfono', info.socio.telefono || '—'],
+                    ['Email', info.socio.email || '—'],
+                    ['Equipo', info.socio.equipoNombre || '—'],
+                    ['Cuota', info.socio.membershipPlanName || '—'],
+                    ['Alta', info.socio.fechaAlta ? new Date(info.socio.fechaAlta).toLocaleDateString('es-ES') : '—'],
+                  ].map(([k, v]) => (
+                    <div key={k} style={{display:'flex',justifyContent:'space-between',gap:10,padding:'9px 0',borderBottom:'1px solid var(--border)'}}>
+                      <span style={{fontSize:12,color:'var(--text-muted)'}}>{k}</span>
+                      <span style={{fontSize:12.5,fontWeight:600,color:'var(--text-primary)',textAlign:'right',overflow:'hidden',textOverflow:'ellipsis'}}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sel.kind === 'group' && (
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8}}>
+                    Miembros ({info?.members?.length ?? '…'})
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    {(info?.members ?? []).slice(0, 12).map((m) => (
+                      <div key={m.memberId} style={{display:'flex',alignItems:'center',gap:8}}>
+                        <Avatar initials={chatInitials(m.name)} color="#2563eb" size={26}/>
+                        <span style={{fontSize:12.5,color:'var(--text-primary)',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</span>
+                        {m.inherited && <span style={{fontSize:9,fontWeight:700,color:'var(--text-muted)'}}>HEREDADO</span>}
+                      </div>
+                    ))}
+                    {(info?.members?.length ?? 0) > 12 && (
+                      <span style={{fontSize:11,color:'var(--text-muted)'}}>y {info.members.length - 12} más…</span>
+                    )}
+                  </div>
+                </div>
+              )}
+              <p style={{margin:'auto 0 0',fontSize:11,color:'var(--text-muted)',lineHeight:1.5}}>
+                El historial muestra los mensajes enviados desde el CRM. Las respuestas del socio llegan a tu WhatsApp conectado.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function WhatsAppSection() {
   const { showAlert, reload, bundle } = useCrm()
   const role = normalizeRole(bundle?.user?.role)
@@ -7196,7 +9030,7 @@ function WhatsAppSection() {
         {/* Header */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
           <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Chat</h1>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Conexión de WhatsApp</h1>
             <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>Conexión ApiWass y envío integrado con el CRM</p>
           </div>
           <span style={{
@@ -7323,7 +9157,7 @@ function CrmInner() {
   const [showClubSettings, setShowClubSettings] = useState(false)
 
   const tabRaw = searchParams.get('tab') ?? ''
-  const normalizedTab = tabRaw === 'cobros' ? 'contabilidad' : tabRaw
+  const normalizedTab = tabRaw === 'cobros' ? 'facturas' : tabRaw
   // Debe declararse antes de cualquier hook que liste `role` en dependencias
   // (evita ReferenceError: Cannot access ... before initialization en SSR/client).
   const role = normalizeRole(bundle?.user?.role)
@@ -7351,7 +9185,7 @@ function CrmInner() {
     if (loading || !bundle?.user?.role) return
 
     const tRaw = searchParams.get('tab')
-    const t = tRaw === 'cobros' ? 'contabilidad' : tRaw
+    const t = tRaw === 'cobros' ? 'facturas' : tRaw
     if (!t || !CRM_SECTION_IDS.includes(t as SectionId)) {
       router.replace(`/?tab=${firstAllowed}`, { scroll: false })
       return
@@ -7361,7 +9195,7 @@ function CrmInner() {
       return
     }
     if (tRaw === 'cobros') {
-      router.replace('/?tab=contabilidad', { scroll: false })
+      router.replace('/?tab=facturas', { scroll: false })
     }
   }, [router, searchParams, role, firstAllowed, loading, bundle?.user?.role])
 
@@ -7406,7 +9240,7 @@ function CrmInner() {
           id: `overdue-${c.id}`,
           title: 'Cobro vencido',
           description: `${c.socio} · ${c.concepto}`,
-          tab: 'contabilidad',
+          tab: 'impagos',
           priority: 'high',
         })
       }
@@ -7438,7 +9272,7 @@ function CrmInner() {
           id: `due-soon-${c.id}`,
           title: 'Cobro por vencer',
           description: `${c.socio} · vence ${due.toLocaleDateString('es-AR')}`,
-          tab: 'contabilidad',
+          tab: 'facturas',
           priority: 'normal',
         })
       }
@@ -7530,21 +9364,24 @@ function CrmInner() {
     socios: Socios,
     equipos: Equipos,
     cuotas: Cuotas,
-    contabilidad: Contabilidad,
+    // Roadmap 6.1: el Sumario es solo consulta+exportación; la gestión completa
+    // (antigua pantalla Contabilidad) vive en el submódulo Facturas.
+    contabilidad: ContabilidadSumario,
+    facturas: Contabilidad,
     calendario: Calendario,
     informes: Informes,
     workflows: Workflows,
-    whatsapp: WhatsAppSection,
+    whatsapp: ChatSection,
     hermes: HermesAgentSection,
     personal: Personal,
     // Roadmap
     'admin-sumario': AdminSumario,
     organigrama: Organigrama,
-    contactos: ContactosPlaceholder,
-    asistencia: AsistenciaPlaceholder,
+    contactos: ContactosSection,
+    asistencia: AsistenciaSection,
     impagos: Impagos,
-    productos: ProductosPlaceholder,
-    descuentos: DescuentosPlaceholder,
+    productos: ProductosSection,
+    descuentos: DescuentosSection,
     forms: FormsConfigSection,
     api: ApiInfoSection,
   };

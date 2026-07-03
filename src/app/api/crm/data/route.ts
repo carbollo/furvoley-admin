@@ -290,6 +290,7 @@ export async function GET(request: Request) {
 
   const cobros = invoicesRaw.map((inv) => ({
     tipoFactura: inv.kind,
+    numero: inv.invoiceNumber,
     subtotal: inv.subtotal,
     iva: inv.taxAmount,
     retencion: Math.max(0, (inv.subtotal + inv.taxAmount) - inv.totalAmount),
@@ -316,6 +317,7 @@ export async function GET(request: Request) {
     equipo: e.team?.name ?? 'Club',
     lugar: e.location ?? '—',
     location: e.location ?? '',
+    description: e.description ?? '',
   }))
 
   const workflows = workflowsRaw.map((w) => {

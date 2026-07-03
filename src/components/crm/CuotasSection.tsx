@@ -91,7 +91,20 @@ export function CuotasSection({
     startDate: '',
     autoPay: false,
     paymentRequiredOnEnrollment: false,
+    discountCodeId: '',
   })
+  // Códigos de descuento activos (roadmap · 6.5) para asociar al crear la cuota.
+  const [discountOptions, setDiscountOptions] = useState<{ id: string; code: string; label: string; kind: string; value: number }[]>([])
+  useEffect(() => {
+    void (async () => {
+      try {
+        const r = await fetch('/api/crm/discounts', { credentials: 'include', cache: 'no-store' })
+        if (!r.ok) return
+        const j = await r.json()
+        setDiscountOptions((j.discounts ?? []).filter((d: { isActive: boolean }) => d.isActive))
+      } catch { /* opcional */ }
+    })()
+  }, [])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -233,6 +246,7 @@ export function CuotasSection({
           startDate: assignForm.startDate || undefined,
           autoPay: assignForm.autoPay,
           paymentRequiredOnEnrollment: assignForm.paymentRequiredOnEnrollment,
+          discountCodeId: assignForm.discountCodeId || undefined,
         }),
       })
       const j = await r.json().catch(() => ({}))
@@ -247,6 +261,7 @@ export function CuotasSection({
         startDate: '',
         autoPay: false,
         paymentRequiredOnEnrollment: false,
+        discountCodeId: '',
       })
       await loadData()
       await reload()
@@ -255,6 +270,44 @@ export function CuotasSection({
           ? 'Cuota asignada. El socio queda en «Alta pendiente de pago» hasta que pague la primera factura.'
           : 'Cuota asignada. Se ha generado la primera factura del periodo.',
       )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const [editSubModal, setEditSubModal] = useState<SubscriptionRow | null>(null)
+  const [editSubPlanId, setEditSubPlanId] = useState('')
+  const [editSubNextDate, setEditSubNextDate] = useState('')
+
+  function abrirEditarSuscripcion(s: SubscriptionRow) {
+    setEditSubModal(s)
+    const plan = activePlans.find((p) => p.name === s.planName)
+    setEditSubPlanId(plan?.id || activePlans[0]?.id || '')
+    setEditSubNextDate(s.nextInvoiceDate ? s.nextInvoiceDate.slice(0, 10) : '')
+  }
+
+  async function guardarEdicionSuscripcion() {
+    if (!editSubModal) return
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/crm/subscriptions/${editSubModal.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(editSubPlanId ? { planId: editSubPlanId } : {}),
+          ...(editSubNextDate ? { nextInvoiceDate: editSubNextDate } : {}),
+        }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        showAlert(j.error || 'No se pudo modificar la suscripción')
+        return
+      }
+      setEditSubModal(null)
+      await loadData()
+      await reload()
+      showAlert('Suscripción modificada. El nuevo plan aplica desde la siguiente factura.')
     } finally {
       setBusy(false)
     }
@@ -361,6 +414,7 @@ export function CuotasSection({
                   startDate: new Date().toISOString().slice(0, 10),
                   autoPay: false,
                   paymentRequiredOnEnrollment: planPaymentRequiredDefault(firstPlanId),
+                  discountCodeId: '',
                 })
                 setAssignModal(true)
               }}
@@ -654,6 +708,24 @@ export function CuotasSection({
                             <button
                               type="button"
                               disabled={busy}
+                              onClick={() => abrirEditarSuscripcion(s)}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                border: '1px solid var(--border)',
+                                background: 'var(--accent-pill)',
+                                color: 'var(--accent)',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
                               onClick={() => void setSubscriptionStatus(s.id, 'PAUSED', 'Pausar')}
                               style={{
                                 padding: '6px 12px',
@@ -916,6 +988,63 @@ export function CuotasSection({
         </div>
       )}
 
+      {/* Modal: modificar suscripción (roadmap · 6.3) */}
+      {editSubModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => { if (!busy) setEditSubModal(null) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(28,25,23,0.45)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 20px 50px rgba(28,25,23,0.25)' }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>Modificar suscripción</h2>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-muted)' }}>
+              {editSubModal.memberName} · ahora en «{editSubModal.planName}» ({fmtMoney(editSubModal.planAmount)} / {editSubModal.billingPeriodLabel.toLowerCase()})
+            </p>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Plan de cuota</label>
+            <select
+              value={editSubPlanId}
+              onChange={(e) => setEditSubPlanId(e.target.value)}
+              style={{ ...inputStyle, marginBottom: 4, background: '#fff' }}
+            >
+              {activePlans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {fmtMoney(p.amount)}
+                </option>
+              ))}
+            </select>
+            <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--text-muted)' }}>
+              El cambio de plan aplica desde la siguiente factura (las ya emitidas no se tocan).
+            </p>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>Próxima factura</label>
+            <input
+              type="date"
+              value={editSubNextDate}
+              onChange={(e) => setEditSubNextDate(e.target.value)}
+              style={{ ...inputStyle, marginBottom: 20 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setEditSubModal(null)}
+                style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={busy || !editSubPlanId}
+                onClick={() => void guardarEdicionSuscripcion()}
+                style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: busy || !editSubPlanId ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, opacity: busy || !editSubPlanId ? 0.6 : 1 }}
+              >
+                {busy ? 'Guardando…' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {assignModal && (
         <div
           role="presentation"
@@ -978,6 +1107,24 @@ export function CuotasSection({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label style={{ fontSize: 13, fontWeight: 600 }}>
+                Descuento (opcional)
+                <select
+                  value={assignForm.discountCodeId}
+                  onChange={(e) => setAssignForm((f) => ({ ...f, discountCodeId: e.target.value }))}
+                  style={{ ...inputStyle, marginTop: 6 }}
+                >
+                  <option value="">Sin descuento</option>
+                  {discountOptions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.code} — {d.label} ({d.kind === 'PERCENT' ? `−${d.value}%` : `−${fmtMoney(d.value)}`})
+                    </option>
+                  ))}
+                </select>
+                <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Se descuenta en cada factura de la suscripción. Genera códigos en Contabilidad → Descuentos.
+                </span>
               </label>
               <label style={{ fontSize: 13, fontWeight: 600 }}>
                 Inicio del periodo

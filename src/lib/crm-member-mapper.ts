@@ -15,6 +15,11 @@ type MemberWithRelations = {
   sportPreference: string | null
   status: string
   joinedAt: Date
+  birthDate?: Date | null
+  guardianName?: string | null
+  guardianPhone?: string | null
+  /** Respuestas de los campos personalizados del formulario (key → valor). */
+  registrationExtra?: unknown
   subscriptions: Array<{
     plan: { amount: number; name: string } | null
     nextInvoiceDate: Date | null
@@ -43,6 +48,11 @@ export type CrmSocioRow = {
   pendingInvoiceId: string | null
   pendingInvoiceAmount: number | null
   membershipPlanName: string
+  // Data de los formularios (roadmap · Contactos 5.3)
+  fechaNacimiento: string
+  tutorNombre: string
+  tutorTelefono: string
+  registrationExtra: Record<string, unknown> | null
 }
 
 export function memberInitials(name: string) {
@@ -95,6 +105,13 @@ export function mapMemberToSocioRow(
     pendingInvoiceId: unpaidInvoice?.id ?? null,
     pendingInvoiceAmount: unpaidInvoice?.pending ?? null,
     membershipPlanName: sub?.plan?.name ?? '',
+    fechaNacimiento: m.birthDate ? m.birthDate.toISOString().slice(0, 10) : '',
+    tutorNombre: m.guardianName ?? '',
+    tutorTelefono: m.guardianPhone ?? '',
+    registrationExtra:
+      m.registrationExtra && typeof m.registrationExtra === 'object' && !Array.isArray(m.registrationExtra)
+        ? (m.registrationExtra as Record<string, unknown>)
+        : null,
   }
 }
 

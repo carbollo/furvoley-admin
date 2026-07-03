@@ -95,6 +95,7 @@ model Member {
   orders    Order[]
   leads     Lead[]
   groupMemberships GroupMembership[]
+  chatMessages ChatMessage[]
 }
 
 // --- ORGANIGRAMA (grupos y subgrupos) ---
@@ -112,6 +113,7 @@ model Group {
   updatedAt DateTime @updatedAt
 
   memberships GroupMembership[]
+  chatMessages ChatMessage[]
 
   @@index([parentId])
 }
@@ -128,6 +130,28 @@ model GroupMembership {
 
   @@unique([groupId, memberId])
   @@index([memberId])
+}
+
+// --- CHAT (WhatsApp vía ApiWass) ---
+
+/// Mensaje del módulo Chat. Historial local de las conversaciones del CRM:
+/// hilos 1 a 1 (memberId) o de grupo del organigrama (groupId, difusión a los
+/// miembros efectivos). direction IN queda reservado para webhooks entrantes.
+model ChatMessage {
+  id        String   @id @default(cuid())
+  direction String   @default("OUT") // OUT | IN
+  memberId  String?
+  groupId   String?
+  body      String   @db.Text
+  status    String   @default("SENT") // SENT | PARTIAL | FAILED
+  error     String?
+  createdAt DateTime @default(now())
+
+  member Member? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  group  Group?  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, createdAt])
+  @@index([groupId, createdAt])
 }
 
 model Lead {
@@ -212,7 +236,28 @@ model Subscription {
   member                Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   planId                String
   plan                  MembershipPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  /** Descuento aplicado a las facturas de esta suscripción (roadmap · 6.5). */
+  discountCodeId        String?
+  discountCode          DiscountCode? @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
   invoices              Invoice[]
+
+  @@index([discountCodeId])
+}
+
+/// Código de descuento (roadmap · 6.5): se genera aquí y se asocia a una
+/// suscripción al crearla; cada factura emitida descuenta el % o importe fijo.
+/// Tipos configurables vía etiqueta libre (hermanos, familia numerosa, etc.).
+model DiscountCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  label     String
+  kind      String   @default("PERCENT") // PERCENT | FIXED
+  value     Float
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
 }
 
 model Invoice {
@@ -679,6 +724,8 @@ model Product {
   stock       Int      @default(0)
   image       String?
   category    String?
+  /// Tipo de cobro (roadmap · 6.4): ONE_TIME (pago único) | EVENT (evento / una sola vez).
+  type        String   @default("ONE_TIME")
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

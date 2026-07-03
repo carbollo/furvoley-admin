@@ -45,6 +45,20 @@ export async function POST(request: Request) {
       ? body.paymentRequiredOnEnrollment
       : plan.paymentRequiredOnEnrollment
 
+  // Descuento opcional (roadmap · 6.5): por id o por código (HERMANOS10).
+  let discountCodeId: string | null = null
+  const rawDiscountId = String((body as { discountCodeId?: string }).discountCodeId || '').trim()
+  const rawDiscountCode = String((body as { discountCode?: string }).discountCode || '').trim()
+  if (rawDiscountId || rawDiscountCode) {
+    const discount = rawDiscountId
+      ? await prisma.discountCode.findUnique({ where: { id: rawDiscountId } })
+      : await prisma.discountCode.findUnique({ where: { code: rawDiscountCode.toUpperCase() } })
+    if (!discount || !discount.isActive) {
+      return NextResponse.json({ error: 'Código de descuento no válido o inactivo' }, { status: 404 })
+    }
+    discountCodeId = discount.id
+  }
+
   try {
     await prisma.subscription.updateMany({
       where: { memberId, status: 'ACTIVE' },
@@ -57,6 +71,7 @@ export async function POST(request: Request) {
       startDate,
       autoPay,
       paymentRequiredOnEnrollment,
+      discountCodeId,
     })
 
     return NextResponse.json({

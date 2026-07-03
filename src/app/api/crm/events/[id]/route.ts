@@ -46,6 +46,7 @@ export async function PATCH(request: Request, { params }: Params) {
     type?: string
     date?: string
     location?: string
+    description?: string
     teamId?: string
   }
   try {
@@ -90,12 +91,14 @@ export async function PATCH(request: Request, { params }: Params) {
     type?: string
     date?: Date
     location?: string
+    description?: string
     teamId?: string
   } = {}
   if (title !== undefined) payload.title = title
   if (body.type !== undefined) payload.type = body.type.trim() || 'OTHER'
   if (date !== undefined) payload.date = date
   if (body.location !== undefined) payload.location = body.location.trim() || undefined
+  if (body.description !== undefined) payload.description = body.description.trim() || undefined
   if (teamId !== undefined) payload.teamId = teamId
 
   if (Object.keys(payload).length === 0) {

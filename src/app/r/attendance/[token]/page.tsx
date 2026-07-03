@@ -58,7 +58,38 @@ export default function AttendanceResponsePage() {
 
   if (loading) return <main style={{ padding: 24, fontFamily: 'system-ui' }}>Cargando…</main>
   if (error) return <main style={{ padding: 24, fontFamily: 'system-ui', color: '#b91c1c' }}>{error}</main>
-  if (done) return <main style={{ padding: 24, fontFamily: 'system-ui' }}>Gracias, motivo registrado.</main>
+  if (done && reasonMode) return <main style={{ padding: 24, fontFamily: 'system-ui' }}>Gracias, motivo registrado.</main>
+
+  // Resumen final tras "Enviar asistencia" (cada toque ya quedó guardado).
+  if (done) {
+    const presentes = rows.filter((r) => r.status === 'PRESENT').length
+    const tarde = rows.filter((r) => r.status === 'LATE').length
+    const ausentes = rows.filter((r) => r.status === 'ABSENT').length
+    const sinMarcar = rows.length - presentes - tarde - ausentes
+    return (
+      <main style={{ maxWidth: 520, margin: '40px auto', padding: 24, fontFamily: 'system-ui', textAlign: 'center' }}>
+        <div style={{ fontSize: 44, marginBottom: 8 }}>✅</div>
+        <h1 style={{ fontSize: 22, marginBottom: 6 }}>Asistencia registrada</h1>
+        <p style={{ color: '#78716c', marginBottom: 20 }}>{title}</p>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <span style={{ padding: '8px 14px', borderRadius: 999, background: '#f0fdf4', color: '#15803d', fontWeight: 700, fontSize: 14 }}>{presentes} presentes</span>
+          {tarde > 0 && <span style={{ padding: '8px 14px', borderRadius: 999, background: '#fffbeb', color: '#b45309', fontWeight: 700, fontSize: 14 }}>{tarde} tarde</span>}
+          <span style={{ padding: '8px 14px', borderRadius: 999, background: '#fff1f2', color: '#be123c', fontWeight: 700, fontSize: 14 }}>{ausentes} ausentes</span>
+          {sinMarcar > 0 && <span style={{ padding: '8px 14px', borderRadius: 999, background: '#f4efe8', color: '#78716c', fontWeight: 700, fontSize: 14 }}>{sinMarcar} sin marcar</span>}
+        </div>
+        <p style={{ color: '#a8a29e', fontSize: 13, marginTop: 20 }}>
+          Puedes volver a abrir el enlace para corregir mientras siga activo.
+        </p>
+        <button
+          type="button"
+          onClick={() => setDone(false)}
+          style={{ marginTop: 8, padding: '9px 16px', background: 'transparent', color: '#2563eb', border: '1px solid #d8cdbd', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+        >
+          Volver a la lista
+        </button>
+      </main>
+    )
+  }
 
   if (reasonMode) {
     return (
@@ -133,6 +164,27 @@ export default function AttendanceResponsePage() {
           </div>
         ))}
       </div>
+      <button
+        type="button"
+        onClick={() => setDone(true)}
+        style={{
+          width: '100%',
+          marginTop: 20,
+          padding: '13px 16px',
+          background: '#2563eb',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 10,
+          cursor: 'pointer',
+          fontSize: 15,
+          fontWeight: 700,
+        }}
+      >
+        Enviar asistencia
+      </button>
+      <p style={{ color: '#a8a29e', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
+        Cada marca se guarda al momento; «Enviar» te muestra el resumen final.
+      </p>
     </main>
   )
 }

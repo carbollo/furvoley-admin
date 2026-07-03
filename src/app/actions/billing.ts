@@ -120,6 +120,8 @@ export async function createSubscription(data: {
   startDate?: Date
   autoPay?: boolean
   paymentRequiredOnEnrollment?: boolean
+  /** Código de descuento (roadmap · 6.5) aplicado a las facturas de la suscripción. */
+  discountCodeId?: string | null
 }) {
   const plan = await prisma.membershipPlan.findUnique({ where: { id: data.planId } })
   if (!plan) throw new Error('Plan not found')
@@ -143,6 +145,7 @@ export async function createSubscription(data: {
       nextInvoiceDate: initialNextInvoiceDate,
       autoPay: data.autoPay ?? false,
       paymentRequiredOnEnrollment: paymentRequired,
+      discountCodeId: data.discountCodeId || null,
     },
   })
 
@@ -193,7 +196,7 @@ async function tryActivateMemberAfterEnrollmentPayment(invoiceId: string) {
 export async function createInvoiceForSubscription(subscriptionId: string) {
   const subscription = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
-    include: { plan: true, member: true },
+    include: { plan: true, member: true, discountCode: true },
   })
   if (!subscription) throw new Error('Subscription not found')
 
@@ -217,7 +220,17 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
   const periodAmount = subscription.plan.amount
   const enrollmentAmount =
     isFirstInvoice && subscription.plan.enrollmentFee > 0 ? subscription.plan.enrollmentFee : 0
-  const subtotal = periodAmount + enrollmentAmount
+
+  // Descuento de la suscripción (roadmap · 6.5): % o importe fijo sobre la
+  // cuota del periodo (no sobre la matrícula), sin dejarla en negativo.
+  const dc = subscription.discountCode
+  let discountAmount = 0
+  if (dc && dc.isActive && dc.value > 0) {
+    const raw = dc.kind === 'FIXED' ? dc.value : periodAmount * (dc.value / 100)
+    discountAmount = Math.min(periodAmount, Math.round(raw * 100) / 100)
+  }
+
+  const subtotal = periodAmount + enrollmentAmount - discountAmount
   const taxAmount = 0
   const total = subtotal + taxAmount
 
@@ -235,6 +248,14 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
       quantity: 1,
       unitAmount: enrollmentAmount,
       totalAmount: enrollmentAmount,
+    })
+  }
+  if (discountAmount > 0 && dc) {
+    items.push({
+      description: `Descuento ${dc.label} (${dc.code})${dc.kind === 'PERCENT' ? ` · ${dc.value}%` : ''}`,
+      quantity: 1,
+      unitAmount: -discountAmount,
+      totalAmount: -discountAmount,
     })
   }
 

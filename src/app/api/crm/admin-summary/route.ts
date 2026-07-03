@@ -42,6 +42,8 @@ export async function GET() {
 
   const ages = AGE_BUCKETS.map((b) => ({ label: b.label, count: 0 }))
   let sinFechaNacimiento = 0
+  let ageSum = 0
+  let ageCount = 0
   const gender = new Map<string, number>()
   const altasPorMes: number[] = Array(12).fill(0)
 
@@ -50,8 +52,13 @@ export async function GET() {
     if (m.birthDate) {
       const age = ageFromBirthDate(m.birthDate, now)
       const idx = AGE_BUCKETS.findIndex((b) => age >= b.min && age <= b.max)
-      if (idx >= 0) ages[idx].count++
-      else sinFechaNacimiento++
+      if (idx >= 0) {
+        ages[idx].count++
+        ageSum += age
+        ageCount++
+      } else {
+        sinFechaNacimiento++
+      }
     } else {
       sinFechaNacimiento++
     }
@@ -78,6 +85,8 @@ export async function GET() {
 
   return NextResponse.json({
     total: members.length,
+    activos: members.filter((m) => m.status === 'ACTIVE').length,
+    avgAge: ageCount > 0 ? Number((ageSum / ageCount).toFixed(1)) : null,
     ages,
     sinFechaNacimiento,
     gender: [...gender.entries()]

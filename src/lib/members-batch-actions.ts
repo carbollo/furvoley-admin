@@ -16,6 +16,8 @@ export type BatchAction =
   | 'set-status'
   | 'send-payment-reminder'
   | 'assign-plan'
+  | 'send-message'
+  | 'add-to-group'
 
 export type BatchOptions = {
   status?: string
@@ -23,6 +25,11 @@ export type BatchOptions = {
   startDate?: string
   autoPay?: boolean
   paymentRequiredOnEnrollment?: boolean
+  /** send-message: texto del WhatsApp. */
+  message?: string
+  /** add-to-group: grupo destino y rol dentro del grupo. */
+  groupId?: string
+  groupRole?: string
 }
 
 export type BatchMemberResult = {
@@ -162,6 +169,53 @@ async function sendPaymentReminder(memberId: string) {
   await sendApiWassText({ sessionId, phone, message })
 }
 
+/** Mensaje de WhatsApp libre a un socio; queda registrado en su hilo del Chat. */
+async function sendCustomMessage(memberId: string, options: BatchOptions) {
+  const message = String(options.message || '').trim()
+  if (!message) throw new Error('Mensaje vacío')
+
+  const waCfg = await getWhatsAppConfig()
+  const sessionId = String(waCfg.linkedSessionId || process.env.APIWASS_DEFAULT_SESSION_ID || '').trim()
+  if (!sessionId) throw new Error('WhatsApp no configurado')
+
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: { id: true, phone: true, guardianPhone: true },
+  })
+  if (!member) throw new Error('Socio no encontrado')
+  const phone = member.phone?.trim() || member.guardianPhone?.trim() || ''
+  if (!phone) throw new Error('Sin teléfono')
+
+  let status = 'SENT'
+  let error: string | null = null
+  try {
+    await sendApiWassText({ sessionId, phone, message })
+  } catch (e) {
+    status = 'FAILED'
+    error = e instanceof Error ? e.message : 'Fallo de envío'
+  }
+  await prisma.chatMessage.create({ data: { memberId: member.id, body: message, status, error } })
+  if (status === 'FAILED') throw new Error(error || 'Fallo de envío')
+}
+
+/** Añade el socio a un grupo del organigrama (pop-up de Contactos). */
+async function addMemberToGroup(memberId: string, options: BatchOptions) {
+  const groupId = String(options.groupId || '').trim()
+  if (!groupId) throw new Error('Grupo no indicado')
+  const group = await prisma.group.findUnique({ where: { id: groupId }, select: { id: true } })
+  if (!group) throw new Error('Grupo no encontrado')
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { id: true } })
+  if (!member) throw new Error('Socio no encontrado')
+
+  const roleRaw = String(options.groupRole || 'PLAYER').toUpperCase()
+  const role = ['PLAYER', 'COACH', 'FAMILY'].includes(roleRaw) ? roleRaw : 'PLAYER'
+  await prisma.groupMembership.upsert({
+    where: { groupId_memberId: { groupId, memberId } },
+    create: { groupId, memberId, role },
+    update: { role },
+  })
+}
+
 async function assignPlanToMember(memberId: string, options: BatchOptions) {
   const planId = String(options.planId || '').trim()
   if (!planId) throw new Error('Plan no indicado')
@@ -224,6 +278,14 @@ export async function runMembersBatchAction(
     }
   }
 
+  if (action === 'send-message' && !String(options?.message || '').trim()) {
+    return { ok: false, processed: 0, succeeded: 0, failed: 0, errors: [{ id: '', message: 'El mensaje no puede estar vacío' }] }
+  }
+
+  if (action === 'add-to-group' && !String(options?.groupId || '').trim()) {
+    return { ok: false, processed: 0, succeeded: 0, failed: 0, errors: [{ id: '', message: 'Selecciona un grupo' }] }
+  }
+
   const errors: { id: string; message: string }[] = []
   let succeeded = 0
 
@@ -240,6 +302,10 @@ export async function runMembersBatchAction(
         await sendPaymentReminder(id)
       } else if (action === 'assign-plan') {
         await assignPlanToMember(id, options || {})
+      } else if (action === 'send-message') {
+        await sendCustomMessage(id, options || {})
+      } else if (action === 'add-to-group') {
+        await addMemberToGroup(id, options || {})
       }
       succeeded++
     } catch (e) {
