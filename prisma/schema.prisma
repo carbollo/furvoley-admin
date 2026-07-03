@@ -94,6 +94,40 @@ model Member {
   signupSubmissions SignupLink[] @relation("SignupLinkCreatedMember")
   orders    Order[]
   leads     Lead[]
+  groupMemberships GroupMembership[]
+}
+
+// --- ORGANIGRAMA (grupos y subgrupos) ---
+
+/// Grupo del organigrama. Sustituye progresivamente el concepto de "equipo":
+/// estructura libre en árbol (grupo → subgrupos) con herencia hacia abajo
+/// (los miembros del grupo padre pertenecen automáticamente a los subgrupos).
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    Group?   @relation("GroupTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Group[]  @relation("GroupTree")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships GroupMembership[]
+
+  @@index([parentId])
+}
+
+model GroupMembership {
+  id        String   @id @default(cuid())
+  groupId   String
+  memberId  String
+  role      String   @default("PLAYER") // PLAYER | COACH | FAMILY
+  createdAt DateTime @default(now())
+
+  group  Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, memberId])
+  @@index([memberId])
 }
 
 model Lead {

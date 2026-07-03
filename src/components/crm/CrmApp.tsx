@@ -28,6 +28,7 @@ import {
 import { RegistrationFieldsForm } from '@/components/registration/RegistrationFieldsForm'
 import { MemberCombobox } from '@/components/crm/MemberCombobox'
 import { MembersCsvImportModal } from '@/components/crm/MembersCsvImportModal'
+import { RegistrationFieldsTab } from '@/components/crm/RegistrationFieldsTab'
 
 type CrmCtx = {
   bundle: Record<string, unknown> | null
@@ -475,24 +476,64 @@ const KPICard = ({ label, value, sub, icon, color, trend, badge, chart }) => {
 };
 
 // ── SIDEBAR ─────────────────────────────────────────────────────────────────
+// Estructura de navegación del roadmap: 7 secciones principales.
+// Admin, Contabilidad y Configuración agrupan submódulos desplegables.
 const NAV = [
   { id: 'dashboard', label: 'Inicio', icon: 'dashboard' },
-  { id: 'socios', label: 'Socios', icon: 'users' },
-  { id: 'equipos', label: 'Equipos', icon: 'teams' },
-  { id: 'cuotas', label: 'Gestión de cuotas', icon: 'cuotas' },
-  { id: 'contabilidad', label: 'Contabilidad', icon: 'billing' },
   { id: 'calendario', label: 'Calendario', icon: 'calendar' },
-  { id: 'informes', label: 'Informes', icon: 'reports' },
-  { id: 'workflows', label: 'Flujos', icon: 'workflows' },
-  { id: 'whatsapp', label: 'Whatsapp', icon: 'whatsapp' },
-  { id: 'hermes', label: 'Hermes Agent', icon: 'hermes' },
-  { id: 'personal', label: 'Personal', icon: 'users' },
+  { id: 'whatsapp', label: 'Chat', icon: 'whatsapp' },
+  { id: 'socios', label: 'Socios', icon: 'users' },
+  {
+    id: 'grp-admin', label: 'Admin', icon: 'teams',
+    children: [
+      { id: 'admin-sumario', label: 'Sumario' },
+      { id: 'organigrama', label: 'Organigrama' },
+      { id: 'contactos', label: 'Contactos' },
+      { id: 'asistencia', label: 'Asistencia' },
+      { id: 'equipos', label: 'Equipos' },
+      { id: 'personal', label: 'Personal' },
+    ],
+  },
+  {
+    id: 'grp-conta', label: 'Contabilidad', icon: 'billing',
+    children: [
+      { id: 'contabilidad', label: 'Sumario' },
+      { id: 'cuotas', label: 'Suscripciones' },
+      { id: 'impagos', label: 'Impagos' },
+      { id: 'productos', label: 'Productos' },
+      { id: 'descuentos', label: 'Descuentos' },
+      { id: 'informes', label: 'Informes' },
+    ],
+  },
+  {
+    id: 'grp-confi', label: 'Configuración', icon: 'workflows',
+    children: [
+      { id: 'workflows', label: 'Flujos' },
+      { id: 'forms', label: 'Forms' },
+      { id: 'hermes', label: 'Bot (Hermes)' },
+      { id: 'api', label: 'API' },
+    ],
+  },
 ];
 
 function Sidebar({ active, setActive, onOpenClubSettings }) {
   const { bundle } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
-  const visibleNav = NAV.filter((item) => canAccessCrmSection(role, item.id))
+  // Filtra por RBAC: en grupos, solo los hijos permitidos; el grupo se oculta si queda vacío.
+  const visibleNav = NAV
+    .map((item) =>
+      item.children
+        ? { ...item, children: item.children.filter((c) => canAccessCrmSection(role, c.id)) }
+        : item,
+    )
+    .filter((item) => (item.children ? item.children.length > 0 : canAccessCrmSection(role, item.id)))
+  const groupOfActive = NAV.find((item) => item.children?.some((c) => c.id === active))?.id ?? null
+  const [openGroups, setOpenGroups] = useState(() => new Set(groupOfActive ? [groupOfActive] : []))
+  useEffect(() => {
+    if (groupOfActive) {
+      setOpenGroups((prev) => (prev.has(groupOfActive) ? prev : new Set([...prev, groupOfActive])))
+    }
+  }, [groupOfActive])
   const pending = bundle?.kpis?.cobrosPendientes ?? 0;
   return (
     <div className="sidebar" style={{
@@ -528,49 +569,116 @@ function Sidebar({ active, setActive, onOpenClubSettings }) {
       {/* Nav */}
       <nav style={{flex:1,padding:'4px 0 12px',overflowY:'auto',display:'flex',flexDirection:'column',gap:2}}>
         {visibleNav.map(item => {
-          const isActive = active === item.id;
+          const isGroup = Array.isArray(item.children)
+          const isOpen = isGroup && openGroups.has(item.id)
+          const hasActiveChild = isGroup && item.children.some((c) => c.id === active)
+          const isActive = !isGroup && active === item.id;
           return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setActive(item.id)}
-              title={item.label}
-              style={{
-                display:'flex',alignItems:'center',gap:12,
-                padding:'12px 24px',
-                border:'none',cursor:'pointer',
-                borderLeft: isActive ? '4px solid var(--accent)' : '4px solid transparent',
-                background:isActive ? 'var(--sidebar-active-bg)' : 'transparent',
-                color:isActive ? 'var(--sidebar-active)' : 'var(--sidebar-text)',
-                fontFamily:'inherit',fontSize:14,fontWeight:isActive ? 600 : 500,
-                textAlign:'left',width:'100%',transition:'all 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                  e.currentTarget.style.color = 'var(--sidebar-text-hover)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.color = 'var(--sidebar-text)'
-                }
-              }}
-            >
-              <span style={{
-                opacity:isActive ? 1 : 0.9,flexShrink:0,display:'inline-flex'
-              }}>
-                <Icon name={item.icon} size={18}/>
-              </span>
-              <span style={{flex:1}}>{item.label}</span>
-              {item.id === 'contabilidad' && pending > 0 && (
+            <div key={item.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isGroup) {
+                    setOpenGroups((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(item.id)) next.delete(item.id)
+                      else next.add(item.id)
+                      return next
+                    })
+                  } else {
+                    setActive(item.id)
+                  }
+                }}
+                title={item.label}
+                style={{
+                  display:'flex',alignItems:'center',gap:12,
+                  padding:'12px 24px',
+                  border:'none',cursor:'pointer',
+                  borderLeft: isActive || hasActiveChild ? '4px solid var(--accent)' : '4px solid transparent',
+                  background:isActive ? 'var(--sidebar-active-bg)' : 'transparent',
+                  color:isActive || hasActiveChild ? 'var(--sidebar-active)' : 'var(--sidebar-text)',
+                  fontFamily:'inherit',fontSize:14,fontWeight:isActive || hasActiveChild ? 600 : 500,
+                  textAlign:'left',width:'100%',transition:'all 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                    e.currentTarget.style.color = 'var(--sidebar-text-hover)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.color = hasActiveChild ? 'var(--sidebar-active)' : 'var(--sidebar-text)'
+                  }
+                }}
+              >
                 <span style={{
-                  background:'var(--red)',color:'#fff',
-                  fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:999
-                }}>{pending > 99 ? '99+' : pending}</span>
+                  opacity:isActive || hasActiveChild ? 1 : 0.9,flexShrink:0,display:'inline-flex'
+                }}>
+                  <Icon name={item.icon} size={18}/>
+                </span>
+                <span style={{flex:1}}>{item.label}</span>
+                {item.id === 'grp-conta' && pending > 0 && (
+                  <span style={{
+                    background:'var(--red)',color:'#fff',
+                    fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:999
+                  }}>{pending > 99 ? '99+' : pending}</span>
+                )}
+                {isGroup && (
+                  <span style={{
+                    display:'inline-flex',transition:'transform 0.15s',
+                    transform:isOpen ? 'rotate(90deg)' : 'rotate(0deg)',opacity:0.6
+                  }}>
+                    <Icon name="chevron" size={14}/>
+                  </span>
+                )}
+              </button>
+              {isGroup && isOpen && (
+                <div style={{display:'flex',flexDirection:'column',gap:1,padding:'2px 0 6px'}}>
+                  {item.children.map((child) => {
+                    const childActive = active === child.id
+                    return (
+                      <button
+                        key={child.id}
+                        type="button"
+                        onClick={() => setActive(child.id)}
+                        title={child.label}
+                        style={{
+                          display:'flex',alignItems:'center',gap:10,
+                          padding:'8px 24px 8px 54px',
+                          border:'none',cursor:'pointer',
+                          background:childActive ? 'var(--sidebar-active-bg)' : 'transparent',
+                          color:childActive ? 'var(--sidebar-active)' : 'var(--sidebar-text)',
+                          fontFamily:'inherit',fontSize:13,fontWeight:childActive ? 600 : 500,
+                          textAlign:'left',width:'100%',transition:'all 0.15s',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!childActive) {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                            e.currentTarget.style.color = 'var(--sidebar-text-hover)'
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!childActive) {
+                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.color = 'var(--sidebar-text)'
+                          }
+                        }}
+                      >
+                        <span style={{flex:1}}>{child.label}</span>
+                        {child.id === 'contabilidad' && pending > 0 && (
+                          <span style={{
+                            background:'var(--red)',color:'#fff',
+                            fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:999
+                          }}>{pending > 99 ? '99+' : pending}</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
               )}
-            </button>
+            </div>
           );
         })}
       </nav>
@@ -908,6 +1016,673 @@ function Dashboard({ setActive }) {
       </div>
     </div>
   );
+}
+
+// ── SECCIONES DEL ROADMAP ───────────────────────────────────────────────────
+
+/** Envoltorio común de las secciones nuevas (mismo layout que el resto del CRM). */
+function SectionShell({ title, subtitle, actions, children }) {
+  return (
+    <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
+      <div style={{maxWidth:1280,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:28}}>
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
+          <div>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>{title}</h1>
+            {subtitle && <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>{subtitle}</p>}
+          </div>
+          {actions}
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/** Módulos del roadmap aún sin construir: tarjeta clara con el porqué. */
+function PlaceholderSection({ title, subtitle, note, linkHref, linkLabel }) {
+  return (
+    <SectionShell title={title} subtitle={subtitle}>
+      <div style={{
+        background:'var(--surface-card)',border:'1px dashed var(--border-strong)',borderRadius:14,
+        padding:'40px 32px',textAlign:'center',color:'var(--text-secondary)',fontSize:14,
+        display:'flex',flexDirection:'column',alignItems:'center',gap:10
+      }}>
+        <div style={{fontSize:15,fontWeight:600,color:'var(--text-primary)'}}>En construcción</div>
+        <p style={{margin:0,maxWidth:520}}>{note}</p>
+        {linkHref && (
+          <a href={linkHref} style={{color:'var(--accent)',fontWeight:600,fontSize:13,marginTop:6}}>{linkLabel || 'Abrir'} →</a>
+        )}
+      </div>
+    </SectionShell>
+  )
+}
+
+// ── ADMIN · SUMARIO (dashboard demográfico) ────────────────────────────────
+function AdminSumario() {
+  const { bundle } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch('/api/crm/admin-summary', { credentials: 'include', cache: 'no-store' })
+        if (!r.ok) { if (!cancelled) setError('No se pudo cargar el resumen'); return }
+        const j = await r.json()
+        if (!cancelled) setData(j)
+      } catch {
+        if (!cancelled) setError('No se pudo cargar el resumen')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  if (role !== 'ADMIN') return null
+
+  const GENDER_COLORS = { Masculino: '#2563eb', Femenino: '#e11d48', Otro: '#f59e0b', 'Sin datos': '#d8cdbd' }
+  const MES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
+
+  return (
+    <SectionShell title="Sumario" subtitle="Datos y características de los jugadores del club">
+      {error && <p style={{color:'var(--red)',fontSize:14}}>{error}</p>}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:20}}>
+        <KPICard label="Socios totales" value={String(data?.total ?? '—')} sub="En base de datos" icon="users" color="var(--accent-soft)"/>
+        <KPICard label="Altas este año" value={String(data?.altasEsteAno ?? '—')} sub={`Año ${new Date().getFullYear()}`} icon="users" color="var(--green)"/>
+        <KPICard label="Sin fecha de nacimiento" value={String(data?.sinFechaNacimiento ?? '—')} sub="Completar para estadísticas de edad" icon="reports" color="var(--amber)"/>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',gap:24,alignItems:'start'}}>
+        <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
+          <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Distribución por edad</div>
+          <div style={{fontSize:14,color:'var(--text-secondary)',margin:'4px 0 20px'}}>Socios por tramo de edad</div>
+          <BarChart
+            data={(data?.ages ?? []).map((a) => a.count)}
+            labels={(data?.ages ?? []).map((a) => a.label)}
+            color="var(--accent-soft)"
+            height={200}
+          />
+        </div>
+        <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
+          <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Género</div>
+          <div style={{fontSize:14,color:'var(--text-secondary)',margin:'4px 0 20px'}}>Según el formulario de registro</div>
+          <div style={{display:'flex',justifyContent:'center',marginBottom:20}}>
+            <DonutChart
+              size={150}
+              segments={(data?.gender ?? []).length
+                ? data.gender.map((g) => ({ label: g.label, value: Math.max(g.count, 0.01), color: GENDER_COLORS[g.label] || '#78716c' }))
+                : [{ label: '—', value: 1, color: '#ebe3d8' }]}
+            />
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            {(data?.gender ?? []).map((g) => (
+              <div key={g.label} style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{width:10,height:10,borderRadius:'50%',background:GENDER_COLORS[g.label] || '#78716c',flexShrink:0}}></span>
+                <span style={{fontSize:13,color:'var(--text-primary)',flex:1}}>{g.label}</span>
+                <span style={{fontSize:13,fontWeight:600,color:'var(--text-secondary)'}}>{g.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
+        <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Altas de este año</div>
+        <div style={{fontSize:14,color:'var(--text-secondary)',margin:'4px 0 20px'}}>Nuevos socios por mes</div>
+        <BarChart data={data?.altasPorMes ?? Array(12).fill(0)} labels={MES} color="var(--green)" height={190}/>
+      </div>
+    </SectionShell>
+  )
+}
+
+// ── ADMIN · ORGANIGRAMA (grupos y subgrupos con herencia) ───────────────────
+function GroupTreeNodeRow({ node, depth, selectedId, onSelect }) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => onSelect(node.id)}
+        style={{
+          display:'flex',alignItems:'center',gap:8,width:'100%',
+          padding:`8px 12px 8px ${12 + depth * 18}px`,
+          border:'none',borderRadius:8,cursor:'pointer',fontFamily:'inherit',
+          background:selectedId === node.id ? 'var(--accent-pill)' : 'transparent',
+          color:selectedId === node.id ? 'var(--accent)' : 'var(--text-primary)',
+          fontSize:13,fontWeight:selectedId === node.id ? 700 : 500,textAlign:'left',
+        }}
+      >
+        <span style={{opacity:0.55,display:'inline-flex',flexShrink:0}}>
+          <Icon name={node.children.length ? 'teams' : 'users'} size={13}/>
+        </span>
+        <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{node.name}</span>
+        <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:600}}>{node.directMemberCount}</span>
+      </button>
+      {node.children.map((child) => (
+        <GroupTreeNodeRow key={child.id} node={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect}/>
+      ))}
+    </>
+  )
+}
+
+function Organigrama() {
+  const { bundle, showAlert, showConfirm } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  const [tree, setTree] = useState([])
+  const [selectedId, setSelectedId] = useState('')
+  const [members, setMembers] = useState([])
+  const [groupName, setGroupName] = useState('')
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupParent, setNewGroupParent] = useState('')
+  const [addMemberId, setAddMemberId] = useState('')
+  const [addMemberLabel, setAddMemberLabel] = useState('')
+  const [addMemberRole, setAddMemberRole] = useState('PLAYER')
+  const [busy, setBusy] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
+
+  const flatGroups = useMemo(() => {
+    const out = []
+    const walk = (nodes, depth) => {
+      for (const n of nodes) {
+        out.push({ id: n.id, name: n.name, depth })
+        walk(n.children, depth + 1)
+      }
+    }
+    walk(tree, 0)
+    return out
+  }, [tree])
+
+  const loadTree = useCallback(async () => {
+    const r = await fetch('/api/crm/groups', { credentials: 'include', cache: 'no-store' })
+    if (!r.ok) return
+    const j = await r.json()
+    setTree(j.tree || [])
+  }, [])
+
+  const loadMembers = useCallback(async (groupId) => {
+    if (!groupId) { setMembers([]); setGroupName(''); return }
+    const r = await fetch(`/api/crm/groups/${groupId}/members`, { credentials: 'include', cache: 'no-store' })
+    if (!r.ok) { setMembers([]); return }
+    const j = await r.json()
+    setMembers(j.members || [])
+    setGroupName(j.group?.name || '')
+  }, [])
+
+  useEffect(() => { void loadTree() }, [loadTree])
+  useEffect(() => { void loadMembers(selectedId) }, [selectedId, loadMembers])
+
+  if (role !== 'ADMIN') return null
+
+  async function crearGrupo() {
+    const name = newGroupName.trim()
+    if (!name) { showAlert('Pon un nombre al grupo.'); return }
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/groups', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, parentId: newGroupParent || null }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo crear el grupo'); return }
+      setNewGroupName('')
+      await loadTree()
+    } finally { setBusy(false) }
+  }
+
+  async function eliminarGrupo() {
+    if (!selectedId) return
+    const ok = await showConfirm(`¿Eliminar el grupo «${groupName}»? Sus subgrupos pasan al nivel raíz.`).catch(() => false)
+    if (!ok) return
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/crm/groups/${selectedId}`, { method: 'DELETE', credentials: 'include' })
+      if (!r.ok) { showAlert('No se pudo eliminar'); return }
+      setSelectedId('')
+      await loadTree()
+    } finally { setBusy(false) }
+  }
+
+  async function anadirMiembro() {
+    if (!selectedId || !addMemberId) { showAlert('Selecciona un grupo y un socio.'); return }
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/crm/groups/${selectedId}/members`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId: addMemberId, role: addMemberRole }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo añadir'); return }
+      setAddMemberId(''); setAddMemberLabel('')
+      await Promise.all([loadMembers(selectedId), loadTree()])
+    } finally { setBusy(false) }
+  }
+
+  async function quitarMiembro(memberId) {
+    if (!selectedId) return
+    setBusy(true)
+    try {
+      const r = await fetch(`/api/crm/groups/${selectedId}/members?memberId=${encodeURIComponent(memberId)}`, {
+        method: 'DELETE', credentials: 'include',
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo quitar'); return }
+      await Promise.all([loadMembers(selectedId), loadTree()])
+    } finally { setBusy(false) }
+  }
+
+  /** Acción en lote sobre TODOS los miembros efectivos del grupo (directos + heredados). */
+  async function accionEnLote(action, extra) {
+    if (!selectedId || members.length === 0) { showAlert('El grupo no tiene miembros.'); return }
+    if (extra?.confirmMessage) {
+      const ok = await showConfirm(extra.confirmMessage).catch(() => false)
+      if (!ok) return
+    }
+    setBulkBusy(true)
+    try {
+      const r = await fetch('/api/crm/members/batch', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberIds: members.map((m) => m.memberId), action, status: extra?.status }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo completar la acción'); return }
+      showAlert(`Acción completada: ${j.succeeded ?? 0} correctos, ${j.failed ?? 0} fallidos.`)
+    } finally { setBulkBusy(false) }
+  }
+
+  const GROUP_ROLE_LABELS = { PLAYER: 'Jugador', COACH: 'Entrenador', FAMILY: 'Familiar' }
+
+  return (
+    <SectionShell
+      title="Organigrama"
+      subtitle="Grupos y subgrupos con herencia: quien está en el grupo padre pertenece automáticamente a sus subgrupos"
+    >
+      <div style={{display:'grid',gridTemplateColumns:'minmax(240px, 1fr) minmax(0, 2.4fr)',gap:24,alignItems:'start'}}>
+        {/* Árbol lateral */}
+        <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:16,display:'flex',flexDirection:'column',gap:12}}>
+          <div style={{fontWeight:700,fontSize:14,color:'var(--text-primary)',padding:'4px 8px'}}>Grupos</div>
+          <div style={{display:'flex',flexDirection:'column',gap:2}}>
+            {tree.length === 0 && (
+              <p style={{fontSize:13,color:'var(--text-muted)',padding:'4px 8px'}}>Aún no hay grupos. Crea el primero abajo.</p>
+            )}
+            {tree.map((node) => (
+              <GroupTreeNodeRow key={node.id} node={node} depth={0} selectedId={selectedId} onSelect={setSelectedId}/>
+            ))}
+          </div>
+          <div style={{borderTop:'1px solid var(--border)',paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
+            <input
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              placeholder="Nombre del grupo…"
+              style={{padding:'9px 11px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13}}
+            />
+            <select
+              value={newGroupParent}
+              onChange={(e) => setNewGroupParent(e.target.value)}
+              style={{padding:'9px 11px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,background:'#fff'}}
+            >
+              <option value="">Grupo raíz (sin padre)</option>
+              {flatGroups.map((g) => (
+                <option key={g.id} value={g.id}>{`${'— '.repeat(g.depth)}${g.name}`}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={busy || !newGroupName.trim()}
+              onClick={crearGrupo}
+              style={{padding:'9px 12px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:busy||!newGroupName.trim()?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:busy||!newGroupName.trim()?0.6:1}}
+            >
+              Crear grupo
+            </button>
+          </div>
+        </div>
+
+        {/* Detalle del grupo */}
+        <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:24,minHeight:320}}>
+          {!selectedId ? (
+            <div style={{color:'var(--text-muted)',fontSize:14,textAlign:'center',padding:'60px 20px'}}>
+              Selecciona un grupo del árbol para ver sus miembros y lanzar acciones en lote.
+            </div>
+          ) : (
+            <>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:16}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:18,color:'var(--text-primary)'}}>{groupName}</div>
+                  <div style={{fontSize:13,color:'var(--text-secondary)',marginTop:2}}>
+                    {members.length} miembro{members.length === 1 ? '' : 's'} efectivo{members.length === 1 ? '' : 's'} (directos + heredados)
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  <button type="button" disabled={bulkBusy || members.length === 0}
+                    onClick={() => accionEnLote('send-payment-reminder', { confirmMessage: `¿Enviar recordatorio de cobro por WhatsApp a los ${members.length} miembros de «${groupName}»?` })}
+                    style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--green-light)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                    {bulkBusy ? 'Enviando…' : 'Recordar cobros al grupo'}
+                  </button>
+                  <button type="button" disabled={bulkBusy || members.length === 0}
+                    onClick={() => accionEnLote('set-status', { status: 'ACTIVE', confirmMessage: `¿Marcar como activos a los ${members.length} miembros de «${groupName}»?` })}
+                    style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                    Marcar activos
+                  </button>
+                  <button type="button" disabled={busy}
+                    onClick={eliminarGrupo}
+                    style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--red)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                    Eliminar grupo
+                  </button>
+                </div>
+              </div>
+
+              {/* Añadir miembro */}
+              <div style={{display:'flex',gap:8,alignItems:'flex-end',flexWrap:'wrap',padding:'12px 0 16px',borderBottom:'1px solid var(--border)'}}>
+                <div style={{flex:'1 1 240px'}}>
+                  <MemberCombobox
+                    value={addMemberId}
+                    displayLabel={addMemberLabel}
+                    onChange={(memberId, member) => { setAddMemberId(memberId); setAddMemberLabel(member?.nombre || '') }}
+                    placeholder="Buscar socio para añadir…"
+                  />
+                </div>
+                <select value={addMemberRole} onChange={(e) => setAddMemberRole(e.target.value)}
+                  style={{padding:'10px 11px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,background:'#fff'}}>
+                  <option value="PLAYER">Jugador</option>
+                  <option value="COACH">Entrenador</option>
+                  <option value="FAMILY">Familiar</option>
+                </select>
+                <button type="button" disabled={busy || !addMemberId} onClick={anadirMiembro}
+                  style={{padding:'10px 16px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:busy||!addMemberId?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:busy||!addMemberId?0.6:1}}>
+                  Añadir al grupo
+                </button>
+              </div>
+
+              {/* Lista de miembros efectivos */}
+              <div style={{display:'flex',flexDirection:'column'}}>
+                {members.length === 0 && (
+                  <p style={{fontSize:13,color:'var(--text-muted)',padding:'16px 0'}}>Este grupo aún no tiene miembros.</p>
+                )}
+                {members.map((m) => (
+                  <div key={m.memberId} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+                    <Avatar initials={(m.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="#2563eb" size={32}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</div>
+                      <div style={{fontSize:12,color:'var(--text-muted)'}}>{m.email || '—'}</div>
+                    </div>
+                    <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:999,background:'var(--accent-pill)',color:'var(--accent)'}}>
+                      {GROUP_ROLE_LABELS[m.role] || m.role}
+                    </span>
+                    {m.inherited ? (
+                      <span title={`Pertenece por herencia de «${m.inheritedFrom}»`}
+                        style={{fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:999,background:'var(--surface-low)',color:'var(--text-muted)'}}>
+                        Heredado · {m.inheritedFrom}
+                      </span>
+                    ) : (
+                      <button type="button" disabled={busy} onClick={() => quitarMiembro(m.memberId)}
+                        style={{padding:'6px 10px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--red)',cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:600}}>
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </SectionShell>
+  )
+}
+
+// ── CONTABILIDAD · IMPAGOS ──────────────────────────────────────────────────
+function Impagos() {
+  const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  const [busyId, setBusyId] = useState('')
+  const [reprogramId, setReprogramId] = useState('')
+  const [reprogramDate, setReprogramDate] = useState('')
+
+  if (!(role === 'ADMIN' || role === 'TREASURER')) return null
+
+  const cobros = Array.isArray(bundle?.cobros) ? bundle.cobros : []
+  const impagos = cobros.filter((c) => c.estado === 'Vencido')
+  const totalVencido = impagos.reduce((a, c) => a + (c.pendingAmount ?? c.monto ?? 0), 0)
+  const sociosAfectados = new Set(impagos.map((c) => c.memberId)).size
+
+  async function reenviarAviso(c) {
+    const ok = await showConfirm(`¿Reenviar aviso de cobro por WhatsApp a ${c.socio}?`).catch(() => false)
+    if (!ok) return
+    setBusyId(c.id)
+    try {
+      const r = await fetch('/api/crm/members/batch', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberIds: [c.memberId], action: 'send-payment-reminder' }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || (j.failed ?? 0) > 0) {
+        showAlert(j.errors?.[0]?.message || j.error || 'No se pudo enviar el aviso')
+        return
+      }
+      showAlert(`Aviso reenviado a ${c.socio}.`)
+    } finally { setBusyId('') }
+  }
+
+  async function reprogramar(c) {
+    if (!reprogramDate) { showAlert('Elige la nueva fecha de vencimiento.'); return }
+    setBusyId(c.id)
+    try {
+      const r = await fetch(`/api/crm/invoices/${c.id}`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dueDate: reprogramDate }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo reprogramar'); return }
+      setReprogramId(''); setReprogramDate('')
+      await reload()
+    } finally { setBusyId('') }
+  }
+
+  return (
+    <SectionShell title="Impagos" subtitle="Cobros vencidos pendientes: reprograma o reenvía el aviso">
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:20}}>
+        <KPICard label="Impagos" value={String(impagos.length)} sub="Facturas vencidas" icon="billing" color={impagos.length > 0 ? 'var(--red)' : 'var(--green)'} badge={impagos.length > 0 ? { kind:'danger', text:'Revisar' } : null}/>
+        <KPICard label="Importe vencido" value={fmtMoney(totalVencido)} sub="Pendiente de cobrar" icon="billing" color="var(--amber)"/>
+        <KPICard label="Socios afectados" value={String(sociosAfectados)} sub="Con al menos un impago" icon="users" color="var(--accent-soft)"/>
+      </div>
+      <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
+        {impagos.length === 0 ? (
+          <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
+            No hay cobros vencidos. Todo al día. 🎉
+          </div>
+        ) : (
+          <table style={{width:'100%',borderCollapse:'collapse'}}>
+            <thead>
+              <tr style={{background:'var(--surface-low)'}}>
+                {['Socio','Concepto','Pendiente','Vencimiento',''].map((h) => (
+                  <th key={h} style={{padding:'12px 24px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {impagos.map((c) => (
+                <tr key={c.id} style={{borderTop:'1px solid var(--border)'}}>
+                  <td style={{padding:'14px 24px',fontSize:14,fontWeight:600,color:'var(--text-primary)'}}>{c.socio}</td>
+                  <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{c.concepto}</td>
+                  <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--red)'}}>{fmtMoney(c.pendingAmount ?? c.monto)}</td>
+                  <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{new Date(c.vencimiento).toLocaleDateString('es-ES')}</td>
+                  <td style={{padding:'14px 24px'}}>
+                    <div style={{display:'flex',gap:8,justifyContent:'flex-end',alignItems:'center',flexWrap:'wrap'}}>
+                      {reprogramId === c.id ? (
+                        <>
+                          <input type="date" value={reprogramDate} onChange={(e) => setReprogramDate(e.target.value)}
+                            style={{padding:'7px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:12}}/>
+                          <button type="button" disabled={busyId === c.id} onClick={() => reprogramar(c)}
+                            style={{padding:'7px 12px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                            Guardar
+                          </button>
+                          <button type="button" onClick={() => { setReprogramId(''); setReprogramDate('') }}
+                            style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-secondary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button type="button" disabled={busyId === c.id} onClick={() => setReprogramId(c.id)}
+                            style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                            Reprogramar
+                          </button>
+                          <button type="button" disabled={busyId === c.id} onClick={() => reenviarAviso(c)}
+                            style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--green-light)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                            {busyId === c.id ? 'Enviando…' : 'Reenviar aviso'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </SectionShell>
+  )
+}
+
+// ── CONFIGURACIÓN · FORMS (constructor de formularios) ─────────────────────
+function FormsConfigSection() {
+  const { bundle, reload, showAlert } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  const [fields, setFields] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch('/api/crm/club-settings', { credentials: 'include', cache: 'no-store' })
+        if (!r.ok) return
+        const j = await r.json()
+        if (!cancelled) setFields(j.registrationFieldsConfig || [])
+      } catch { /* noop */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  if (role !== 'ADMIN') return null
+
+  async function guardar() {
+    setSaving(true)
+    try {
+      const r = await fetch('/api/crm/club-settings', {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationFieldsConfig: fields }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo guardar'); return }
+      showAlert('Formulario guardado correctamente.')
+      await reload()
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <SectionShell
+      title="Forms"
+      subtitle="Constructor de formularios: define los campos del registro de socios (base para asistencia y contactos)"
+      actions={
+        <button type="button" disabled={saving || !fields} onClick={guardar}
+          style={{padding:'10px 18px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:saving?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:saving?0.6:1}}>
+          {saving ? 'Guardando…' : 'Guardar formulario'}
+        </button>
+      }
+    >
+      <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:24}}>
+        {fields === null ? (
+          <p style={{fontSize:13,color:'var(--text-muted)'}}>Cargando formulario…</p>
+        ) : (
+          <RegistrationFieldsTab fields={fields} onChange={setFields}/>
+        )}
+      </div>
+    </SectionShell>
+  )
+}
+
+// ── CONFIGURACIÓN · API ─────────────────────────────────────────────────────
+function ApiInfoSection() {
+  const { bundle } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  if (role !== 'ADMIN') return null
+  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  const endpoints = [
+    ['GET', '/api/public/v1', 'Índice y documentación de la API'],
+    ['GET', '/api/public/v1/teams', 'Equipos y horarios fijos'],
+    ['GET', '/api/public/v1/events', 'Actividades (entrenamientos, partidos…)'],
+    ['GET', '/api/public/v1/calendar', 'Resumen: eventos, festivos, equipos y horarios'],
+    ['GET', '/api/public/v1/news', 'Noticias publicadas'],
+    ['POST', '/api/public/v1/query', 'Endpoint único para bots (JSON)'],
+  ]
+  return (
+    <SectionShell title="API" subtitle="Integraciones externas: API pública deportiva de solo lectura">
+      <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:24,display:'flex',flexDirection:'column',gap:16}}>
+        <p style={{margin:0,fontSize:14,color:'var(--text-secondary)',lineHeight:1.6}}>
+          La API pública expone datos deportivos (equipos, horarios, actividades y noticias) sin datos personales
+          ni de facturación. Si defines <code style={{background:'var(--surface-low)',padding:'2px 6px',borderRadius:6,fontSize:12}}>PUBLIC_SPORTS_API_KEY</code> en
+          el servidor, exige <code style={{background:'var(--surface-low)',padding:'2px 6px',borderRadius:6,fontSize:12}}>Authorization: Bearer</code> o el header <code style={{background:'var(--surface-low)',padding:'2px 6px',borderRadius:6,fontSize:12}}>X-API-Key</code>.
+        </p>
+        <div style={{border:'1px solid var(--border)',borderRadius:10,overflow:'hidden'}}>
+          {endpoints.map(([method, path, desc], i) => (
+            <div key={path} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px',borderTop:i === 0 ? 'none' : '1px solid var(--border)',flexWrap:'wrap'}}>
+              <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:999,background:method === 'GET' ? 'var(--green-light)' : 'var(--accent-pill)',color:method === 'GET' ? 'var(--green)' : 'var(--accent)',flexShrink:0}}>{method}</span>
+              <code style={{fontSize:13,color:'var(--text-primary)',fontWeight:600}}>{base}{path}</code>
+              <span style={{fontSize:12,color:'var(--text-muted)',flex:1,minWidth:160}}>{desc}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </SectionShell>
+  )
+}
+
+// ── PLACEHOLDERS DEL ROADMAP (módulos con dependencias pendientes) ─────────
+function ContactosPlaceholder() {
+  return (
+    <PlaceholderSection
+      title="Contactos"
+      subtitle="Directorio con la información recogida por los formularios"
+      note="Esta pantalla heredará la vista de Socios y mostrará además lo que cada persona respondió en los formularios de registro/asistencia. Depende del motor de Forms; mientras tanto, usa la sección Socios (misma tabla, ficha y acciones en lote)."
+    />
+  )
+}
+
+function AsistenciaPlaceholder() {
+  return (
+    <PlaceholderSection
+      title="Asistencia"
+      subtitle="Checklist de «quién vino hoy» por grupo y fecha"
+      note="Se generará un enlace-checklist desde cada evento del calendario para que el entrenador marque la asistencia sin entrar al CRM. Depende de Forms + Flujos; la asistencia por evento ya existe hoy dentro de cada evento del Calendario."
+    />
+  )
+}
+
+function ProductosPlaceholder() {
+  return (
+    <PlaceholderSection
+      title="Productos"
+      subtitle="Cobros más allá de la cuota: pago único y productos de evento"
+      note="Aquí se crearán productos de pago único (p. ej. equipaciones) para cobrarlos a socios o grupos. La tienda actual del club ya permite gestionar productos y pedidos."
+      linkHref="/admin/store"
+      linkLabel="Abrir la tienda actual"
+    />
+  )
+}
+
+function DescuentosPlaceholder() {
+  return (
+    <PlaceholderSection
+      title="Descuentos"
+      subtitle="Generador de códigos de descuento para cuotas y suscripciones"
+      note="Aquí se generarán códigos (hermanos, familia numerosa…) aplicables al crear una cuota o suscripción. Depende del módulo de Suscripciones."
+    />
+  )
 }
 
 // ── SOCIOS ──────────────────────────────────────────────────────────────────
@@ -6421,7 +7196,7 @@ function WhatsAppSection() {
         {/* Header */}
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
           <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>WhatsApp</h1>
+            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Chat</h1>
             <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>Conexión ApiWass y envío integrado con el CRM</p>
           </div>
           <span style={{
@@ -6762,6 +7537,16 @@ function CrmInner() {
     whatsapp: WhatsAppSection,
     hermes: HermesAgentSection,
     personal: Personal,
+    // Roadmap
+    'admin-sumario': AdminSumario,
+    organigrama: Organigrama,
+    contactos: ContactosPlaceholder,
+    asistencia: AsistenciaPlaceholder,
+    impagos: Impagos,
+    productos: ProductosPlaceholder,
+    descuentos: DescuentosPlaceholder,
+    forms: FormsConfigSection,
+    api: ApiInfoSection,
   };
   const Screen = screens[safeActive] || Dashboard;
 
