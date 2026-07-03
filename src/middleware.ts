@@ -4,9 +4,34 @@ import type { NextRequest } from "next/server"
 import { normalizeRole } from "@/lib/rbac"
 import { resolveNextAuthSecret } from "@/lib/auth-secret"
 import { getPortalAdminPath } from "@/lib/portal-central/config"
+import { isMultiTenant, sanitizeSlug, tenantSlugFromHost } from "@/lib/multitenant/registry"
 
 const PORTAL_CENTRAL_HOST =
   String(process.env.PORTAL_CENTRAL_HOST || "").trim().toLowerCase() === "true"
+
+const TENANT_ALLOW_OVERRIDE =
+  String(process.env.TENANT_ALLOW_OVERRIDE || "").trim().toLowerCase() === "true"
+
+/**
+ * Cabeceras a reenviar al handler con el tenant resuelto de forma autoritativa
+ * desde el subdominio. Se ELIMINA cualquier `x-tenant-slug` que venga del
+ * cliente (evita que alguien fuerce leer otro tenant). Solo en modo pruebas
+ * (`TENANT_ALLOW_OVERRIDE=true`) se permite `?tenant=` / `x-tenant-override`.
+ */
+function tenantHeaders(req: NextRequest): Headers {
+  const fwd = new Headers(req.headers)
+  fwd.delete("x-tenant-slug")
+  if (!isMultiTenant()) return fwd
+
+  let slug = tenantSlugFromHost(req.headers.get("host"))
+  if (!slug && TENANT_ALLOW_OVERRIDE) {
+    slug = sanitizeSlug(
+      req.nextUrl.searchParams.get("tenant") || req.headers.get("x-tenant-override"),
+    )
+  }
+  if (slug) fwd.set("x-tenant-slug", slug)
+  return fwd
+}
 
 const LEGACY_ADMIN_PREFIXES = ["/__furvoley-config", "/_furvoley-config"]
 
@@ -72,8 +97,12 @@ export async function middleware(req: NextRequest) {
   const legacyAdmin = redirectLegacyAdminPath(req)
   if (legacyAdmin) return legacyAdmin
 
+  // Tenant resuelto por subdominio; se reenvía a los handlers en cada pass-through.
+  const fwd = tenantHeaders(req)
+  const pass = () => NextResponse.next({ request: { headers: fwd } })
+
   if (isPortalPublicPath(path)) {
-    return NextResponse.next()
+    return pass()
   }
 
   if (PORTAL_CENTRAL_HOST) {
@@ -83,28 +112,28 @@ export async function middleware(req: NextRequest) {
     if (!path.startsWith("/_next") && path !== "/favicon.ico") {
       return NextResponse.redirect(new URL("/portal", req.url))
     }
-    return NextResponse.next()
+    return pass()
   }
 
   // MCP Hermes: auth Bearer en la ruta, no sesión NextAuth (gateway en localhost).
   if (path.startsWith("/api/hermes/mcp")) {
-    return NextResponse.next()
+    return pass()
   }
 
   // Portal SSO: verify (server-to-server) y consume token sin sesión previa.
   if (path.startsWith("/api/portal/")) {
-    return NextResponse.next()
+    return pass()
   }
 
   // Enlaces públicos de workflows (/r/...) y API pública (sin login).
   if (path.startsWith("/r/") || path.startsWith("/api/public/")) {
-    return NextResponse.next()
+    return pass()
   }
 
   // Detalle público de evento (sin login).
   const eventPublic = /^\/events\/([^/]+)$/.exec(path)
   if (eventPublic && eventPublic[1] !== "new") {
-    return NextResponse.next()
+    return pass()
   }
 
   let token: Awaited<ReturnType<typeof getToken>> = null
@@ -172,7 +201,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next()
+  return pass()
 }
 
 export const config = {

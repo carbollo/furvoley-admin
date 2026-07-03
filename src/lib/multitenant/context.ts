@@ -16,9 +16,18 @@ export type TenantContext = {
 
 const als = new AsyncLocalStorage<TenantContext>()
 
-/** Ejecuta `fn` con un tenant activo en el contexto. */
+/** Ejecuta `fn` con un tenant activo en el contexto (tareas de fondo, tests). */
 export function withTenant<T>(ctx: TenantContext, fn: () => T): T {
   return als.run(ctx, fn)
+}
+
+/**
+ * Activa el tenant para el resto de la ejecución async actual, sin envolver un
+ * callback. Se usa en el borde de la petición (p. ej. dentro de requireRoles),
+ * ya que Next no ofrece un punto único para envolver todos los handlers.
+ */
+export function enterTenant(ctx: TenantContext): void {
+  als.enterWith(ctx)
 }
 
 /** Tenant activo en la petición/tarea actual, si lo hay. */

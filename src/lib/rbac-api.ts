@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { hasRole, normalizeRole, type AppRole } from '@/lib/rbac'
 import { getSessionFromRequest } from '@/lib/session'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 
 export type SessionRole = AppRole
 
@@ -17,6 +18,8 @@ export async function getSessionRole(request?: Request) {
 }
 
 export async function requireRoles(allowed: AppRole[], request?: Request) {
+  // Activa la BD del tenant (multi-tenant) antes de cualquier consulta.
+  await enterTenantFromRequest(request)
   const { session, role } = await getSessionRole(request)
   if (!session?.user || !role || !hasRole(role, allowed)) {
     return {
