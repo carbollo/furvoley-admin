@@ -724,8 +724,12 @@ model Product {
   stock       Int      @default(0)
   image       String?
   category    String?
-  /// Tipo de cobro (roadmap · 6.4): ONE_TIME (pago único) | EVENT (evento / una sola vez).
+  /// Tipo de cobro (roadmap · 6.4): ONE_TIME (pago único) | SUBSCRIPTION (recurrente).
   type        String   @default("ONE_TIME")
+  /// Solo SUBSCRIPTION: periodicidad del cobro (MONTHLY, QUARTERLY, YEARLY).
+  billingPeriod String?
+  /// Solo SUBSCRIPTION: plan de cuota vinculado que ejecuta el cobro recurrente.
+  subscriptionPlanId String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

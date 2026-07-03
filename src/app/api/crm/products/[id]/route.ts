@@ -41,7 +41,22 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   try {
-    await prisma.product.update({ where: { id: parsedId }, data })
+    const updated = await prisma.product.update({
+      where: { id: parsedId },
+      data,
+      select: { subscriptionPlanId: true },
+    })
+    // Producto de suscripción: mantener el plan vinculado en sincronía
+    // (precio, nombre y estado), para que el cobro recurrente siga al producto.
+    if (updated.subscriptionPlanId) {
+      await prisma.membershipPlan.updateMany({
+        where: { id: updated.subscriptionPlanId },
+        data: {
+          ...(data.price !== undefined ? { amount: data.price } : {}),
+          ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+        },
+      })
+    }
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 })

@@ -2552,7 +2552,7 @@ function ProductosSection() {
   const { bundle, fmtMoney, showAlert } = useCrm()
   const role = normalizeRole(bundle?.user?.role)
   const [products, setProducts] = useState([])
-  const [form, setForm] = useState({ name: '', type: 'ONE_TIME', price: '', description: '' })
+  const [form, setForm] = useState({ name: '', type: 'ONE_TIME', billingPeriod: 'MONTHLY', price: '', description: '' })
   const [busy, setBusy] = useState(false)
   const [rowBusyId, setRowBusyId] = useState('')
 
@@ -2571,8 +2571,9 @@ function ProductosSection() {
 
   const TYPE_META = {
     ONE_TIME: { label: 'Pago único', bg: 'var(--accent-pill)', color: 'var(--accent)' },
-    EVENT: { label: 'Evento · una sola vez', bg: 'var(--amber-soft)', color: 'var(--amber)' },
+    SUBSCRIPTION: { label: 'Suscripción', bg: 'var(--green-soft)', color: 'var(--green)' },
   }
+  const PERIOD_LABEL = { MONTHLY: 'mensual', QUARTERLY: 'trimestral', YEARLY: 'anual' }
 
   async function crearProducto(e) {
     e.preventDefault()
@@ -2585,11 +2586,20 @@ function ProductosSection() {
       const r = await fetch('/api/crm/products', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, type: form.type, price, description: form.description.trim() || undefined }),
+        body: JSON.stringify({
+          name,
+          type: form.type,
+          price,
+          description: form.description.trim() || undefined,
+          ...(form.type === 'SUBSCRIPTION' ? { billingPeriod: form.billingPeriod } : {}),
+        }),
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo crear el producto'); return }
-      setForm({ name: '', type: 'ONE_TIME', price: '', description: '' })
+      if (form.type === 'SUBSCRIPTION') {
+        showAlert('Producto de suscripción creado. Ya aparece como plan en Contabilidad → Suscripciones: asígnalo a un socio o grupo y el cobro se emitirá de forma recurrente.')
+      }
+      setForm({ name: '', type: 'ONE_TIME', billingPeriod: 'MONTHLY', price: '', description: '' })
       await loadProducts()
     } finally { setBusy(false) }
   }
@@ -2622,7 +2632,7 @@ function ProductosSection() {
       {/* Pantalla de creación (nombre, tipo, precio) */}
       <form onSubmit={crearProducto} style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:24}}>
         <div style={{fontWeight:700,fontSize:15,color:'var(--text-primary)',marginBottom:14}}>Crear producto</div>
-        <div style={{display:'grid',gridTemplateColumns:'2fr 1.4fr 1fr auto',gap:10,alignItems:'end'}}>
+        <div style={{display:'grid',gridTemplateColumns:form.type === 'SUBSCRIPTION' ? '2fr 1.2fr 1.2fr 1fr auto' : '2fr 1.4fr 1fr auto',gap:10,alignItems:'end'}}>
           <div>
             <label style={{display:'block',fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:6}}>Nombre *</label>
             <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -2633,9 +2643,20 @@ function ProductosSection() {
             <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
               style={{...inputSt, width:'100%', background:'#fff', cursor:'pointer'}}>
               <option value="ONE_TIME">Pago único</option>
-              <option value="EVENT">Evento / una sola vez</option>
+              <option value="SUBSCRIPTION">Suscripción (pago recurrente)</option>
             </select>
           </div>
+          {form.type === 'SUBSCRIPTION' && (
+            <div>
+              <label style={{display:'block',fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:6}}>Se cobra *</label>
+              <select value={form.billingPeriod} onChange={(e) => setForm((f) => ({ ...f, billingPeriod: e.target.value }))}
+                style={{...inputSt, width:'100%', background:'#fff', cursor:'pointer'}}>
+                <option value="MONTHLY">Cada mes</option>
+                <option value="QUARTERLY">Cada trimestre</option>
+                <option value="YEARLY">Cada año</option>
+              </select>
+            </div>
+          )}
           <div>
             <label style={{display:'block',fontSize:12,fontWeight:600,color:'var(--text-secondary)',marginBottom:6}}>Precio (€) *</label>
             <input type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
@@ -2646,6 +2667,11 @@ function ProductosSection() {
             {busy ? 'Creando…' : 'Crear producto'}
           </button>
         </div>
+        {form.type === 'SUBSCRIPTION' && (
+          <p style={{margin:'10px 0 0',fontSize:12,color:'var(--text-muted)'}}>
+            El producto se crea también como plan en <strong>Contabilidad → Suscripciones</strong>: al asignarlo a un socio o grupo, la factura se emite de forma recurrente con la periodicidad elegida.
+          </p>
+        )}
         <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           placeholder="Descripción (opcional)…" style={{...inputSt, width:'100%', marginTop:10}}/>
       </form>
@@ -2675,9 +2701,14 @@ function ProductosSection() {
                       {p.description && <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{p.description}</div>}
                     </td>
                     <td style={{padding:'14px 24px'}}>
-                      <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:meta.bg,color:meta.color,whiteSpace:'nowrap'}}>{meta.label}</span>
+                      <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:meta.bg,color:meta.color,whiteSpace:'nowrap'}}>
+                        {meta.label}{p.type === 'SUBSCRIPTION' && p.billingPeriod ? ` · ${PERIOD_LABEL[p.billingPeriod] || ''}` : ''}
+                      </span>
                     </td>
-                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(p.price)}</td>
+                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>
+                      {fmtMoney(p.price)}
+                      {p.type === 'SUBSCRIPTION' && p.billingPeriod ? <span style={{fontSize:11,fontWeight:500,color:'var(--text-muted)'}}> /{PERIOD_LABEL[p.billingPeriod] || ''}</span> : null}
+                    </td>
                     <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{p.sales}</td>
                     <td style={{padding:'14px 24px'}}>
                       <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:p.isActive ? 'var(--green-soft)' : 'var(--surface-low)',color:p.isActive ? 'var(--green)' : 'var(--text-muted)'}}>
