@@ -53,8 +53,17 @@ async function main() {
     require('./start-portal-central.cjs')
     return
   }
-  await ensureSchema()
-  await ensureAdminUser()
+  // Multi-tenant (Modelo C): no hay una única BD que sincronizar aquí. Cada BD
+  // de cliente se crea y migra al provisionar (scripts/provision-tenant.cjs).
+  const multiTenant = String(process.env.MULTITENANT || '').trim().toLowerCase() === 'true'
+  if (multiTenant) {
+    process.stdout.write(
+      '[startup] Modo multi-tenant: se omite db push y bootstrap de admin (las BDs de tenant se migran al provisionar).\n',
+    )
+  } else {
+    await ensureSchema()
+    await ensureAdminUser()
+  }
   const child = spawn(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
     ['next', 'start'],

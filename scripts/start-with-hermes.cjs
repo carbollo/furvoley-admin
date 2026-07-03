@@ -59,9 +59,18 @@ async function main() {
     require('./start-portal-central.cjs')
     return
   }
-  await ensureSchema()
-  await ensureAdminUser()
-  syncHermesConfigOnly()
+  // Multi-tenant (Modelo C): no hay una única BD. Cada BD de cliente se crea y
+  // migra al provisionar; Hermes es por-tenant (no arranca globalmente aquí).
+  const multiTenant = String(process.env.MULTITENANT || '').trim().toLowerCase() === 'true'
+  if (multiTenant) {
+    process.stdout.write(
+      '[startup] Modo multi-tenant: se omite db push, bootstrap de admin y sync de Hermes (se hace por tenant).\n',
+    )
+  } else {
+    await ensureSchema()
+    await ensureAdminUser()
+    syncHermesConfigOnly()
+  }
   const child = spawn(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
     ['next', 'start'],
