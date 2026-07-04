@@ -149,6 +149,9 @@ export async function middleware(req: NextRequest) {
     token = await getToken({
       req,
       secret: resolveNextAuthSecret(),
+      // Debe coincidir con useSecureCookies de authOptions y con el nombre de
+      // cookie que emite el SSO; si no, no encuentra la sesión y rebota al login.
+      secureCookie: process.env.NODE_ENV === 'production',
     })
   } catch {
     // Cookie firmada con otro NEXTAUTH_SECRET (clon, redeploy, etc.) — no

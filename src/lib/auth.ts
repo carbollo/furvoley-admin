@@ -29,6 +29,10 @@ function ipFromAuthorizeReq(req: unknown): string {
 
 export const authOptions: NextAuthOptions = {
   secret: authSecret,
+  // Nombre de cookie determinista por entorno (no depende de NEXTAUTH_URL, que en
+  // multi-tenant varía por host): en producción `__Secure-next-auth.session-token`,
+  // igual que emite el SSO del portal (buildPortalSessionCookie).
+  useSecureCookies: process.env.NODE_ENV === 'production',
   adapter: PrismaAdapter(prisma) as any,
   providers: [
     CredentialsProvider({
