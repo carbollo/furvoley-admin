@@ -8937,7 +8937,10 @@ function WhatsAppSection() {
       const list = Array.isArray(sJ.sessions) ? sJ.sessions : []
       const one = list[0] || null
       setSession(one)
-      const next = preferredSessionId || activeSessionId || one?.id || ''
+      // El id REAL de la sesión (con el prefijo que añade ApiWass, p.ej. "93_x")
+      // manda siempre: solo hay una sesión por club. Si se usara el id preferido
+      // (el que se teclea al crear, sin prefijo), Eliminar/Reiniciar fallarían.
+      const next = one?.id || preferredSessionId || activeSessionId || ''
       setActiveSessionId(next)
       if (!next) {
         setStatus('SIN_SESION')
