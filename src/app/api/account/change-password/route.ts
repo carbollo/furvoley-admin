@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { getEnvAdminCredentials } from '@/lib/env-admin'
@@ -7,6 +8,7 @@ import { getSessionFromRequest } from '@/lib/session'
 export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
+  await enterTenantFromRequest(request)
   const session = await getSessionFromRequest(request)
   if (!session?.user) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 })

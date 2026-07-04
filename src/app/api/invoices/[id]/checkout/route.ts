@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { createInvoiceCheckoutUrl } from '@/lib/stripe-checkout'
@@ -8,6 +9,7 @@ import { getSessionFromRequest } from '@/lib/session'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  await enterTenantFromRequest(req)
   const session = await getSessionFromRequest(req)
   if (!session?.user) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })

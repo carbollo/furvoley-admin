@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { prisma } from '@/lib/prisma'
 import { getStripe } from '@/lib/stripe'
 
@@ -7,7 +8,8 @@ import { getStripe } from '@/lib/stripe'
  * Stripe. Refrescamos el estado de la cuenta y redirigimos al CRM con un
  * flag en query string para que el modal lo muestre.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  await enterTenantFromRequest(request)
   try {
     if (process.env.STRIPE_SECRET_KEY) {
       const row = await prisma.clubSettings.findUnique({ where: { isDefault: true } })

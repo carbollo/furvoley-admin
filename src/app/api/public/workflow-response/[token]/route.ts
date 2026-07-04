@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { prisma } from '@/lib/prisma'
 import {
   consumeWorkflowResponseToken,
@@ -11,6 +12,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ token: string }> },
 ) {
+  await enterTenantFromRequest(_request)
   const { token } = await context.params
   const peek = await getWorkflowResponseToken(token)
   if (!peek.ok) {
@@ -80,6 +82,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ token: string }> },
 ) {
+  await enterTenantFromRequest(request)
   const { token } = await context.params
   const consumed = await consumeWorkflowResponseToken(token)
   if (!consumed.ok) {

@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { getClubBranding } from '@/lib/club-settings'
 
 export const dynamic = 'force-dynamic'
 
 /** Branding público del club (nombre, logo, color) para el panel de socios. */
-export async function GET() {
+export async function GET(request: Request) {
+  await enterTenantFromRequest(request)
   const branding = await getClubBranding()
   return NextResponse.json(
     {
