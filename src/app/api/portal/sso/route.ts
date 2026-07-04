@@ -40,7 +40,8 @@ export async function GET(request: Request) {
     }
     try {
       sessionPayload = await jitTenantUserSession(payload)
-    } catch {
+    } catch (e) {
+      console.error('[sso-jit] fallo materializando usuario del tenant:', currentTenant()?.slug, e)
       return NextResponse.redirect(new URL('/login?error=sso-jit', origin))
     }
   }
