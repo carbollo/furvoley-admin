@@ -11,8 +11,8 @@ function parseRole(input: unknown): AppRole | null {
   return MANAGEABLE_ROLES.includes(role) || role === 'MEMBER' ? role : null
 }
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const users = await prisma.user.findMany({
@@ -43,7 +43,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   let body: {

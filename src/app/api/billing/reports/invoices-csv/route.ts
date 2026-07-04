@@ -13,8 +13,8 @@ function toCsvRow(fields: Array<string | number>) {
     .join(',')
 }
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   const invoices = await prisma.invoice.findMany({

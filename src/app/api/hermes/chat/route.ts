@@ -22,7 +22,7 @@ function normalizeMessages(raw: unknown): HermesChatMessage[] | null {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   if (!(await isHermesEnabled())) {

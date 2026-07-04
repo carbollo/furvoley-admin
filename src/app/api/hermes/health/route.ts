@@ -13,7 +13,7 @@ import { getHermesSettings, maskSecret, resolveActiveLlm } from '@/lib/hermes-ga
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const settings = await getHermesSettings()

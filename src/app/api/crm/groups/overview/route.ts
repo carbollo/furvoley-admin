@@ -11,8 +11,8 @@ export const dynamic = 'force-dynamic'
  * heredadas se derivan en cliente a partir del árbol (descendientes de los
  * grupos directos).
  */
-export async function GET() {
-  const auth = await requireRoles(['ADMIN'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const members = await prisma.member.findMany({

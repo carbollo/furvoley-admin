@@ -7,7 +7,7 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
   const { id } = await context.params
   const parsedId = parseCuid(id, 'id')

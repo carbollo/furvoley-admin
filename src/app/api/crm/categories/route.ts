@@ -12,8 +12,8 @@ function parseAge(value: unknown): number | null {
   return Math.floor(n)
 }
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN', 'COACH'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN', 'COACH'], request)
   if (!auth.ok) return auth.response
 
   const categories = await prisma.category.findMany({
@@ -40,7 +40,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   let body: { name?: string; minAge?: unknown; maxAge?: unknown; defaultTeamId?: string | null }

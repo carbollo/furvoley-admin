@@ -15,8 +15,8 @@ import { getStripe } from '@/lib/stripe'
  * Si `STRIPE_CONNECTED_ACCOUNT_ID` está en env vars, **no** mutamos BD y solo
  * devolvemos el snapshot leído.
  */
-export async function POST() {
-  const auth = await requireRoles(['ADMIN'])
+export async function POST(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const env = (process.env.STRIPE_CONNECTED_ACCOUNT_ID || '').trim()

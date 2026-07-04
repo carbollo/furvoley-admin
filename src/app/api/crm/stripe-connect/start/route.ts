@@ -19,8 +19,8 @@ import { detectPublicBaseUrl } from '@/lib/stripe-bootstrap'
  * Si la env var `STRIPE_CONNECTED_ACCOUNT_ID` está definida, se considera que
  * el operador ya gestiona la cuenta externamente y devolvemos 409.
  */
-export async function POST() {
-  const auth = await requireRoles(['ADMIN'])
+export async function POST(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const envOverride = (process.env.STRIPE_CONNECTED_ACCOUNT_ID || '').trim()

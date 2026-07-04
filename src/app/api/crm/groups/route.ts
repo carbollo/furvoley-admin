@@ -6,8 +6,8 @@ import { getGroupTree } from '@/lib/groups'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const tree = await getGroupTree()
@@ -15,7 +15,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   let body: { name?: string; parentId?: string | null }

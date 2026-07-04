@@ -9,8 +9,8 @@ import { startWhatsappPairingIfNeeded } from '@/lib/hermes-gateway/whatsapp-pair
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   let status = await getHermesWhatsappStatus()

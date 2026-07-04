@@ -4,7 +4,7 @@ import { requireRoles } from '@/lib/rbac-api'
 import { createSubscription } from '@/app/actions/billing'
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   let body: Record<string, unknown>

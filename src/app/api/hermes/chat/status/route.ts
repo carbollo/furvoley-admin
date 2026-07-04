@@ -7,8 +7,8 @@ import { isHermesEnabled } from '@/lib/hermes-mcp/config'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const [enabled, gateway, apiServer, mcp] = await Promise.all([

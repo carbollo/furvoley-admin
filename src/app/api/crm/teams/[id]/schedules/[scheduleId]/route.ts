@@ -7,7 +7,7 @@ import { runTeamScheduleChangedWorkflows } from '@/lib/workflow-engine'
 type Params = { params: Promise<{ id: string; scheduleId: string }> }
 
 export async function DELETE(_request: Request, { params }: Params) {
-  const auth = await requireRoles(['ADMIN', 'COACH'])
+  const auth = await requireRoles(['ADMIN', 'COACH'], _request)
   if (!auth.ok) return auth.response
 
   const { id: teamId, scheduleId } = await params

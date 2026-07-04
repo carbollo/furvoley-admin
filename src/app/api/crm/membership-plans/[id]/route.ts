@@ -6,7 +6,7 @@ import { deleteMembershipPlan } from '@/app/actions/billing'
 type Params = { params: Promise<{ id: string }> }
 
 export async function DELETE(_request: Request, { params }: Params) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], _request)
   if (!auth.ok) return auth.response
 
   const { id } = await params

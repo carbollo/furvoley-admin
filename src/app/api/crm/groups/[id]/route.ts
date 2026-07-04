@@ -7,7 +7,7 @@ import { subtreeIdsOf } from '@/lib/groups'
 export const dynamic = 'force-dynamic'
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
@@ -60,7 +60,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], _request)
   if (!auth.ok) return auth.response
 
   const { id } = await context.params

@@ -10,7 +10,7 @@ import { getStripePortalConfig } from '@/lib/club-settings'
  * `STRIPE_CLUB_CUSTOMER_ID` (configurada en Railway), NO del modal.
  */
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const cfg = getStripePortalConfig()

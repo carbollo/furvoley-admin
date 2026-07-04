@@ -14,7 +14,7 @@ const ALLOWED = ['ACTIVE', 'PAUSED', 'CANCELED'] as const
  * factura) y fecha del próximo cobro.
  */
 export async function PATCH(request: Request, { params }: Params) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   const { id } = await params

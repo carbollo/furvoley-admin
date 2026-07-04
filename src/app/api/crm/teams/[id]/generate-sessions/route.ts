@@ -6,7 +6,7 @@ import { generateTeamSessionsFromSchedule } from '@/lib/team-calendar'
 type Params = { params: Promise<{ id: string }> }
 
 export async function POST(_request: Request, { params }: Params) {
-  const auth = await requireRoles(['ADMIN', 'COACH'])
+  const auth = await requireRoles(['ADMIN', 'COACH'], _request)
   if (!auth.ok) return auth.response
 
   const { id: teamId } = await params

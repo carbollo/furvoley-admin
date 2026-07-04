@@ -27,7 +27,7 @@ function threadFilter(url: URL): { memberId?: string; groupId?: string } | Respo
 
 /** Mensajes de un hilo (1 a 1 o grupo), del más antiguo al más nuevo. */
 export async function GET(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const filter = threadFilter(new URL(request.url))
@@ -62,7 +62,7 @@ async function resolveSessionId(): Promise<string> {
  * historial local del chat.
  */
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   let body: { memberId?: string; groupId?: string; message?: string }

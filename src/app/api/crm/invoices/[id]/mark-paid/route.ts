@@ -8,7 +8,7 @@ export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], _request)
   if (!auth.ok) return auth.response
 
   const { id } = await context.params

@@ -16,8 +16,8 @@ function periodLabel(p: string) {
   return 'Mensual'
 }
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   const [plans, subscriptions] = await Promise.all([
@@ -76,7 +76,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   let body: Record<string, unknown>
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   let body: Record<string, unknown> & { id?: string }

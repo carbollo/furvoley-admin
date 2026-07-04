@@ -52,13 +52,13 @@ async function serializeSettings(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
   return NextResponse.json(await serializeSettings(request))
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   let body: Record<string, unknown>
@@ -214,7 +214,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   let body: { action?: string }

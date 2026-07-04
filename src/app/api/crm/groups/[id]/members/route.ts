@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 /** Miembros efectivos del grupo (directos + los de sus subgrupos). */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], _request)
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
@@ -24,7 +24,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
 /** Añade un socio directamente a este grupo. */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
@@ -59,7 +59,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
 /** Quita la pertenencia DIRECTA de un socio a este grupo (?memberId=...). */
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const { id } = await context.params

@@ -7,7 +7,7 @@ import { runConvocationPublishedWorkflows } from '@/lib/workflow-proclub-runners
 type Params = { params: Promise<{ id: string }> }
 
 export async function POST(request: Request, { params }: Params) {
-  const auth = await requireRoles(['ADMIN', 'COACH'])
+  const auth = await requireRoles(['ADMIN', 'COACH'], request)
   if (!auth.ok) return auth.response
 
   const { id: eventId } = await params

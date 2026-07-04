@@ -4,7 +4,7 @@ import { requireRoles } from '@/lib/rbac-api'
 import { parseIsoDateParam } from '@/lib/db-input-validation'
 
 export async function GET(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   const url = new URL(request.url)

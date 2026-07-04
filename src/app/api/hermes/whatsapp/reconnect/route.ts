@@ -11,8 +11,8 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
-  const auth = await requireRoles(['ADMIN'])
+export async function POST(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   await stopWhatsappPairing()

@@ -5,7 +5,7 @@ import { assertTeamAccess, requireRoles } from '@/lib/rbac-api'
 import { scheduleAttendanceForm, type AttendanceLinkResult } from '@/lib/attendance-link'
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'COACH'])
+  const auth = await requireRoles(['ADMIN', 'COACH'], request)
   if (!auth.ok) return auth.response
 
   let body: {

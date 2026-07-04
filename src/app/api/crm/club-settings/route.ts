@@ -61,8 +61,8 @@ async function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
   }
 }
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
   // Disparo lazy del bootstrap (no bloqueante).
   scheduleEnsureStripeWebhooks()
@@ -71,7 +71,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   let body: Record<string, unknown>

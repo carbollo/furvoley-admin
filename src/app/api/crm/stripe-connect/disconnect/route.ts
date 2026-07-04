@@ -10,8 +10,8 @@ import { requireRoles } from '@/lib/rbac-api'
  * estado en `ClubSettings`. Si la env var `STRIPE_CONNECTED_ACCOUNT_ID` está
  * definida, prevalece y este endpoint no tiene efecto (se devuelve 409).
  */
-export async function POST() {
-  const auth = await requireRoles(['ADMIN'])
+export async function POST(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const env = (process.env.STRIPE_CONNECTED_ACCOUNT_ID || '').trim()

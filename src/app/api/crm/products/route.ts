@@ -7,8 +7,8 @@ export const dynamic = 'force-dynamic'
 const PRODUCT_TYPES = ['ONE_TIME', 'SUBSCRIPTION'] as const
 const BILLING_PERIODS = ['MONTHLY', 'QUARTERLY', 'YEARLY'] as const
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   const products = await prisma.product.findMany({
@@ -52,7 +52,7 @@ export async function GET() {
  * (asignable a socios o grupos como cualquier plan).
  */
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   let body: { name?: string; type?: string; price?: unknown; description?: string; billingPeriod?: string }

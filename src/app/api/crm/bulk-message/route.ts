@@ -3,7 +3,7 @@ import { requireRoles } from '@/lib/rbac-api'
 import { runBulkMessageWorkflows } from '@/lib/workflow-proclub-runners'
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'COACH'])
+  const auth = await requireRoles(['ADMIN', 'COACH'], request)
   if (!auth.ok) return auth.response
 
   let body: { teamId?: string; message?: string }

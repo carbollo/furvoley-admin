@@ -3,14 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { getTaxConfig } from '@/lib/tax-config'
 import { requireRoles } from '@/lib/rbac-api'
 
-async function assertAccountingRole() {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+async function assertAccountingRole(request: Request) {
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) throw new Error('Unauthorized')
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    await assertAccountingRole()
+    await assertAccountingRole(request)
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -20,7 +20,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    await assertAccountingRole()
+    await assertAccountingRole(request)
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

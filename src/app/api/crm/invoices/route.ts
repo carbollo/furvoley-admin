@@ -4,7 +4,7 @@ import { parseCuid } from '@/lib/db-input-validation'
 import { createMemberInvoice, createTeamInvoices } from '@/lib/crm-invoice-create'
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   let body: Record<string, unknown>

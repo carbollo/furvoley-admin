@@ -20,8 +20,8 @@ import { getStripeConnectConfig } from '@/lib/club-settings'
  *
  * Account ID se lee de la env var `STRIPE_CONNECTED_ACCOUNT_ID`.
  */
-export async function POST() {
-  const auth = await requireRoles(['ADMIN'])
+export async function POST(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const connect = await getStripeConnectConfig()

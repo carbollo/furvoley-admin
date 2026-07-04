@@ -15,7 +15,7 @@ function parseDateParam(value: string | null): Date | null {
  * por sesión (grupo/equipo + fecha) en un rango.
  */
 export async function GET(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'COACH'])
+  const auth = await requireRoles(['ADMIN', 'COACH'], request)
   if (!auth.ok) return auth.response
 
   const url = new URL(request.url)

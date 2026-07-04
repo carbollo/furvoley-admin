@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic'
  * Lista de conversaciones del Chat (roadmap · Módulo 3): hilos 1 a 1 y de
  * grupo con su último mensaje, ordenados por actividad reciente.
  */
-export async function GET() {
-  const auth = await requireRoles(['ADMIN'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   const recent = await prisma.chatMessage.findMany({

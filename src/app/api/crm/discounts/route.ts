@@ -23,8 +23,8 @@ function generateCode(label: string): string {
   return `${base}-${randomBytes(2).toString('hex').toUpperCase()}`
 }
 
-export async function GET() {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   const discounts = await prisma.discountCode.findMany({
@@ -47,7 +47,7 @@ export async function GET() {
 
 /** Generador de códigos (roadmap · 6.5): etiqueta + tipo (%/fijo) + valor. */
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   let body: { label?: string; kind?: string; value?: unknown; code?: string }

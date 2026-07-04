@@ -7,14 +7,14 @@ import {
   parseOptionalAccountCode,
 } from '@/lib/db-input-validation'
 
-async function assertAccountingRole() {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+async function assertAccountingRole(request: Request) {
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) throw new Error('Unauthorized')
 }
 
 export async function GET(request: Request) {
   try {
-    await assertAccountingRole()
+    await assertAccountingRole(request)
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await assertAccountingRole()
+    await assertAccountingRole(request)
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

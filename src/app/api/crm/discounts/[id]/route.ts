@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 /** Activar/desactivar un código (no se borra: las suscripciones lo referencian). */
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   const { id } = await context.params

@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/rbac-api'
 import { generateDueInvoices, updateInvoiceStatuses } from '@/app/actions/billing'
 
-export async function POST() {
-  const auth = await requireRoles(['ADMIN', 'TREASURER'])
+export async function POST(request: Request) {
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   try {

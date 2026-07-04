@@ -10,15 +10,15 @@ import { ensureStripeWebhooks, getStripeBootstrapStatus } from '@/lib/stripe-boo
  * webhook endpoints en Stripe). Útil tras clonar el servicio o cambiar el
  * dominio público.
  */
-export async function GET() {
-  const auth = await requireRoles(['ADMIN'])
+export async function GET(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
   const status = await getStripeBootstrapStatus()
   return NextResponse.json({ status })
 }
 
-export async function POST() {
-  const auth = await requireRoles(['ADMIN'])
+export async function POST(request: Request) {
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
   const status = await ensureStripeWebhooks()
   if (!status.configured && status.error) {

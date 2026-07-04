@@ -30,7 +30,7 @@ async function assertCanManageEvent(eventId: string, role: string, memberId: str
 }
 
 export async function PATCH(request: Request, { params }: Params) {
-  const auth = await requireRoles(['ADMIN', 'COACH'])
+  const auth = await requireRoles(['ADMIN', 'COACH'], request)
   if (!auth.ok) return auth.response
 
   const { id } = await params

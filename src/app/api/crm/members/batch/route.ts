@@ -16,7 +16,7 @@ const ACTIONS = new Set<BatchAction>([
 ])
 
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN'])
+  const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
   let body: {

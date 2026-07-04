@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
  * crear el evento o si el enlace caducó.
  */
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const auth = await requireRoles(['ADMIN', 'COACH'])
+  const auth = await requireRoles(['ADMIN', 'COACH'], _request)
   if (!auth.ok) return auth.response
 
   const { id } = await context.params
