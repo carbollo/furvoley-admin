@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
-import { isPortalCentralHost } from '@/lib/portal-central/config'
+import { buildTenantSsoUrl, isPortalCentralHost, isPortalTenantMode } from '@/lib/portal-central/config'
 import { buildSsoRedirectUrl, verifyOnTenant } from '@/lib/portal-central/login'
 import { loadTenants } from '@/lib/portal-central/tenants-store'
-import { getPortalSsoSecret } from '@/lib/portal-sso'
+import { verifyPortalUser } from '@/lib/portal-central/portal-store'
+import { createPortalSsoToken, getPortalSsoSecret } from '@/lib/portal-sso'
 import {
   checkLoginRateLimit,
   clientIpFromHeaders,
@@ -19,15 +20,8 @@ export async function POST(request: Request) {
   }
 
   const secret = getPortalSsoSecret()
-  const tenants = await loadTenants()
   if (!secret) {
     return NextResponse.json({ error: 'Falta PORTAL_SSO_SECRET.' }, { status: 503 })
-  }
-  if (tenants.length === 0) {
-    return NextResponse.json(
-      { error: 'No hay CRMs configurados. Entra a /furvoley-config' },
-      { status: 503 },
-    )
   }
 
   let body: { email?: string; password?: string }
@@ -49,6 +43,48 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: 'Demasiados intentos. Espera unos minutos.' },
       { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+    )
+  }
+
+  // Modelo C: autentica contra el directorio del portal y redirige al subdominio.
+  if (isPortalTenantMode()) {
+    const match = await verifyPortalUser(email, password)
+    if (!match) {
+      registerLoginFailure(rlKey)
+      return NextResponse.json({ error: 'Credenciales inválidas.' }, { status: 401 })
+    }
+    resetLoginAttempts(rlKey)
+    const token = createPortalSsoToken(
+      {
+        userId: match.user.id,
+        email: match.user.email,
+        name: match.user.name,
+        role: match.user.role,
+        memberId: null,
+        mustChangePassword: false,
+      },
+      secret,
+    )
+    try {
+      return NextResponse.json({
+        ok: true,
+        tenant: { id: match.tenant.id, name: match.tenant.name, slug: match.tenant.slug },
+        redirectUrl: buildTenantSsoUrl(match.tenant.slug, token),
+      })
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'No se pudo construir el redirect.' },
+        { status: 503 },
+      )
+    }
+  }
+
+  // Modelo antiguo (CRMs por URL).
+  const tenants = await loadTenants()
+  if (tenants.length === 0) {
+    return NextResponse.json(
+      { error: 'No hay CRMs configurados. Entra a /furvoley-config' },
+      { status: 503 },
     )
   }
 

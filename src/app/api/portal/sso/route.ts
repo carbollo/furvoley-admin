@@ -4,7 +4,12 @@ import {
   isPortalSsoEnabled,
   parsePortalSsoToken,
   resolvePortalPublicOrigin,
+  type PortalSsoPayload,
 } from '@/lib/portal-sso'
+import { isMultiTenant } from '@/lib/multitenant/registry'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
+import { currentTenant } from '@/lib/multitenant/context'
+import { jitTenantUserSession } from '@/lib/portal-central/sso-jit'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,8 +31,22 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL('/login?error=invalid-token', origin))
   }
 
-  const cookie = await buildPortalSessionCookie(payload)
-  const redirectTo = payload.mustChangePassword ? '/change-password' : '/'
+  // Modelo C: activa la BD del tenant (subdominio) y materializa el usuario (JIT).
+  let sessionPayload: PortalSsoPayload = payload
+  if (isMultiTenant()) {
+    await enterTenantFromRequest(request)
+    if (!currentTenant()) {
+      return NextResponse.redirect(new URL('/login?error=tenant-desconocido', origin))
+    }
+    try {
+      sessionPayload = await jitTenantUserSession(payload)
+    } catch {
+      return NextResponse.redirect(new URL('/login?error=sso-jit', origin))
+    }
+  }
+
+  const cookie = await buildPortalSessionCookie(sessionPayload)
+  const redirectTo = sessionPayload.mustChangePassword ? '/change-password' : '/'
   const res = NextResponse.redirect(new URL(redirectTo, origin))
   res.cookies.set(cookie.name, cookie.value, cookie.options)
   return res
