@@ -1,4 +1,5 @@
 import { getServerSession } from 'next-auth'
+import { runWithTenant } from '@/lib/multitenant/request'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { redirect } from 'next/navigation'
@@ -31,6 +32,10 @@ function fmtMoney(n: number) {
 
 
 export default async function MyBillingPage() {
+  return runWithTenant(() => MyBillingPageImpl())
+}
+
+async function MyBillingPageImpl() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
   const memberId = (session.user as { memberId?: string | null })?.memberId

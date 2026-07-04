@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { runWithTenant } from '@/lib/multitenant/request'
 import { EventForm } from './EventForm'
 import { deleteEvent } from '@/app/actions/events'
 import Link from 'next/link'
@@ -58,6 +59,10 @@ function styleForType(type: string) {
 }
 
 export default async function CalendarPage() {
+  return runWithTenant(() => CalendarPageImpl())
+}
+
+async function CalendarPageImpl() {
   const session = await getServerSession(authOptions)
   const role = normalizeRole(session?.user?.role)
   const isAdmin = role === 'ADMIN'

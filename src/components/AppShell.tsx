@@ -1,4 +1,5 @@
 import { getServerSession } from 'next-auth'
+import { runWithTenant } from '@/lib/multitenant/request'
 import { authOptions } from '@/lib/auth'
 import { Sidebar } from '@/components/Sidebar'
 import { MemberShell } from '@/components/member/MemberShell'
@@ -36,7 +37,14 @@ const mainStyleNoPad: CSSProperties = {
  * según el rol de la sesión: socios usan `MemberShell` (diseño Stitch),
  * staff (ADMIN/COACH/TREASURER) usa el sidebar clásico.
  */
-export async function AppShell({
+export async function AppShell(props: {
+  children: ReactNode
+  flush?: boolean
+}) {
+  return runWithTenant(() => AppShellImpl(props))
+}
+
+async function AppShellImpl({
   children,
   flush = false,
 }: {

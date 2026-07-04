@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { runWithTenant } from '@/lib/multitenant/request'
 import { ArrowLeft, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -6,7 +7,11 @@ import { AttendanceButtons } from './AttendanceButtons'
 
 export const dynamic = 'force-dynamic'
 
-export default async function EventDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EventDetailsPage(props: { params: Promise<{ id: string }> }) {
+  return runWithTenant(() => EventDetailsPageImpl(props))
+}
+
+async function EventDetailsPageImpl({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const event = await prisma.event.findUnique({
     where: { id },

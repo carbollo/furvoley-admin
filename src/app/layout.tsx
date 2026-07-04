@@ -4,6 +4,7 @@ import "./globals.css";
 import "@/components/crm/crm-vars.css";
 import Providers from "./providers";
 import { getClubBranding } from "@/lib/club-settings";
+import { runWithTenant } from "@/lib/multitenant/request";
 
 // Tipografía cálida y cercana (humanista, redondeada) para todo el panel.
 const jakarta = Plus_Jakarta_Sans({
@@ -13,6 +14,10 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export async function generateMetadata(): Promise<Metadata> {
+  return runWithTenant(() => generateMetadataImpl());
+}
+
+async function generateMetadataImpl(): Promise<Metadata> {
   const branding = await getClubBranding();
   const name = (branding.name || "Furvoley").trim() || "Furvoley";
   return {

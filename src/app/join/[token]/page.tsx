@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { runWithTenant } from '@/lib/multitenant/request'
 import { notFound } from 'next/navigation'
 import { redirect } from 'next/navigation'
 import { Plus_Jakarta_Sans } from 'next/font/google'
@@ -58,7 +59,14 @@ function Shell({
   )
 }
 
-export default async function JoinPage({
+export default async function JoinPage(props: {
+  params: Promise<{ token: string }>
+  searchParams: Promise<{ success?: string }>
+}) {
+  return runWithTenant(() => JoinPageImpl(props))
+}
+
+async function JoinPageImpl({
   params,
   searchParams,
 }: {

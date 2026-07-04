@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { runWithTenant } from '@/lib/multitenant/request'
 import { prisma } from '@/lib/prisma'
 import { TransactionForm } from './TransactionForm'
 import { ArrowDownRight, ArrowUpRight, Trash2 } from 'lucide-react'
@@ -7,6 +8,10 @@ import { deleteTransaction } from '@/app/actions'
 export const dynamic = 'force-dynamic'
 
 export default async function AccountingPage() {
+  return runWithTenant(() => AccountingPageImpl())
+}
+
+async function AccountingPageImpl() {
   const transactions = await prisma.transaction.findMany({
     orderBy: { date: 'desc' },
     include: {

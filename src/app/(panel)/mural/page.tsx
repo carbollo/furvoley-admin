@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { runWithTenant } from '@/lib/multitenant/request'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
@@ -14,6 +15,10 @@ const SHADOW = '0 4px 10px rgba(0,0,0,0.04)'
 const BORDER = '1px solid rgba(194,198,214,0.4)'
 
 export default async function MuralPage() {
+  return runWithTenant(() => MuralPageImpl())
+}
+
+async function MuralPageImpl() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
 
