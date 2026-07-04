@@ -90,7 +90,7 @@ async function main() {
 
   // 2) Sincroniza el esquema del CRM en la BD del tenant.
   log(`Aplicando esquema en "${name}"…`)
-  run('npx', ['prisma', 'db', 'push', '--skip-generate'], { DATABASE_URL: url })
+  run('npx', ['prisma', 'db', 'push'], { DATABASE_URL: url })
 
   // 3) Siembra el admin del cliente.
   const adminEmail = args.adminEmail || process.env.TENANT_ADMIN_EMAIL || process.env.ADMIN_EMAIL
