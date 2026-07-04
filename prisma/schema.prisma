@@ -947,3 +947,38 @@ model HermesMcpAuditLog {
   @@index([createdAt])
   @@index([toolName])
 }
+
+// --- PORTAL CENTRAL (multi-tenant · Modelo C) ---
+// Estas tablas viven en la BD del PORTAL (servicio con PORTAL_CENTRAL_HOST=true
+// y su propia DATABASE_URL). En las BDs de cada cliente quedan vacías/sin uso.
+
+/// Un cliente = su subdominio + su base de datos `tenant_<slug>`.
+model Tenant {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  status    String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users PortalUser[]
+
+  @@index([status])
+}
+
+/// Usuario dado de alta desde el panel del portal. Es la cuenta con la que se
+/// entra al CRM de su tenant (rol con el que se crea al hacer SSO).
+model PortalUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         String   @default("ADMIN") // rol en el CRM del tenant
+  status       String   @default("ACTIVE") // ACTIVE | DISABLED
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId])
+}
