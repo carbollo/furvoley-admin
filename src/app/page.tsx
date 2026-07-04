@@ -8,10 +8,14 @@ import { MemberDashboard } from '@/components/member/MemberDashboard'
 import { getClubBranding } from '@/lib/club-settings'
 import { normalizeRole } from '@/lib/rbac'
 import { isInvoicePastDue } from '@/lib/invoice-display'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
+  // Multi-tenant: activa la BD del tenant (desde x-tenant-slug del middleware)
+  // antes de cualquier consulta del render. No-op en modo un-solo-club.
+  await enterTenantFromRequest()
   const session = await getSafeServerSession()
 
   if (!session) {

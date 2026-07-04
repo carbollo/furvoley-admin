@@ -23,12 +23,20 @@ function tenantHeaders(req: NextRequest): Headers {
   fwd.delete("x-tenant-slug")
   if (!isMultiTenant()) return fwd
 
-  let slug = tenantSlugFromHost(req.headers.get("host"))
-  if (!slug && TENANT_ALLOW_OVERRIDE) {
+  // Modo pruebas (sin dominio comodín): el override explícito manda sobre el
+  // host, porque el dominio por defecto de Railway (`app.up.railway.app`) parece
+  // un subdominio y produciría un slug basura. La cookie `furvoley-tenant` (la
+  // fija el SSO) mantiene el tenant en las peticiones siguientes al mismo host.
+  // En producción `TENANT_ALLOW_OVERRIDE` está apagado → solo cuenta el subdominio.
+  let slug: string | null = null
+  if (TENANT_ALLOW_OVERRIDE) {
     slug = sanitizeSlug(
-      req.nextUrl.searchParams.get("tenant") || req.headers.get("x-tenant-override"),
+      req.nextUrl.searchParams.get("tenant") ||
+        req.headers.get("x-tenant-override") ||
+        req.cookies.get("furvoley-tenant")?.value,
     )
   }
+  if (!slug) slug = tenantSlugFromHost(req.headers.get("host"))
   if (slug) fwd.set("x-tenant-slug", slug)
   return fwd
 }

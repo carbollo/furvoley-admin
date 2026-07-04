@@ -50,5 +50,21 @@ export async function GET(request: Request) {
   const redirectTo = sessionPayload.mustChangePassword ? '/change-password' : '/'
   const res = NextResponse.redirect(new URL(redirectTo, origin))
   res.cookies.set(cookie.name, cookie.value, cookie.options)
+
+  // Pruebas sin dominio comodín: si entramos por override (`?tenant=`) recordamos
+  // el tenant en cookie para que las peticiones siguientes al mismo host (dashboard
+  // y APIs) lo resuelvan. Con dominio comodín el tenant sale del subdominio y esto
+  // no aplica (TENANT_ALLOW_OVERRIDE apagado).
+  const overrideAllowed = String(process.env.TENANT_ALLOW_OVERRIDE || '').trim().toLowerCase() === 'true'
+  const tenantSlug = currentTenant()?.slug
+  if (isMultiTenant() && overrideAllowed && tenantSlug) {
+    res.cookies.set('furvoley-tenant', tenantSlug, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 30 * 24 * 60 * 60,
+    })
+  }
   return res
 }
