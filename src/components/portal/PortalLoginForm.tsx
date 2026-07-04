@@ -147,6 +147,31 @@ export function PortalAdminPanel() {
   const [internalUrl, setInternalUrl] = useState('')
   const [busy, setBusy] = useState(false)
 
+  // Modelo C: clientes (tenants) con BD propia + usuarios de acceso.
+  const [clients, setClients] = useState<
+    { id: string; slug: string; name: string; status: string; userCount: number }[]
+  >([])
+  const [users, setUsers] = useState<
+    { id: string; email: string; name: string; role: string; status: string; tenantSlug: string; tenantName: string }[]
+  >([])
+  const [cName, setCName] = useState('')
+  const [cSlug, setCSlug] = useState('')
+  const [cEmail, setCEmail] = useState('')
+  const [cPassword, setCPassword] = useState('')
+  const [uEmail, setUEmail] = useState('')
+  const [uPassword, setUPassword] = useState('')
+  const [uTenant, setUTenant] = useState('')
+  const [uRole, setURole] = useState('COACH')
+
+  const loadClients = useCallback(async () => {
+    const r = await fetch('/api/portal-central/admin/clients', { credentials: 'include' })
+    if (r.ok) setClients((await r.json()).tenants || [])
+  }, [])
+  const loadUsers = useCallback(async () => {
+    const r = await fetch('/api/portal-central/admin/users', { credentials: 'include' })
+    if (r.ok) setUsers((await r.json()).users || [])
+  }, [])
+
   const loadTenants = useCallback(async () => {
     const r = await fetch('/api/portal-central/admin/tenants', { credentials: 'include' })
     if (!r.ok) return false
@@ -161,11 +186,80 @@ export function PortalAdminPanel() {
       .then(async (j) => {
         if (j.authenticated) {
           setAuthed(true)
-          await loadTenants()
+          await Promise.all([loadTenants(), loadClients(), loadUsers()])
         }
       })
       .catch(() => undefined)
-  }, [loadTenants])
+  }, [loadTenants, loadClients, loadUsers])
+
+  async function crearCliente() {
+    setError('')
+    setOkMsg('')
+    setBusy(true)
+    try {
+      const r = await fetch('/api/portal-central/admin/clients', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cName.trim(),
+          slug: cSlug.trim() || undefined,
+          adminEmail: cEmail.trim(),
+          adminPassword: cPassword,
+        }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'No se pudo crear el cliente.')
+      setCName(''); setCSlug(''); setCEmail(''); setCPassword('')
+      await Promise.all([loadClients(), loadUsers()])
+      setOkMsg(`Cliente «${data.tenant.slug}» creado y su CRM desplegado. Admin: ${data.admin}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function addUser() {
+    setError('')
+    setBusy(true)
+    try {
+      const r = await fetch('/api/portal-central/admin/users', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: uEmail.trim(), password: uPassword, tenantSlug: uTenant, role: uRole }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'No se pudo crear el usuario.')
+      setUEmail(''); setUPassword('')
+      await loadUsers()
+      setOkMsg('Usuario creado.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function toggleUser(userId: string, status: string) {
+    setBusy(true)
+    try {
+      const next = status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
+      const r = await fetch('/api/portal-central/admin/users', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, status: next }),
+      })
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Error')
+      await loadUsers()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function adminLogin() {
     setError('')
@@ -181,7 +275,7 @@ export function PortalAdminPanel() {
       if (!r.ok) throw new Error(data.error || 'Error')
       setAuthed(true)
       setAdminPassword('')
-      await loadTenants()
+      await Promise.all([loadTenants(), loadClients(), loadUsers()])
       setOkMsg('Sesión admin iniciada.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
@@ -273,7 +367,8 @@ export function PortalAdminPanel() {
     <div style={{ maxWidth: 720, margin: '0 auto', padding: 24, color: '#faf7f2' }}>
       <h1 style={{ margin: '0 0 8px', fontSize: 24 }}>Panel admin del portal</h1>
       <p style={{ margin: '0 0 20px', color: '#a8a29e', lineHeight: 1.5, fontSize: 14 }}>
-        Añade las URLs de cada CRM. Los usuarios entran por <strong>/portal</strong>.
+        Crea clientes (cada uno con su CRM y base de datos aislada) y sus usuarios de acceso.
+        Todos entran por <strong>/portal</strong>.
       </p>
 
       {error ? <Msg kind="error" text={error} onClose={() => setError('')} /> : null}
@@ -294,7 +389,100 @@ export function PortalAdminPanel() {
         </div>
       ) : (
         <>
+          {/* Modelo C: crear cliente = desplegar su CRM */}
           <div style={cardStyle}>
+            <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>Crear cliente</h2>
+            <p style={{ margin: '0 0 14px', color: '#a8a29e', fontSize: 13, lineHeight: 1.5 }}>
+              Crea su base de datos aislada y su administrador. El CRM queda disponible en{' '}
+              <code>subdominio.tudominio</code>.
+            </p>
+            <label style={labelStyle}>Nombre del club</label>
+            <input value={cName} onChange={(e) => setCName(e.target.value)} placeholder="Club Voley Ejemplo" style={darkInput} />
+            <label style={labelStyle}>Subdominio (opcional; se deriva del nombre)</label>
+            <input value={cSlug} onChange={(e) => setCSlug(e.target.value)} placeholder="club-ejemplo" style={darkInput} />
+            <label style={labelStyle}>Email del administrador</label>
+            <input type="email" value={cEmail} onChange={(e) => setCEmail(e.target.value)} placeholder="admin@club.com" style={darkInput} />
+            <label style={labelStyle}>Contraseña del administrador</label>
+            <input type="password" value={cPassword} onChange={(e) => setCPassword(e.target.value)} placeholder="mínimo 8 caracteres" style={darkInput} />
+            <button
+              type="button"
+              disabled={busy || !cName.trim() || !cEmail.trim() || cPassword.length < 8}
+              onClick={() => void crearCliente()}
+              style={{ ...buttonStyle, opacity: busy || !cName.trim() || !cEmail.trim() || cPassword.length < 8 ? 0.6 : 1 }}
+            >
+              {busy ? 'Creando y desplegando…' : 'Crear cliente y desplegar CRM'}
+            </button>
+          </div>
+
+          {/* Clientes creados */}
+          <div style={cardStyle}>
+            <h2 style={{ margin: '0 0 14px', fontSize: 18 }}>Clientes ({clients.length})</h2>
+            {clients.length === 0 ? (
+              <p style={{ color: '#a8a29e', margin: 0 }}>Aún no hay clientes. Crea el primero arriba.</p>
+            ) : (
+              clients.map((c) => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #44403c', padding: '10px 0' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <strong>{c.name}</strong>
+                    <div style={{ color: '#a8a29e', fontSize: 13 }}>
+                      {c.slug} · {c.userCount} usuario{c.userCount === 1 ? '' : 's'}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: c.status === 'ACTIVE' ? 'rgba(74,222,128,.15)' : 'rgba(251,113,133,.15)', color: c.status === 'ACTIVE' ? '#4ade80' : '#fb7185' }}>
+                    {c.status === 'ACTIVE' ? 'Activo' : 'Suspendido'}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Usuarios de acceso */}
+          <div style={cardStyle}>
+            <h2 style={{ margin: '0 0 14px', fontSize: 18 }}>Usuarios de acceso ({users.length})</h2>
+            {clients.length > 0 && (
+              <div style={{ border: '1px solid #44403c', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Añadir usuario a un cliente</div>
+                <select value={uTenant} onChange={(e) => setUTenant(e.target.value)} style={darkInput}>
+                  <option value="">— Elige cliente —</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.slug}>{c.name} ({c.slug})</option>
+                  ))}
+                </select>
+                <input type="email" value={uEmail} onChange={(e) => setUEmail(e.target.value)} placeholder="email@usuario.com" style={darkInput} />
+                <input type="password" value={uPassword} onChange={(e) => setUPassword(e.target.value)} placeholder="contraseña (mín. 8)" style={darkInput} />
+                <select value={uRole} onChange={(e) => setURole(e.target.value)} style={darkInput}>
+                  <option value="ADMIN">Administrador</option>
+                  <option value="COACH">Entrenador</option>
+                  <option value="TREASURER">Tesorero</option>
+                  <option value="MEMBER">Socio</option>
+                </select>
+                <button type="button" disabled={busy || !uTenant || !uEmail.trim() || uPassword.length < 8} onClick={() => void addUser()}
+                  style={{ ...buttonStyle, opacity: busy || !uTenant || !uEmail.trim() || uPassword.length < 8 ? 0.6 : 1 }}>
+                  Crear usuario
+                </button>
+              </div>
+            )}
+            {users.length === 0 ? (
+              <p style={{ color: '#a8a29e', margin: 0 }}>Aún no hay usuarios.</p>
+            ) : (
+              users.map((u) => (
+                <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #44403c', padding: '10px 0' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ wordBreak: 'break-all' }}>{u.email}</strong>
+                    <div style={{ color: '#a8a29e', fontSize: 13 }}>{u.tenantName} ({u.tenantSlug}) · {u.role}</div>
+                  </div>
+                  <button type="button" disabled={busy} onClick={() => void toggleUser(u.id, u.status)}
+                    style={{ ...buttonStyle, width: 'auto', background: u.status === 'ACTIVE' ? 'transparent' : '#44403c', border: u.status === 'ACTIVE' ? '1px solid #fb7185' : 0, color: u.status === 'ACTIVE' ? '#fb7185' : '#faf7f2', fontSize: 12, padding: '8px 12px' }}>
+                    {u.status === 'ACTIVE' ? 'Desactivar' : 'Activar'}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          <details style={{ ...cardStyle, opacity: 0.85 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 15, fontWeight: 700 }}>Avanzado: CRMs por URL (modelo antiguo)</summary>
+            <div style={{ marginTop: 14 }}>
             <h2 style={{ margin: '0 0 14px', fontSize: 18 }}>Añadir CRM</h2>
             <label style={labelStyle}>Nombre del club</label>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Furvoley" style={darkInput} />
@@ -369,6 +557,7 @@ export function PortalAdminPanel() {
               ))
             )}
           </div>
+          </details>
         </>
       )}
     </div>
