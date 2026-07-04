@@ -10,6 +10,7 @@ import {
   syncEnvAdminUser,
 } from "@/lib/env-admin"
 import { ensureNextAuthSecret } from "@/lib/auth-secret"
+import { enterTenantFromHeaders } from "@/lib/multitenant/request"
 import {
   checkLoginRateLimit,
   loginRateKey,
@@ -42,6 +43,11 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials, req) {
+        // Multi-tenant: activa la BD del club (por subdominio) ANTES de cualquier
+        // consulta. Debe ir aquí, síncrono, porque /api/auth no pasa por el
+        // middleware. Sin esto, el login por credenciales no sabría qué BD mirar.
+        enterTenantFromHeaders(req?.headers as Record<string, string | string[] | undefined> | undefined)
+
         if (!credentials?.email || !credentials?.password) {
           return null
         }
