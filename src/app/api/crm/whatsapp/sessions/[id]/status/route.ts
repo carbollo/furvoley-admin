@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { parseApiWassSessionId, apiWassRequest } from '@/lib/apiwass'
@@ -14,6 +15,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  await enterTenantFromRequest(_request)
   try {
     await assertAdmin()
     const { id } = await context.params

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { parseCuid } from '@/lib/db-input-validation'
@@ -7,6 +8,7 @@ import { prisma } from '@/lib/prisma'
 type Params = { params: Promise<{ id: string }> }
 
 export async function DELETE(_request: Request, { params }: Params) {
+  await enterTenantFromRequest(_request)
   const session = await getServerSession(authOptions)
   const role = (session?.user as { role?: string } | undefined)?.role
   if (!session?.user || role !== 'ADMIN') {

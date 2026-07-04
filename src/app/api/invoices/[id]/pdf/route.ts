@@ -1,4 +1,5 @@
 import { getServerSession } from 'next-auth'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { authOptions } from '@/lib/auth'
 import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
@@ -8,6 +9,7 @@ import { clubSettingsToIssuer, getClubSettings, normalizeInvoicePdfTemplate } fr
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  await enterTenantFromRequest(_req)
   const session = await getServerSession(authOptions)
   if (!session?.user) {
     return new Response('No autorizado', { status: 401 })

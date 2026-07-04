@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { parseWorkflowsFromJson } from '@/lib/workflow-import'
@@ -8,7 +9,8 @@ import {
   snapshotWorkflowToTemplate,
 } from '@/lib/workflow-template-catalog'
 
-export async function GET() {
+export async function GET(request: Request) {
+  await enterTenantFromRequest(request)
   const session = await getServerSession(authOptions)
   const role = (session?.user as { role?: string } | undefined)?.role
   if (!session?.user || role !== 'ADMIN') {
@@ -20,6 +22,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  await enterTenantFromRequest(request)
   const session = await getServerSession(authOptions)
   const role = (session?.user as { role?: string } | undefined)?.role
   if (!session?.user || role !== 'ADMIN') {

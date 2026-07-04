@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sendApiWassText } from '@/lib/apiwass'
@@ -11,6 +12,7 @@ async function assertAdmin() {
 }
 
 export async function POST(request: Request) {
+  await enterTenantFromRequest(request)
   try {
     await assertAdmin()
     const body = await request.json().catch(() => ({}))

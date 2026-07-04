@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { apiWassRequest, parseApiWassSessionId } from '@/lib/apiwass'
@@ -10,7 +11,8 @@ async function assertAdmin() {
   if (!session?.user || role !== 'ADMIN') throw new Error('Unauthorized')
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  await enterTenantFromRequest(request)
   try {
     await assertAdmin()
     const data = await apiWassRequest('/sessions')
@@ -28,6 +30,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  await enterTenantFromRequest(request)
   try {
     await assertAdmin()
     const cfg = await getWhatsAppConfig()
