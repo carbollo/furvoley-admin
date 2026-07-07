@@ -1202,29 +1202,40 @@ function AdminSumario() {
 }
 
 // ── ADMIN · ORGANIGRAMA (grupos y subgrupos con herencia) ───────────────────
-function GroupTreeNodeRow({ node, depth, selectedId, onSelect }) {
+function GroupTreeNodeRow({ node, depth, selectedId, onSelect, selState, onToggleSel }) {
+  const st = selState ? selState(node.id) : 'none'
   return (
     <>
-      <button
-        type="button"
-        onClick={() => onSelect(node.id)}
-        style={{
-          display:'flex',alignItems:'center',gap:8,width:'100%',
-          padding:`8px 12px 8px ${12 + depth * 18}px`,
-          border:'none',borderRadius:8,cursor:'pointer',fontFamily:'inherit',
-          background:selectedId === node.id ? 'var(--accent-pill)' : 'transparent',
-          color:selectedId === node.id ? 'var(--accent)' : 'var(--text-primary)',
-          fontSize:13,fontWeight:selectedId === node.id ? 700 : 500,textAlign:'left',
-        }}
-      >
-        <span style={{opacity:0.55,display:'inline-flex',flexShrink:0}}>
-          <Icon name={node.children.length ? 'teams' : 'users'} size={13}/>
-        </span>
-        <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{node.name}</span>
-        <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:600}}>{node.directMemberCount}</span>
-      </button>
+      <div style={{display:'flex',alignItems:'center',paddingLeft:depth * 18}}>
+        <input
+          type="checkbox"
+          checked={st === 'all'}
+          ref={(el) => { if (el) el.indeterminate = st === 'some' }}
+          onChange={() => onToggleSel && onToggleSel(node.id)}
+          title="Seleccionar este grupo y sus subgrupos"
+          style={{width:15,height:15,cursor:'pointer',flexShrink:0,margin:'0 4px 0 4px',accentColor:'var(--accent)'}}
+        />
+        <button
+          type="button"
+          onClick={() => onSelect(node.id)}
+          style={{
+            display:'flex',alignItems:'center',gap:8,flex:1,minWidth:0,
+            padding:'8px 12px',
+            border:'none',borderRadius:8,cursor:'pointer',fontFamily:'inherit',
+            background:selectedId === node.id ? 'var(--accent-pill)' : 'transparent',
+            color:selectedId === node.id ? 'var(--accent)' : 'var(--text-primary)',
+            fontSize:13,fontWeight:selectedId === node.id ? 700 : 500,textAlign:'left',
+          }}
+        >
+          <span style={{opacity:0.55,display:'inline-flex',flexShrink:0}}>
+            <Icon name={node.children.length ? 'teams' : 'users'} size={13}/>
+          </span>
+          <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{node.name}</span>
+          <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:600}}>{node.directMemberCount}</span>
+        </button>
+      </div>
       {node.children.map((child) => (
-        <GroupTreeNodeRow key={child.id} node={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect}/>
+        <GroupTreeNodeRow key={child.id} node={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} selState={selState} onToggleSel={onToggleSel}/>
       ))}
     </>
   )
@@ -1255,6 +1266,10 @@ function Organigrama() {
   const [planModal, setPlanModal] = useState(false)
   const [planOptions, setPlanOptions] = useState([])
   const [planId, setPlanId] = useState('')
+  // Selección para acciones en lote (socios + grupos/subgrupos). Guarda ids de socio.
+  const [selMembers, setSelMembers] = useState(() => new Set())
+  const [planTargetIds, setPlanTargetIds] = useState([])
+  const [planTargetLabel, setPlanTargetLabel] = useState('')
 
   const flatGroups = useMemo(() => {
     const out = []
@@ -1323,6 +1338,53 @@ function Organigrama() {
     }
     return out
   }, [tree])
+
+  // ── Selección en lote ──────────────────────────────────────────────────
+  /** ids de un grupo y TODOS sus descendientes (contención: grupo + subgrupos). */
+  const descendantGroupIds = useCallback((groupId) => {
+    const childrenOf = new Map()
+    const walk = (nodes) => { for (const n of nodes) { childrenOf.set(n.id, n.children || []); walk(n.children || []) } }
+    walk(tree)
+    const out = new Set()
+    const stack = [groupId]
+    while (stack.length) {
+      const id = stack.pop()
+      if (out.has(id)) continue
+      out.add(id)
+      for (const c of (childrenOf.get(id) || [])) stack.push(c.id)
+    }
+    return out
+  }, [tree])
+
+  /** ids de socio efectivos de un grupo (directos + de sus subgrupos), desde overview. */
+  const effectiveMemberIdsOfGroup = useCallback((groupId) => {
+    const desc = descendantGroupIds(groupId)
+    return overview.filter((m) => (m.groups || []).some((g) => desc.has(g.id))).map((m) => m.id)
+  }, [descendantGroupIds, overview])
+
+  function toggleMemberSel(id) {
+    setSelMembers((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
+  function toggleGroupSel(groupId) {
+    const ids = effectiveMemberIdsOfGroup(groupId)
+    if (ids.length === 0) return
+    setSelMembers((prev) => {
+      const n = new Set(prev)
+      const allSel = ids.every((id) => n.has(id))
+      if (allSel) ids.forEach((id) => n.delete(id))
+      else ids.forEach((id) => n.add(id))
+      return n
+    })
+  }
+  /** 'all' | 'some' | 'none' para el checkbox de un grupo. */
+  const groupSelState = useCallback((groupId) => {
+    const ids = effectiveMemberIdsOfGroup(groupId)
+    if (ids.length === 0) return 'none'
+    const sel = ids.reduce((acc, id) => acc + (selMembers.has(id) ? 1 : 0), 0)
+    return sel === 0 ? 'none' : sel === ids.length ? 'all' : 'some'
+  }, [effectiveMemberIdsOfGroup, selMembers])
+
+  const clearSel = () => setSelMembers(new Set())
 
   const GROUP_ROLE_FILTERS = [
     { value: 'ALL', label: 'Todos' },
@@ -1460,7 +1522,11 @@ function Organigrama() {
     } finally { setBulkBusy(false) }
   }
 
-  async function abrirPlanModal() {
+  async function abrirPlanModal(targetIds, label) {
+    const ids = Array.from(new Set(targetIds || []))
+    if (ids.length === 0) { showAlert('No hay socios seleccionados.'); return }
+    setPlanTargetIds(ids)
+    setPlanTargetLabel(label || `${ids.length} socio(s) seleccionados`)
     setPlanModal(true)
     if (planOptions.length > 0) return
     try {
@@ -1473,20 +1539,21 @@ function Organigrama() {
     } catch { /* noop */ }
   }
 
-  async function asignarCuotaGrupo() {
-    if (!selectedId || !planId || members.length === 0) return
-    const ok = await showConfirm(`¿Asignar la cuota seleccionada a los ${members.length} miembros de «${groupName}»? La cuota activa anterior de cada socio se cancela.`).catch(() => false)
+  async function asignarCuota() {
+    if (!planId || planTargetIds.length === 0) return
+    const ok = await showConfirm(`¿Asignar la cuota a ${planTargetIds.length} socio(s)? La cuota activa anterior de cada uno se cancela.`).catch(() => false)
     if (!ok) return
     setBulkBusy(true)
     try {
       const r = await fetch('/api/crm/members/batch', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberIds: members.map((m) => m.memberId), action: 'assign-plan', planId }),
+        body: JSON.stringify({ memberIds: planTargetIds, action: 'assign-plan', planId }),
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo asignar la cuota'); return }
       setPlanModal(false)
+      setSelMembers(new Set())
       showAlert(`Cuota asignada: ${j.succeeded ?? 0} correctos, ${j.failed ?? 0} fallidos.`)
     } finally { setBulkBusy(false) }
   }
@@ -1522,7 +1589,7 @@ function Organigrama() {
               <p style={{fontSize:13,color:'var(--text-muted)',padding:'4px 8px'}}>Aún no hay grupos. Crea el primero abajo.</p>
             )}
             {tree.map((node) => (
-              <GroupTreeNodeRow key={node.id} node={node} depth={0} selectedId={selectedId} onSelect={setSelectedId}/>
+              <GroupTreeNodeRow key={node.id} node={node} depth={0} selectedId={selectedId} onSelect={setSelectedId} selState={groupSelState} onToggleSel={toggleGroupSel}/>
             ))}
           </div>
           <div style={{borderTop:'1px solid var(--border)',paddingTop:12,display:'flex',flexDirection:'column',gap:8}}>
@@ -1588,8 +1655,12 @@ function Organigrama() {
                   <p style={{fontSize:13,color:'var(--text-muted)',padding:'16px 0'}}>No hay miembros que coincidan con el filtro.</p>
                 )}
                 {visibleOverview.map((m) => (
-                  <button key={m.id} type="button" onClick={() => setFicha({ memberId: m.id, name: m.name })}
-                    style={{display:'flex',alignItems:'center',gap:12,padding:'10px 4px',borderTop:'1px solid var(--border)',border:'none',borderBottom:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left',width:'100%'}}>
+                  <div key={m.id} style={{display:'flex',alignItems:'center',gap:8,borderTop:'1px solid var(--border)'}}>
+                    <input type="checkbox" checked={selMembers.has(m.id)} onChange={() => toggleMemberSel(m.id)}
+                      title="Seleccionar socio"
+                      style={{width:16,height:16,cursor:'pointer',flexShrink:0,marginLeft:4,accentColor:'var(--accent)'}}/>
+                    <button type="button" onClick={() => setFicha({ memberId: m.id, name: m.name })}
+                    style={{display:'flex',alignItems:'center',gap:12,padding:'10px 4px',border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left',flex:1,minWidth:0}}>
                     <Avatar initials={(m.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="#2563eb" size={32}/>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</div>
@@ -1609,7 +1680,8 @@ function Organigrama() {
                         <span style={{fontSize:11,color:'var(--text-muted)'}}>+{m.groups.length - 4}</span>
                       )}
                     </div>
-                  </button>
+                    </button>
+                  </div>
                 ))}
               </div>
             </>
@@ -1634,7 +1706,7 @@ function Organigrama() {
                     {bulkBusy ? 'Enviando…' : 'Recordar cobros'}
                   </button>
                   <button type="button" disabled={bulkBusy || members.length === 0}
-                    onClick={abrirPlanModal}
+                    onClick={() => abrirPlanModal(members.map((m) => m.memberId), `«${groupName}»`)}
                     style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
                     Asignar cuota
                   </button>
@@ -1703,6 +1775,9 @@ function Organigrama() {
                 )}
                 {visibleMembers.map((m) => (
                   <div key={m.memberId} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+                    <input type="checkbox" checked={selMembers.has(m.memberId)} onChange={() => toggleMemberSel(m.memberId)}
+                      title="Seleccionar socio"
+                      style={{width:16,height:16,cursor:'pointer',flexShrink:0,accentColor:'var(--accent)'}}/>
                     <button type="button" onClick={() => setFicha({ memberId: m.memberId, name: m.name })}
                       style={{display:'flex',alignItems:'center',gap:12,flex:1,minWidth:0,border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left',padding:0}}>
                       <Avatar initials={(m.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="#2563eb" size={32}/>
@@ -1732,6 +1807,25 @@ function Organigrama() {
           )}
         </div>
       </div>
+
+      {/* ── Barra de acciones en lote (socios + grupos/subgrupos seleccionados) ── */}
+      {selMembers.size > 0 && (
+        <div style={{position:'fixed',left:'50%',transform:'translateX(-50%)',bottom:24,zIndex:1350,
+          display:'flex',alignItems:'center',gap:14,padding:'12px 18px',borderRadius:14,flexWrap:'wrap',
+          background:'var(--surface-card)',border:'1px solid var(--border)',boxShadow:'var(--card-shadow-lg)'}}>
+          <span style={{fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>
+            {selMembers.size} socio{selMembers.size === 1 ? '' : 's'} seleccionado{selMembers.size === 1 ? '' : 's'}
+          </span>
+          <button type="button" disabled={bulkBusy} onClick={() => abrirPlanModal([...selMembers], `${selMembers.size} seleccionados`)}
+            style={{padding:'9px 16px',borderRadius:9,border:'none',background:'var(--accent)',color:'#fff',cursor:bulkBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:bulkBusy?0.6:1}}>
+            Asignar cuota
+          </button>
+          <button type="button" onClick={clearSel}
+            style={{padding:'9px 12px',borderRadius:9,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-secondary)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600}}>
+            Limpiar
+          </button>
+        </div>
+      )}
 
       {/* ── Ficha de usuario (image11): datos, grupos, membresía, historial ── */}
       {ficha && (
@@ -1873,9 +1967,9 @@ function Organigrama() {
         <div role="dialog" aria-modal="true" onClick={() => { if (!bulkBusy) setPlanModal(false) }}
           style={{position:'fixed',inset:0,background:'rgba(28,25,23,0.4)',zIndex:1400,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
           <div onClick={(e) => e.stopPropagation()} style={{background:'#fff',borderRadius:14,padding:26,width:'100%',maxWidth:420,boxShadow:'var(--card-shadow-lg)'}}>
-            <h2 style={{margin:'0 0 6px',fontSize:17,fontWeight:700,color:'var(--text-primary)'}}>Asignar cuota a «{groupName}»</h2>
+            <h2 style={{margin:'0 0 6px',fontSize:17,fontWeight:700,color:'var(--text-primary)'}}>Asignar cuota · {planTargetLabel}</h2>
             <p style={{margin:'0 0 14px',fontSize:13,color:'var(--text-secondary)'}}>
-              Se asigna a los {members.length} miembros efectivos del grupo. La cuota activa anterior de cada socio se cancela.
+              Se asigna a {planTargetIds.length} socio(s). La cuota activa anterior de cada uno se cancela.
             </p>
             {planOptions.length === 0 ? (
               <p style={{fontSize:13,color:'var(--text-muted)'}}>Cargando planes… (si no aparecen, crea uno en Suscripciones)</p>
@@ -1892,7 +1986,7 @@ function Organigrama() {
                 style={{padding:'9px 16px',borderRadius:8,border:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600,color:'var(--text-secondary)'}}>
                 Cancelar
               </button>
-              <button type="button" disabled={bulkBusy || !planId} onClick={asignarCuotaGrupo}
+              <button type="button" disabled={bulkBusy || !planId} onClick={asignarCuota}
                 style={{padding:'9px 16px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:bulkBusy||!planId?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:bulkBusy||!planId?0.6:1}}>
                 {bulkBusy ? 'Asignando…' : 'Asignar cuota'}
               </button>
