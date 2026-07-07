@@ -1,6 +1,6 @@
 import * as z from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { createEvent } from '@/app/actions/events'
+import { createEventInternal } from '@/app/actions/events'
 import { prisma } from '@/lib/prisma'
 import { withHermesAudit } from '@/lib/hermes-mcp/audit'
 import { jsonToolResult, toolError } from '@/lib/hermes-mcp/tools/helpers'
@@ -69,7 +69,7 @@ export function registerEventTools(server: McpServer) {
         if (!title || !teamId) toolError('Título y equipo son obligatorios')
         const date = args.date ? new Date(args.date) : new Date()
         if (Number.isNaN(date.getTime())) toolError('Fecha inválida')
-        await createEvent({
+        await createEventInternal({
           title,
           type: args.type?.trim() || 'OTHER',
           date,

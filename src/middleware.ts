@@ -18,27 +18,34 @@ const TENANT_ALLOW_OVERRIDE =
  * cliente (evita que alguien fuerce leer otro tenant). Solo en modo pruebas
  * (`TENANT_ALLOW_OVERRIDE=true`) se permite `?tenant=` / `x-tenant-override`.
  */
-function tenantHeaders(req: NextRequest): Headers {
+function tenantHeaders(req: NextRequest): { fwd: Headers; cookieSlug: string | null } {
   const fwd = new Headers(req.headers)
   fwd.delete("x-tenant-slug")
-  if (!isMultiTenant()) return fwd
+  if (!isMultiTenant()) return { fwd, cookieSlug: null }
 
   // Modo pruebas (sin dominio comodín): el override explícito manda sobre el
   // host, porque el dominio por defecto de Railway (`app.up.railway.app`) parece
-  // un subdominio y produciría un slug basura. La cookie `furvoley-tenant` (la
-  // fija el SSO) mantiene el tenant en las peticiones siguientes al mismo host.
-  // En producción `TENANT_ALLOW_OVERRIDE` está apagado → solo cuenta el subdominio.
+  // un subdominio y produciría un slug basura. En producción `TENANT_ALLOW_OVERRIDE`
+  // está apagado → solo cuenta el subdominio.
   let slug: string | null = null
+  // Si llega por `?tenant=` lo recordamos en cookie: así los enlaces públicos
+  // (formularios /r/...) mantienen el tenant en las peticiones siguientes (el
+  // fetch del cliente ya no lleva el query).
+  let cookieSlug: string | null = null
   if (TENANT_ALLOW_OVERRIDE) {
-    slug = sanitizeSlug(
-      req.nextUrl.searchParams.get("tenant") ||
-        req.headers.get("x-tenant-override") ||
-        req.cookies.get("furvoley-tenant")?.value,
-    )
+    const fromQuery = sanitizeSlug(req.nextUrl.searchParams.get("tenant"))
+    if (fromQuery) {
+      slug = fromQuery
+      cookieSlug = fromQuery
+    } else {
+      slug = sanitizeSlug(
+        req.headers.get("x-tenant-override") || req.cookies.get("furvoley-tenant")?.value,
+      )
+    }
   }
   if (!slug) slug = tenantSlugFromHost(req.headers.get("host"))
   if (slug) fwd.set("x-tenant-slug", slug)
-  return fwd
+  return { fwd, cookieSlug }
 }
 
 const LEGACY_ADMIN_PREFIXES = ["/__furvoley-config", "/_furvoley-config"]
@@ -106,8 +113,20 @@ export async function middleware(req: NextRequest) {
   if (legacyAdmin) return legacyAdmin
 
   // Tenant resuelto por subdominio; se reenvía a los handlers en cada pass-through.
-  const fwd = tenantHeaders(req)
-  const pass = () => NextResponse.next({ request: { headers: fwd } })
+  const { fwd, cookieSlug } = tenantHeaders(req)
+  const pass = () => {
+    const res = NextResponse.next({ request: { headers: fwd } })
+    if (cookieSlug) {
+      res.cookies.set("furvoley-tenant", cookieSlug, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 30 * 24 * 60 * 60,
+      })
+    }
+    return res
+  }
 
   if (isPortalPublicPath(path)) {
     return pass()
@@ -125,6 +144,11 @@ export async function middleware(req: NextRequest) {
 
   // MCP Hermes: auth Bearer en la ruta, no sesión NextAuth (gateway en localhost).
   if (path.startsWith("/api/hermes/mcp")) {
+    return pass()
+  }
+
+  // Tareas programadas (cron): auth Bearer CRON_SECRET en la ruta, sin sesión.
+  if (path.startsWith("/api/jobs/")) {
     return pass()
   }
 

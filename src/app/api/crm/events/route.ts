@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { createEvent } from '@/app/actions/events'
+import { createEventInternal } from '@/app/actions/events'
 import { parseCuid } from '@/lib/db-input-validation'
 import { assertTeamAccess, requireRoles } from '@/lib/rbac-api'
-import { scheduleAttendanceForm, type AttendanceLinkResult } from '@/lib/attendance-link'
+import { attendanceFormSendDate, isAttendanceReminderDays } from '@/lib/attendance-link'
 
 export async function POST(request: Request) {
   const auth = await requireRoles(['ADMIN', 'COACH'], request)
@@ -17,6 +17,7 @@ export async function POST(request: Request) {
     teamId?: string
     teamIds?: string[]
     scheduleAttendanceForm?: boolean
+    attendanceReminderDays?: number
   }
   try {
     body = await request.json()
@@ -55,23 +56,37 @@ export async function POST(request: Request) {
 
   const description = String(body.description || '').trim() || undefined
   const wantAttendance = body.scheduleAttendanceForm === true
+  // Días de antelación del formulario (1/3/7/15/30); por defecto 7.
+  const reminderDays = wantAttendance
+    ? (isAttendanceReminderDays(body.attendanceReminderDays) ? body.attendanceReminderDays : 7)
+    : null
 
-  const attendanceLinks: AttendanceLinkResult[] = []
+  // Solo se PROGRAMA aquí; el envío (masivo por WhatsApp) lo hace el cron
+  // /api/jobs/attendance-forms cuando llega `fecha - reminderDays`, incluidos los
+  // eventos cuya ventana ya pasó (se envían en el siguiente tick). Así el POST
+  // responde rápido y no se duplican envíos si el usuario reintenta.
+  const sendAt = reminderDays != null ? attendanceFormSendDate(date, reminderDays) : null
+
   let created = 0
   for (const teamId of teamIds) {
-    const event = await createEvent({
+    await createEventInternal({
       title,
       type: body.type?.trim() || 'OTHER',
       date,
       location: body.location?.trim() || undefined,
       description,
       teamId,
+      attendanceFormEnabled: wantAttendance,
+      attendanceReminderDays: reminderDays,
     })
     created++
-    if (wantAttendance) {
-      attendanceLinks.push(await scheduleAttendanceForm(event.id, teamId, title, date))
-    }
   }
 
-  return NextResponse.json({ ok: true, created, attendanceLinks })
+  return NextResponse.json({
+    ok: true,
+    created,
+    attendance: wantAttendance
+      ? { reminderDays, sendAt: sendAt?.toISOString() ?? null }
+      : null,
+  })
 }

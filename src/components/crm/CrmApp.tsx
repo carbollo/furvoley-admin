@@ -7240,6 +7240,7 @@ function Calendario({ setActive }) {
     location: '',
     description: '',
     scheduleAttendance: false,
+    scheduleAttendanceDays: 7,
   });
   const FESTIVOS_UI = bundle?.festivos ?? [];
   const [festivoForm, setFestivoForm] = useState({ date: '', name: '' });
@@ -7330,6 +7331,7 @@ function Calendario({ setActive }) {
       location: '',
       description: '',
       scheduleAttendance: false,
+      scheduleAttendanceDays: 7,
     })
     setShowEventoModal(true)
   }
@@ -7346,6 +7348,7 @@ function Calendario({ setActive }) {
       location: ev.location || '',
       description: ev.description || '',
       scheduleAttendance: false,
+      scheduleAttendanceDays: 7,
     })
     setShowEventoModal(true)
   }
@@ -7379,7 +7382,10 @@ function Calendario({ setActive }) {
           date: d.toISOString(),
           location: formEvento.location.trim() || undefined,
           description: formEvento.description.trim() || undefined,
-          ...(isEdit ? {} : { scheduleAttendanceForm: formEvento.scheduleAttendance }),
+          ...(isEdit ? {} : {
+            scheduleAttendanceForm: formEvento.scheduleAttendance,
+            ...(formEvento.scheduleAttendance ? { attendanceReminderDays: formEvento.scheduleAttendanceDays } : {}),
+          }),
         }),
       })
       const j = await r.json().catch(() => ({}))
@@ -7389,15 +7395,19 @@ function Calendario({ setActive }) {
       }
       setShowEventoModal(false)
       setEditingEventId(null)
-      // Resumen del formulario de asistencia (enlace personal a cada miembro).
-      const links = Array.isArray(j.attendanceLinks) ? j.attendanceLinks : []
-      if (links.length > 0) {
-        const lines = links.map((l) =>
-          `${l.team}: ${l.sent}/${l.total} enlaces enviados` +
-          `${l.toGuardians ? ` (${l.toGuardians} a familiares)` : ''}` +
-          `${l.warning ? ` · ${l.warning}` : ''}`,
-        )
-        showAlert(`Evento creado en ${j.created} equipo(s).\n\nFormulario de asistencia:\n${lines.join('\n')}`)
+      // Resumen del formulario de asistencia programado (lo envía el cron).
+      const att = j.attendance
+      if (att) {
+        const equipos = `Evento creado en ${j.created} equipo(s).`
+        const sendAtMs = att.sendAt ? new Date(att.sendAt).getTime() : NaN
+        if (Number.isFinite(sendAtMs) && sendAtMs <= Date.now()) {
+          showAlert(`${equipos}\n\nFormulario de asistencia programado: se enviará en breve.`)
+        } else {
+          const fecha = att.sendAt
+            ? new Date(att.sendAt).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+            : ''
+          showAlert(`${equipos}\n\nFormulario de asistencia programado: se enviará el ${fecha} (${att.reminderDays} días antes del evento).`)
+        }
       } else if (!isEdit && (j.created ?? 0) > 1) {
         showAlert(`Evento creado en ${j.created} equipos.`)
       }
@@ -7855,6 +7865,7 @@ function Calendario({ setActive }) {
                 />
               </div>
               {!editingEventId && (
+                <>
                 <label style={{
                   display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px',
                   borderRadius: 12, border: '1px solid rgba(0,0,0,0.09)', background: 'var(--surface-low)',
@@ -7876,6 +7887,22 @@ function Calendario({ setActive }) {
                     </span>
                   </span>
                 </label>
+                {formEvento.scheduleAttendance && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '0 4px' }}>
+                    <span style={{ fontSize: 13, color: '#57534e', fontWeight: 600 }}>Enviar con</span>
+                    <select
+                      value={formEvento.scheduleAttendanceDays}
+                      onChange={(e) => setFormEvento((p) => ({ ...p, scheduleAttendanceDays: Number(e.target.value) }))}
+                      style={{ ...evInput, width: 'auto', padding: '8px 12px' }}
+                    >
+                      {[1, 3, 7, 15, 30].map((d) => (
+                        <option key={d} value={d}>{d} {d === 1 ? 'día' : 'días'}</option>
+                      ))}
+                    </select>
+                    <span style={{ fontSize: 13, color: '#57534e' }}>de antelación</span>
+                  </div>
+                )}
+                </>
               )}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 26 }}>

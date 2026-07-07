@@ -13,6 +13,12 @@ export type AttendanceLinkResult = {
   skippedNoPhone: number
   failed: number
   warning: string | null
+  /**
+   * El fallo es RECUPERABLE (WhatsApp aún sin conectar, o todos los envíos
+   * fallaron de forma transitoria): no debe marcarse el evento como enviado
+   * para que el cron reintente. false = terminado (enviado o nada que enviar).
+   */
+  recoverable: boolean
 }
 
 const ADULT_AGE = 18
@@ -54,7 +60,7 @@ export async function scheduleAttendanceForm(
   const members = (team?.members ?? []).map((tm) => tm.member)
 
   if (members.length === 0) {
-    return { team: teamName, total: 0, sent: 0, toGuardians: 0, skippedNoPhone: 0, failed: 0, warning: 'El equipo no tiene miembros.' }
+    return { team: teamName, total: 0, sent: 0, toGuardians: 0, skippedNoPhone: 0, failed: 0, warning: 'El equipo no tiene miembros.', recoverable: false }
   }
 
   const waCfg = await getWhatsAppConfig()
@@ -63,6 +69,7 @@ export async function scheduleAttendanceForm(
     return {
       team: teamName, total: members.length, sent: 0, toGuardians: 0, skippedNoPhone: 0, failed: 0,
       warning: 'WhatsApp no está configurado: no se pudieron enviar los enlaces de asistencia.',
+      recoverable: true,
     }
   }
 
@@ -113,5 +120,94 @@ export async function scheduleAttendanceForm(
         ? `${skippedNoPhone ? `${skippedNoPhone} sin teléfono. ` : ''}${failed ? `${failed} envíos fallidos.` : ''}`.trim()
         : null
 
-  return { team: teamName, total: members.length, sent, toGuardians, skippedNoPhone, failed, warning }
+  // Todos los envíos fallaron (0 enviados y hubo fallos) → transitorio → reintentar.
+  const recoverable = sent === 0 && failed > 0
+  return { team: teamName, total: members.length, sent, toGuardians, skippedNoPhone, failed, warning, recoverable }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Días de antelación permitidos para el formulario de asistencia. */
+export const ATTENDANCE_REMINDER_DAYS = [1, 3, 7, 15, 30] as const
+export type AttendanceReminderDays = (typeof ATTENDANCE_REMINDER_DAYS)[number]
+
+export function isAttendanceReminderDays(n: unknown): n is AttendanceReminderDays {
+  return typeof n === 'number' && (ATTENDANCE_REMINDER_DAYS as readonly number[]).includes(n)
+}
+
+/** Fecha a la que debe enviarse el formulario: `eventDate - reminderDays`. */
+export function attendanceFormSendDate(eventDate: Date, reminderDays: number): Date {
+  return new Date(eventDate.getTime() - reminderDays * DAY_MS)
+}
+
+/**
+ * Envía el formulario de asistencia de UN evento y marca `attendanceFormSentAt`
+ * para no reenviarlo. Reutilizado por el envío inmediato (al crear el evento si
+ * la ventana ya pasó) y por el cron. Devuelve null si el evento no existe o no
+ * tiene equipo.
+ */
+export async function sendAttendanceFormForEvent(eventId: string): Promise<AttendanceLinkResult | null> {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, title: true, date: true, teamId: true, attendanceFormSentAt: true },
+  })
+  if (!event?.teamId || event.attendanceFormSentAt) return null
+
+  const result = await scheduleAttendanceForm(event.id, event.teamId, event.title, event.date)
+  // Fallo recuperable (WhatsApp sin conectar, o todos los envíos fallaron): NO
+  // marcar → el cron reintentará en el próximo tick (hasta que el evento pase).
+  // Fallos parciales (algunos sin teléfono) SÍ marcan: no reintentamos el envío
+  // masivo cada hora (evita spam a las familias con teléfono).
+  if (result.recoverable) return result
+
+  await prisma.event.update({
+    where: { id: event.id },
+    data: { attendanceFormSentAt: new Date() },
+  })
+  return result
+}
+
+export type DueAttendanceSummary = {
+  processed: number
+  results: { eventId: string; title: string; result: AttendanceLinkResult | null }[]
+}
+
+/**
+ * Envía los formularios de asistencia cuya ventana de antelación ya ha llegado.
+ * Debe ejecutarse dentro del contexto del tenant (el cron itera por tenant).
+ *
+ * Criterio: formulario activado, aún no enviado, evento futuro (no pasado ni
+ * cancelado) y `ahora >= fecha - reminderDays`.
+ */
+export async function dispatchDueAttendanceForms(now: Date = new Date()): Promise<DueAttendanceSummary> {
+  const candidates = await prisma.event.findMany({
+    where: {
+      attendanceFormEnabled: true,
+      attendanceFormSentAt: null,
+      status: 'SCHEDULED',
+      date: { gte: now },
+      teamId: { not: null },
+    },
+    select: { id: true, title: true, date: true, attendanceReminderDays: true },
+    orderBy: { date: 'asc' },
+    take: 500,
+  })
+
+  const due = candidates.filter((e) => {
+    const days = e.attendanceReminderDays ?? 0
+    if (!days) return false
+    return now.getTime() >= attendanceFormSendDate(e.date, days).getTime()
+  })
+
+  const results: DueAttendanceSummary['results'] = []
+  for (const e of due) {
+    // Un fallo en un evento no debe abortar el resto del tenant.
+    try {
+      const result = await sendAttendanceFormForEvent(e.id)
+      results.push({ eventId: e.id, title: e.title, result })
+    } catch {
+      results.push({ eventId: e.id, title: e.title, result: null })
+    }
+  }
+  return { processed: results.length, results }
 }
