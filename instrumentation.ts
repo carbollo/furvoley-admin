@@ -6,4 +6,9 @@ export async function register() {
   if (String(process.env.PORTAL_CENTRAL_HOST || '').trim().toLowerCase() === 'true') return
   const { scheduleHermesGatewayBoot } = await import('@/lib/hermes-gateway/boot')
   scheduleHermesGatewayBoot()
+
+  // Cron in-process (sin nada externo): envía los formularios de asistencia
+  // programados cuando llega su ventana de antelación. Recorre todos los tenants.
+  const { scheduleAttendanceCron } = await import('@/lib/attendance-cron')
+  scheduleAttendanceCron()
 }
