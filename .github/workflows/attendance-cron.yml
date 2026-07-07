@@ -1,0 +1,42 @@
+name: Formularios de asistencia (cron)
+
+# Dispara el envío de los formularios de asistencia programados cuya ventana de
+# antelación ya llegó (fecha_evento - días). Recorre todos los clientes (tenants).
+#
+# Requisitos:
+#   - Secret de repositorio `CRON_SECRET` = mismo valor que la variable
+#     CRON_SECRET del servicio crm-mt en Railway.
+#   - (Opcional) Variable de repositorio `CRM_MT_URL` para sobreescribir la URL.
+#
+# GitHub puede retrasar los cron unos minutos bajo carga: para asistencia
+# (granularidad de días) es más que suficiente. Alternativa más puntual:
+# un cron de Railway o cron-job.org apuntando al mismo endpoint.
+
+on:
+  schedule:
+    - cron: '5 * * * *' # cada hora (minuto 5)
+  workflow_dispatch: {}
+
+concurrency:
+  group: attendance-cron
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar /api/jobs/attendance-forms
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRM_MT_URL: ${{ vars.CRM_MT_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "Falta el secret CRON_SECRET del repositorio." >&2
+            exit 1
+          fi
+          BASE="${CRM_MT_URL:-https://crm-mt-production.up.railway.app}"
+          echo "POST $BASE/api/jobs/attendance-forms"
+          curl -fsS --max-time 120 -X POST "$BASE/api/jobs/attendance-forms" \
+            -H "Authorization: Bearer $CRON_SECRET"
+          echo
