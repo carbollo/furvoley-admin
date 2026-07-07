@@ -154,21 +154,21 @@ export async function runDocumentExpiringWorkflows() {
   }
 }
 
-export async function runCoachAssignedWorkflows(teamId: string, coachMemberId: string) {
+export async function runCoachAssignedWorkflows(groupId: string, coachMemberId: string) {
   const member = await loadMemberPayload(coachMemberId)
   if (!member) return
-  await runWorkflowsForMemberByTrigger(member.id, 'COACH_ASSIGNED', { rosterTeamId: teamId })
+  await runWorkflowsForMemberByTrigger(member.id, 'COACH_ASSIGNED', { rosterTeamId: groupId })
 }
 
 export async function runTeamChangeApprovedWorkflows(requestId: string) {
-  const req = await prisma.teamChangeRequest.findUnique({ where: { id: requestId } })
+  const req = await prisma.groupChangeRequest.findUnique({ where: { id: requestId } })
   if (!req || req.status !== 'APPROVED') return
   const member = await loadMemberPayload(req.memberId)
   if (!member) return
   await runWorkflowsForMemberByTrigger(member.id, 'TEAM_CHANGE_APPROVED', {
-    rosterTeamId: req.toTeamId,
-    fromTeamId: req.fromTeamId,
-    toTeamId: req.toTeamId,
+    rosterTeamId: req.toGroupId,
+    fromGroupId: req.fromGroupId,
+    toGroupId: req.toGroupId,
   })
 }
 
@@ -181,7 +181,7 @@ export async function runConvocationPublishedWorkflows(eventId: string, audience
   })
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, title: true, teamId: true, date: true, location: true },
+    select: { id: true, title: true, groupId: true, date: true, location: true },
   })
   if (!event) return
 
@@ -192,7 +192,7 @@ export async function runConvocationPublishedWorkflows(eventId: string, audience
       event: {
         id: event.id,
         title: event.title,
-        teamId: event.teamId,
+        groupId: event.groupId,
         date: event.date,
       },
       eventLocation: event.location || '',
@@ -209,9 +209,9 @@ export async function runWaitlistSlotWorkflows() {
   await runWorkflowsForTrigger('WAITLIST_SLOT_AVAILABLE', leadAsMember(lead))
 }
 
-export async function runBulkMessageWorkflows(teamId: string, message: string) {
-  const members = await prisma.teamMember.findMany({
-    where: { teamId },
+export async function runBulkMessageWorkflows(groupId: string, message: string) {
+  const members = await prisma.groupMembership.findMany({
+    where: { groupId },
     include: { member: true },
   })
   for (const tm of members) {
@@ -219,7 +219,7 @@ export async function runBulkMessageWorkflows(teamId: string, message: string) {
     if (!m) continue
     await runWorkflowsForTrigger('BULK_MESSAGE_REQUESTED', m, {
       bulkMessage: message,
-      rosterTeamId: teamId,
+      rosterTeamId: groupId,
     })
   }
 }

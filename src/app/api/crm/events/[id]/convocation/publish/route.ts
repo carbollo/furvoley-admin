@@ -20,16 +20,16 @@ export async function POST(request: Request, { params }: Params) {
     body = {}
   }
 
-  const event = await prisma.event.findUnique({ where: { id: parsedEventId }, select: { teamId: true } })
-  if (!event?.teamId) {
+  const event = await prisma.event.findUnique({ where: { id: parsedEventId }, select: { groupId: true } })
+  if (!event?.groupId) {
     return NextResponse.json({ error: 'Evento sin equipo' }, { status: 400 })
   }
 
   const memberIds =
     body.memberIds ??
     (
-      await prisma.teamMember.findMany({
-        where: { teamId: event.teamId, role: 'PLAYER' },
+      await prisma.groupMembership.findMany({
+        where: { groupId: event.groupId, role: 'PLAYER' },
         select: { memberId: true },
       })
     ).map((m) => m.memberId)
@@ -44,8 +44,8 @@ export async function POST(request: Request, { params }: Params) {
         update: { status: 'INVITED' },
       })
     }
-    const allPlayers = await prisma.teamMember.findMany({
-      where: { teamId: event.teamId, role: 'PLAYER' },
+    const allPlayers = await prisma.groupMembership.findMany({
+      where: { groupId: event.groupId, role: 'PLAYER' },
       select: { memberId: true },
     })
     for (const p of allPlayers) {

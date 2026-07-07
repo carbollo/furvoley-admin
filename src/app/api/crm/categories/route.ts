@@ -29,7 +29,7 @@ export async function GET(request: Request) {
         name: c.name,
         minAge: c.minAge,
         maxAge: c.maxAge,
-        defaultTeamId: c.defaultTeamId,
+        defaultGroupId: c.defaultGroupId,
         isActive: c.isActive,
         // Años de nacimiento que cubre la categoría esta temporada (informativo).
         birthYearFrom: win.fromYear,
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
-  let body: { name?: string; minAge?: unknown; maxAge?: unknown; defaultTeamId?: string | null }
+  let body: { name?: string; minAge?: unknown; maxAge?: unknown; defaultGroupId?: string | null }
   try {
     body = await request.json()
   } catch {
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
         name,
         minAge,
         maxAge,
-        defaultTeamId: body.defaultTeamId ? String(body.defaultTeamId).trim() : null,
+        defaultGroupId: body.defaultGroupId ? String(body.defaultGroupId).trim() : null,
       },
       select: { id: true },
     })

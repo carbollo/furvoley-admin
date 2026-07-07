@@ -52,7 +52,7 @@ export const LEAVE_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
         position: 0,
         stepType: 'ACTION',
         actionType: 'TRIGGER_WAITLIST_NOTIFY',
-        config: { stepKey: 'wb3_wait', label: 'Avisar lista espera', teamId: '' },
+        config: { stepKey: 'wb3_wait', label: 'Avisar lista espera', groupId: '' },
       },
     ],
   }),

@@ -20,7 +20,7 @@ export const WD1_WORKFLOW = {
       config: {
         stepKey: 'wd1_assign',
         label: 'Incorporar a plantilla',
-        teamId: '',
+        groupId: '',
         minAge: '',
         maxAge: '',
       },
@@ -32,7 +32,7 @@ export const WD1_WORKFLOW = {
       config: {
         stepKey: 'wd1_coach',
         label: 'Avisar entrenador',
-        teamId: '',
+        groupId: '',
         waSessionId: '',
         waMessage:
           'Hola {coachName}, se ha incorporado a {assignedTeamName} el jugador/a {memberName}. Revisa la plantilla en el CRM.',

@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const feed = await getCalendarFeed({
     from: fromRaw ?? undefined,
     to: toRaw ?? undefined,
-    teamId: url.searchParams.get('teamId')?.trim() || undefined,
+    groupId: url.searchParams.get('groupId')?.trim() || undefined,
     limit: parseLimit(url.searchParams.get('limit'), 200, 100),
   })
 

@@ -9,17 +9,17 @@ type Params = { params: Promise<{ id: string }> }
 async function assertCanManageEvent(eventId: string, role: string, memberId: string | null) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { teamId: true },
+    select: { groupId: true },
   })
   if (!event) {
     return { ok: false as const, response: NextResponse.json({ error: 'Evento no encontrado' }, { status: 404 }) }
   }
   if (role === 'COACH') {
-    if (!memberId || !event.teamId) {
+    if (!memberId || !event.groupId) {
       return { ok: false as const, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
     }
-    const coachTeam = await prisma.teamMember.findFirst({
-      where: { memberId, teamId: event.teamId, role: 'COACH' },
+    const coachTeam = await prisma.groupMembership.findFirst({
+      where: { memberId, groupId: event.groupId, role: 'COACH' },
       select: { id: true },
     })
     if (!coachTeam) {
@@ -47,7 +47,7 @@ export async function PATCH(request: Request, { params }: Params) {
     date?: string
     location?: string
     description?: string
-    teamId?: string
+    groupId?: string
   }
   try {
     body = await request.json()
@@ -56,21 +56,21 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const title = body.title !== undefined ? String(body.title).trim() : undefined
-  const teamId = body.teamId !== undefined ? String(body.teamId).trim() : undefined
+  const groupId = body.groupId !== undefined ? String(body.groupId).trim() : undefined
   if (title === '') {
     return NextResponse.json({ error: 'El título no puede quedar vacío' }, { status: 400 })
   }
-  if (teamId === '') {
+  if (groupId === '') {
     return NextResponse.json({ error: 'El equipo es obligatorio' }, { status: 400 })
   }
 
-  if (auth.role === 'COACH' && teamId) {
+  if (auth.role === 'COACH' && groupId) {
     const memberId = sessionUser.memberId ?? null
     if (!memberId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const coachTeam = await prisma.teamMember.findFirst({
-      where: { memberId, teamId, role: 'COACH' },
+    const coachTeam = await prisma.groupMembership.findFirst({
+      where: { memberId, groupId, role: 'COACH' },
       select: { id: true },
     })
     if (!coachTeam) {
@@ -92,14 +92,14 @@ export async function PATCH(request: Request, { params }: Params) {
     date?: Date
     location?: string
     description?: string
-    teamId?: string
+    groupId?: string
   } = {}
   if (title !== undefined) payload.title = title
   if (body.type !== undefined) payload.type = body.type.trim() || 'OTHER'
   if (date !== undefined) payload.date = date
   if (body.location !== undefined) payload.location = body.location.trim() || undefined
   if (body.description !== undefined) payload.description = body.description.trim() || undefined
-  if (teamId !== undefined) payload.teamId = teamId
+  if (groupId !== undefined) payload.groupId = groupId
 
   if (Object.keys(payload).length === 0) {
     return NextResponse.json({ error: 'Sin datos para actualizar' }, { status: 400 })

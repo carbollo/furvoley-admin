@@ -136,7 +136,7 @@ export async function registerForEvent(eventId: string): Promise<RegisterForEven
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, status: true, teamId: true, maxAttendees: true },
+    select: { id: true, status: true, groupId: true, maxAttendees: true },
   });
 
   if (!event) {
@@ -146,10 +146,10 @@ export async function registerForEvent(eventId: string): Promise<RegisterForEven
     return { success: false, code: "CANCELLED" };
   }
 
-  if (event.teamId) {
-    const inTeam = await prisma.teamMember.findUnique({
+  if (event.groupId) {
+    const inTeam = await prisma.groupMembership.findUnique({
       where: {
-        teamId_memberId: { teamId: event.teamId, memberId },
+        groupId_memberId: { groupId: event.groupId, memberId },
       },
     });
     if (!inTeam) {
@@ -204,7 +204,7 @@ export async function getEvents() {
     const events = await prisma.event.findMany({
       orderBy: { date: "asc" },
       include: {
-        team: true,
+        group: true,
         _count: {
           select: { attendances: true, guestAttendees: true },
         },
@@ -222,7 +222,7 @@ export async function getEventById(id: string) {
     const event = await prisma.event.findUnique({
       where: { id },
       include: {
-        team: true,
+        group: true,
         attendances: {
           include: {
             member: true,
@@ -248,7 +248,7 @@ export async function createEvent(data: {
   isPublic: boolean;
   maxAttendees?: number | null;
   price?: number | null;
-  teamId?: string | null;
+  groupId?: string | null;
 }) {
   try {
     const event = await prisma.event.create({
@@ -275,7 +275,7 @@ export async function updateEvent(
     maxAttendees?: number | null;
     price?: number | null;
     status?: string;
-    teamId?: string | null;
+    groupId?: string | null;
   }
 ) {
   try {

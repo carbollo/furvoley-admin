@@ -14,11 +14,11 @@ export function EventForm({ teams }: { teams: { id: string, name: string }[] }) 
     const timeStr = formData.get('time') as string
     const location = formData.get('location') as string
     const description = formData.get('description') as string
-    const teamId = formData.get('teamId') as string
+    const groupId = formData.get('groupId') as string
 
     const date = new Date(`${dateStr}T${timeStr}`)
 
-    await createEvent({ title, type, date, location, description, teamId })
+    await createEvent({ title, type, date, location, description, groupId })
     setIsOpen(false)
   }
 
@@ -59,7 +59,7 @@ export function EventForm({ teams }: { teams: { id: string, name: string }[] }) 
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1">Equipo</label>
-                  <select required name="teamId" className="w-full border border-stone-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white text-stone-900">
+                  <select required name="groupId" className="w-full border border-stone-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white text-stone-900">
                     <option value="">Seleccionar...</option>
                     {teams.map(t => (
                       <option key={t.id} value={t.id}>{t.name}</option>

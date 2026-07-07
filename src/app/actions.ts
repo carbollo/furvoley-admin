@@ -130,7 +130,7 @@ export async function deleteMember(id: string) {
       data: { memberId: null },
     })
 
-    await tx.teamMember.deleteMany({ where: { memberId: id } })
+    await tx.groupMembership.deleteMany({ where: { memberId: id } })
     await tx.attendance.deleteMany({ where: { memberId: id } })
     await tx.payment.deleteMany({ where: { memberId: id } })
     await tx.reminderLog.deleteMany({ where: { memberId: id } })

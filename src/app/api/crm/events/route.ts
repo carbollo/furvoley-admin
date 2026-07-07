@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     date?: string
     location?: string
     description?: string
-    teamId?: string
+    groupId?: string
     teamIds?: string[]
     scheduleAttendanceForm?: boolean
     attendanceReminderDays?: number
@@ -27,15 +27,15 @@ export async function POST(request: Request) {
 
   const title = String(body.title || '').trim()
   // Acciones en lote (roadmap · Módulo 2.1): admite varios equipos a la vez.
-  // Compatibilidad: teamId único sigue funcionando.
+  // Compatibilidad: groupId único sigue funcionando.
   const rawTeamIds = Array.isArray(body.teamIds) && body.teamIds.length > 0
     ? body.teamIds
-    : [body.teamId]
+    : [body.groupId]
   const teamIds: string[] = []
   for (const raw of rawTeamIds) {
     const value = String(raw || '').trim()
     if (!value) continue
-    const parsed = parseCuid(value, 'teamId')
+    const parsed = parseCuid(value, 'groupId')
     if (parsed instanceof Response) return parsed
     if (!teamIds.includes(parsed)) teamIds.push(parsed)
   }
@@ -49,8 +49,8 @@ export async function POST(request: Request) {
   }
 
   // Un COACH solo puede crear eventos en los equipos que entrena.
-  for (const teamId of teamIds) {
-    const denied = await assertTeamAccess(auth, teamId)
+  for (const groupId of teamIds) {
+    const denied = await assertTeamAccess(auth, groupId)
     if (denied) return denied
   }
 
@@ -68,14 +68,14 @@ export async function POST(request: Request) {
   const sendAt = reminderDays != null ? attendanceFormSendDate(date, reminderDays) : null
 
   let created = 0
-  for (const teamId of teamIds) {
+  for (const groupId of teamIds) {
     await createEventInternal({
       title,
       type: body.type?.trim() || 'OTHER',
       date,
       location: body.location?.trim() || undefined,
       description,
-      teamId,
+      groupId,
       attendanceFormEnabled: wantAttendance,
       attendanceReminderDays: reminderDays,
     })

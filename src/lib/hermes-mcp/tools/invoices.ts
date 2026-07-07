@@ -39,7 +39,7 @@ export function registerInvoiceTools(server: McpServer) {
     {
       description: 'Emite el mismo cobro a todos los jugadores de un equipo.',
       inputSchema: {
-        teamId: z.string(),
+        groupId: z.string(),
         concepto: z.string(),
         amount: z.number().positive(),
         dueDate: z.string(),
@@ -47,7 +47,7 @@ export function registerInvoiceTools(server: McpServer) {
     },
     async (args) =>
       withHermesAudit('crm_create_team_invoices', args, async () => {
-        const result = await createTeamInvoices(args.teamId, args)
+        const result = await createTeamInvoices(args.groupId, args)
         return jsonToolResult({ ok: true, ...result })
       }),
   )

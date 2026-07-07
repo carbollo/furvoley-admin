@@ -9,7 +9,7 @@ export type CategoryRule = {
   name: string
   minAge: number | null
   maxAge: number | null
-  defaultTeamId?: string | null
+  defaultGroupId?: string | null
   isActive?: boolean
 }
 

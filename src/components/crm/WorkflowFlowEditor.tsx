@@ -60,13 +60,13 @@ const ACCIONES = WORKFLOW_ACTION_OPTIONS
 function defaultStepConfig(actionType: string): Record<string, unknown> {
   switch (actionType) {
     case 'ASSIGN_TEAM':
-      return { teamId: '' }
+      return { groupId: '' }
     case 'ASSIGN_TEAM_BY_AGE':
-      return { teamId: '', minAge: '', maxAge: '' }
+      return { groupId: '', minAge: '', maxAge: '' }
     case 'ASSIGN_TEAM_BY_PREFERENCE':
       return { teamByPreference: '{}' }
     case 'REMOVE_FROM_TEAM':
-      return { teamId: '' }
+      return { groupId: '' }
     case 'SET_MEMBER_STATUS':
       return { targetStatus: 'ACTIVE' }
     case 'SET_MEMBER_SPORT_PREFERENCE':
@@ -87,7 +87,7 @@ function defaultStepConfig(actionType: string): Record<string, unknown> {
       return { waSessionId: '', waPhone: '', waMessage: '' }
     case 'SEND_WHATSAPP_TO_COACH':
       return {
-        teamId: '',
+        groupId: '',
         waSessionId: '',
         waMessage:
           'Hola {coachName}, nuevo jugador en {assignedTeamName}: {memberName}. Revisa la plantilla en el CRM.',
@@ -104,7 +104,7 @@ function defaultStepConfig(actionType: string): Record<string, unknown> {
       }
     case 'GENERATE_TEAM_SESSIONS':
       return {
-        teamId: '',
+        groupId: '',
         regenerate: true,
         untilSeasonEnd: true,
         weeksAhead: '4',
@@ -140,7 +140,7 @@ function prepararConfigParaApi(actionType: string, raw: Record<string, unknown>)
     if (typeof o.waPhone === 'string') o.waPhone = o.waPhone.trim()
     if (typeof o.waMessage === 'string') o.waMessage = o.waMessage.trim()
     if (typeof o.waSessionId === 'string') o.waSessionId = o.waSessionId.trim()
-    if (typeof o.teamId === 'string') o.teamId = o.teamId.trim()
+    if (typeof o.groupId === 'string') o.groupId = o.groupId.trim()
   }
   if (actionType === 'ASSIGN_TEAM_BY_AGE') {
     if (o.minAge !== '' && o.minAge != null) {
@@ -153,7 +153,7 @@ function prepararConfigParaApi(actionType: string, raw: Record<string, unknown>)
     }
   }
   if (actionType === 'GENERATE_TEAM_SESSIONS') {
-    if (typeof o.teamId === 'string') o.teamId = o.teamId.trim()
+    if (typeof o.groupId === 'string') o.groupId = o.groupId.trim()
     if (o.weeksAhead !== '' && o.weeksAhead != null) {
       const n = Math.trunc(Number(o.weeksAhead))
       if (Number.isFinite(n) && n >= 1 && n <= 12) o.weeksAhead = String(n)
@@ -350,7 +350,7 @@ function tokenTargetsForAction(actionType: string): Array<{ key: string; label: 
     return [
       ...(actionType === 'SEND_WHATSAPP'
         ? [{ key: 'waPhone', label: 'WhatsApp · Teléfono' }]
-        : [{ key: 'teamId', label: 'Equipo (vacío = asignado)' }]),
+        : [{ key: 'groupId', label: 'Equipo (vacío = asignado)' }]),
       { key: 'waMessage', label: 'WhatsApp · Mensaje' },
     ]
   }
@@ -1295,8 +1295,8 @@ function WorkflowFlowEditorInner({
                       <>
                         <label style={{ ...labelBase, marginTop: 12 }}>Equipo</label>
                         <select
-                          value={String(selectedNode.data.config.teamId ?? '')}
-                          onChange={(e) => patchConfig({ teamId: e.target.value })}
+                          value={String(selectedNode.data.config.groupId ?? '')}
+                          onChange={(e) => patchConfig({ groupId: e.target.value })}
                           style={{ ...inputBase, cursor: 'pointer' }}
                         >
                           <option value="">— Seleccionar —</option>
@@ -1313,8 +1313,8 @@ function WorkflowFlowEditorInner({
                       <>
                         <label style={{ ...labelBase, marginTop: 12 }}>Equipo</label>
                         <select
-                          value={String(selectedNode.data.config.teamId ?? '')}
-                          onChange={(e) => patchConfig({ teamId: e.target.value })}
+                          value={String(selectedNode.data.config.groupId ?? '')}
+                          onChange={(e) => patchConfig({ groupId: e.target.value })}
                           style={{ ...inputBase, cursor: 'pointer' }}
                         >
                           <option value="">— Seleccionar —</option>
@@ -1351,8 +1351,8 @@ function WorkflowFlowEditorInner({
                       <>
                         <label style={{ ...labelBase, marginTop: 12 }}>Equipo (opcional)</label>
                         <select
-                          value={String(selectedNode.data.config.teamId ?? '')}
-                          onChange={(e) => patchConfig({ teamId: e.target.value })}
+                          value={String(selectedNode.data.config.groupId ?? '')}
+                          onChange={(e) => patchConfig({ groupId: e.target.value })}
                           style={{ ...inputBase, cursor: 'pointer' }}
                         >
                           <option value="">— Equipo del disparador —</option>
@@ -1401,8 +1401,8 @@ function WorkflowFlowEditorInner({
                       <>
                         <label style={{ ...labelBase, marginTop: 12 }}>Equipo (opcional)</label>
                         <select
-                          value={String(selectedNode.data.config.teamId ?? '')}
-                          onChange={(e) => patchConfig({ teamId: e.target.value })}
+                          value={String(selectedNode.data.config.groupId ?? '')}
+                          onChange={(e) => patchConfig({ groupId: e.target.value })}
                           style={{ ...inputBase, cursor: 'pointer' }}
                         >
                           <option value="">— Todos los equipos —</option>
@@ -1644,8 +1644,8 @@ function WorkflowFlowEditorInner({
                           <>
                             <label style={{ ...labelBase, marginTop: 10 }}>Equipo (opcional)</label>
                             <select
-                              value={String(selectedNode.data.config.teamId ?? '')}
-                              onChange={(e) => patchConfig({ teamId: e.target.value })}
+                              value={String(selectedNode.data.config.groupId ?? '')}
+                              onChange={(e) => patchConfig({ groupId: e.target.value })}
                               style={{ ...inputBase, cursor: 'pointer' }}
                             >
                               <option value="">Usar equipo asignado en el flujo</option>

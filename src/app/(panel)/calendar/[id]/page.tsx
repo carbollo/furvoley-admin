@@ -16,7 +16,7 @@ async function EventDetailsPageImpl({ params }: { params: Promise<{ id: string }
   const event = await prisma.event.findUnique({
     where: { id },
     include: {
-      team: true,
+      group: true,
       attendances: {
         include: { member: true },
         orderBy: { member: { name: 'asc' } }
@@ -63,10 +63,10 @@ async function EventDetailsPageImpl({ params }: { params: Promise<{ id: string }
           <div>
             <h1 className="text-2xl font-bold text-stone-900 mb-2">{event.title}</h1>
             <div className="flex flex-wrap gap-4 text-sm text-stone-600">
-              {event.team && (
-                <span className="bg-stone-100 px-2 py-1 rounded font-medium">{event.team.name}</span>
+              {event.group && (
+                <span className="bg-stone-100 px-2 py-1 rounded font-medium">{event.group.name}</span>
               )}
-              {!event.team && (
+              {!event.group && (
                 <span className="bg-stone-100 px-2 py-1 rounded font-medium">Todo el club</span>
               )}
               <span>{new Date(event.date).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>

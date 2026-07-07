@@ -49,10 +49,10 @@ export default async function PublicEventPage({
     });
     alreadyRegistered = att?.status === "PENDING" || att?.status === "PRESENT";
 
-    if (event.teamId) {
-      const inTeam = await prisma.teamMember.findUnique({
+    if (event.groupId) {
+      const inTeam = await prisma.groupMembership.findUnique({
         where: {
-          teamId_memberId: { teamId: event.teamId, memberId },
+          groupId_memberId: { groupId: event.groupId, memberId },
         },
       });
       notInTeam = !inTeam;
@@ -81,9 +81,9 @@ export default async function PublicEventPage({
               <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl mb-2">
                 {event.title}
               </h1>
-              {event.team && (
+              {event.group && (
                 <p className="text-blue-100 text-lg">
-                  Organizado para: {event.team.name}
+                  Organizado para: {event.group.name}
                 </p>
               )}
             </div>

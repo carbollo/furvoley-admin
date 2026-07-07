@@ -140,15 +140,15 @@ export type WorkflowTriggerContext = {
   event?: {
     id: string
     title: string
-    teamId: string | null
+    groupId: string | null
     date: Date
   } | null
   /** Equipo destino al confirmar plantilla (cambio de grupo). */
   rosterTeamId?: string | null
   /** Equipo cuyos horarios fijos cambiaron (WD-2). */
   scheduleTeamId?: string | null
-  fromTeamId?: string | null
-  toTeamId?: string | null
+  fromGroupId?: string | null
+  toGroupId?: string | null
   documentType?: string | null
   documentExpiryDate?: string | null
   bulkMessage?: string | null
@@ -250,7 +250,7 @@ function defaultWorkflowVariables() {
     guardianPhone: '',
     eventId: '',
     eventTitle: '',
-    teamId: '',
+    groupId: '',
     rosterTeamId: '',
   } satisfies Record<string, string>
 }
@@ -299,11 +299,11 @@ function buildTriggerVariables(
         })
       : '',
     eventLocation: String(context.eventLocation || ''),
-    teamId: String(
-      context.event?.teamId || context.scheduleTeamId || context.rosterTeamId || '',
+    groupId: String(
+      context.event?.groupId || context.scheduleTeamId || context.rosterTeamId || '',
     ),
-    fromTeamId: String(context.fromTeamId || ''),
-    toTeamId: String(context.toTeamId || ''),
+    fromGroupId: String(context.fromGroupId || ''),
+    toGroupId: String(context.toGroupId || ''),
     documentType: String(context.documentType || ''),
     documentExpiryDate: String(context.documentExpiryDate || ''),
     bulkMessage: String(context.bulkMessage || ''),
@@ -567,20 +567,20 @@ async function runMemberCreatedStepAction(
     return linked || undefined
   }
 
-  async function resolveTeamName(teamId: string) {
-    const cached = runContext.teamNameCache.get(teamId)
+  async function resolveTeamName(groupId: string) {
+    const cached = runContext.teamNameCache.get(groupId)
     if (cached) return cached
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
+    const team = await prisma.group.findUnique({
+      where: { id: groupId },
       select: { name: true },
     })
     const name = String(team?.name || '')
-    if (name) runContext.teamNameCache.set(teamId, name)
+    if (name) runContext.teamNameCache.set(groupId, name)
     return name
   }
 
-  async function setAssignedTeamResult(teamId: string | null, applied: boolean) {
-    const cleanId = String(teamId || '').trim()
+  async function setAssignedTeamResult(groupId: string | null, applied: boolean) {
+    const cleanId = String(groupId || '').trim()
     const teamName = cleanId ? await resolveTeamName(cleanId) : ''
     const flag = applied ? 'true' : 'false'
     runContext.variables.stepTargetTeamId = cleanId
@@ -599,12 +599,12 @@ async function runMemberCreatedStepAction(
 
   if (step.actionType === 'ASSIGN_TEAM_BY_AGE') {
     if (runContext.variables.triggerType === 'TEAM_ROSTER_CONFIRMED') {
-      const existing = await prisma.teamMember.findFirst({
+      const existing = await prisma.groupMembership.findFirst({
         where: { memberId: member.id, role: 'PLAYER' },
-        select: { teamId: true },
+        select: { groupId: true },
       })
-      if (existing?.teamId) {
-        await setAssignedTeamResult(existing.teamId, true)
+      if (existing?.groupId) {
+        await setAssignedTeamResult(existing.groupId, true)
         return
       }
     }
@@ -618,18 +618,18 @@ async function runMemberCreatedStepAction(
     // mandan (se recalculan solos cada temporada). Si no, se usan los valores
     // literales del paso (compatibilidad con flujos antiguos).
     const categoryId = readString(step.config, 'categoryId')
-    let category: { minAge: number | null; maxAge: number | null; defaultTeamId: string | null } | null = null
+    let category: { minAge: number | null; maxAge: number | null; defaultGroupId: string | null } | null = null
     if (categoryId) {
       category = await prisma.category.findUnique({
         where: { id: categoryId },
-        select: { minAge: true, maxAge: true, defaultTeamId: true },
+        select: { minAge: true, maxAge: true, defaultGroupId: true },
       })
     }
 
     const maxAge = category ? category.maxAge : readNumber(step.config, 'maxAge')
     const minAge = category ? category.minAge : readNumber(step.config, 'minAge')
-    const teamId = readString(step.config, 'teamId') || category?.defaultTeamId || ''
-    if (!teamId) {
+    const groupId = readString(step.config, 'groupId') || category?.defaultGroupId || ''
+    if (!groupId) {
       await setAssignedTeamResult(null, false)
       return
     }
@@ -644,38 +644,38 @@ async function runMemberCreatedStepAction(
       return
     }
 
-    await prisma.teamMember.upsert({
+    await prisma.groupMembership.upsert({
       where: {
-        teamId_memberId: {
-          teamId,
+        groupId_memberId: {
+          groupId,
           memberId: member.id,
         },
       },
       update: { role: 'PLAYER' },
-      create: { teamId, memberId: member.id, role: 'PLAYER' },
+      create: { groupId, memberId: member.id, role: 'PLAYER' },
     })
-    await setAssignedTeamResult(teamId, true)
+    await setAssignedTeamResult(groupId, true)
     return
   }
 
   if (step.actionType === 'ASSIGN_TEAM') {
-    const teamId = readString(step.config, 'teamId')
-    if (!teamId) {
+    const groupId = readString(step.config, 'groupId')
+    if (!groupId) {
       await setAssignedTeamResult(null, false)
       return
     }
 
-    await prisma.teamMember.upsert({
+    await prisma.groupMembership.upsert({
       where: {
-        teamId_memberId: {
-          teamId,
+        groupId_memberId: {
+          groupId,
           memberId: member.id,
         },
       },
       update: { role: 'PLAYER' },
-      create: { teamId, memberId: member.id, role: 'PLAYER' },
+      create: { groupId, memberId: member.id, role: 'PLAYER' },
     })
-    await setAssignedTeamResult(teamId, true)
+    await setAssignedTeamResult(groupId, true)
     return
   }
 
@@ -686,36 +686,36 @@ async function runMemberCreatedStepAction(
       return
     }
     const map = parsePreferenceMap(step.config)
-    const teamId = map[key]
-    if (!teamId) {
+    const groupId = map[key]
+    if (!groupId) {
       await setAssignedTeamResult(null, false)
       return
     }
-    await prisma.teamMember.upsert({
+    await prisma.groupMembership.upsert({
       where: {
-        teamId_memberId: {
-          teamId,
+        groupId_memberId: {
+          groupId,
           memberId: member.id,
         },
       },
       update: { role: 'PLAYER' },
-      create: { teamId, memberId: member.id, role: 'PLAYER' },
+      create: { groupId, memberId: member.id, role: 'PLAYER' },
     })
-    await setAssignedTeamResult(teamId, true)
+    await setAssignedTeamResult(groupId, true)
     return
   }
 
   if (step.actionType === 'REMOVE_FROM_TEAM') {
-    const teamId = readString(step.config, 'teamId')
-    if (teamId) {
-      await prisma.teamMember.deleteMany({
+    const groupId = readString(step.config, 'groupId')
+    if (groupId) {
+      await prisma.groupMembership.deleteMany({
         where: {
           memberId: member.id,
-          teamId,
+          groupId,
         },
       })
     } else {
-      await prisma.teamMember.deleteMany({
+      await prisma.groupMembership.deleteMany({
         where: { memberId: member.id },
       })
     }
@@ -1030,22 +1030,22 @@ export async function runWorkflowStepsForMember(
     /* optional */
   }
 
-  if (triggerContext.event?.teamId) {
-    runContext.variables.teamId = triggerContext.event.teamId
+  if (triggerContext.event?.groupId) {
+    runContext.variables.groupId = triggerContext.event.groupId
   }
 
   if (triggerType === 'TEAM_ROSTER_CONFIRMED') {
     const rosterTeamId =
       triggerContext.rosterTeamId?.trim() ||
-      (await prisma.teamMember.findFirst({
+      (await prisma.groupMembership.findFirst({
         where: { memberId: member.id, role: 'PLAYER' },
-        select: { teamId: true },
-      }))?.teamId
+        select: { groupId: true },
+      }))?.groupId
     if (rosterTeamId) {
       runContext.variables.rosterTeamId = rosterTeamId
       runContext.variables.assignedTeamId = rosterTeamId
       runContext.variables.teamAssignedId = rosterTeamId
-      runContext.variables.teamId = rosterTeamId
+      runContext.variables.groupId = rosterTeamId
       await populateTeamRosterVariables(rosterTeamId, runContext.variables)
     }
   }
@@ -1053,7 +1053,7 @@ export async function runWorkflowStepsForMember(
   if (triggerType === 'TEAM_SCHEDULE_CHANGED') {
     const scheduleTeamId = triggerContext.scheduleTeamId?.trim()
     if (scheduleTeamId) {
-      runContext.variables.teamId = scheduleTeamId
+      runContext.variables.groupId = scheduleTeamId
       runContext.variables.scheduleTeamId = scheduleTeamId
       await populateTeamRosterVariables(scheduleTeamId, runContext.variables)
     }
@@ -1408,7 +1408,7 @@ async function runEventTeamWorkflows(
 ) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, title: true, teamId: true, date: true },
+    select: { id: true, title: true, groupId: true, date: true },
   })
   if (!event) return
 
@@ -1420,7 +1420,7 @@ async function runEventTeamWorkflows(
 
   const eventFull = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, title: true, teamId: true, date: true, location: true },
+    select: { id: true, title: true, groupId: true, date: true, location: true },
   })
 
   const stubMember: WorkflowMemberPayload = {
@@ -1442,15 +1442,15 @@ async function runEventTeamWorkflows(
     event: {
       id: eventFull?.id || event.id,
       title: eventFull?.title || event.title,
-      teamId: eventFull?.teamId ?? event.teamId,
+      groupId: eventFull?.groupId ?? event.groupId,
       date: eventFull?.date || event.date,
     },
     eventLocation: eventFull?.location || '',
   }
 
-  if (event.teamId) {
-    const captain = await prisma.teamMember.findFirst({
-      where: { teamId: event.teamId, role: 'COACH' },
+  if (event.groupId) {
+    const captain = await prisma.groupMembership.findFirst({
+      where: { groupId: event.groupId, role: 'COACH' },
       select: { memberId: true },
     })
     if (captain?.memberId) {
@@ -1486,11 +1486,11 @@ export async function runEventCompletedWorkflows(eventId: string) {
 }
 
 /** Horarios fijos del grupo guardados o eliminados (WD-2). */
-export async function runTeamScheduleChangedWorkflows(teamId: string) {
-  const cleanTeamId = teamId.trim()
+export async function runTeamScheduleChangedWorkflows(groupId: string) {
+  const cleanTeamId = groupId.trim()
   if (!cleanTeamId) return
 
-  const team = await prisma.team.findUnique({
+  const team = await prisma.group.findUnique({
     where: { id: cleanTeamId },
     select: { id: true, name: true },
   })

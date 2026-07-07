@@ -24,8 +24,8 @@ type MemberWithRelations = {
     plan: { amount: number; name: string } | null
     nextInvoiceDate: Date | null
   }>
-  teamRoles: Array<{
-    team: { name: string; category: string | null } | null
+  groupMemberships: Array<{
+    group: { name: string } | null
   }>
 }
 
@@ -72,7 +72,7 @@ export function mapMemberToSocioRow(
   unpaidInvoice?: { id: string; pending: number } | null,
 ): CrmSocioRow {
   const sub = m.subscriptions[0]
-  const team = m.teamRoles[0]?.team
+  const team = m.groupMemberships[0]?.group
   const isMoroso = memberIsDelinquentForCrm(memberInvoices)
   let estado: string
   if (isMoroso) estado = 'Moroso'
@@ -95,7 +95,7 @@ export function mapMemberToSocioRow(
     equipoNombre: team?.name ?? '',
     fechaAlta: m.joinedAt.toISOString().slice(0, 10),
     deporte: deporteMostrar,
-    categoria: team?.category ?? '—',
+    categoria: '—',
     estado,
     cuota: sub?.plan?.amount ?? 0,
     vencimiento: sub?.nextInvoiceDate
@@ -189,7 +189,7 @@ export async function getMemberStatsAccurate(prisma: PrismaClient, today = new D
 
 export async function getDeporteFilterOptions(prisma: PrismaClient): Promise<string[]> {
   const [teams, sports] = await Promise.all([
-    prisma.team.findMany({ select: { name: true }, orderBy: { name: 'asc' } }),
+    prisma.group.findMany({ select: { name: true }, orderBy: { name: 'asc' } }),
     prisma.member.findMany({
       where: { sportPreference: { not: null } },
       select: { sportPreference: true },
@@ -211,8 +211,8 @@ const memberInclude = {
     take: 1,
     orderBy: { createdAt: 'desc' as const },
   },
-  teamRoles: {
-    include: { team: true },
+  groupMemberships: {
+    include: { group: true },
     take: 3,
   },
 } as const
@@ -225,12 +225,12 @@ export async function fetchMembersPage(
     q?: string
     estado?: string
     deporte?: string
-    teamId?: string
+    groupId?: string
     morosoIds?: Set<string>
     lite?: boolean
   },
 ) {
-  const { page, pageSize, q, estado, deporte, teamId, morosoIds, lite } = opts
+  const { page, pageSize, q, estado, deporte, groupId, morosoIds, lite } = opts
   const where: Record<string, unknown> = {}
 
   if (q?.trim()) {
@@ -243,22 +243,22 @@ export async function fetchMembersPage(
     ]
   }
 
-  if (teamId) {
-    where.teamRoles = { some: { teamId } }
+  if (groupId) {
+    where.groupMemberships = { some: { groupId } }
   }
 
   if (deporte && deporte !== 'Todos') {
     const deporteWhere = {
       OR: [
         { sportPreference: { equals: deporte, mode: 'insensitive' } },
-        { teamRoles: { some: { team: { name: deporte } } } },
+        { groupMemberships: { some: { group: { name: deporte } } } },
       ],
     }
     if (deporte === 'Club') {
       Object.assign(where, {
         AND: [
           { OR: [{ sportPreference: null }, { sportPreference: '' }] },
-          { teamRoles: { none: {} } },
+          { groupMemberships: { none: {} } },
         ],
       })
     } else {

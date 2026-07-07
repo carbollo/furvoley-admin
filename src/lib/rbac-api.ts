@@ -37,7 +37,7 @@ export async function requireRoles(allowed: AppRole[], request?: Request) {
 /**
  * Comprueba que el usuario puede MUTAR un equipo concreto.
  * - ADMIN: cualquier equipo.
- * - COACH: solo equipos que entrena (TeamMember role=COACH).
+ * - COACH: solo equipos que entrena (GroupMembership role=COACH).
  * Devuelve una respuesta 403 si no procede, o `null` si tiene acceso.
  *
  * Cierra el gap por el que un COACH podía modificar la plantilla, horarios o
@@ -45,14 +45,14 @@ export async function requireRoles(allowed: AppRole[], request?: Request) {
  */
 export async function assertTeamAccess(
   auth: { role: SessionRole; session: Session },
-  teamId: string,
+  groupId: string,
 ): Promise<NextResponse | null> {
   if (auth.role === 'ADMIN') return null
   if (auth.role === 'COACH') {
     const memberId = (auth.session.user as { memberId?: string | null } | undefined)?.memberId || null
     if (memberId) {
-      const owns = await prisma.teamMember.findFirst({
-        where: { teamId, memberId, role: 'COACH' },
+      const owns = await prisma.groupMembership.findFirst({
+        where: { groupId, memberId, role: 'COACH' },
         select: { id: true },
       })
       if (owns) return null

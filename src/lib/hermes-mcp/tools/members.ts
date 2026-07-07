@@ -21,7 +21,7 @@ export function registerMemberTools(server: McpServer) {
         pageSize: z.number().int().min(1).max(100).optional().describe('Tamaño de página (default 20)'),
         q: z.string().optional().describe('Búsqueda por nombre, email, teléfono o DNI'),
         estado: z.string().optional().describe('Activo, Moroso, Inactivo o Todos'),
-        teamId: z.string().optional().describe('Filtrar por equipo'),
+        groupId: z.string().optional().describe('Filtrar por equipo'),
       },
     },
     async (args) =>
@@ -32,7 +32,7 @@ export function registerMemberTools(server: McpServer) {
           pageSize: args.pageSize ?? 20,
           q: args.q,
           estado: args.estado,
-          teamId: args.teamId,
+          groupId: args.groupId,
           morosoIds,
         })
         return jsonToolResult(page)

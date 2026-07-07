@@ -26,10 +26,10 @@ function resumenPrimerPaso(
   const eq = (id: unknown) => nombreEquipo(String(id || ''))
   switch (actionType) {
     case 'ASSIGN_TEAM':
-      return `Asignar → ${eq(c.teamId) || 'equipo…'}`
+      return `Asignar → ${eq(c.groupId) || 'equipo…'}`
     case 'ASSIGN_TEAM_BY_AGE': {
       const r = [c.minAge, c.maxAge].filter((x) => x !== '' && x != null).join('–')
-      return `Por edad (${r || '…'}) → ${eq(c.teamId)}`
+      return `Por edad (${r || '…'}) → ${eq(c.groupId)}`
     }
     case 'SET_MEMBER_STATUS':
       return String(c.targetStatus) === 'INACTIVE' ? 'Estado inactivo' : 'Estado activo'
@@ -1391,7 +1391,7 @@ export function WorkflowsSection({
               <div>
                 <strong style={{ fontSize: 18 }}>Biblioteca PROCLUB</strong>
                 <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
-                  48 workflows del esquema PROCLUB. Instala y configura cada flujo (planId, teamId, edades).
+                  48 workflows del esquema PROCLUB. Instala y configura cada flujo (planId, groupId, edades).
                   Guía: <code>docs/proclub-workflows-guide.md</code>
                 </p>
               </div>

@@ -2549,7 +2549,7 @@ function AsistenciaSection() {
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudieron enviar los enlaces'); return }
       showAlert(
-        `${j.team}: ${j.sent}/${j.total} enlaces de asistencia enviados` +
+        `${j.group}: ${j.sent}/${j.total} enlaces de asistencia enviados` +
         `${j.toGuardians ? ` (${j.toGuardians} a familiares)` : ''}.` +
         `${j.warning ? `\n${j.warning}` : ''}`,
       )
@@ -2606,7 +2606,7 @@ function AsistenciaSection() {
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.title}</div>
-                    <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{s.team?.name || 'Club'} · {s.marked}/{s.total} marcados</div>
+                    <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{s.group?.name || 'Club'} · {s.marked}/{s.total} marcados</div>
                   </div>
                   <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end'}}>
                     <span style={{fontSize:11,fontWeight:700,padding:'3px 10px',borderRadius:999,background:'var(--green-light)',color:'var(--green)'}}>{s.counts.present} P</span>
@@ -3127,7 +3127,7 @@ function Socios({ contactosMode = false }) {
       if (searchDebounced.trim()) params.set('q', searchDebounced.trim())
       if (filterEstado !== 'Todos') params.set('estado', filterEstado)
       if (filterDeporte !== 'Todos') params.set('deporte', filterDeporte)
-      if (teamFilterId) params.set('teamId', teamFilterId)
+      if (teamFilterId) params.set('groupId', teamFilterId)
       const r = await fetch(`/api/crm/members?${params.toString()}`, {
         credentials: 'include',
         cache: 'no-store',
@@ -4668,1082 +4668,6 @@ function Socios({ contactosMode = false }) {
 }
 
 // ── EQUIPOS ─────────────────────────────────────────────────────────────────
-function Equipos() {
-  const router = useRouter()
-  const { bundle, reload, showAlert, showConfirm } = useCrm();
-  const role = normalizeRole(bundle?.user?.role)
-  if (!(role === 'ADMIN' || role === 'COACH')) return null
-  const EQUIPOS_UI = bundle?.equipos ?? [];
-  const [view, setView] = useState('grid');
-  const [showNuevoEquipoModal, setShowNuevoEquipoModal] = useState(false);
-  const [nuevoEquipoBusy, setNuevoEquipoBusy] = useState(false);
-  const [formNuevoEquipo, setFormNuevoEquipo] = useState({ name: '', category: '' });
-  const [showCategoriasModal, setShowCategoriasModal] = useState(false);
-  const [categorias, setCategorias] = useState<{ id: string; name: string; minAge: number | null; maxAge: number | null; birthYearFrom: number | null; birthYearTo: number | null; defaultTeamId: string | null }[]>([]);
-  const [categoriasBusy, setCategoriasBusy] = useState(false);
-  const [formCategoria, setFormCategoria] = useState({ name: '', minAge: '', maxAge: '', defaultTeamId: '' });
-
-  const loadCategorias = useCallback(async () => {
-    try {
-      const r = await fetch('/api/crm/categories', { credentials: 'include', cache: 'no-store' });
-      if (!r.ok) return;
-      const j = await r.json();
-      setCategorias(j.categories || []);
-    } catch {
-      /* opcional */
-    }
-  }, []);
-
-  function openCategoriasModal() {
-    setFormCategoria({ name: '', minAge: '', maxAge: '', defaultTeamId: '' });
-    setShowCategoriasModal(true);
-    void loadCategorias();
-  }
-
-  async function crearCategoria() {
-    if (!formCategoria.name.trim()) { showAlert('Pon un nombre a la categoría.'); return; }
-    setCategoriasBusy(true);
-    try {
-      const r = await fetch('/api/crm/categories', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formCategoria.name.trim(),
-          minAge: formCategoria.minAge !== '' ? Number(formCategoria.minAge) : null,
-          maxAge: formCategoria.maxAge !== '' ? Number(formCategoria.maxAge) : null,
-          defaultTeamId: formCategoria.defaultTeamId || null,
-        }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) { showAlert(j.error || 'No se pudo crear la categoría'); return; }
-      setFormCategoria({ name: '', minAge: '', maxAge: '', defaultTeamId: '' });
-      await loadCategorias();
-    } finally {
-      setCategoriasBusy(false);
-    }
-  }
-
-  async function eliminarCategoria(id: string) {
-    const ok = await showConfirm('¿Eliminar esta categoría?').catch(() => true);
-    if (!ok) return;
-    setCategoriasBusy(true);
-    try {
-      const r = await fetch('/api/crm/categories/' + id, { method: 'DELETE', credentials: 'include' });
-      if (!r.ok) { showAlert('No se pudo eliminar'); return; }
-      await loadCategorias();
-    } finally {
-      setCategoriasBusy(false);
-    }
-  }
-
-  const teamInput = {
-    width: '100%',
-    padding: '11px 14px',
-    borderRadius: 12,
-    border: '1px solid rgba(0,0,0,0.09)',
-    background: '#fff',
-    fontFamily: 'inherit',
-    fontSize: 14,
-    color: '#1c1917',
-    outline: 'none',
-    boxSizing: 'border-box',
-  };
-  const teamLabel = {
-    fontSize: 12,
-    fontWeight: 600,
-    color: '#78716c',
-    marginBottom: 6,
-    display: 'block',
-    letterSpacing: 0.15,
-  };
-
-  function openNuevoEquipoModal() {
-    setFormNuevoEquipo({ name: '', category: '' });
-    setShowNuevoEquipoModal(true);
-  }
-
-  async function enviarNuevoEquipo(e) {
-    e.preventDefault();
-    const name = String(formNuevoEquipo.name || '').trim();
-    if (!name) return;
-    setNuevoEquipoBusy(true);
-    try {
-      const r = await fetch('/api/crm/teams', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          category: formNuevoEquipo.category.trim() || undefined,
-        }),
-      });
-      if (!r.ok) {
-        let msg = 'No se pudo crear el equipo';
-        try {
-          const j = await r.json();
-          msg = j.error || msg;
-        } catch {
-          //
-        }
-        showAlert(msg);
-        return;
-      }
-      setShowNuevoEquipoModal(false);
-      await reload();
-    } finally {
-      setNuevoEquipoBusy(false);
-    }
-  }
-
-  const [gestionarEquipo, setGestionarEquipo] = useState(null);
-  const [gestionarBusy, setGestionarBusy] = useState(false);
-  const [formGestionarTeam, setFormGestionarTeam] = useState({
-    nombre: '',
-    categoria: '',
-    seasonStartDate: '',
-    seasonEndDate: '',
-  });
-  const [coachSelectMemberId, setCoachSelectMemberId] = useState('');
-  const [coachSelectLabel, setCoachSelectLabel] = useState('');
-  const [coachStaffUsers, setCoachStaffUsers] = useState<{ id: string; name: string; email: string; roleLabel: string }[]>([]);
-  const [coachSelectUserId, setCoachSelectUserId] = useState('');
-  const [addAlEquipoMemberId, setAddAlEquipoMemberId] = useState('');
-  const [scheduleForm, setScheduleForm] = useState({
-    weekday: '1',
-    startTime: '18:00',
-    durationMinutes: '90',
-    location: '',
-    title: '',
-  });
-
-  const WEEKDAY_OPTIONS = [
-    { value: 0, label: 'Domingo' },
-    { value: 1, label: 'Lunes' },
-    { value: 2, label: 'Martes' },
-    { value: 3, label: 'Miércoles' },
-    { value: 4, label: 'Jueves' },
-    { value: 5, label: 'Viernes' },
-    { value: 6, label: 'Sábado' },
-  ];
-
-  function openGestionar(eq) {
-    setGestionarEquipo(eq);
-    setFormGestionarTeam({
-      nombre: eq.nombre || '',
-      categoria: eq.categoriaDb !== undefined ? eq.categoriaDb : '',
-      seasonStartDate: eq.seasonStartDate || '',
-      seasonEndDate: eq.seasonEndDate || '',
-    });
-    setCoachSelectMemberId(eq.coachMemberId || '');
-    setCoachSelectLabel(eq.entrenador && eq.entrenador !== '—' ? eq.entrenador : '');
-    setCoachSelectUserId('');
-    void (async () => {
-      try {
-        const r = await fetch('/api/crm/users', { credentials: 'include', cache: 'no-store' });
-        if (!r.ok) return;
-        const j = await r.json();
-        const staff = (j.users || []).filter((u) => u.role && u.role !== 'MEMBER');
-        setCoachStaffUsers(staff.map((u) => ({ id: u.id, name: u.name || u.email, email: u.email, roleLabel: u.roleLabel })));
-      } catch {
-        /* opcional */
-      }
-    })();
-    setAddAlEquipoMemberId('');
-    setScheduleForm({
-      weekday: '1',
-      startTime: '18:00',
-      durationMinutes: '90',
-      location: '',
-      title: '',
-    });
-  }
-
-  async function generarCalendarioEquipo() {
-    if (!gestionarEquipo) return;
-    setGestionarBusy(true);
-    try {
-      const r = await fetch('/api/crm/teams/' + gestionarEquipo.id + '/generate-sessions', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        showAlert(j.error || 'No se pudo generar el calendario');
-        return;
-      }
-      showAlert(
-        `Calendario generado: ${j.created ?? 0} sesiones creadas` +
-          (j.skipped ? `, ${j.skipped} omitidas` : '') +
-          (j.deleted ? ` (${j.deleted} sustituidas)` : ''),
-      );
-      await reload();
-    } finally {
-      setGestionarBusy(false);
-    }
-  }
-
-  async function anadirHorarioEquipo() {
-    if (!gestionarEquipo) return;
-    setGestionarBusy(true);
-    try {
-      const r = await fetch('/api/crm/teams/' + gestionarEquipo.id + '/schedules', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          weekday: Number(scheduleForm.weekday),
-          startTime: scheduleForm.startTime,
-          durationMinutes: Number(scheduleForm.durationMinutes) || 90,
-          location: scheduleForm.location.trim() || null,
-          title: scheduleForm.title.trim() || null,
-        }),
-      });
-      if (!r.ok) {
-        try {
-          showAlert((await r.json()).error || 'Error al guardar horario');
-        } catch {
-          showAlert('Error al guardar horario');
-        }
-        return;
-      }
-      const j = await reload();
-      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
-      if (next) setGestionarEquipo(next);
-    } finally {
-      setGestionarBusy(false);
-    }
-  }
-
-  async function quitarHorarioEquipo(scheduleId) {
-    if (!gestionarEquipo) return;
-    setGestionarBusy(true);
-    try {
-      const r = await fetch(
-        '/api/crm/teams/' + gestionarEquipo.id + '/schedules/' + scheduleId,
-        { method: 'DELETE', credentials: 'include' },
-      );
-      if (!r.ok) {
-        showAlert('No se pudo quitar el horario');
-        return;
-      }
-      const j = await reload();
-      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
-      if (next) setGestionarEquipo(next);
-    } finally {
-      setGestionarBusy(false);
-    }
-  }
-
-  function closeGestionar() {
-    if (gestionarBusy) return;
-    setGestionarEquipo(null);
-  }
-
-  async function guardarDatosEquipo(e) {
-    e.preventDefault();
-    if (!gestionarEquipo) return;
-    const nombre = formGestionarTeam.nombre.trim();
-    if (!nombre) return;
-    setGestionarBusy(true);
-    try {
-      const r = await fetch('/api/crm/teams/' + gestionarEquipo.id, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: nombre,
-          category: formGestionarTeam.categoria.trim() ? formGestionarTeam.categoria.trim() : null,
-          seasonStartDate: formGestionarTeam.seasonStartDate.trim() || null,
-          seasonEndDate: formGestionarTeam.seasonEndDate.trim() || null,
-        }),
-      });
-      if (!r.ok) {
-        let msg = 'No se pudieron guardar los datos';
-        try {
-          const j = await r.json();
-          msg = j.error || msg;
-        } catch {
-          //
-        }
-        showAlert(msg);
-        return;
-      }
-      const j = await reload();
-      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
-      if (next) {
-        setGestionarEquipo(next);
-        setFormGestionarTeam({
-          nombre: next.nombre,
-          categoria: next.categoriaDb !== undefined ? next.categoriaDb : '',
-          seasonStartDate: next.seasonStartDate || '',
-          seasonEndDate: next.seasonEndDate || '',
-        });
-        setCoachSelectMemberId(next.coachMemberId || '');
-      }
-    } finally {
-      setGestionarBusy(false);
-    }
-  }
-
-  async function aplicarEntrenador(source: 'member' | 'staff' = 'member') {
-    if (!gestionarEquipo) return;
-    const payload =
-      source === 'staff'
-        ? (coachSelectUserId ? { userId: coachSelectUserId } : null)
-        : (coachSelectMemberId ? { memberId: coachSelectMemberId } : null);
-    if (!payload) {
-      showAlert(source === 'staff' ? 'Elige una cuenta de personal.' : 'Elige un socio como entrenador.');
-      return;
-    }
-    setGestionarBusy(true);
-    try {
-      const r = await fetch('/api/crm/teams/' + gestionarEquipo.id + '/coach', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!r.ok) {
-        try {
-          showAlert((await r.json()).error || 'Error');
-        } catch {
-          showAlert('Error');
-        }
-        return;
-      }
-      const j = await reload();
-      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
-      if (next) {
-        setGestionarEquipo(next);
-        setCoachSelectMemberId(next.coachMemberId || '');
-        setCoachSelectUserId('');
-      }
-    } finally {
-      setGestionarBusy(false);
-    }
-  }
-
-  async function quitarDelEquipo(teamMemberId) {
-    if (!gestionarEquipo) return;
-    setGestionarBusy(true);
-    try {
-      const r = await fetch('/api/crm/team-members/' + teamMemberId, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!r.ok) {
-        showAlert('No se pudo quitar del equipo');
-        return;
-      }
-      const j = await reload();
-      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
-      if (next) {
-        setGestionarEquipo(next);
-        setCoachSelectMemberId(next.coachMemberId || '');
-      } else {
-        setGestionarEquipo(null);
-      }
-    } finally {
-      setGestionarBusy(false);
-    }
-  }
-
-  async function anadirSocioAlEquipo() {
-    if (!gestionarEquipo || !addAlEquipoMemberId) return;
-    setGestionarBusy(true);
-    try {
-      const r = await fetch('/api/crm/teams/' + gestionarEquipo.id + '/members', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberId: addAlEquipoMemberId, role: 'PLAYER' }),
-      });
-      if (!r.ok) {
-        try {
-          showAlert((await r.json()).error || 'Error');
-        } catch {
-          showAlert('Error');
-        }
-        return;
-      }
-      setAddAlEquipoMemberId('');
-      const j = await reload();
-      const next = j?.equipos?.find((x) => x.id === gestionarEquipo.id);
-      if (next) setGestionarEquipo(next);
-    } finally {
-      setGestionarBusy(false);
-    }
-  }
-
-  const miembrosEquipoIds = (gestionarEquipo?.miembros ?? []).map((m) => m.memberId)
-
-  // KPIs Equipos
-  const totalEquipos = EQUIPOS_UI.length
-  const totalJugadores = EQUIPOS_UI.reduce((a, e) => a + Number(e.jugadores || 0), 0)
-  const sinCoach = EQUIPOS_UI.filter(e => !e.coachMemberId).length
-  const categoriasUnicas = new Set(EQUIPOS_UI.map(e => e.categoria).filter(Boolean)).size
-
-  return (
-    <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
-      <div style={{maxWidth:1440,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:32}}>
-        {/* Header */}
-        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:24,flexWrap:'wrap'}}>
-          <div>
-            <h1 style={{fontSize:28,fontWeight:700,color:'var(--text-primary)',letterSpacing:'-0.02em',margin:0,lineHeight:1.1}}>Equipos</h1>
-            <p style={{color:'var(--text-secondary)',fontSize:14,marginTop:6,margin:0}}>{EQUIPOS_UI.length} equipos activos en el club</p>
-          </div>
-          <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
-            <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:8,padding:4}}>
-              {[['grid','⊞'],['list','☰']].map(([v,icon])=>(
-                <button key={v} type="button" onClick={()=>setView(v)} style={{
-                  padding:'6px 12px',border:'none',cursor:'pointer',borderRadius:6,
-                  background:view===v?'var(--surface-card)':'transparent',
-                  color:view===v?'var(--accent)':'var(--text-muted)',
-                  fontFamily:'inherit',fontSize:14,fontWeight:700,
-                  boxShadow: view===v ? '0 1px 2px rgba(0,0,0,0.04)' : 'none'
-                }}>{icon}</button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={openCategoriasModal}
-              style={{
-                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
-                borderRadius:8,border:'1px solid var(--border)',cursor:'pointer',
-                background:'var(--surface-card)',color:'var(--text-secondary)',
-                fontFamily:'inherit',fontSize:13,fontWeight:700,transition:'all 0.15s'
-              }}
-            >
-              <Icon name="users" size={15}/>Categorías
-            </button>
-            <button
-              type="button"
-              onClick={openNuevoEquipoModal}
-              style={{
-                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
-                borderRadius:8,border:'none',cursor:'pointer',
-                background:'var(--accent)',color:'#fff',
-                fontFamily:'inherit',fontSize:13,fontWeight:700,
-                boxShadow:'0 1px 2px rgba(0,74,198,0.2)',transition:'all 0.15s'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent-strong)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)' }}
-            >
-              <Icon name="plus" size={15}/>Nuevo Equipo
-            </button>
-          </div>
-        </div>
-
-        {/* KPI grid */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))',gap:24}}>
-          <KPICard label="Total equipos" value={String(totalEquipos)} sub="Plantillas registradas" icon="teams" color="var(--accent-soft)" badge={{ kind:'info', text:'Plantillas' }}/>
-          <KPICard label="Jugadores" value={String(totalJugadores)} sub="En todas las categorías" icon="users" color="var(--green)" badge={{ kind:'success', text:'Activos' }}/>
-          <KPICard label="Categorías" value={String(categoriasUnicas)} sub="Senior, juvenil, etc." icon="dashboard" color="var(--amber)"/>
-          <KPICard label="Sin entrenador" value={String(sinCoach)} sub={sinCoach > 0 ? 'Asignar coach' : 'Todos cubiertos'} icon="users" color="var(--red)" badge={sinCoach > 0 ? { kind:'warning', text:'Pendiente' } : { kind:'success', text:'OK' }}/>
-        </div>
-
-        {/* Grid de equipos */}
-        <div style={{
-          background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',
-          boxShadow:'var(--card-shadow)',padding:32
-        }}>
-          <div style={{marginBottom:20}}>
-            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Plantillas del club</div>
-            <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>Gestiona socios, entrenador y horarios de cada equipo.</div>
-          </div>
-          {EQUIPOS_UI.length === 0 ? (
-            <div style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
-              Todavía no hay equipos. Crea el primero con «Nuevo Equipo».
-            </div>
-          ) : (
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:16,width:'100%'}}>
-              {EQUIPOS_UI.map(eq => (
-                <div key={eq.id} style={{
-                  background:'var(--surface-card)',borderRadius:12,padding:20,
-                  border:'1px solid var(--border)',
-                  cursor:'default',transition:'all 0.15s',
-                  display:'flex',flexDirection:'column',gap:14
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.boxShadow = 'var(--card-shadow-hover)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
-                >
-                  <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8}}>
-                    <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0}}>
-                      <div style={{
-                        width:44,height:44,borderRadius:12,flexShrink:0,
-                        background:`${eq.color}15`,
-                        display:'flex',alignItems:'center',justifyContent:'center',
-                        fontSize:20
-                      }}>{eq.logo}</div>
-                      <div style={{minWidth:0}}>
-                        <div style={{fontWeight:600,fontSize:15,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{eq.nombre}</div>
-                        <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{eq.deporte} · {eq.categoria}</div>
-                      </div>
-                    </div>
-                    <span style={{
-                      fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:999,flexShrink:0,
-                      background:`${eq.color}15`,color:eq.color,whiteSpace:'nowrap',letterSpacing:'0.02em'
-                    }}>{eq.jugadores}</span>
-                  </div>
-                  <div style={{display:'flex',flexDirection:'column',gap:10,borderTop:'1px solid var(--border)',paddingTop:14}}>
-                    <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
-                      <span style={{fontSize:12,color:'var(--text-muted)',flexShrink:0}}>Entrenador</span>
-                      <span style={{fontSize:12,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textAlign:'right'}}>{eq.entrenador}</span>
-                    </div>
-                    <div style={{display:'flex',justifyContent:'space-between',gap:8}}>
-                      <span style={{fontSize:12,color:'var(--text-muted)',flexShrink:0}}>Horario</span>
-                      <span style={{fontSize:12,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textAlign:'right'}}>{eq.horario}</span>
-                    </div>
-                  </div>
-                  <div style={{marginTop:'auto',display:'flex',flexWrap:'wrap',gap:8}}>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); openGestionar(eq); }} style={{flex:1,minWidth:88,padding:'9px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,color:'var(--text-primary)',transition:'all 0.15s'}}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-low)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)' }}
-                    >Gestionar</button>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); router.replace(`/?tab=socios&team=${encodeURIComponent(eq.id)}`, { scroll: false }); }} style={{flex:1,minWidth:88,padding:'9px',borderRadius:8,border:'none',background:'var(--accent-pill)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>Ver socios</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      {showCategoriasModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => { if (!categoriasBusy) setShowCategoriasModal(false) }}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-        >
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 620, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(15,23,42,0.25)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1c1917' }}>Categorías</h2>
-              <button type="button" onClick={() => setShowCategoriasModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8c857d' }}><Icon name="x" size={18} /></button>
-            </div>
-            <p style={{ margin: '0 0 18px', fontSize: 13, color: '#8c857d' }}>
-              Define cada categoría por edad (no por año). El rango de años de nacimiento se recalcula solo cada temporada, así no tienes que reeditarlo. Los flujos «Asignar por rango de edad» pueden apuntar a una categoría.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 0.8fr auto', gap: 8, alignItems: 'end', marginBottom: 18 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#57534e', marginBottom: 4 }}>Nombre *</label>
-                <input value={formCategoria.name} onChange={(e) => setFormCategoria((f) => ({ ...f, name: e.target.value }))} placeholder="Infantil" style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13 }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#57534e', marginBottom: 4 }}>Edad mín.</label>
-                <input type="number" min={0} value={formCategoria.minAge} onChange={(e) => setFormCategoria((f) => ({ ...f, minAge: e.target.value }))} placeholder="12" style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13 }} />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#57534e', marginBottom: 4 }}>Edad máx.</label>
-                <input type="number" min={0} value={formCategoria.maxAge} onChange={(e) => setFormCategoria((f) => ({ ...f, maxAge: e.target.value }))} placeholder="13" style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13 }} />
-              </div>
-              <button type="button" disabled={categoriasBusy || !formCategoria.name.trim()} onClick={crearCategoria} style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: categoriasBusy || !formCategoria.name.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, opacity: categoriasBusy || !formCategoria.name.trim() ? 0.6 : 1, height: 38 }}>Añadir</button>
-            </div>
-
-            <div style={{ marginBottom: 8 }}>
-              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#57534e', marginBottom: 4 }}>Equipo por defecto (opcional)</label>
-              <select value={formCategoria.defaultTeamId} onChange={(e) => setFormCategoria((f) => ({ ...f, defaultTeamId: e.target.value }))} style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, background: '#fff', marginBottom: 18 }}>
-                <option value="">Sin equipo por defecto</option>
-                {EQUIPOS_UI.map((eq) => (<option key={eq.id} value={eq.id}>{eq.nombre}</option>))}
-              </select>
-            </div>
-
-            {categorias.length === 0 ? (
-              <p style={{ fontSize: 13, color: '#a8a29e', textAlign: 'center', padding: '16px 0' }}>Aún no hay categorías.</p>
-            ) : (
-              <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-                {categorias.map((c) => (
-                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1c1917' }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>
-                        {c.minAge != null || c.maxAge != null ? `${c.minAge ?? '–'}–${c.maxAge ?? '–'} años` : 'Sin límite de edad'}
-                        {(c.birthYearFrom != null || c.birthYearTo != null) && ` · nacidos ${c.birthYearFrom ?? '…'}–${c.birthYearTo ?? '…'}`}
-                      </div>
-                    </div>
-                    <button type="button" disabled={categoriasBusy} onClick={() => eliminarCategoria(c.id)} style={{ padding: 7, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-card)', cursor: categoriasBusy ? 'not-allowed' : 'pointer', color: 'var(--red)' }} title="Eliminar"><Icon name="trash" size={14} /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {showNuevoEquipoModal && (
-        <div
-          role="presentation"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 400,
-            background: 'rgba(15,23,42,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 20,
-          }}
-          onMouseDown={(e) => {
-            if (e.target !== e.currentTarget || nuevoEquipoBusy) return;
-            setShowNuevoEquipoModal(false);
-          }}
-        >
-          <form
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="nuevo-equipo-title"
-            onMouseDown={(e) => e.stopPropagation()}
-            onSubmit={enviarNuevoEquipo}
-            style={{
-              width: '100%',
-              maxWidth: 440,
-              maxHeight: '92vh',
-              overflowY: 'auto',
-              background: '#fff',
-              borderRadius: 16,
-              border: '1px solid rgba(0,0,0,0.07)',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.28), 0 0 1px rgba(0,0,0,0.08)',
-              padding: 28,
-              fontFamily: 'inherit',
-            }}
-          >
-            <div style={{ marginBottom: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-              <div>
-                <h2 id="nuevo-equipo-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.4px' }}>
-                  Nuevo equipo
-                </h2>
-                <p style={{ margin: 0, fontSize: 13, color: '#8c857d', lineHeight: 1.5 }}>
-                  Asigna un nombre y, si quieres, una categoría deportiva.
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={nuevoEquipoBusy}
-                onClick={() => setShowNuevoEquipoModal(false)}
-                style={{
-                  border: 'none',
-                  background: '#f4efe8',
-                  borderRadius: 10,
-                  width: 36,
-                  height: 36,
-                  cursor: nuevoEquipoBusy ? 'not-allowed' : 'pointer',
-                  color: '#78716c',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-                aria-label="Cerrar"
-              >
-                <Icon name="x" size={18} />
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label style={teamLabel}>Nombre del equipo *</label>
-                <input
-                  required
-                  autoFocus
-                  value={formNuevoEquipo.name}
-                  onChange={(e) => setFormNuevoEquipo((p) => ({ ...p, name: e.target.value }))}
-                  style={teamInput}
-                  placeholder="Ej. Juveniles A"
-                />
-              </div>
-              <div>
-                <label style={teamLabel}>Categoría (opcional)</label>
-                <input
-                  value={formNuevoEquipo.category}
-                  onChange={(e) => setFormNuevoEquipo((p) => ({ ...p, category: e.target.value }))}
-                  style={teamInput}
-                  placeholder="Ej. Sub-18, Primera regional…"
-                />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 26 }}>
-              <button
-                type="button"
-                disabled={nuevoEquipoBusy}
-                onClick={() => setShowNuevoEquipoModal(false)}
-                style={{
-                  flex: 1,
-                  padding: '11px 16px',
-                  borderRadius: 12,
-                  border: '1.5px solid rgba(0,0,0,0.09)',
-                  background: '#fff',
-                  cursor: nuevoEquipoBusy ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#44403c',
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={nuevoEquipoBusy}
-                style={{
-                  flex: 1,
-                  padding: '11px 16px',
-                  borderRadius: 12,
-                  border: 'none',
-                  background: 'var(--accent)',
-                  cursor: nuevoEquipoBusy ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#fff',
-                  opacity: nuevoEquipoBusy ? 0.75 : 1,
-                }}
-              >
-                {nuevoEquipoBusy ? 'Creando…' : 'Crear equipo'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-      {gestionarEquipo && (
-        <div
-          role="presentation"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 410,
-            background: 'rgba(15,23,42,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 20,
-          }}
-          onMouseDown={(e) => {
-            if (e.target !== e.currentTarget || gestionarBusy) return;
-            closeGestionar();
-          }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="gestionar-equipo-title"
-            onMouseDown={(e) => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: 520,
-              maxHeight: '92vh',
-              overflowY: 'auto',
-              background: '#fff',
-              borderRadius: 16,
-              border: '1px solid rgba(0,0,0,0.07)',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.28), 0 0 1px rgba(0,0,0,0.08)',
-              padding: 28,
-              fontFamily: 'inherit',
-            }}
-          >
-            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-              <div>
-                <h2 id="gestionar-equipo-title" style={{ margin: '0 0 6px 0', fontSize: 20, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.4px' }}>
-                  Gestionar equipo
-                </h2>
-                <p style={{ margin: 0, fontSize: 13, color: '#8c857d', lineHeight: 1.5 }}>
-                  Nombre, categoría, entrenador y plantilla.
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={gestionarBusy}
-                onClick={closeGestionar}
-                style={{
-                  border: 'none',
-                  background: '#f4efe8',
-                  borderRadius: 10,
-                  width: 36,
-                  height: 36,
-                  cursor: gestionarBusy ? 'not-allowed' : 'pointer',
-                  color: '#78716c',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-                aria-label="Cerrar"
-              >
-                <Icon name="x" size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={guardarDatosEquipo} style={{ marginBottom: 22 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <label style={teamLabel}>Nombre del equipo *</label>
-                  <input
-                    required
-                    value={formGestionarTeam.nombre}
-                    onChange={(e) => setFormGestionarTeam((p) => ({ ...p, nombre: e.target.value }))}
-                    style={teamInput}
-                  />
-                </div>
-                <div>
-                  <label style={teamLabel}>Categoría</label>
-                  <input
-                    value={formGestionarTeam.categoria}
-                    onChange={(e) => setFormGestionarTeam((p) => ({ ...p, categoria: e.target.value }))}
-                    style={teamInput}
-                    placeholder="Ej. Sub-18"
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={teamLabel}>Inicio temporada</label>
-                    <input
-                      type="date"
-                      value={formGestionarTeam.seasonStartDate}
-                      onChange={(e) =>
-                        setFormGestionarTeam((p) => ({ ...p, seasonStartDate: e.target.value }))
-                      }
-                      style={teamInput}
-                    />
-                  </div>
-                  <div>
-                    <label style={teamLabel}>Fin temporada</label>
-                    <input
-                      type="date"
-                      value={formGestionarTeam.seasonEndDate}
-                      onChange={(e) =>
-                        setFormGestionarTeam((p) => ({ ...p, seasonEndDate: e.target.value }))
-                      }
-                      style={teamInput}
-                    />
-                  </div>
-                </div>
-              </div>
-              <button
-                type="submit"
-                disabled={gestionarBusy}
-                style={{
-                  marginTop: 16,
-                  width: '100%',
-                  padding: '11px 16px',
-                  borderRadius: 12,
-                  border: 'none',
-                  background: 'var(--accent)',
-                  cursor: gestionarBusy ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: '#fff',
-                  opacity: gestionarBusy ? 0.75 : 1,
-                }}
-              >
-                {gestionarBusy ? 'Guardando…' : 'Guardar datos del equipo'}
-              </button>
-            </form>
-
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20, marginBottom: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', marginBottom: 12 }}>Entrenador</div>
-              <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#8c857d' }}>
-                Puede ser un socio del club o una cuenta de personal (entrenador/admin).
-              </p>
-              <MemberCombobox
-                value={coachSelectMemberId}
-                displayLabel={coachSelectLabel}
-                onChange={(memberId, member) => {
-                  setCoachSelectMemberId(memberId)
-                  setCoachSelectLabel(member?.nombre || '')
-                }}
-                placeholder="Buscar socio para entrenador…"
-                style={{ marginBottom: 10 }}
-              />
-              <button
-                type="button"
-                disabled={gestionarBusy || !coachSelectMemberId}
-                onClick={() => aplicarEntrenador('member')}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: 12,
-                  border: '1px solid var(--border)',
-                  background: '#faf7f2',
-                  cursor: gestionarBusy || !coachSelectMemberId ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: '#44403c',
-                }}
-              >
-                Asignar como entrenador
-              </button>
-              {coachStaffUsers.length > 0 && (
-                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px dashed var(--border)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#57534e', marginBottom: 6 }}>O asignar una cuenta de personal</div>
-                  <select
-                    value={coachSelectUserId}
-                    onChange={(e) => setCoachSelectUserId(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', fontFamily: 'inherit', fontSize: 13, marginBottom: 10, background: '#fff' }}
-                  >
-                    <option value="">Selecciona una cuenta…</option>
-                    {coachStaffUsers.map((u) => (
-                      <option key={u.id} value={u.id}>{u.name} · {u.roleLabel}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    disabled={gestionarBusy || !coachSelectUserId}
-                    onClick={() => aplicarEntrenador('staff')}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '1px solid var(--border)',
-                      background: '#faf7f2',
-                      cursor: gestionarBusy || !coachSelectUserId ? 'not-allowed' : 'pointer',
-                      fontFamily: 'inherit',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: '#44403c',
-                    }}
-                  >
-                    Asignar cuenta como entrenador
-                  </button>
-                  <p style={{ margin: '8px 0 0', fontSize: 11, color: '#a8a29e' }}>
-                    Si la cuenta no tiene perfil de socio, se crea y vincula automáticamente.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', marginBottom: 12 }}>Horarios fijos</div>
-              <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#8c857d' }}>
-                Avisos al tutor (WD-1) y calendario automático de entrenamientos (WD-2).
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                {(gestionarEquipo.horarios ?? []).length === 0 && (
-                  <div style={{ fontSize: 13, color: '#a8a29e' }}>Sin horarios definidos.</div>
-                )}
-                {(gestionarEquipo.horarios ?? []).map((h) => (
-                  <div key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', background: '#fafafa' }}>
-                    <div style={{ fontSize: 13, color: '#1c1917' }}>
-                      <strong>{WEEKDAY_OPTIONS.find((d) => d.value === h.weekday)?.label ?? `Día ${h.weekday}`}</strong>
-                      {' · '}{h.startTime}{h.location ? ` · ${h.location}` : ''}
-                    </div>
-                    <button type="button" disabled={gestionarBusy} onClick={() => quitarHorarioEquipo(h.id)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #fecaca', background: '#fff', color: '#b91c1c', cursor: gestionarBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}>Quitar</button>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 10 }}>
-                <select value={scheduleForm.weekday} onChange={(e) => setScheduleForm((f) => ({ ...f, weekday: e.target.value }))} style={{ ...teamInput, cursor: 'pointer' }}>
-                  {WEEKDAY_OPTIONS.map((d) => (<option key={d.value} value={String(d.value)}>{d.label}</option>))}
-                </select>
-                <input type="time" value={scheduleForm.startTime} onChange={(e) => setScheduleForm((f) => ({ ...f, startTime: e.target.value }))} style={teamInput} />
-                <input type="number" min={30} max={240} step={15} value={scheduleForm.durationMinutes} onChange={(e) => setScheduleForm((f) => ({ ...f, durationMinutes: e.target.value }))} style={teamInput} placeholder="Min" title="Duración (min)" />
-                <input value={scheduleForm.location} onChange={(e) => setScheduleForm((f) => ({ ...f, location: e.target.value }))} style={teamInput} placeholder="Ubicación" />
-              </div>
-              <button type="button" disabled={gestionarBusy} onClick={anadirHorarioEquipo} style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: '1px solid var(--border)', background: '#faf7f2', cursor: gestionarBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#44403c', marginBottom: 10 }}>Añadir horario</button>
-              <button
-                type="button"
-                disabled={gestionarBusy || !(gestionarEquipo.horarios ?? []).length}
-                onClick={generarCalendarioEquipo}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: 12,
-                  border: 'none',
-                  background: 'var(--accent)',
-                  cursor: gestionarBusy || !(gestionarEquipo.horarios ?? []).length ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: '#fff',
-                  marginBottom: 20,
-                  opacity: gestionarBusy || !(gestionarEquipo.horarios ?? []).length ? 0.65 : 1,
-                }}
-              >
-                Generar calendario ahora
-              </button>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', marginBottom: 12 }}>Socios en el equipo</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                {(gestionarEquipo.miembros ?? []).length === 0 && (
-                  <div style={{ fontSize: 13, color: '#a8a29e', padding: '8px 0' }}>Nadie asignado todavía.</div>
-                )}
-                {(gestionarEquipo.miembros ?? []).map((m) => (
-                  <div
-                    key={m.teamMemberId}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      padding: '10px 12px',
-                      borderRadius: 12,
-                      border: '1px solid var(--border)',
-                      background: '#fafafa',
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1c1917' }}>{m.nombre}</div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: m.role === 'COACH' ? 'var(--accent)' : '#78716c', marginTop: 2 }}>
-                        {m.role === 'COACH' ? 'Entrenador' : 'Jugador'}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={gestionarBusy}
-                      onClick={() => quitarDelEquipo(m.teamMemberId)}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: 8,
-                        border: '1px solid #fecaca',
-                        background: '#fff',
-                        color: '#b91c1c',
-                        cursor: gestionarBusy ? 'not-allowed' : 'pointer',
-                        fontFamily: 'inherit',
-                        fontSize: 12,
-                        fontWeight: 600,
-                        flexShrink: 0,
-                      }}
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 8 }}>Añadir socio al equipo</div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <MemberCombobox
-                    value={addAlEquipoMemberId}
-                    excludeIds={miembrosEquipoIds}
-                    onChange={(memberId) => setAddAlEquipoMemberId(memberId)}
-                    placeholder="Buscar socio para añadir…"
-                  />
-                </div>
-                <button
-                  type="button"
-                  disabled={gestionarBusy || !addAlEquipoMemberId}
-                  onClick={anadirSocioAlEquipo}
-                  style={{
-                    padding: '11px 18px',
-                    borderRadius: 12,
-                    border: 'none',
-                    background: addAlEquipoMemberId ? '#1c1917' : '#ebe3d8',
-                    color: addAlEquipoMemberId ? '#fff' : '#a8a29e',
-                    cursor: gestionarBusy || !addAlEquipoMemberId ? 'not-allowed' : 'pointer',
-                    fontFamily: 'inherit',
-                    fontSize: 13,
-                    fontWeight: 600,
-                  }}
-                >
-                  Añadir
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      </div>
-    </div>
-  );
-}
-
 // ── COBROS ──────────────────────────────────────────────────────────────────
 function Contabilidad({ setActive }) {
   const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm();
@@ -5781,7 +4705,7 @@ function Contabilidad({ setActive }) {
   const [nuevoCobroForm, setNuevoCobroForm] = useState({
     target: 'member',
     memberId: '',
-    teamId: '',
+    groupId: '',
     concepto: '',
     amount: '',
     dueDate: '',
@@ -6006,7 +4930,7 @@ function Contabilidad({ setActive }) {
     setNuevoCobroForm({
       target: sociosTotal ? 'member' : 'team',
       memberId: '',
-      teamId: equiposConJugadores[0]?.id || '',
+      groupId: equiposConJugadores[0]?.id || '',
       concepto: 'Cuota mensual',
       amount: '',
       dueDate,
@@ -6053,7 +4977,7 @@ function Contabilidad({ setActive }) {
     e.preventDefault()
     const target = nuevoCobroForm.target === 'team' ? 'team' : 'member'
     const memberId = String(nuevoCobroForm.memberId || '').trim()
-    const teamId = String(nuevoCobroForm.teamId || '').trim()
+    const groupId = String(nuevoCobroForm.groupId || '').trim()
     const concepto = String(nuevoCobroForm.concepto || '').trim()
     const dueDate = String(nuevoCobroForm.dueDate || '').trim()
     const amount = Number(nuevoCobroForm.amount)
@@ -6066,11 +4990,11 @@ function Contabilidad({ setActive }) {
       return
     }
     if (target === 'team') {
-      if (!teamId) {
+      if (!groupId) {
         showAlert('Selecciona el equipo al que corresponde el cobro.')
         return
       }
-      const selectedTeam = EQUIPOS_UI.find((eq) => eq.id === teamId)
+      const selectedTeam = EQUIPOS_UI.find((eq) => eq.id === groupId)
       if (!selectedTeam || countTeamPlayers(selectedTeam) === 0) {
         showAlert('El equipo seleccionado no tiene jugadores a los que facturar.')
         return
@@ -6090,7 +5014,7 @@ function Contabilidad({ setActive }) {
         taxRate: Number.isFinite(taxRate) ? taxRate : 0,
         applyWithholding,
         withholdingRate: Number.isFinite(withholdingRate) ? withholdingRate : 0,
-        ...(target === 'team' ? { teamId } : { memberId }),
+        ...(target === 'team' ? { groupId } : { memberId }),
       }
       const r = await fetch('/api/crm/invoices', {
         method: 'POST',
@@ -7126,7 +6050,7 @@ function Contabilidad({ setActive }) {
                   setNuevoCobroForm((f) => ({
                     ...f,
                     target: 'team',
-                    teamId: f.teamId || equiposConJugadores[0]?.id || '',
+                    groupId: f.groupId || equiposConJugadores[0]?.id || '',
                   }))
                 }
                 style={{
@@ -7161,8 +6085,8 @@ function Contabilidad({ setActive }) {
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#78716c', marginBottom: 6, display: 'block' }}>Equipo</label>
                 <select
                   required
-                  value={nuevoCobroForm.teamId}
-                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, teamId: e.target.value }))}
+                  value={nuevoCobroForm.groupId}
+                  onChange={(e) => setNuevoCobroForm((f) => ({ ...f, groupId: e.target.value }))}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(0,0,0,0.09)', marginBottom: 6, fontFamily: 'inherit' }}
                 >
                   <option value="">— Seleccionar equipo —</option>
@@ -7173,7 +6097,7 @@ function Contabilidad({ setActive }) {
                   ))}
                 </select>
                 <p style={{ margin: '0 0 12px', fontSize: 12, color: '#78716c' }}>
-                  Se crearán {countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.teamId) || {})} cobros (solo jugadores).
+                  Se crearán {countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.groupId) || {})} cobros (solo jugadores).
                 </p>
               </>
             )}
@@ -7259,7 +6183,7 @@ function Contabilidad({ setActive }) {
                     (Boolean(nuevoCobroForm.applyWithholding) ? Number(nuevoCobroForm.withholdingRate || 0) / 100 : 0)
                 const teamPlayerCount =
                   nuevoCobroForm.target === 'team'
-                    ? countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.teamId) || {})
+                    ? countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.groupId) || {})
                     : 0
                 return (
                   <>
@@ -7291,7 +6215,7 @@ function Contabilidad({ setActive }) {
                 {nuevoCobroBusy
                   ? 'Creando…'
                   : nuevoCobroForm.target === 'team'
-                    ? `Crear ${countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.teamId) || {}) || 0} cobros`
+                    ? `Crear ${countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.groupId) || {}) || 0} cobros`
                     : 'Crear cobro'}
               </button>
             </div>
@@ -7335,7 +6259,7 @@ function Calendario({ setActive }) {
   const [editingEventId, setEditingEventId] = useState(null);
   const [eventoBusy, setEventoBusy] = useState(false);
   const [formEvento, setFormEvento] = useState({
-    teamId: '',
+    groupId: '',
     teamIds: [],
     title: '',
     type: 'OTHER',
@@ -7420,13 +6344,13 @@ function Calendario({ setActive }) {
 
   function openNuevoEventoModal() {
     if (!EQUIPOS_UI.length) {
-      showAlert('Crea antes un equipo (pestaña Equipos).')
-      setActive('equipos')
+      showAlert('Crea antes un grupo (pestaña Organigrama).')
+      setActive('organigrama')
       return
     }
     setEditingEventId(null)
     setFormEvento({
-      teamId: EQUIPOS_UI[0].id,
+      groupId: EQUIPOS_UI[0].id,
       teamIds: [EQUIPOS_UI[0].id],
       title: '',
       type: 'OTHER',
@@ -7443,8 +6367,8 @@ function Calendario({ setActive }) {
     const [hh = '00', mm = '00'] = String(ev.hora || '').split(':')
     setEditingEventId(ev.id)
     setFormEvento({
-      teamId: ev.teamId || EQUIPOS_UI[0]?.id || '',
-      teamIds: [ev.teamId || EQUIPOS_UI[0]?.id || ''],
+      groupId: ev.groupId || EQUIPOS_UI[0]?.id || '',
+      teamIds: [ev.groupId || EQUIPOS_UI[0]?.id || ''],
       title: ev.titulo || '',
       type: ev.typeCode || 'OTHER',
       datetimeLocal: `${ev.fecha}T${hh}:${mm}`,
@@ -7460,10 +6384,10 @@ function Calendario({ setActive }) {
     e.preventDefault()
     const isEdit = Boolean(editingEventId)
     const title = String(formEvento.title || '').trim()
-    const teamId = String(formEvento.teamId || '').trim()
+    const groupId = String(formEvento.groupId || '').trim()
     const teamIds = (formEvento.teamIds || []).filter(Boolean)
     if (!title) return
-    if (isEdit ? !teamId : teamIds.length === 0) {
+    if (isEdit ? !groupId : teamIds.length === 0) {
       showAlert('Selecciona al menos un equipo.')
       return
     }
@@ -7480,7 +6404,7 @@ function Calendario({ setActive }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
-          ...(isEdit ? { teamId } : { teamIds }),
+          ...(isEdit ? { groupId } : { teamIds }),
           type: formEvento.type,
           date: d.toISOString(),
           location: formEvento.location.trim() || undefined,
@@ -7865,8 +6789,8 @@ function Calendario({ setActive }) {
                   <label style={evLabel}>Equipo *</label>
                   <select
                     required
-                    value={formEvento.teamId}
-                    onChange={(e) => setFormEvento((p) => ({ ...p, teamId: e.target.value }))}
+                    value={formEvento.groupId}
+                    onChange={(e) => setFormEvento((p) => ({ ...p, groupId: e.target.value }))}
                     style={{ ...evInput, cursor: 'pointer' }}
                   >
                     {EQUIPOS_UI.map((eq) => (
@@ -7879,7 +6803,7 @@ function Calendario({ setActive }) {
                 </div>
               ) : (
                 <div>
-                  <label style={evLabel}>Equipos * <span style={{ fontWeight: 400, textTransform: 'none' }}>(el evento se crea en todos los marcados)</span></label>
+                  <label style={evLabel}>Grupos * <span style={{ fontWeight: 400, textTransform: 'none' }}>(el evento se crea en todos los marcados)</span></label>
                   <div style={{
                     border: '1px solid rgba(0,0,0,0.09)', borderRadius: 12, background: '#fff',
                     maxHeight: 150, overflowY: 'auto', padding: '6px 4px',
@@ -9299,7 +8223,7 @@ function WhatsAppSection() {
 // ── APP ROOT ─────────────────────────────────────────────────────────────────
 // Mantener sincronizado con CrmSectionId (src/lib/rbac.ts).
 const CRM_SECTION_IDS = [
-  'dashboard','socios','equipos','cuotas','contabilidad','calendario','informes','workflows','whatsapp','hermes','personal',
+  'dashboard','socios','cuotas','contabilidad','calendario','informes','workflows','whatsapp','hermes','personal',
   // Roadmap: Admin · Contabilidad · Configuración
   'admin-sumario','organigrama','contactos','asistencia',
   'facturas','impagos','productos','descuentos',
@@ -9310,7 +8234,6 @@ type SectionId = (typeof CRM_SECTION_IDS)[number]
 const SECTION_TITLES: Record<SectionId, string> = {
   dashboard: 'Inicio',
   socios: 'Socios',
-  equipos: 'Equipos',
   cuotas: 'Gestión de cuotas',
   contabilidad: 'Contabilidad',
   calendario: 'Calendario',
@@ -9535,7 +8458,6 @@ function CrmInner() {
   const screens = {
     dashboard: Dashboard,
     socios: Socios,
-    equipos: Equipos,
     cuotas: Cuotas,
     // Roadmap 6.1: el Sumario es solo consulta+exportación; la gestión completa
     // (antigua pantalla Contabilidad) vive en el submódulo Facturas.

@@ -21,18 +21,18 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
   const event = await prisma.event.findUnique({
     where: { id: parsedId },
-    select: { id: true, title: true, date: true, teamId: true },
+    select: { id: true, title: true, date: true, groupId: true },
   })
   if (!event) return NextResponse.json({ error: 'Evento no encontrado' }, { status: 404 })
-  if (!event.teamId) {
+  if (!event.groupId) {
     return NextResponse.json({ error: 'El evento no tiene equipo asignado' }, { status: 400 })
   }
 
-  const denied = await assertTeamAccess(auth, event.teamId)
+  const denied = await assertTeamAccess(auth, event.groupId)
   if (denied) return denied
 
   // Asegura las filas de asistencia (eventos antiguos o plantillas cambiadas).
-  const teamMembers = await prisma.teamMember.findMany({ where: { teamId: event.teamId } })
+  const teamMembers = await prisma.groupMembership.findMany({ where: { groupId: event.groupId } })
   const existing = await prisma.attendance.findMany({
     where: { eventId: event.id },
     select: { memberId: true },
@@ -45,6 +45,6 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     })
   }
 
-  const result = await scheduleAttendanceForm(event.id, event.teamId, event.title, event.date)
+  const result = await scheduleAttendanceForm(event.id, event.groupId, event.title, event.date)
   return NextResponse.json({ ok: true, ...result })
 }

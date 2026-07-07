@@ -53,7 +53,7 @@ export async function GET(
   if (row.eventId) {
     event = await prisma.event.findUnique({
       where: { id: row.eventId },
-      select: { id: true, title: true, date: true, location: true, teamId: true },
+      select: { id: true, title: true, date: true, location: true, groupId: true },
     })
     const rows = await prisma.attendance.findMany({
       where: {

@@ -4,7 +4,6 @@ import { registerInvoiceTools } from '@/lib/hermes-mcp/tools/invoices'
 import { registerKpiTools } from '@/lib/hermes-mcp/tools/kpis'
 import { registerMemberTools } from '@/lib/hermes-mcp/tools/members'
 import { registerPhaseBTools } from '@/lib/hermes-mcp/tools/phase-b'
-import { registerTeamTools } from '@/lib/hermes-mcp/tools/teams'
 import { registerWhatsAppTools } from '@/lib/hermes-mcp/tools/whatsapp'
 
 const INSTRUCTIONS = `Eres el agente Hermes conectado al CRM Furvoley vía MCP.
@@ -32,7 +31,6 @@ export function createHermesMcpServer() {
   registerKpiTools(server)
   registerMemberTools(server)
   registerInvoiceTools(server)
-  registerTeamTools(server)
   registerEventTools(server)
   registerWhatsAppTools(server)
   registerPhaseBTools(server)

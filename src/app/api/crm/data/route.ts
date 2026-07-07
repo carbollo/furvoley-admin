@@ -5,7 +5,6 @@ import { requireRoles } from '@/lib/rbac-api'
 import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
 import { getClubBranding, getRegistrationFieldsConfig } from '@/lib/club-settings'
 import { scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
-import { formatTeamScheduleSummary } from '@/lib/team-schedule-summary'
 import { crmInvoiceEstado, isInvoicePastDue } from '@/lib/invoice-display'
 import { isEnvFixedAdminEmail } from '@/lib/env-admin'
 import { getMemberStatsAccurate } from '@/lib/crm-member-mapper'
@@ -54,11 +53,11 @@ export async function GET(request: Request) {
 
   let coachTeamIds: string[] = []
   if (role === 'COACH' && sessionMemberId) {
-    const coachTeams = await prisma.teamMember.findMany({
+    const coachTeams = await prisma.groupMembership.findMany({
       where: { memberId: sessionMemberId, role: 'COACH' },
-      select: { teamId: true },
+      select: { groupId: true },
     })
-    coachTeamIds = coachTeams.map((t) => t.teamId)
+    coachTeamIds = coachTeams.map((t) => t.groupId)
   }
 
   const now = new Date()
@@ -86,15 +85,12 @@ export async function GET(request: Request) {
     clubHolidaysRaw,
   ] = await Promise.all([
     getMemberStatsAccurate(prisma),
-    prisma.team.findMany({
+    prisma.group.findMany({
       where: role === 'COACH' ? { id: { in: coachTeamIds } } : {},
       orderBy: { name: 'asc' },
       include: {
-        members: {
+        memberships: {
           include: { member: true },
-        },
-        schedules: {
-          orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
         },
       },
     }),
@@ -110,9 +106,9 @@ export async function GET(request: Request) {
     prisma.event.findMany({
       where: {
         date: { gte: new Date(year, now.getMonth() - 1, 1) },
-        ...(role === 'COACH' ? { teamId: { in: coachTeamIds } } : {}),
+        ...(role === 'COACH' ? { groupId: { in: coachTeamIds } } : {}),
       },
-      include: { team: true },
+      include: { group: true },
       orderBy: { date: 'asc' },
       take: 80,
     }),
@@ -246,40 +242,38 @@ export async function GET(request: Request) {
           const hues = ['#3B82F6', '#10B981', '#06B6D4', '#F59E0B', '#8B5CF6', '#EF4444']
           return {
             label: t.name,
-            value: t.members.length,
+            value: t.memberships.length,
             color: hues[i % hues.length],
           }
         })
       : [{ label: 'Sin equipos', value: memberStats.activos || 1, color: '#3B82F6' }]
 
   const equipos = teamsRaw.map((t) => {
-    const coachTm = t.members.find((tm) => tm.role === 'COACH')
+    const coachTm = t.memberships.find((tm) => tm.role === 'COACH')
     return {
       id: t.id,
       nombre: t.name,
       deporte: t.name,
-      categoria: t.category ?? '—',
-      categoriaDb: t.category ?? '',
+      categoria: '—',
+      categoriaDb: '',
       jugadores:
-        t.members.filter((m) => m.role === 'PLAYER').length || t.members.length,
+        t.memberships.filter((m) => m.role === 'PLAYER').length || t.memberships.length,
       entrenador: coachTm?.member?.name ?? '—',
       coachMemberId: coachTm?.memberId ?? null,
-      horario: formatTeamScheduleSummary(t.schedules),
-      horarios: t.schedules.map((s) => ({
-        id: s.id,
-        weekday: s.weekday,
-        startTime: s.startTime,
-        durationMinutes: s.durationMinutes,
-        title: s.title,
-        location: s.location,
-      })),
-      seasonStartDate: t.seasonStartDate
-        ? t.seasonStartDate.toISOString().slice(0, 10)
-        : '',
-      seasonEndDate: t.seasonEndDate ? t.seasonEndDate.toISOString().slice(0, 10) : '',
+      horario: '',
+      horarios: [] as {
+        id: string
+        weekday: number
+        startTime: string
+        durationMinutes: number
+        title: string | null
+        location: string | null
+      }[],
+      seasonStartDate: '',
+      seasonEndDate: '',
       color: '#3B82F6',
       logo: '🏐',
-      miembros: t.members.map((tm) => ({
+      miembros: t.memberships.map((tm) => ({
         teamMemberId: tm.id,
         memberId: tm.memberId,
         nombre: tm.member.name,
@@ -313,8 +307,8 @@ export async function GET(request: Request) {
     hora: `${String(e.date.getHours()).padStart(2, '0')}:${String(e.date.getMinutes()).padStart(2, '0')}`,
     tipo: TYPE_LABEL[e.type] ?? e.type,
     typeCode: e.type,
-    teamId: e.teamId ?? '',
-    equipo: e.team?.name ?? 'Club',
+    groupId: e.groupId ?? '',
+    equipo: e.group?.name ?? 'Club',
     lugar: e.location ?? '—',
     location: e.location ?? '',
     description: e.description ?? '',

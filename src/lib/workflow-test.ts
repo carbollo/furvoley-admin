@@ -51,12 +51,12 @@ function leadAsMember(lead: {
 }
 
 async function firstPlayerTeamId(memberId: string): Promise<string | null> {
-  const tm = await prisma.teamMember.findFirst({
+  const tm = await prisma.groupMembership.findFirst({
     where: { memberId, role: 'PLAYER' },
-    select: { teamId: true },
+    select: { groupId: true },
     orderBy: { createdAt: 'desc' },
   })
-  return tm?.teamId ?? null
+  return tm?.groupId ?? null
 }
 
 /** Contexto simulado según el tipo de disparador (datos reales del club cuando existen). */
@@ -64,7 +64,7 @@ async function buildSyntheticTriggerContext(
   triggerType: WorkflowTriggerType,
   member: WorkflowMemberPayload,
 ): Promise<WorkflowTriggerContext> {
-  const teamId = await firstPlayerTeamId(member.id)
+  const groupId = await firstPlayerTeamId(member.id)
   const ctx: WorkflowTriggerContext = {}
 
   if (triggerType === 'MEMBER_STATUS_CHANGED') {
@@ -73,14 +73,14 @@ async function buildSyntheticTriggerContext(
   }
 
   if (triggerType === 'TEAM_ROSTER_CONFIRMED' || triggerType === 'TEAM_CHANGE_APPROVED') {
-    if (teamId) {
-      ctx.rosterTeamId = teamId
-      ctx.toTeamId = teamId
+    if (groupId) {
+      ctx.rosterTeamId = groupId
+      ctx.toGroupId = groupId
     }
   }
 
-  if (triggerType === 'TEAM_SCHEDULE_CHANGED' && teamId) {
-    ctx.scheduleTeamId = teamId
+  if (triggerType === 'TEAM_SCHEDULE_CHANGED' && groupId) {
+    ctx.scheduleTeamId = groupId
   }
 
   if (
@@ -138,15 +138,15 @@ async function buildSyntheticTriggerContext(
     triggerType === 'CONVOCATION_PUBLISHED'
   ) {
     const event = await prisma.event.findFirst({
-      where: teamId ? { teamId } : undefined,
+      where: groupId ? { groupId } : undefined,
       orderBy: { date: 'asc' },
-      select: { id: true, title: true, teamId: true, date: true, location: true },
+      select: { id: true, title: true, groupId: true, date: true, location: true },
     })
     if (event) {
       ctx.event = {
         id: event.id,
         title: event.title,
-        teamId: event.teamId,
+        groupId: event.groupId,
         date: event.date,
       }
       ctx.eventLocation = event.location ?? ''
@@ -166,7 +166,7 @@ async function buildSyntheticTriggerContext(
   }
 
   if (triggerType === 'COACH_ASSIGNED' || triggerType === 'COACH_SUBSTITUTION_ASSIGNED') {
-    if (teamId) ctx.rosterTeamId = teamId
+    if (groupId) ctx.rosterTeamId = groupId
   }
 
   return ctx

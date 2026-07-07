@@ -46,11 +46,11 @@ export async function GET(request: Request) {
     if (!sessionMemberId) {
       return NextResponse.json({ error: 'Cuenta de entrenador sin perfil de socio.' }, { status: 403 })
     }
-    const coachTeams = await prisma.teamMember.findMany({
+    const coachTeams = await prisma.groupMembership.findMany({
       where: { memberId: sessionMemberId, role: 'COACH' },
-      select: { teamId: true },
+      select: { groupId: true },
     })
-    coachTeamIds = coachTeams.map((t) => t.teamId)
+    coachTeamIds = coachTeams.map((t) => t.groupId)
   }
 
   const url = new URL(request.url)
@@ -63,8 +63,8 @@ export async function GET(request: Request) {
     if (role === 'COACH') {
       const allowed =
         (coachTeamIds?.length ?? 0) > 0 &&
-        (await prisma.teamMember.findFirst({
-          where: { memberId: parsedId, teamId: { in: coachTeamIds! } },
+        (await prisma.groupMembership.findFirst({
+          where: { memberId: parsedId, groupId: { in: coachTeamIds! } },
           select: { id: true },
         }))
       if (!allowed) {
@@ -86,17 +86,17 @@ export async function GET(request: Request) {
   const q = String(url.searchParams.get('q') || '').trim()
   const estado = String(url.searchParams.get('estado') || 'Todos').trim()
   const deporte = String(url.searchParams.get('deporte') || 'Todos').trim()
-  const teamIdRaw = String(url.searchParams.get('teamId') || '').trim()
+  const teamIdRaw = String(url.searchParams.get('groupId') || '').trim()
   // El listado completo (con PII) solo para ADMIN/TREASURER; el COACH siempre en
   // modo "lite" (id, nombre, email, estado) para la búsqueda de plantillas.
   const lite = url.searchParams.get('lite') === '1' || role === 'COACH'
   const withStats = url.searchParams.get('stats') === '1' && role !== 'COACH'
 
-  let teamId: string | undefined
+  let groupId: string | undefined
   if (teamIdRaw) {
-    const parsedTeamId = parseCuid(teamIdRaw, 'teamId')
+    const parsedTeamId = parseCuid(teamIdRaw, 'groupId')
     if (parsedTeamId instanceof NextResponse) return parsedTeamId
-    teamId = parsedTeamId
+    groupId = parsedTeamId
   }
 
   const morosoIds = estado !== 'Todos' || withStats ? await getMorosoMemberIds(prisma) : undefined
@@ -107,7 +107,7 @@ export async function GET(request: Request) {
     q: q || undefined,
     estado: estado || undefined,
     deporte: deporte || undefined,
-    teamId,
+    groupId,
     morosoIds,
     lite,
   })

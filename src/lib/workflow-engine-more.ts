@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { createInvoiceStripeLink, createInvoiceForSubscription, createSubscription } from '@/app/actions/billing'
-import { generateTeamSessionsFromSchedule } from '@/lib/team-calendar'
 import { signupUrlFromToken } from '@/lib/signup-url'
 import {
   createWorkflowResponseLink,
@@ -104,21 +103,21 @@ export async function runExtendedWorkflowAction(
   }
 
   if (step.actionType === 'SEND_WHATSAPP_TO_TEAM') {
-    const teamId =
-      readString(step.config, 'teamId') ||
+    const groupId =
+      readString(step.config, 'groupId') ||
       runContext.variables.assignedTeamId ||
       runContext.variables.teamAssignedId
     const messageTpl = readString(step.config, 'waMessage') || ''
-    if (!teamId || !messageTpl.trim()) {
-      setStepError('teamId o mensaje vacío')
+    if (!groupId || !messageTpl.trim()) {
+      setStepError('groupId o mensaje vacío')
       return true
     }
     const message = interpolate(messageTpl, member, runContext)
     const sessionId = await resolveWorkflowWhatsAppSessionId(
       readString(step.config, 'waSessionId') || undefined,
     )
-    const members = await prisma.teamMember.findMany({
-      where: { teamId },
+    const members = await prisma.groupMembership.findMany({
+      where: { groupId },
       include: { member: { select: { phone: true, guardianPhone: true } } },
     })
     let sent = 0
@@ -139,22 +138,22 @@ export async function runExtendedWorkflowAction(
   }
 
   if (step.actionType === 'SEND_WHATSAPP_TO_COACH') {
-    const teamId =
-      readString(step.config, 'teamId') ||
+    const groupId =
+      readString(step.config, 'groupId') ||
       runContext.variables.rosterTeamId ||
       runContext.variables.assignedTeamId ||
       runContext.variables.teamAssignedId
     const messageTpl = readString(step.config, 'waMessage') || ''
-    if (!teamId || !messageTpl.trim()) {
-      setStepError('teamId o mensaje vacío')
+    if (!groupId || !messageTpl.trim()) {
+      setStepError('groupId o mensaje vacío')
       return true
     }
     const message = interpolate(messageTpl, member, runContext)
     const sessionId = await resolveWorkflowWhatsAppSessionId(
       readString(step.config, 'waSessionId') || undefined,
     )
-    const coachLink = await prisma.teamMember.findFirst({
-      where: { teamId, role: 'COACH' },
+    const coachLink = await prisma.groupMembership.findFirst({
+      where: { groupId, role: 'COACH' },
       include: { member: { select: { phone: true, guardianPhone: true, name: true } } },
     })
     const phone = (
@@ -280,8 +279,8 @@ export async function runExtendedWorkflowAction(
         type: linkType,
         memberId: member.id !== 'event' && member.id !== 'schedule' ? member.id : null,
         eventId: runContext.variables.eventId || null,
-        teamId:
-          runContext.variables.teamId ||
+        groupId:
+          runContext.variables.groupId ||
           runContext.variables.scheduleTeamId ||
           runContext.variables.rosterTeamId ||
           null,
@@ -401,30 +400,9 @@ export async function runExtendedWorkflowAction(
   }
 
   if (step.actionType === 'GENERATE_TEAM_SESSIONS') {
-    const teamId =
-      readString(step.config, 'teamId') ||
-      runContext.variables.teamId ||
-      runContext.variables.scheduleTeamId ||
-      runContext.variables.rosterTeamId
-    if (!teamId) {
-      setStepError('teamId vacío')
-      return true
-    }
-    try {
-      const untilSeasonEnd = readBoolean(step.config, 'untilSeasonEnd', true)
-      const result = await generateTeamSessionsFromSchedule({
-        teamId,
-        regenerate: readBoolean(step.config, 'regenerate', true),
-        untilSeasonEnd,
-        weeksAhead: readNumber(step.config, 'weeksAhead') ?? 4,
-      })
-      runContext.variables.sessionsGenerated = String(result.created)
-      runContext.variables.sessionsSkipped = String(result.skipped)
-      runContext.variables.sessionsDeleted = String(result.deleted)
-      setStepApplied()
-    } catch (e) {
-      setStepError(e instanceof Error ? e.message : 'error calendario')
-    }
+    // Los horarios fijos autogenerados se eliminaron al pasar de equipos a
+    // grupos; el calendario se gestiona ahora con eventos manuales.
+    setStepError('La generación automática de sesiones ya no está disponible')
     return true
   }
 

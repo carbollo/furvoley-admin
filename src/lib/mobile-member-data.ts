@@ -40,9 +40,9 @@ export async function getMobileHome(session: Session) {
     ? await prisma.member.findUnique({
         where: { id: memberId },
         include: {
-          teamRoles: {
+          groupMemberships: {
             include: {
-              team: { include: { _count: { select: { members: true } } } },
+              group: { include: { _count: { select: { memberships: true } } } },
             },
           },
         },
@@ -84,11 +84,11 @@ export async function getMobileHome(session: Session) {
     else nextDueLabel = `${pendingInvoiceCount} factura(s) por pagar`
   }
 
-  const teamIds = userMember?.teamRoles.map((tr) => tr.teamId) ?? []
+  const teamIds = userMember?.groupMemberships.map((tr) => tr.groupId) ?? []
   const upcomingTeamEventsRaw = teamIds.length
     ? await prisma.event.findMany({
-        where: { teamId: { in: teamIds }, date: { gte: new Date() } },
-        include: { team: true },
+        where: { groupId: { in: teamIds }, date: { gte: new Date() } },
+        include: { group: true },
         orderBy: { date: 'asc' },
         take: 4,
       })
@@ -122,12 +122,12 @@ export async function getMobileHome(session: Session) {
     overdueCount,
     nextDueLabel,
     enrollmentPaymentPending: userMember?.status === 'PENDING_PAYMENT',
-    teams: (userMember?.teamRoles ?? []).map((tr) => ({
-      id: tr.team.id,
-      name: tr.team.name,
+    teams: (userMember?.groupMemberships ?? []).map((tr) => ({
+      id: tr.group.id,
+      name: tr.group.name,
       role: tr.role,
-      memberCount: tr.team._count.members,
-      category: tr.team.category,
+      memberCount: tr.group._count.memberships,
+      category: null,
     })),
     upcomingTeamEvents: upcomingTeamEventsRaw.map((e) => ({
       id: e.id,
@@ -135,7 +135,7 @@ export async function getMobileHome(session: Session) {
       date: e.date.toISOString(),
       type: e.type,
       location: e.location,
-      teamName: e.team?.name ?? null,
+      teamName: e.group?.name ?? null,
     })),
     news: newsPostsRaw.map((post) => ({
       id: post.id,
@@ -170,7 +170,7 @@ export async function getMobileCalendar(session: Session) {
 
   if (role === 'ADMIN') {
     const events = await prisma.event.findMany({
-      include: { team: true },
+      include: { group: true },
       orderBy: { date: 'asc' },
       where: { date: { gte: todayStart } },
     })
@@ -181,7 +181,7 @@ export async function getMobileCalendar(session: Session) {
         date: e.date.toISOString(),
         type: e.type,
         location: e.location,
-        teamName: e.team?.name ?? null,
+        teamName: e.group?.name ?? null,
       })),
     }
   }
@@ -189,16 +189,16 @@ export async function getMobileCalendar(session: Session) {
   const userMember = memberId
     ? await prisma.member.findUnique({
         where: { id: memberId },
-        include: { teamRoles: true },
+        include: { groupMemberships: true },
       })
     : null
 
-  const teamIds = userMember?.teamRoles.map((tr) => tr.teamId) ?? []
+  const teamIds = userMember?.groupMemberships.map((tr) => tr.groupId) ?? []
   const events =
     teamIds.length > 0
       ? await prisma.event.findMany({
-          where: { teamId: { in: teamIds }, date: { gte: todayStart } },
-          include: { team: true },
+          where: { groupId: { in: teamIds }, date: { gte: todayStart } },
+          include: { group: true },
           orderBy: { date: 'asc' },
         })
       : []
@@ -210,7 +210,7 @@ export async function getMobileCalendar(session: Session) {
       date: e.date.toISOString(),
       type: e.type,
       location: e.location,
-      teamName: e.team?.name ?? null,
+      teamName: e.group?.name ?? null,
     })),
   }
 }

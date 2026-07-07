@@ -147,3 +147,14 @@ export async function getEffectiveGroupMembers(groupId: string): Promise<Effecti
 
   return [...byMember.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'))
 }
+
+/** Ids (únicos) de los socios efectivos de un grupo (directos + de sus subgrupos). */
+export async function effectiveGroupMemberIds(groupId: string): Promise<string[]> {
+  const groups = await prisma.group.findMany({ select: { id: true, name: true, parentId: true } })
+  const subtree = subtreeIdsOf(groupId, groups)
+  const rows = await prisma.groupMembership.findMany({
+    where: { groupId: { in: subtree } },
+    select: { memberId: true },
+  })
+  return [...new Set(rows.map((r) => r.memberId))]
+}

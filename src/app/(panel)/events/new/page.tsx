@@ -6,7 +6,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function NewEventPage() {
-  const teams = await prisma.team.findMany({
+  const teams = await prisma.group.findMany({
     orderBy: { name: "asc" },
   });
 

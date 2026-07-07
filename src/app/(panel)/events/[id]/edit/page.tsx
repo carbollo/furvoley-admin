@@ -18,7 +18,7 @@ export default async function EditEventPage({
     notFound();
   }
 
-  const teams = await prisma.team.findMany({
+  const teams = await prisma.group.findMany({
     orderBy: { name: "asc" },
   });
 

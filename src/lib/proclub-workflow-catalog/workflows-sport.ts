@@ -53,7 +53,7 @@ export const SPORT_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
         config: {
           stepKey: 'wd3_coach',
           label: 'Recordatorio entrenador',
-          teamId: '',
+          groupId: '',
           waMessage:
             'Hola {coachName}, en breve empieza {eventTitle} ({eventDate}). Pase de lista: {responseLink}',
         },
@@ -108,7 +108,7 @@ export const SPORT_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
         config: {
           stepKey: 'wd5_team',
           label: 'Avisar plantilla',
-          teamId: '',
+          groupId: '',
           waMessage:
             'Aviso del club: la sesión «{eventTitle}» del {eventDate} ha cambiado o se ha cancelado. Revisa el calendario en el CRM.',
         },
@@ -142,7 +142,7 @@ export const SPORT_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
         config: {
           stepKey: 'wd6_team',
           label: 'Aviso grupo (opcional)',
-          teamId: '',
+          groupId: '',
           waMessage:
             'El entrenamiento {eventTitle} del {eventDate} será impartido por {substituteCoachName}.',
         },
@@ -229,7 +229,7 @@ export const SPORT_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
         config: {
           stepKey: 'wd9_coach',
           label: 'Recordatorio resultado',
-          teamId: '',
+          groupId: '',
           waMessage: 'Partido finalizado: {eventTitle}. Registra el resultado aquí: {responseLink}',
         },
       },
@@ -247,13 +247,13 @@ export const SPORT_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
         position: 0,
         stepType: 'ACTION',
         actionType: 'REMOVE_FROM_TEAM',
-        config: { stepKey: 'wd10_out', label: 'Quitar grupo anterior', teamId: '{fromTeamId}' },
+        config: { stepKey: 'wd10_out', label: 'Quitar grupo anterior', groupId: '{fromGroupId}' },
       },
       {
         position: 1,
         stepType: 'ACTION',
         actionType: 'ASSIGN_TEAM',
-        config: { stepKey: 'wd10_in', label: 'Alta nuevo grupo', teamId: '{toTeamId}' },
+        config: { stepKey: 'wd10_in', label: 'Alta nuevo grupo', groupId: '{toGroupId}' },
       },
       {
         position: 2,
@@ -328,7 +328,7 @@ export const SPORT_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
         config: {
           stepKey: 'wd13_bulk',
           label: 'Envío masivo',
-          teamId: '',
+          groupId: '',
           waMessage: '{bulkMessage}',
         },
       },

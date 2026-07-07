@@ -13,7 +13,7 @@ export const LEADS_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
         position: 0,
         stepType: 'ACTION',
         actionType: 'ASSIGN_TEAM_BY_AGE',
-        config: { stepKey: 'wp1_assign', label: 'Grupo provisional', teamId: '', minAge: '', maxAge: '' },
+        config: { stepKey: 'wp1_assign', label: 'Grupo provisional', groupId: '', minAge: '', maxAge: '' },
       },
     ],
   }),
@@ -54,7 +54,7 @@ export const LEADS_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
         config: {
           stepKey: 'wp3_coach',
           label: 'Aviso entrenador',
-          teamId: '',
+          groupId: '',
           waMessage: 'Nuevo lead en tu grupo: {triggerMemberName}. Tel: {triggerMemberPhone}',
         },
       },

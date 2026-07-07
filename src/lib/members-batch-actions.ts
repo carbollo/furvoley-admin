@@ -55,7 +55,7 @@ async function deleteMemberRecord(memberId: string) {
     await tx.user.updateMany({ where: { memberId }, data: { memberId: null } })
     await tx.signupLink.updateMany({ where: { createdMemberId: memberId }, data: { createdMemberId: null } })
     await tx.order.updateMany({ where: { memberId }, data: { memberId: null } })
-    await tx.teamMember.deleteMany({ where: { memberId } })
+    await tx.groupMembership.deleteMany({ where: { memberId } })
     await tx.attendance.deleteMany({ where: { memberId } })
     await tx.payment.deleteMany({ where: { memberId } })
     await tx.reminderLog.deleteMany({ where: { memberId } })

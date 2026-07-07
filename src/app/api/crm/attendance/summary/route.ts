@@ -32,17 +32,17 @@ export async function GET(request: Request) {
   if (auth.role === 'COACH') {
     const memberId = (auth.session.user as { memberId?: string | null }).memberId || null
     if (!memberId) return NextResponse.json({ sessions: [], kpis: null })
-    const coachTeams = await prisma.teamMember.findMany({
+    const coachTeams = await prisma.groupMembership.findMany({
       where: { memberId, role: 'COACH' },
-      select: { teamId: true },
+      select: { groupId: true },
     })
-    teamScope = coachTeams.map((t) => t.teamId)
+    teamScope = coachTeams.map((t) => t.groupId)
   }
 
   const events = await prisma.event.findMany({
     where: {
       date: { gte: from, lte: to },
-      ...(teamScope ? { teamId: { in: teamScope } } : {}),
+      ...(teamScope ? { groupId: { in: teamScope } } : {}),
     },
     orderBy: { date: 'desc' },
     take: 60,
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       title: true,
       type: true,
       date: true,
-      team: { select: { id: true, name: true } },
+      group: { select: { id: true, name: true } },
       attendances: {
         select: {
           id: true,
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
         title: e.title,
         type: e.type,
         date: e.date.toISOString(),
-        team: e.team ? { id: e.team.id, name: e.team.name } : null,
+        group: e.group ? { id: e.group.id, name: e.group.name } : null,
         counts,
         total,
         marked,

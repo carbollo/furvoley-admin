@@ -133,16 +133,16 @@ export async function createMemberInvoice(memberId: string, input: InvoiceCreate
   return invoice
 }
 
-export async function createTeamInvoices(teamId: string, input: InvoiceCreateInput) {
+export async function createTeamInvoices(groupId: string, input: InvoiceCreateInput) {
   const payload = await buildInvoicePayload(input)
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
+  const team = await prisma.group.findUnique({
+    where: { id: groupId },
     select: { id: true, name: true },
   })
   if (!team) throw new Error('Equipo no encontrado')
 
-  const players = await prisma.teamMember.findMany({
-    where: { teamId, role: 'PLAYER' },
+  const players = await prisma.groupMembership.findMany({
+    where: { groupId, role: 'PLAYER' },
     select: { memberId: true },
   })
   const memberIds = [...new Set(players.map((p) => p.memberId))]

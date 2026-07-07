@@ -1,15 +1,14 @@
 import { prisma } from '@/lib/prisma'
-import { formatTeamScheduleSummary } from '@/lib/team-schedule-summary'
 
-/** Rellena variables de plantilla para mensajes WD-1 (horarios, sede, entrenador). */
+/** Rellena variables de plantilla para mensajes WD-1 (sede, entrenador). */
 export async function populateTeamRosterVariables(
-  teamId: string,
+  groupId: string,
   variables: Record<string, string>,
 ) {
-  const cleanId = teamId.trim()
+  const cleanId = groupId.trim()
   if (!cleanId) return
 
-  const team = await prisma.team.findUnique({
+  const team = await prisma.group.findUnique({
     where: { id: cleanId },
     select: { name: true },
   })
@@ -18,29 +17,18 @@ export async function populateTeamRosterVariables(
     variables.teamAssignedName = team.name
   }
 
-  const schedules = await prisma.teamSchedule.findMany({
-    where: { teamId: cleanId },
-    orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
+  const nextEvent = await prisma.event.findFirst({
+    where: { groupId: cleanId, status: 'SCHEDULED', date: { gte: new Date() } },
+    orderBy: { date: 'asc' },
+    select: { date: true, location: true, title: true },
   })
+  variables.teamScheduleSummary = nextEvent
+    ? `Próxima sesión: ${nextEvent.title} (${nextEvent.date.toLocaleDateString('es-ES')})`
+    : 'Consulta el calendario del club'
+  variables.teamTrainingLocation = nextEvent?.location?.trim() || ''
 
-  if (schedules.length > 0) {
-    variables.teamScheduleSummary = formatTeamScheduleSummary(schedules)
-    const withLocation = schedules.find((s) => s.location?.trim())
-    variables.teamTrainingLocation = withLocation?.location?.trim() || ''
-  } else {
-    const nextEvent = await prisma.event.findFirst({
-      where: { teamId: cleanId, status: 'SCHEDULED', date: { gte: new Date() } },
-      orderBy: { date: 'asc' },
-      select: { date: true, location: true, title: true },
-    })
-    variables.teamScheduleSummary = nextEvent
-      ? `Próxima sesión: ${nextEvent.title} (${nextEvent.date.toLocaleDateString('es-ES')})`
-      : 'Consulta el calendario del club'
-    variables.teamTrainingLocation = nextEvent?.location?.trim() || ''
-  }
-
-  const coachLink = await prisma.teamMember.findFirst({
-    where: { teamId: cleanId, role: 'COACH' },
+  const coachLink = await prisma.groupMembership.findFirst({
+    where: { groupId: cleanId, role: 'COACH' },
     include: {
       member: { select: { name: true, phone: true, email: true } },
     },

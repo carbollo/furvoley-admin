@@ -20,7 +20,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const parsedId = parseCuid(id, 'categoryId')
   if (parsedId instanceof Response) return parsedId
 
-  let body: { name?: string; minAge?: unknown; maxAge?: unknown; defaultTeamId?: string | null; isActive?: boolean }
+  let body: { name?: string; minAge?: unknown; maxAge?: unknown; defaultGroupId?: string | null; isActive?: boolean }
   try {
     body = await request.json()
   } catch {
@@ -43,8 +43,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (Number.isNaN(maxAge)) return NextResponse.json({ error: 'Edad no válida' }, { status: 400 })
     data.maxAge = maxAge
   }
-  if (body.defaultTeamId !== undefined) {
-    data.defaultTeamId = body.defaultTeamId ? String(body.defaultTeamId).trim() : null
+  if (body.defaultGroupId !== undefined) {
+    data.defaultGroupId = body.defaultGroupId ? String(body.defaultGroupId).trim() : null
   }
   if (body.isActive !== undefined) data.isActive = body.isActive === true
 

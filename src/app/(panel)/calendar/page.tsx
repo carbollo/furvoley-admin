@@ -69,10 +69,10 @@ async function CalendarPageImpl() {
   const isCoach = role === 'COACH'
   const isMember = role === 'MEMBER'
 
-  const teams = await prisma.team.findMany({ orderBy: { name: 'asc' } })
+  const teams = await prisma.group.findMany({ orderBy: { name: 'asc' } })
 
   type EventWithTeam = Awaited<
-    ReturnType<typeof prisma.event.findMany<{ include: { team: true } }>>
+    ReturnType<typeof prisma.event.findMany<{ include: { group: true } }>>
   >[number]
   let events: EventWithTeam[] = []
 
@@ -80,20 +80,20 @@ async function CalendarPageImpl() {
 
   if (isAdmin) {
     events = await prisma.event.findMany({
-      include: { team: true },
+      include: { group: true },
       orderBy: { date: 'asc' },
       where: { date: { gte: todayStart } },
     })
   } else if (isCoach || isMember) {
     const userMember = await prisma.member.findUnique({
       where: { id: session?.user?.memberId || '' },
-      include: { teamRoles: true },
+      include: { groupMemberships: true },
     })
     if (userMember) {
-      const teamIds = userMember.teamRoles.map((tr) => tr.teamId)
+      const teamIds = userMember.groupMemberships.map((tr) => tr.groupId)
       events = await prisma.event.findMany({
-        where: { teamId: { in: teamIds }, date: { gte: todayStart } },
-        include: { team: true },
+        where: { groupId: { in: teamIds }, date: { gte: todayStart } },
+        include: { group: true },
         orderBy: { date: 'asc' },
       })
     }
@@ -240,7 +240,7 @@ async function CalendarPageImpl() {
                     className="flex flex-wrap gap-3 mt-3"
                     style={{ color: ON_SURFACE_VARIANT, fontSize: 14 }}
                   >
-                    {event.team && (
+                    {event.group && (
                       <span
                         style={{
                           background: st.pill,
@@ -251,7 +251,7 @@ async function CalendarPageImpl() {
                           fontWeight: 700,
                         }}
                       >
-                        {event.team.name}
+                        {event.group.name}
                       </span>
                     )}
                     {event.location && (

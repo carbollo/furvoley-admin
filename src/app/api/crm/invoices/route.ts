@@ -15,13 +15,13 @@ export async function POST(request: Request) {
   }
 
   const memberIdRaw = String(body.memberId || '').trim()
-  const teamIdRaw = String(body.teamId || '').trim()
+  const teamIdRaw = String(body.groupId || '').trim()
   const hasMember = Boolean(memberIdRaw)
   const hasTeam = Boolean(teamIdRaw)
 
   if (hasMember === hasTeam) {
     return NextResponse.json(
-      { error: 'Indica memberId o teamId, pero no ambos.' },
+      { error: 'Indica memberId o groupId, pero no ambos.' },
       { status: 400 },
     )
   }
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
   try {
     if (hasTeam) {
-      const parsedTeamId = parseCuid(teamIdRaw, 'teamId')
+      const parsedTeamId = parseCuid(teamIdRaw, 'groupId')
       if (parsedTeamId instanceof NextResponse) return parsedTeamId
       const result = await createTeamInvoices(parsedTeamId, input)
       return NextResponse.json({ ok: true, count: result.count, ids: result.ids })

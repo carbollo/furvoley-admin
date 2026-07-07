@@ -19,7 +19,7 @@ export const WD2_WORKFLOW = {
       config: {
         stepKey: 'wd2_generate',
         label: 'Generar calendario del grupo',
-        teamId: '',
+        groupId: '',
         regenerate: true,
         untilSeasonEnd: true,
         weeksAhead: '4',

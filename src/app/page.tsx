@@ -41,11 +41,11 @@ async function HomePageImpl() {
     ? await prisma.member.findUnique({
         where: { id: sessionMemberId },
     include: {
-      teamRoles: {
+      groupMemberships: {
             include: {
-              team: {
+              group: {
                 include: {
-                  _count: { select: { members: true } },
+                  _count: { select: { memberships: true } },
                 },
               },
             },
@@ -104,14 +104,14 @@ async function HomePageImpl() {
     }
   }
 
-  const teamIds = userMember?.teamRoles.map((tr) => tr.teamId) ?? []
+  const teamIds = userMember?.groupMemberships.map((tr) => tr.groupId) ?? []
   const upcomingTeamEventsRaw = teamIds.length
     ? await prisma.event.findMany({
         where: {
-          teamId: { in: teamIds },
+          groupId: { in: teamIds },
           date: { gte: new Date() },
         },
-        include: { team: true },
+        include: { group: true },
         orderBy: { date: 'asc' },
         take: 4,
       })
@@ -139,12 +139,12 @@ async function HomePageImpl() {
   const userName = session.user?.name || 'Socio'
   const firstName = String(userName).trim().split(/\s+/)[0]
 
-  const teams = (userMember?.teamRoles ?? []).map((tr) => ({
-    id: tr.team.id,
-    name: tr.team.name,
+  const teams = (userMember?.groupMemberships ?? []).map((tr) => ({
+    id: tr.group.id,
+    name: tr.group.name,
     role: tr.role,
-    memberCount: tr.team._count.members,
-    category: tr.team.category,
+    memberCount: tr.group._count.memberships,
+    category: null,
   }))
 
   const upcomingTeamEvents = upcomingTeamEventsRaw.map((e) => ({
@@ -153,7 +153,7 @@ async function HomePageImpl() {
     date: e.date,
     type: e.type,
     location: e.location,
-    teamName: e.team?.name ?? null,
+    teamName: e.group?.name ?? null,
   }))
 
   const news = newsPostsRaw.map((post) => ({

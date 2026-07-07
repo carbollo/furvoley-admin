@@ -14,8 +14,6 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   OTHER: 'Otro',
 }
 
-const WEEKDAY_LABELS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
-
 export function publicEventWhere(extra?: Prisma.EventWhereInput): Prisma.EventWhereInput {
   return {
     AND: [
@@ -82,58 +80,32 @@ export function assertPublicSportsApiAuth(request: Request): Response | null {
 }
 
 export function serializeTeamSummary(
-  team: {
+  group: {
     id: string
     name: string
-    category: string | null
-    seasonStartDate: Date | null
-    seasonEndDate: Date | null
-    _count?: { members: number }
-    members?: { role: string }[]
+    _count?: { memberships: number }
+    memberships?: { role: string }[]
   },
   includeCounts = false,
 ) {
   let players = 0
   let coaches = 0
-  if (team._count?.members != null) {
-    players = team._count.members
-  } else if (team.members) {
-    for (const m of team.members) {
+  if (group.memberships) {
+    for (const m of group.memberships) {
       if (m.role === 'COACH') coaches++
       else players++
     }
+  } else if (group._count?.memberships != null) {
+    players = group._count.memberships
   }
 
   return {
-    id: team.id,
-    name: team.name,
-    category: team.category,
-    seasonStartDate: team.seasonStartDate?.toISOString().slice(0, 10) ?? null,
-    seasonEndDate: team.seasonEndDate?.toISOString().slice(0, 10) ?? null,
+    id: group.id,
+    name: group.name,
+    category: null,
+    seasonStartDate: null,
+    seasonEndDate: null,
     ...(includeCounts ? { roster: { players, coaches } } : {}),
-  }
-}
-
-export function serializeSchedule(row: {
-  id: string
-  weekday: number
-  startTime: string
-  durationMinutes: number
-  title: string | null
-  location: string | null
-  team?: { id: string; name: string; category: string | null } | null
-}) {
-  return {
-    id: row.id,
-    weekday: row.weekday,
-    weekdayLabel: WEEKDAY_LABELS[row.weekday] ?? String(row.weekday),
-    startTime: row.startTime,
-    durationMinutes: row.durationMinutes,
-    title: row.title,
-    location: row.location,
-    team: row.team
-      ? { id: row.team.id, name: row.team.name, category: row.team.category }
-      : null,
   }
 }
 
@@ -149,7 +121,7 @@ export function serializeEvent(event: {
   maxAttendees: number | null
   status: string
   source: string
-  team: { id: string; name: string; category: string | null } | null
+  group: { id: string; name: string } | null
 }) {
   const sportType = (PUBLIC_SPORT_EVENT_TYPES as readonly string[]).includes(event.type)
   return {
@@ -165,8 +137,8 @@ export function serializeEvent(event: {
     isPublic: event.isPublic,
     source: event.source,
     maxAttendees: event.isPublic ? event.maxAttendees : null,
-    team: event.team
-      ? { id: event.team.id, name: event.team.name, category: event.team.category }
+    group: event.group
+      ? { id: event.group.id, name: event.group.name, category: null }
       : null,
   }
 }
@@ -198,50 +170,44 @@ export function serializeNews(post: {
 }
 
 export async function listTeams() {
-  const teams = await prisma.team.findMany({
+  const teams = await prisma.group.findMany({
     orderBy: { name: 'asc' },
     include: {
-      members: { select: { role: true } },
-      schedules: { orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }] },
+      memberships: { select: { role: true } },
     },
   })
   return teams.map((t) => ({
     ...serializeTeamSummary(t, true),
-    schedules: t.schedules.map((s) =>
-      serializeSchedule({ ...s, team: { id: t.id, name: t.name, category: t.category } }),
-    ),
+    schedules: [] as never[],
   }))
 }
 
 export async function getTeamById(id: string) {
   if (!isCuid(id)) return null
-  const team = await prisma.team.findUnique({
+  const team = await prisma.group.findUnique({
     where: { id },
     include: {
-      members: { select: { role: true } },
-      schedules: { orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }] },
+      memberships: { select: { role: true } },
     },
   })
   if (!team) return null
   return {
     ...serializeTeamSummary(team, true),
-    schedules: team.schedules.map((s) =>
-      serializeSchedule({ ...s, team: { id: team.id, name: team.name, category: team.category } }),
-    ),
+    schedules: [] as never[],
   }
 }
 
 export async function listEvents(params: {
-  teamId?: string
+  groupId?: string
   type?: string
   from?: Date
   to?: Date
   status?: string
   limit: number
 }) {
-  if (params.teamId && !isCuid(params.teamId)) return []
+  if (params.groupId && !isCuid(params.groupId)) return []
   const where: Prisma.EventWhereInput = publicEventWhere({
-    ...(params.teamId ? { teamId: params.teamId } : {}),
+    ...(params.groupId ? { groupId: params.groupId } : {}),
     ...(params.type ? { type: params.type } : {}),
     ...(params.status ? { status: params.status } : {}),
     ...(params.from || params.to
@@ -259,7 +225,7 @@ export async function listEvents(params: {
     orderBy: { date: 'asc' },
     take: params.limit,
     include: {
-      team: { select: { id: true, name: true, category: true } },
+      group: { select: { id: true, name: true } },
     },
   })
   return events.map(serializeEvent)
@@ -270,7 +236,7 @@ export async function getEventById(id: string) {
   const event = await prisma.event.findFirst({
     where: publicEventWhere({ id }),
     include: {
-      team: { select: { id: true, name: true, category: true } },
+      group: { select: { id: true, name: true } },
     },
   })
   if (!event) return null
@@ -313,40 +279,26 @@ export async function listPublishedNews(limit: number) {
 export async function getCalendarFeed(params: {
   from?: Date
   to?: Date
-  teamId?: string
+  groupId?: string
   limit: number
 }) {
   const [events, holidays, teams] = await Promise.all([
     listEvents({ ...params, limit: params.limit }),
     listHolidays(params.from, params.to),
-    prisma.team.findMany({
+    prisma.group.findMany({
       orderBy: { name: 'asc' },
       select: {
         id: true,
         name: true,
-        category: true,
-        seasonStartDate: true,
-        seasonEndDate: true,
       },
     }),
   ])
-
-  const schedules =
-    params.teamId && !isCuid(params.teamId)
-      ? []
-      : await prisma.teamSchedule.findMany({
-          where: params.teamId ? { teamId: params.teamId } : undefined,
-          orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }],
-          include: {
-            team: { select: { id: true, name: true, category: true } },
-          },
-        })
 
   return {
     events,
     holidays,
     teams: teams.map((t) => serializeTeamSummary(t, false)),
-    schedules: schedules.map(serializeSchedule),
+    schedules: [] as never[],
   }
 }
 
@@ -364,7 +316,7 @@ export const API_INDEX = {
     },
     { method: 'GET', path: '/api/public/v1/teams', description: 'Equipos y horarios fijos' },
     { method: 'GET', path: '/api/public/v1/teams/{id}', description: 'Detalle de un equipo' },
-    { method: 'GET', path: '/api/public/v1/events', description: 'Actividades (query: teamId, type, from, to, status, limit)' },
+    { method: 'GET', path: '/api/public/v1/events', description: 'Actividades (query: groupId, type, from, to, status, limit)' },
     { method: 'GET', path: '/api/public/v1/events/{id}', description: 'Detalle de una actividad' },
     { method: 'GET', path: '/api/public/v1/holidays', description: 'Días sin actividad (festivos)' },
     { method: 'GET', path: '/api/public/v1/news', description: 'Noticias publicadas' },

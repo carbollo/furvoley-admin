@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { normalizeRole } from '@/lib/rbac'
 import { runWithTenant } from '@/lib/multitenant/request'
 import { isAttendanceReminderDays } from '@/lib/attendance-link'
+import { effectiveGroupMemberIds } from '@/lib/groups'
 import {
   runAttendanceAbsentUnexcusedWorkflows,
   runEventCancelledWorkflows,
@@ -19,17 +20,17 @@ import {
  * endpoints RPC (los usan componentes 'use client'), así que NO se puede confiar
  * en el gating de la UI: hay que comprobar rol y acceso al equipo aquí.
  */
-async function assertEventWriter(teamId: string | null | undefined) {
+async function assertEventWriter(groupId: string | null | undefined) {
   const session = await getServerSession(authOptions)
   const user = session?.user as { role?: string; memberId?: string | null } | undefined
   const role = normalizeRole(user?.role)
   if (!user || !(role === 'ADMIN' || role === 'COACH')) {
     throw new Error('No autorizado')
   }
-  if (role === 'COACH' && teamId) {
+  if (role === 'COACH' && groupId) {
     const owns = user.memberId
-      ? await prisma.teamMember.findFirst({
-          where: { teamId, memberId: user.memberId, role: 'COACH' },
+      ? await prisma.groupMembership.findFirst({
+          where: { groupId, memberId: user.memberId, role: 'COACH' },
           select: { id: true },
         })
       : null
@@ -44,7 +45,7 @@ type CreateEventData = {
   date: Date
   location?: string
   description?: string
-  teamId: string
+  groupId: string
   attendanceFormEnabled?: boolean
   attendanceReminderDays?: number | null
 }
@@ -57,15 +58,14 @@ type CreateEventData = {
 export async function createEventInternal(data: CreateEventData) {
   const event = await prisma.event.create({ data })
 
-  const teamMembers = await prisma.teamMember.findMany({
-    where: { teamId: data.teamId },
-  })
-
-  if (teamMembers.length > 0) {
+  // Filas de asistencia (pase de lista) para los socios EFECTIVOS del grupo
+  // (directos + los de sus subgrupos, por contención).
+  const memberIds = data.groupId ? await effectiveGroupMemberIds(data.groupId) : []
+  if (memberIds.length > 0) {
     await prisma.attendance.createMany({
-      data: teamMembers.map((tm) => ({
+      data: memberIds.map((memberId) => ({
         eventId: event.id,
-        memberId: tm.memberId,
+        memberId,
         status: 'PENDING',
       })),
     })
@@ -81,7 +81,7 @@ export async function createEventInternal(data: CreateEventData) {
  */
 export async function createEvent(data: CreateEventData) {
   return runWithTenant(async () => {
-    await assertEventWriter(data.teamId)
+    await assertEventWriter(data.groupId)
     const attendanceReminderDays = data.attendanceFormEnabled
       ? (isAttendanceReminderDays(data.attendanceReminderDays) ? data.attendanceReminderDays : 7)
       : null
@@ -98,7 +98,7 @@ export async function updateEvent(
     location?: string
     description?: string
     status?: string
-    teamId?: string
+    groupId?: string
   },
 ) {
   const prev = await prisma.event.findUnique({ where: { id } })
@@ -128,9 +128,9 @@ export async function deleteEventInternal(id: string) {
 /** Server action público (form de borrado en el calendario): autoriza + tenant. */
 export async function deleteEvent(id: string) {
   return runWithTenant(async () => {
-    const event = await prisma.event.findUnique({ where: { id }, select: { teamId: true } })
+    const event = await prisma.event.findUnique({ where: { id }, select: { groupId: true } })
     if (!event) throw new Error('Evento no encontrado')
-    await assertEventWriter(event.teamId)
+    await assertEventWriter(event.groupId)
     return deleteEventInternal(id)
   })
 }

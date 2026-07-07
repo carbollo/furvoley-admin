@@ -100,7 +100,7 @@ export async function DELETE(
         data: { memberId: null },
       })
 
-      const deletedTeamMembers = await tx.teamMember.deleteMany({ where: { memberId: parsedId } })
+      const deletedTeamMembers = await tx.groupMembership.deleteMany({ where: { memberId: parsedId } })
       const deletedAttendances = await tx.attendance.deleteMany({ where: { memberId: parsedId } })
       const deletedPayments = await tx.payment.deleteMany({ where: { memberId: parsedId } })
       const deletedReminderLogs = await tx.reminderLog.deleteMany({ where: { memberId: parsedId } })

@@ -64,9 +64,9 @@ export default async function EventsAdminPage() {
                         <span className="text-xs text-stone-500 mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-stone-100 w-fit">
                           {event.type}
                         </span>
-                        {event.team && (
+                        {event.group && (
                           <span className="text-xs text-blue-600 mt-1">
-                            Equipo: {event.team.name}
+                            Equipo: {event.group.name}
                           </span>
                         )}
                       </div>

@@ -4,9 +4,10 @@ import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { mapWithConcurrency } from '@/lib/concurrency'
 import { ageFromBirthDate } from '@/lib/categories'
+import { effectiveGroupMemberIds } from '@/lib/groups'
 
 export type AttendanceLinkResult = {
-  team: string
+  group: string
   total: number
   sent: number
   toGuardians: number
@@ -32,42 +33,41 @@ const ADULT_AGE = 18
  */
 export async function scheduleAttendanceForm(
   eventId: string,
-  teamId: string,
+  groupId: string,
   eventTitle: string,
   eventDate: Date,
 ): Promise<AttendanceLinkResult> {
-  const team = await prisma.team.findUnique({
-    where: { id: teamId },
-    select: {
-      name: true,
-      members: {
-        include: {
-          member: {
-            select: {
-              id: true,
-              name: true,
-              phone: true,
-              guardianName: true,
-              guardianPhone: true,
-              birthDate: true,
-            },
-          },
-        },
-      },
-    },
+  const group = await prisma.group.findUnique({
+    where: { id: groupId },
+    select: { name: true },
   })
-  const teamName = team?.name || 'Equipo'
-  const members = (team?.members ?? []).map((tm) => tm.member)
+  const teamName = group?.name || 'Grupo'
+
+  // Miembros efectivos del grupo (directos + de sus subgrupos, por contención).
+  const memberIds = await effectiveGroupMemberIds(groupId)
+  const members = memberIds.length
+    ? await prisma.member.findMany({
+        where: { id: { in: memberIds } },
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          guardianName: true,
+          guardianPhone: true,
+          birthDate: true,
+        },
+      })
+    : []
 
   if (members.length === 0) {
-    return { team: teamName, total: 0, sent: 0, toGuardians: 0, skippedNoPhone: 0, failed: 0, warning: 'El equipo no tiene miembros.', recoverable: false }
+    return { group: teamName, total: 0, sent: 0, toGuardians: 0, skippedNoPhone: 0, failed: 0, warning: 'El grupo no tiene miembros.', recoverable: false }
   }
 
   const waCfg = await getWhatsAppConfig()
   const sessionId = String(waCfg.linkedSessionId || process.env.APIWASS_DEFAULT_SESSION_ID || '').trim()
   if (!sessionId) {
     return {
-      team: teamName, total: members.length, sent: 0, toGuardians: 0, skippedNoPhone: 0, failed: 0,
+      group: teamName, total: members.length, sent: 0, toGuardians: 0, skippedNoPhone: 0, failed: 0,
       warning: 'WhatsApp no está configurado: no se pudieron enviar los enlaces de asistencia.',
       recoverable: true,
     }
@@ -95,7 +95,7 @@ export async function scheduleAttendanceForm(
       const link = await createWorkflowResponseLink({
         type: 'ATTENDANCE',
         eventId,
-        teamId,
+        groupId,
         memberId: m.id,
         // Debe seguir vivo después de la sesión: 7 días.
         expiresInHours: 7 * 24,
@@ -122,7 +122,7 @@ export async function scheduleAttendanceForm(
 
   // Todos los envíos fallaron (0 enviados y hubo fallos) → transitorio → reintentar.
   const recoverable = sent === 0 && failed > 0
-  return { team: teamName, total: members.length, sent, toGuardians, skippedNoPhone, failed, warning, recoverable }
+  return { group: teamName, total: members.length, sent, toGuardians, skippedNoPhone, failed, warning, recoverable }
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -149,11 +149,11 @@ export function attendanceFormSendDate(eventDate: Date, reminderDays: number): D
 export async function sendAttendanceFormForEvent(eventId: string): Promise<AttendanceLinkResult | null> {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, title: true, date: true, teamId: true, attendanceFormSentAt: true },
+    select: { id: true, title: true, date: true, groupId: true, attendanceFormSentAt: true },
   })
-  if (!event?.teamId || event.attendanceFormSentAt) return null
+  if (!event?.groupId || event.attendanceFormSentAt) return null
 
-  const result = await scheduleAttendanceForm(event.id, event.teamId, event.title, event.date)
+  const result = await scheduleAttendanceForm(event.id, event.groupId, event.title, event.date)
   // Fallo recuperable (WhatsApp sin conectar, o todos los envíos fallaron): NO
   // marcar → el cron reintentará en el próximo tick (hasta que el evento pase).
   // Fallos parciales (algunos sin teléfono) SÍ marcan: no reintentamos el envío
@@ -186,7 +186,7 @@ export async function dispatchDueAttendanceForms(now: Date = new Date()): Promis
       attendanceFormSentAt: null,
       status: 'SCHEDULED',
       date: { gte: now },
-      teamId: { not: null },
+      groupId: { not: null },
     },
     select: { id: true, title: true, date: true, attendanceReminderDays: true },
     orderBy: { date: 'asc' },

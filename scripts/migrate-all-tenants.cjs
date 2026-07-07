@@ -50,7 +50,7 @@ async function main() {
     log(`prisma db push → ${d}`)
     const r = spawnSync(
       process.platform === 'win32' ? 'npx.cmd' : 'npx',
-      ['prisma', 'db', 'push'],
+      ['prisma', 'db', 'push', '--accept-data-loss'],
       { stdio: 'inherit', env: { ...process.env, DATABASE_URL: dbUrl(base, d) } },
     )
     if (r.status === 0) ok += 1

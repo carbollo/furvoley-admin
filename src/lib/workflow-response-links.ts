@@ -57,7 +57,7 @@ export async function createWorkflowResponseLink(input: {
   type: WorkflowLinkType
   memberId?: string | null
   eventId?: string | null
-  teamId?: string | null
+  groupId?: string | null
   payload?: Record<string, unknown>
   expiresInHours?: number
 }) {
@@ -69,7 +69,7 @@ export async function createWorkflowResponseLink(input: {
       type: input.type,
       memberId: input.memberId || null,
       eventId: input.eventId || null,
-      teamId: input.teamId || null,
+      groupId: input.groupId || null,
       payload: input.payload ? (input.payload as object) : undefined,
       expiresAt,
     },

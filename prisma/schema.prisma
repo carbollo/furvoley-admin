@@ -86,7 +86,6 @@ model Member {
 
   user      User?
   payments  Payment[]
-  teamRoles TeamMember[]
   attendances Attendance[]
   subscriptions Subscription[]
   invoices Invoice[]
@@ -114,6 +113,7 @@ model Group {
 
   memberships GroupMembership[]
   chatMessages ChatMessage[]
+  events    Event[]
 
   @@index([parentId])
 }
@@ -383,7 +383,7 @@ model WorkflowResponseToken {
   type       String    // ATTENDANCE, ATTENDANCE_REASON, CONVOCATION, TRIAL, MATCH_RESULT, CONSENT, LEAVE_SURVEY, SEASON_RENEWAL
   memberId   String?
   eventId    String?
-  teamId     String?
+  groupId    String?
   payload    Json?
   expiresAt  DateTime
   usedAt     DateTime?
@@ -404,11 +404,11 @@ model EventConvocation {
   @@index([eventId])
 }
 
-model TeamChangeRequest {
+model GroupChangeRequest {
   id           String    @id @default(cuid())
   memberId     String
-  fromTeamId   String?
-  toTeamId     String
+  fromGroupId  String?
+  toGroupId    String
   status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
   approvedById String?
   createdAt    DateTime  @default(now())
@@ -445,7 +445,7 @@ model MemberDocument {
 model PlayerEvaluation {
   id        String   @id @default(cuid())
   memberId  String
-  teamId    String?
+  groupId   String?
   summary   String?  @db.Text
   status    String   @default("DRAFT") // DRAFT, PUBLISHED
   createdAt DateTime @default(now())
@@ -599,7 +599,7 @@ model Category {
   name        String   @unique
   minAge      Int?     // edad mínima (años). null = sin mínimo
   maxAge      Int?     // edad máxima (años). null = sin máximo
-  defaultTeamId String? // equipo por defecto al que asignar los socios de esta categoría
+  defaultGroupId String? // grupo por defecto al que asignar los socios de esta categoría
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -607,56 +607,11 @@ model Category {
   @@index([isActive])
 }
 
-model Team {
-  id              String       @id @default(cuid())
-  name            String
-  category        String?      // e.g., "U12", "Senior"
-  seasonStartDate DateTime?
-  seasonEndDate   DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-
-  members     TeamMember[]
-  events      Event[]
-  schedules   TeamSchedule[]
-}
-
-model TeamSchedule {
-  id              String   @id @default(cuid())
-  weekday         Int      // 0=domingo … 6=sábado
-  startTime       String   // HH:mm
-  durationMinutes Int      @default(90)
-  title           String?
-  location        String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  teamId          String
-  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@index([teamId, weekday])
-}
-
 model ClubHoliday {
   id        String   @id @default(cuid())
   date      DateTime
   name      String?
   createdAt DateTime @default(now())
-}
-
-model TeamMember {
-  id        String   @id @default(cuid())
-  role      String   @default("PLAYER") // PLAYER, COACH
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  teamId    String
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  
-  memberId  String
-  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-
-  @@unique([teamId, memberId])
 }
 
 model Event {
@@ -671,7 +626,7 @@ model Event {
   maxAttendees  Int?         // Capacity limit
   price         Float?       // Cost to attend, if any
   status        String       @default("SCHEDULED") // SCHEDULED, CANCELLED, COMPLETED
-  source        String       @default("MANUAL") // MANUAL | TEAM_SCHEDULE
+  source        String       @default("MANUAL") // MANUAL
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -682,8 +637,8 @@ model Event {
   attendanceReminderDays Int?      // 1, 3, 7, 15 o 30
   attendanceFormSentAt   DateTime?
 
-  teamId        String?      // Optional: if null, it's a club-wide event
-  team          Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  groupId       String?      // Optional: if null, it's a club-wide event
+  group         Group?       @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   attendances   Attendance[]
   guestAttendees EventGuestAttendee[]

@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   }
 
   const events = await listEvents({
-    teamId: url.searchParams.get('teamId')?.trim() || undefined,
+    groupId: url.searchParams.get('groupId')?.trim() || undefined,
     type,
     from: fromRaw ?? undefined,
     to: toRaw ?? undefined,
