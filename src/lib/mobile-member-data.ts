@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { getClubBranding } from '@/lib/club-settings'
+import { groupIdsWithAncestors } from '@/lib/groups'
 import { isInvoicePastDue } from '@/lib/invoice-display'
 import { normalizeRole } from '@/lib/rbac'
 import type { Session } from 'next-auth'
@@ -84,10 +85,13 @@ export async function getMobileHome(session: Session) {
     else nextDueLabel = `${pendingInvoiceCount} factura(s) por pagar`
   }
 
-  const teamIds = userMember?.groupMemberships.map((tr) => tr.groupId) ?? []
-  const upcomingTeamEventsRaw = teamIds.length
+  // Un evento sobre un grupo convoca a todo su subárbol: el socio ve los eventos
+  // de sus grupos directos Y de sus grupos superiores (ancestros).
+  const directGroupIds = userMember?.groupMemberships.map((tr) => tr.groupId) ?? []
+  const eventGroupIds = await groupIdsWithAncestors(directGroupIds)
+  const upcomingTeamEventsRaw = eventGroupIds.length
     ? await prisma.event.findMany({
-        where: { groupId: { in: teamIds }, date: { gte: new Date() } },
+        where: { groupId: { in: eventGroupIds }, date: { gte: new Date() } },
         include: { group: true },
         orderBy: { date: 'asc' },
         take: 4,
@@ -193,11 +197,12 @@ export async function getMobileCalendar(session: Session) {
       })
     : null
 
-  const teamIds = userMember?.groupMemberships.map((tr) => tr.groupId) ?? []
+  const directGroupIds = userMember?.groupMemberships.map((tr) => tr.groupId) ?? []
+  const eventGroupIds = await groupIdsWithAncestors(directGroupIds)
   const events =
-    teamIds.length > 0
+    eventGroupIds.length > 0
       ? await prisma.event.findMany({
-          where: { groupId: { in: teamIds }, date: { gte: todayStart } },
+          where: { groupId: { in: eventGroupIds }, date: { gte: todayStart } },
           include: { group: true },
           orderBy: { date: 'asc' },
         })

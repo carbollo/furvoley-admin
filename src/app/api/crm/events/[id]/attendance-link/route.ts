@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { parseCuid } from '@/lib/db-input-validation'
 import { assertTeamAccess, requireRoles } from '@/lib/rbac-api'
 import { scheduleAttendanceForm } from '@/lib/attendance-link'
+import { effectiveGroupMemberIds } from '@/lib/groups'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,17 +32,19 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   const denied = await assertTeamAccess(auth, event.groupId)
   if (denied) return denied
 
-  // Asegura las filas de asistencia (eventos antiguos o plantillas cambiadas).
-  const teamMembers = await prisma.groupMembership.findMany({ where: { groupId: event.groupId } })
+  // Asegura las filas de asistencia (eventos antiguos o plantillas cambiadas)
+  // para los socios EFECTIVOS del grupo (directos + los de sus subgrupos), igual
+  // que al crear el evento y que el envío del formulario.
+  const memberIds = await effectiveGroupMemberIds(event.groupId)
   const existing = await prisma.attendance.findMany({
     where: { eventId: event.id },
     select: { memberId: true },
   })
   const existingIds = new Set(existing.map((a) => a.memberId))
-  const missing = teamMembers.filter((tm) => !existingIds.has(tm.memberId))
+  const missing = memberIds.filter((memberId) => !existingIds.has(memberId))
   if (missing.length > 0) {
     await prisma.attendance.createMany({
-      data: missing.map((tm) => ({ eventId: event.id, memberId: tm.memberId, status: 'PENDING' })),
+      data: missing.map((memberId) => ({ eventId: event.id, memberId, status: 'PENDING' })),
     })
   }
 

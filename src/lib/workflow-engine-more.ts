@@ -8,6 +8,7 @@ import {
   type WorkflowLinkType,
 } from '@/lib/workflow-response-links'
 import { getClubIssuer } from '@/lib/club-settings'
+import { effectiveGroupMemberIds, getEffectiveGroupMembers } from '@/lib/groups'
 import type { WorkflowMemberPayload } from '@/lib/workflow-engine'
 
 type WorkflowRunContext = {
@@ -116,13 +117,17 @@ export async function runExtendedWorkflowAction(
     const sessionId = await resolveWorkflowWhatsAppSessionId(
       readString(step.config, 'waSessionId') || undefined,
     )
-    const members = await prisma.groupMembership.findMany({
-      where: { groupId },
-      include: { member: { select: { phone: true, guardianPhone: true } } },
-    })
+    // Socios EFECTIVOS del grupo (directos + los de sus subgrupos, por contención).
+    const memberIds = await effectiveGroupMemberIds(groupId)
+    const members = memberIds.length
+      ? await prisma.member.findMany({
+          where: { id: { in: memberIds } },
+          select: { phone: true, guardianPhone: true },
+        })
+      : []
     let sent = 0
     for (const tm of members) {
-      const phone = (tm.member.guardianPhone || tm.member.phone || '').replace(/[^\d+]/g, '')
+      const phone = (tm.guardianPhone || tm.phone || '').replace(/[^\d+]/g, '')
       if (!phone) continue
       try {
         await sendApiWassText({ sessionId, phone, message })
@@ -152,15 +157,16 @@ export async function runExtendedWorkflowAction(
     const sessionId = await resolveWorkflowWhatsAppSessionId(
       readString(step.config, 'waSessionId') || undefined,
     )
-    const coachLink = await prisma.groupMembership.findFirst({
-      where: { groupId, role: 'COACH' },
-      include: { member: { select: { phone: true, guardianPhone: true, name: true } } },
-    })
-    const phone = (
-      coachLink?.member.phone ||
-      coachLink?.member.guardianPhone ||
-      ''
-    ).replace(/[^\d+]/g, '')
+    // Entrenador EFECTIVO: primero directo, si no el de un subgrupo (contención).
+    const coaches = (await getEffectiveGroupMembers(groupId)).filter((m) => m.role === 'COACH')
+    const effectiveCoach = coaches.find((m) => !m.inherited) ?? coaches[0]
+    const coach = effectiveCoach
+      ? await prisma.member.findUnique({
+          where: { id: effectiveCoach.memberId },
+          select: { phone: true, guardianPhone: true, name: true },
+        })
+      : null
+    const phone = (coach?.phone || coach?.guardianPhone || '').replace(/[^\d+]/g, '')
     if (!phone) {
       setStepError('entrenador sin teléfono')
       runContext.variables.stepWhatsAppSent = 'false'

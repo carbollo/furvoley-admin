@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { normalizeRole } from '@/lib/rbac'
+import { groupIdsWithAncestors } from '@/lib/groups'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,12 +91,17 @@ async function CalendarPageImpl() {
       include: { groupMemberships: true },
     })
     if (userMember) {
-      const teamIds = userMember.groupMemberships.map((tr) => tr.groupId)
-      events = await prisma.event.findMany({
-        where: { groupId: { in: teamIds }, date: { gte: todayStart } },
-        include: { group: true },
-        orderBy: { date: 'asc' },
-      })
+      // El evento de un grupo convoca a todo su subárbol: el socio/entrenador ve
+      // los eventos de sus grupos directos Y de sus grupos superiores (ancestros).
+      const directGroupIds = userMember.groupMemberships.map((tr) => tr.groupId)
+      const eventGroupIds = await groupIdsWithAncestors(directGroupIds)
+      events = eventGroupIds.length
+        ? await prisma.event.findMany({
+            where: { groupId: { in: eventGroupIds }, date: { gte: todayStart } },
+            include: { group: true },
+            orderBy: { date: 'asc' },
+          })
+        : []
     }
   }
 

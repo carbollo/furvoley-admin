@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { getClubIssuer } from '@/lib/club-settings'
+import { effectiveGroupMemberIds } from '@/lib/groups'
 import {
   runWorkflowsForMemberByTrigger,
   runWorkflowStepsForMember,
@@ -210,12 +211,10 @@ export async function runWaitlistSlotWorkflows() {
 }
 
 export async function runBulkMessageWorkflows(groupId: string, message: string) {
-  const members = await prisma.groupMembership.findMany({
-    where: { groupId },
-    include: { member: true },
-  })
-  for (const tm of members) {
-    const m = await loadMemberPayload(tm.memberId)
+  // Socios EFECTIVOS del grupo (directos + los de sus subgrupos, por contención).
+  const memberIds = await effectiveGroupMemberIds(groupId)
+  for (const memberId of memberIds) {
+    const m = await loadMemberPayload(memberId)
     if (!m) continue
     await runWorkflowsForTrigger('BULK_MESSAGE_REQUESTED', m, {
       bulkMessage: message,

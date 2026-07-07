@@ -91,13 +91,15 @@ export function serializeTeamSummary(
   let players = 0
   let coaches = 0
   if (group.memberships) {
+    // Roles del organigrama: PLAYER | COACH | FAMILY. Los familiares no son
+    // jugadores ni entrenadores, así que no se cuentan en el roster deportivo.
     for (const m of group.memberships) {
       if (m.role === 'COACH') coaches++
-      else players++
+      else if (m.role === 'PLAYER') players++
     }
-  } else if (group._count?.memberships != null) {
-    players = group._count.memberships
   }
+  // Nota: sin `memberships` (solo `_count`) no hay desglose por rol, así que no
+  // se puede informar el roster con precisión; se omite en vez de sobre-contar.
 
   return {
     id: group.id,

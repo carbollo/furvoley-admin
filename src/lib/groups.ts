@@ -148,6 +148,24 @@ export async function getEffectiveGroupMembers(groupId: string): Promise<Effecti
   return [...byMember.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'))
 }
 
+/**
+ * Expande una lista de grupos con TODOS sus ancestros. Es el INVERSO de la
+ * contención descendente: un evento sobre un grupo convoca a los socios de su
+ * subárbol, así que para saber qué eventos "ve" un socio hay que mirar sus
+ * grupos directos y todos sus grupos superiores (el evento puede estar en un
+ * grupo padre del suyo).
+ */
+export async function groupIdsWithAncestors(directGroupIds: string[]): Promise<string[]> {
+  const ids = [...new Set(directGroupIds)]
+  if (ids.length === 0) return []
+  const groups = await prisma.group.findMany({ select: { id: true, name: true, parentId: true } })
+  const set = new Set<string>(ids)
+  for (const gid of ids) {
+    for (const anc of ancestorIdsOf(gid, groups)) set.add(anc)
+  }
+  return [...set]
+}
+
 /** Ids (únicos) de los socios efectivos de un grupo (directos + de sus subgrupos). */
 export async function effectiveGroupMemberIds(groupId: string): Promise<string[]> {
   const groups = await prisma.group.findMany({ select: { id: true, name: true, parentId: true } })

@@ -8,6 +8,7 @@ import { MemberDashboard } from '@/components/member/MemberDashboard'
 import { getClubBranding } from '@/lib/club-settings'
 import { normalizeRole } from '@/lib/rbac'
 import { isInvoicePastDue } from '@/lib/invoice-display'
+import { groupIdsWithAncestors } from '@/lib/groups'
 import { runWithTenant } from '@/lib/multitenant/request'
 
 export const dynamic = 'force-dynamic'
@@ -104,11 +105,14 @@ async function HomePageImpl() {
     }
   }
 
-  const teamIds = userMember?.groupMemberships.map((tr) => tr.groupId) ?? []
-  const upcomingTeamEventsRaw = teamIds.length
+  // Un evento sobre un grupo convoca a todo su subárbol: el socio ve los eventos
+  // de sus grupos directos Y de sus grupos superiores (ancestros).
+  const directGroupIds = userMember?.groupMemberships.map((tr) => tr.groupId) ?? []
+  const eventGroupIds = await groupIdsWithAncestors(directGroupIds)
+  const upcomingTeamEventsRaw = eventGroupIds.length
     ? await prisma.event.findMany({
         where: {
-          groupId: { in: teamIds },
+          groupId: { in: eventGroupIds },
           date: { gte: new Date() },
         },
         include: { group: true },
