@@ -540,7 +540,6 @@ const NAV = [
       { id: 'organigrama', label: 'Organigrama' },
       { id: 'contactos', label: 'Contactos' },
       { id: 'asistencia', label: 'Asistencia' },
-      { id: 'equipos', label: 'Equipos' },
       { id: 'personal', label: 'Personal' },
     ],
   },
