@@ -1405,6 +1405,29 @@ function Organigrama() {
     } finally { setBulkBusy(false) }
   }
 
+  const haySeleccion = selMembers.size > 0 || selGroups.size > 0
+
+  /** Botón "Asignar cuota": sobre la selección (grupos+socios marcados) si la hay; si no, el grupo visto. */
+  function asignarCuotaAccion() {
+    if (haySeleccion) abrirPlanModal(selectedMemberIds, `${selectedMemberIds.length} socio(s) seleccionados`)
+    else abrirPlanModal(members.map((m) => m.memberId), `«${groupName}»`)
+  }
+
+  /** Botón "Eliminar grupo": todos los grupos/subgrupos marcados si los hay; si no, el grupo visto. */
+  async function eliminarGrupoAccion() {
+    if (selGroups.size > 0) { await eliminarGruposSeleccionados(); return }
+    if (!selectedId) return
+    const ok = await showConfirm(`¿Eliminar el grupo «${groupName}»? Sus subgrupos pasan al nivel raíz.`).catch(() => false)
+    if (!ok) return
+    setBulkBusy(true)
+    try {
+      const r = await fetch(`/api/crm/groups/${selectedId}`, { method: 'DELETE', credentials: 'include' })
+      if (!r.ok) { showAlert('No se pudo eliminar'); return }
+      setSelectedId('')
+      await Promise.all([loadTree(), loadOverview()])
+    } finally { setBulkBusy(false) }
+  }
+
   const GROUP_ROLE_FILTERS = [
     { value: 'ALL', label: 'Todos' },
     { value: 'PLAYER', label: 'Jugadores' },
@@ -1628,35 +1651,6 @@ function Organigrama() {
 
         {/* Detalle del grupo */}
         <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',padding:24,minHeight:320}}>
-          {/* Acciones en lote sobre la selección (fija arriba del panel) */}
-          {(selMembers.size > 0 || selGroups.size > 0) && (
-            <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginBottom:18,padding:'10px 14px',borderRadius:12,background:'var(--accent-pill)',border:'1px solid var(--border)'}}>
-              <span style={{fontSize:13,fontWeight:700,color:'var(--text-primary)'}}>
-                {[
-                  selGroups.size ? `${selGroups.size} grupo${selGroups.size === 1 ? '' : 's'}` : '',
-                  selMembers.size ? `${selMembers.size} socio${selMembers.size === 1 ? '' : 's'} suelto${selMembers.size === 1 ? '' : 's'}` : '',
-                ].filter(Boolean).join(' · ')} seleccionado{selGroups.size + selMembers.size === 1 ? '' : 's'}
-              </span>
-              <div style={{marginLeft:'auto',display:'flex',gap:8,flexWrap:'wrap'}}>
-                {selectedMemberIds.length > 0 && (
-                  <button type="button" disabled={bulkBusy} onClick={() => abrirPlanModal(selectedMemberIds, `${selectedMemberIds.length} socio(s)`)}
-                    style={{padding:'8px 14px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:bulkBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,opacity:bulkBusy?0.6:1}}>
-                    Asignar cuota ({selectedMemberIds.length})
-                  </button>
-                )}
-                {selGroups.size > 0 && (
-                  <button type="button" disabled={bulkBusy} onClick={eliminarGruposSeleccionados}
-                    style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--red)',background:'var(--surface-card)',color:'var(--red)',cursor:bulkBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,opacity:bulkBusy?0.6:1}}>
-                    {bulkBusy ? 'Eliminando…' : `Eliminar ${selGroups.size} grupo${selGroups.size === 1 ? '' : 's'}`}
-                  </button>
-                )}
-                <button type="button" onClick={clearSel}
-                  style={{padding:'8px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-secondary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
-                  Limpiar
-                </button>
-              </div>
-            </div>
-          )}
           {!selectedId ? (
             <>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginBottom:14}}>
@@ -1740,15 +1734,20 @@ function Organigrama() {
                     style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--green-light)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
                     {bulkBusy ? 'Enviando…' : 'Recordar cobros'}
                   </button>
-                  <button type="button" disabled={bulkBusy || members.length === 0}
-                    onClick={() => abrirPlanModal(members.map((m) => m.memberId), `«${groupName}»`)}
+                  <button type="button" disabled={bulkBusy || (haySeleccion ? selectedMemberIds.length === 0 : members.length === 0)}
+                    onClick={asignarCuotaAccion}
                     style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
-                    Asignar cuota
+                    {haySeleccion ? `Asignar cuota (${selectedMemberIds.length})` : 'Asignar cuota'}
                   </button>
                   <button type="button" disabled={bulkBusy || members.length === 0}
                     onClick={() => accionEnLote('set-status', { status: 'ACTIVE', confirmMessage: `¿Marcar como activos a los ${members.length} miembros de «${groupName}»?` })}
                     style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
                     Marcar activos
+                  </button>
+                  <button type="button" disabled={bulkBusy}
+                    onClick={eliminarGrupoAccion}
+                    style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--red)',background:'var(--surface-card)',color:'var(--red)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                    {selGroups.size > 0 ? (bulkBusy ? 'Eliminando…' : `Eliminar ${selGroups.size} grupo${selGroups.size === 1 ? '' : 's'}`) : 'Eliminar grupo'}
                   </button>
                 </div>
               </div>
