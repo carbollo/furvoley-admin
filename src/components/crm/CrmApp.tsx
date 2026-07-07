@@ -1266,8 +1266,10 @@ function Organigrama() {
   const [planModal, setPlanModal] = useState(false)
   const [planOptions, setPlanOptions] = useState([])
   const [planId, setPlanId] = useState('')
-  // Selección para acciones en lote (socios + grupos/subgrupos). Guarda ids de socio.
+  // Selección para acciones en lote. selMembers = ids de socio (checkbox de socio);
+  // selGroups = ids de grupo (checkbox del árbol), para borrar grupos en lote.
   const [selMembers, setSelMembers] = useState(() => new Set())
+  const [selGroups, setSelGroups] = useState(() => new Set())
   const [planTargetIds, setPlanTargetIds] = useState([])
   const [planTargetLabel, setPlanTargetLabel] = useState('')
 
@@ -1365,26 +1367,43 @@ function Organigrama() {
   function toggleMemberSel(id) {
     setSelMembers((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
   }
+  /** Marcar/desmarcar un grupo (para borrado en lote y para incluir a sus socios). */
   function toggleGroupSel(groupId) {
-    const ids = effectiveMemberIdsOfGroup(groupId)
-    if (ids.length === 0) return
-    setSelMembers((prev) => {
-      const n = new Set(prev)
-      const allSel = ids.every((id) => n.has(id))
-      if (allSel) ids.forEach((id) => n.delete(id))
-      else ids.forEach((id) => n.add(id))
-      return n
-    })
+    setSelGroups((prev) => { const n = new Set(prev); if (n.has(groupId)) n.delete(groupId); else n.add(groupId); return n })
   }
-  /** 'all' | 'some' | 'none' para el checkbox de un grupo. */
-  const groupSelState = useCallback((groupId) => {
-    const ids = effectiveMemberIdsOfGroup(groupId)
-    if (ids.length === 0) return 'none'
-    const sel = ids.reduce((acc, id) => acc + (selMembers.has(id) ? 1 : 0), 0)
-    return sel === 0 ? 'none' : sel === ids.length ? 'all' : 'some'
-  }, [effectiveMemberIdsOfGroup, selMembers])
+  /** El checkbox de grupo es binario: seleccionado ('all') o no ('none'). */
+  const groupSelState = useCallback((groupId) => (selGroups.has(groupId) ? 'all' : 'none'), [selGroups])
 
-  const clearSel = () => setSelMembers(new Set())
+  /** Socios objetivo de las acciones sobre socios: sueltos + efectivos de los grupos marcados. */
+  const selectedMemberIds = useMemo(() => {
+    const s = new Set(selMembers)
+    for (const gid of selGroups) for (const mid of effectiveMemberIdsOfGroup(gid)) s.add(mid)
+    return Array.from(s)
+  }, [selMembers, selGroups, effectiveMemberIdsOfGroup])
+
+  const clearSel = () => { setSelMembers(new Set()); setSelGroups(new Set()) }
+
+  /** Elimina en lote los grupos/subgrupos marcados (cada uno promociona sus subgrupos a raíz). */
+  async function eliminarGruposSeleccionados() {
+    const ids = Array.from(selGroups)
+    if (ids.length === 0) return
+    const ok = await showConfirm(`¿Eliminar ${ids.length} grupo(s) seleccionado(s)? Los subgrupos de cada uno pasan al nivel raíz (no se borran salvo que también estén seleccionados).`).catch(() => false)
+    if (!ok) return
+    setBulkBusy(true)
+    let okCount = 0, failCount = 0
+    try {
+      for (const gid of ids) {
+        try {
+          const r = await fetch(`/api/crm/groups/${gid}`, { method: 'DELETE', credentials: 'include' })
+          if (r.ok) okCount += 1; else failCount += 1
+        } catch { failCount += 1 }
+      }
+      if (selectedId && selGroups.has(selectedId)) setSelectedId('')
+      setSelGroups(new Set())
+      await Promise.all([loadTree(), loadOverview()])
+      showAlert(`Grupos eliminados: ${okCount} correctos${failCount ? `, ${failCount} fallidos` : ''}.`)
+    } finally { setBulkBusy(false) }
+  }
 
   const GROUP_ROLE_FILTERS = [
     { value: 'ALL', label: 'Todos' },
@@ -1553,7 +1572,7 @@ function Organigrama() {
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo asignar la cuota'); return }
       setPlanModal(false)
-      setSelMembers(new Set())
+      clearSel()
       showAlert(`Cuota asignada: ${j.succeeded ?? 0} correctos, ${j.failed ?? 0} fallidos.`)
     } finally { setBulkBusy(false) }
   }
@@ -1809,17 +1828,28 @@ function Organigrama() {
       </div>
 
       {/* ── Barra de acciones en lote (socios + grupos/subgrupos seleccionados) ── */}
-      {selMembers.size > 0 && (
+      {(selMembers.size > 0 || selGroups.size > 0) && (
         <div style={{position:'fixed',left:'50%',transform:'translateX(-50%)',bottom:24,zIndex:1350,
           display:'flex',alignItems:'center',gap:14,padding:'12px 18px',borderRadius:14,flexWrap:'wrap',
           background:'var(--surface-card)',border:'1px solid var(--border)',boxShadow:'var(--card-shadow-lg)'}}>
           <span style={{fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>
-            {selMembers.size} socio{selMembers.size === 1 ? '' : 's'} seleccionado{selMembers.size === 1 ? '' : 's'}
+            {[
+              selGroups.size ? `${selGroups.size} grupo${selGroups.size === 1 ? '' : 's'}` : '',
+              selMembers.size ? `${selMembers.size} socio${selMembers.size === 1 ? '' : 's'} suelto${selMembers.size === 1 ? '' : 's'}` : '',
+            ].filter(Boolean).join(' · ')} seleccionado{selGroups.size + selMembers.size === 1 ? '' : 's'}
           </span>
-          <button type="button" disabled={bulkBusy} onClick={() => abrirPlanModal([...selMembers], `${selMembers.size} seleccionados`)}
-            style={{padding:'9px 16px',borderRadius:9,border:'none',background:'var(--accent)',color:'#fff',cursor:bulkBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:bulkBusy?0.6:1}}>
-            Asignar cuota
-          </button>
+          {selectedMemberIds.length > 0 && (
+            <button type="button" disabled={bulkBusy} onClick={() => abrirPlanModal(selectedMemberIds, `${selectedMemberIds.length} socio(s)`)}
+              style={{padding:'9px 16px',borderRadius:9,border:'none',background:'var(--accent)',color:'#fff',cursor:bulkBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:bulkBusy?0.6:1}}>
+              Asignar cuota{selectedMemberIds.length ? ` (${selectedMemberIds.length})` : ''}
+            </button>
+          )}
+          {selGroups.size > 0 && (
+            <button type="button" disabled={bulkBusy} onClick={eliminarGruposSeleccionados}
+              style={{padding:'9px 16px',borderRadius:9,border:'1px solid var(--red)',background:'var(--surface-card)',color:'var(--red)',cursor:bulkBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:bulkBusy?0.6:1}}>
+              {bulkBusy ? 'Eliminando…' : `Eliminar ${selGroups.size} grupo${selGroups.size === 1 ? '' : 's'}`}
+            </button>
+          )}
           <button type="button" onClick={clearSel}
             style={{padding:'9px 12px',borderRadius:9,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-secondary)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:600}}>
             Limpiar
