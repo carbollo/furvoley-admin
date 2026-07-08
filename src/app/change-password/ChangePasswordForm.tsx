@@ -173,7 +173,12 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       {forced && (
         <button
           type="button"
-          onClick={() => signOut({ callbackUrl: '/login' })}
+          onClick={async () => {
+            // MT: cierra sesión sin redirect de servidor (evita NEXTAUTH_URL) y
+            // navega en el mismo origen, conservando la cookie de tenant.
+            await signOut({ redirect: false })
+            window.location.href = '/login'
+          }}
           style={{
             background: 'transparent',
             border: 'none',

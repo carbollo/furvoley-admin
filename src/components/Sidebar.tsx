@@ -469,7 +469,12 @@ export function Sidebar({ branding }: { branding?: SidebarBranding } = {}) {
       <div style={{ padding: 12, borderTop: `1px solid ${SIDEBAR_BORDER}` }}>
         <button
           type="button"
-          onClick={() => signOut()}
+          onClick={async () => {
+            // MT: cierra sesión sin redirect de servidor (evita NEXTAUTH_URL) y
+            // navega en el mismo origen, conservando la cookie de tenant.
+            await signOut({ redirect: false })
+            window.location.href = '/login'
+          }}
           style={{
             display: 'flex',
             alignItems: 'center',

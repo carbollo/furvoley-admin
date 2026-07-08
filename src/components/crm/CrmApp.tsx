@@ -20,6 +20,7 @@ import React, {
   type ReactNode,
 } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 import { canAccessCrmSection, normalizeRole, ROLE_LABEL } from '@/lib/rbac'
 import {
   emptyRegistrationValues,
@@ -795,7 +796,13 @@ function Sidebar({ active, setActive, onOpenClubSettings }) {
 
         <button
           type="button"
-          onClick={() => { window.location.href = '/api/auth/signout?callbackUrl=' + encodeURIComponent('/login'); }}
+          onClick={async () => {
+            // MT: no dependemos del redirect de servidor (usa NEXTAUTH_URL, que
+            // en multi-tenant no es una URL única) — cierra sesión y navega en el
+            // mismo origen, conservando la cookie de tenant hacia /login del club.
+            await signOut({ redirect: false })
+            window.location.href = '/login'
+          }}
           style={{
             display:'flex',alignItems:'center',gap:12,width:'100%',
             padding:'12px 24px',border:'none',cursor:'pointer',

@@ -218,7 +218,12 @@ export function MemberShell({
         >
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={async () => {
+              // MT: cierra sesión sin redirect de servidor (evita NEXTAUTH_URL) y
+              // navega en el mismo origen, conservando la cookie de tenant.
+              await signOut({ redirect: false })
+              window.location.href = '/login'
+            }}
             className="flex items-center gap-3 py-2 transition-colors"
             style={{
               background: 'transparent',
