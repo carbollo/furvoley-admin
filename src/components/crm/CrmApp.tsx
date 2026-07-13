@@ -1323,6 +1323,7 @@ function Organigrama() {
   // selGroups = ids de grupo (checkbox del árbol), para borrar grupos en lote.
   const [selMembers, setSelMembers] = useState(() => new Set())
   const [selGroups, setSelGroups] = useState(() => new Set())
+  const [waGroupBusy, setWaGroupBusy] = useState(false)
   const [planTargetIds, setPlanTargetIds] = useState([])
   const [planTargetLabel, setPlanTargetLabel] = useState('')
 
@@ -1481,6 +1482,34 @@ function Organigrama() {
       await Promise.all([loadTree(), loadOverview()])
       void reload().catch(() => {})
     } finally { setBulkBusy(false) }
+  }
+
+  /** Botón "Grupo WhatsApp": uno por grupo/subgrupo marcado si los hay; si no, el grupo visto. */
+  async function crearGrupoWhatsAppAccion() {
+    const ids = selGroups.size > 0 ? Array.from(selGroups) : (selectedId ? [selectedId] : [])
+    if (ids.length === 0) return
+    const nameOf = (gid) => flatGroups.find((g) => g.id === gid)?.name || groupName || 'grupo'
+    const msg = ids.length === 1
+      ? `¿Crear el grupo de WhatsApp «${nameOf(ids[0])}» con sus miembros (directos + subgrupos)?`
+      : `¿Crear ${ids.length} grupos de WhatsApp, uno por grupo seleccionado, cada uno con sus miembros efectivos?`
+    const ok = await showConfirm(msg).catch(() => false)
+    if (!ok) return
+    setWaGroupBusy(true)
+    try {
+      const lines = []
+      for (const gid of ids) {
+        try {
+          const r = await fetch(`/api/crm/groups/${gid}/whatsapp-group`, { method: 'POST', credentials: 'include' })
+          const j = await r.json().catch(() => ({}))
+          if (!r.ok) { lines.push(`«${nameOf(gid)}»: ${j.error || 'no se pudo crear'}`); continue }
+          const skipped = (j.sinTelefono || []).length
+          lines.push(`«${j.group?.name || nameOf(gid)}»: creado con ${j.participants} participante(s)${skipped ? ` — ${skipped} sin teléfono` : ''}`)
+        } catch {
+          lines.push(`«${nameOf(gid)}»: error de red`)
+        }
+      }
+      showAlert(lines.join(' · '))
+    } finally { setWaGroupBusy(false) }
   }
 
   const GROUP_ROLE_FILTERS = [
@@ -1788,6 +1817,11 @@ function Organigrama() {
                     onClick={() => { setMsgText(''); setMsgModal(true) }}
                     style={{padding:'8px 14px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
                     Mensaje al grupo
+                  </button>
+                  <button type="button" disabled={bulkBusy || waGroupBusy || (selGroups.size === 0 && members.length === 0)}
+                    onClick={crearGrupoWhatsAppAccion}
+                    style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--green)',background:'var(--surface-card)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                    {waGroupBusy ? 'Creando…' : (selGroups.size > 0 ? `Crear ${selGroups.size} grupo${selGroups.size === 1 ? '' : 's'} WhatsApp` : 'Crear grupo WhatsApp')}
                   </button>
                   <button type="button" disabled={bulkBusy || members.length === 0}
                     onClick={() => accionEnLote('send-payment-reminder', { confirmMessage: `¿Enviar recordatorio de cobro por WhatsApp a los ${members.length} miembros de «${groupName}»?` })}

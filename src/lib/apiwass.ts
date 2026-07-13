@@ -84,6 +84,33 @@ export async function apiWassRequest(path: string, options: ApiWassRequestOption
   return json ?? { ok: true }
 }
 
+/**
+ * Crea un grupo de WhatsApp en la sesión indicada. `participants` acepta
+ * teléfonos en cualquier formato (el servidor los normaliza a JIDs).
+ * Respuesta ApiWass: { success, group: { id: '…@g.us', … } }.
+ */
+export async function createApiWassGroup(input: {
+  sessionId?: string
+  name: string
+  participants: string[]
+}) {
+  const sessionId = (input.sessionId || getDefaultApiWassSessionId()).trim()
+  if (!sessionId) {
+    throw new Error('Falta sessionId y no hay APIWASS_DEFAULT_SESSION_ID configurado.')
+  }
+  const name = String(input.name || '').trim()
+  if (!name) throw new Error('El nombre del grupo no puede estar vacío.')
+  const participants = [...new Set(input.participants.map(normalizePhone).filter(Boolean))]
+  if (participants.length === 0) {
+    throw new Error('Ningún participante tiene teléfono válido para WhatsApp.')
+  }
+
+  return apiWassRequest(`/sessions/${encodeURIComponent(sessionId)}/groups`, {
+    method: 'POST',
+    body: { name, participants },
+  })
+}
+
 export async function sendApiWassText(input: {
   sessionId?: string
   phone: string
