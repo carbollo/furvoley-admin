@@ -1248,7 +1248,7 @@ function GroupTreeNodeRow({ node, depth, selectedId, onSelect, selState, onToggl
 }
 
 function Organigrama() {
-  const { bundle, fmtMoney, showAlert, showConfirm } = useCrm()
+  const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm()
   const role = normalizeRole(bundle?.user?.role)
   const [tree, setTree] = useState([])
   const [selectedId, setSelectedId] = useState('')
@@ -1407,6 +1407,7 @@ function Organigrama() {
       if (selectedId && selGroups.has(selectedId)) setSelectedId('')
       setSelGroups(new Set())
       await Promise.all([loadTree(), loadOverview()])
+      void reload().catch(() => {})
       showAlert(`Grupos eliminados: ${okCount} correctos${failCount ? `, ${failCount} fallidos` : ''}.`)
     } finally { setBulkBusy(false) }
   }
@@ -1431,6 +1432,7 @@ function Organigrama() {
       if (!r.ok) { showAlert('No se pudo eliminar'); return }
       setSelectedId('')
       await Promise.all([loadTree(), loadOverview()])
+      void reload().catch(() => {})
     } finally { setBulkBusy(false) }
   }
 
@@ -1487,6 +1489,9 @@ function Organigrama() {
       if (!r.ok) { showAlert(j.error || 'No se pudo crear el grupo'); return }
       setNewGroupName('')
       await loadTree()
+      // El calendario y cuotas leen los grupos del bundle global: refréscalo
+      // para que "crear evento" vea el grupo nuevo sin recargar la página.
+      void reload().catch(() => {})
     } finally { setBusy(false) }
   }
 
@@ -1503,6 +1508,7 @@ function Organigrama() {
       if (!r.ok) { showAlert(j.error || 'No se pudo añadir'); return }
       setAddMemberId(''); setAddMemberLabel('')
       await Promise.all([loadMembers(selectedId), loadTree(), loadOverview()])
+      void reload().catch(() => {})
     } finally { setBusy(false) }
   }
 
@@ -1516,6 +1522,7 @@ function Organigrama() {
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo quitar'); return }
       await Promise.all([loadMembers(selectedId), loadTree(), loadOverview()])
+      void reload().catch(() => {})
     } finally { setBusy(false) }
   }
 
@@ -6349,16 +6356,23 @@ function Calendario({ setActive }) {
     letterSpacing: 0.15,
   }
 
-  function openNuevoEventoModal() {
-    if (!EQUIPOS_UI.length) {
+  async function openNuevoEventoModal() {
+    let grupos = EQUIPOS_UI
+    if (!grupos.length) {
+      // El bundle puede estar desactualizado (grupo recién creado en otra
+      // pestaña/sesión): re-consulta antes de mandar al usuario al organigrama.
+      const fresh = await reload().catch(() => null)
+      grupos = fresh?.equipos ?? []
+    }
+    if (!grupos.length) {
       showAlert('Crea antes un grupo (pestaña Organigrama).')
       setActive('organigrama')
       return
     }
     setEditingEventId(null)
     setFormEvento({
-      groupId: EQUIPOS_UI[0].id,
-      teamIds: [EQUIPOS_UI[0].id],
+      groupId: grupos[0].id,
+      teamIds: [grupos[0].id],
       title: '',
       type: 'OTHER',
       datetimeLocal: datetimeLocalValue(),
