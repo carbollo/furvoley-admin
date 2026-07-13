@@ -13,6 +13,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useLayoutEffect,
   useMemo,
   useContext,
   useRef,
@@ -47,6 +48,52 @@ function useCrm(): CrmCtx {
   const c = useContext(CrmContext);
   if (!c) throw new Error('CrmContext');
   return c;
+}
+
+/**
+ * Panel flotante anclado al viewport (menú contextual / dropdown "⋮"): se mide
+ * antes de pintarse y se recoloca para que NUNCA se corte con los bordes de la
+ * ventana; si es más alto que la pantalla, se limita con scroll interno.
+ * `anchor` admite { top, left } (punto del ratón) o { top, right } (dropdown).
+ */
+function ViewportMenu({ anchor, style, children, ...rest }) {
+  const ref = useRef(null)
+  const [fit, setFit] = useState(null)
+  useLayoutEffect(() => { setFit(null) }, [anchor.top, anchor.left, anchor.right])
+  useLayoutEffect(() => {
+    if (fit) return
+    const el = ref.current
+    if (!el) return
+    const M = 8 // margen mínimo con el borde de la ventana
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const r = el.getBoundingClientRect()
+    let top = r.top
+    let left = r.left
+    let maxHeight
+    if (r.height > vh - M * 2) { top = M; maxHeight = vh - M * 2 }
+    else if (r.bottom > vh - M) top = vh - M - r.height
+    if (top < M) top = M
+    if (r.width > vw - M * 2) left = M
+    else if (r.right > vw - M) left = vw - M - r.width
+    if (left < M) left = M
+    setFit({ top, left, maxHeight })
+  }, [fit])
+  const pos = fit
+    ? {
+        top: fit.top,
+        left: fit.left,
+        right: 'auto',
+        maxHeight: fit.maxHeight,
+        overflowY: fit.maxHeight ? 'auto' : undefined,
+        visibility: 'visible',
+      }
+    : { top: anchor.top, left: anchor.left, right: anchor.right, visibility: 'hidden' }
+  return (
+    <div ref={ref} {...rest} style={{ position: 'fixed', ...style, ...pos }}>
+      {children}
+    </div>
+  )
 }
 
 function CrmProvider({ children }: { children: ReactNode }) {
@@ -3983,12 +4030,10 @@ function Socios({ contactosMode = false }) {
           </div>
         </div>
         {menuSocioId && (
-          <div
+          <ViewportMenu
             data-socio-menu
+            anchor={menuSocioPos}
             style={{
-              position:'fixed',
-              top: menuSocioPos.top,
-              right: menuSocioPos.right,
               minWidth: 170,
               background:'#fff',
               border:'1px solid var(--border)',
@@ -4028,15 +4073,13 @@ function Socios({ contactosMode = false }) {
             >
               Eliminar socio
             </button>
-          </div>
+          </ViewportMenu>
         )}
         {bulkMenu && selectedIds.size > 0 && (
-          <div
+          <ViewportMenu
             data-socio-menu
+            anchor={bulkMenu}
             style={{
-              position: 'fixed',
-              top: bulkMenu.top,
-              left: bulkMenu.left,
               minWidth: 220,
               background: '#fff',
               border: '1px solid var(--border)',
@@ -4085,7 +4128,7 @@ function Socios({ contactosMode = false }) {
                 {item.label}
               </button>
             ))}
-          </div>
+          </ViewportMenu>
         )}
       </div>
       {selected && (
@@ -5757,12 +5800,10 @@ function Contabilidad({ setActive }) {
       )}
 
       {contaTab === 'COBROS' && menuCobroId && (
-        <div
+        <ViewportMenu
           data-cobro-menu
+          anchor={menuCobroPos}
           style={{
-            position:'fixed',
-            top: menuCobroPos.top,
-            right: menuCobroPos.right,
             minWidth:170,
             background:'#fff',
             border:'1px solid var(--border)',
@@ -5812,7 +5853,7 @@ function Contabilidad({ setActive }) {
               </>
             )
           })()}
-        </div>
+        </ViewportMenu>
       )}
 
       {showMovimientoModal && (
