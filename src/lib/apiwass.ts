@@ -113,12 +113,19 @@ export async function checkApiWassNumber(
 /**
  * Crea un grupo de WhatsApp en la sesión indicada. `participants` acepta
  * teléfonos o JIDs (el servidor normaliza los que no llevan '@').
- * Respuesta ApiWass: { success, group: { id: '…@g.us', … } }.
+ *
+ * `image` es la foto del grupo y DEBE ser una URL http(s) descargable por
+ * ApiWass — no admite Base64 (ver https://apiwass.com/api-reference · Grupos).
+ * La foto se aplica tras crear el grupo: si falla, el grupo se crea igual y el
+ * motivo vuelve en `pictureError`.
+ *
+ * Respuesta ApiWass: { success, group: { id: '…@g.us', … }, pictureError? }.
  */
 export async function createApiWassGroup(input: {
   sessionId?: string
   name: string
   participants: string[]
+  image?: string
 }) {
   const sessionId = (input.sessionId || getDefaultApiWassSessionId()).trim()
   if (!sessionId) {
@@ -138,10 +145,39 @@ export async function createApiWassGroup(input: {
     throw new Error('Ningún participante tiene teléfono válido para WhatsApp.')
   }
 
+  const image = String(input.image || '').trim()
   return apiWassRequest(`/sessions/${encodeURIComponent(sessionId)}/groups`, {
     method: 'POST',
-    body: { name, participants },
+    body: image ? { name, participants, image } : { name, participants },
   })
+}
+
+/**
+ * Cambia la foto de un grupo ya creado. `image` debe ser URL http(s).
+ * PUT /sessions/:id/groups/:groupId/picture (ver api-reference · Grupos avanzado).
+ */
+export async function setApiWassGroupPicture(input: {
+  sessionId?: string
+  groupJid: string
+  image: string
+}) {
+  const sessionId = (input.sessionId || getDefaultApiWassSessionId()).trim()
+  if (!sessionId) {
+    throw new Error('Falta sessionId y no hay APIWASS_DEFAULT_SESSION_ID configurado.')
+  }
+  const groupJid = String(input.groupJid || '').trim()
+  if (!isWhatsAppGroupJid(groupJid)) {
+    throw new Error('El identificador del grupo de WhatsApp no es válido.')
+  }
+  const image = String(input.image || '').trim()
+  if (!/^https?:\/\//i.test(image)) {
+    throw new Error('La foto del grupo debe ser una URL http(s).')
+  }
+
+  return apiWassRequest(
+    `/sessions/${encodeURIComponent(sessionId)}/groups/${encodeURIComponent(groupJid)}/picture`,
+    { method: 'PUT', body: { image } },
+  )
 }
 
 /** ¿Es el JID de un chat de grupo de WhatsApp? (…@g.us) */

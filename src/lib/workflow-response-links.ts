@@ -1,8 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { randomBytes } from 'crypto'
 import { isHexToken } from '@/lib/db-input-validation'
-import { currentTenant } from '@/lib/multitenant/context'
-import { isMultiTenant } from '@/lib/multitenant/registry'
+import { buildTenantPublicUrl } from '@/lib/public-url'
 
 export type WorkflowLinkType =
   | 'ATTENDANCE'
@@ -25,32 +24,13 @@ const ROUTE_BY_TYPE: Record<WorkflowLinkType, string> = {
   SEASON_RENEWAL: 'renewal',
 }
 
-function appBaseUrl() {
-  const explicit = String(process.env.NEXT_PUBLIC_APP_URL || '').trim().replace(/\/+$/, '')
-  if (explicit) return explicit
-  const railway = String(process.env.RAILWAY_PUBLIC_DOMAIN || '').trim()
-  if (railway) return (railway.startsWith('http') ? railway : `https://${railway}`).replace(/\/+$/, '')
-  return 'http://localhost:3000'
-}
-
 /**
  * URL pública del enlace de respuesta. En multi-tenant DEBE codificar el tenant
- * (el token vive en la BD del tenant): con dominio comodín → subdominio
- * `slug.dominio`; sin él (pruebas) → `?tenant=slug` para que el middleware lo
- * resuelva por override. En un-solo-club → URL base a secas.
+ * (el token vive en la BD del tenant); de eso se encarga `buildTenantPublicUrl`.
  */
 export function buildResponseLinkUrl(token: string, type: WorkflowLinkType) {
   const segment = ROUTE_BY_TYPE[type] || 'link'
-  const path = `/r/${segment}/${token}`
-
-  const slug = currentTenant()?.slug
-  if (isMultiTenant() && slug) {
-    const base = String(process.env.TENANT_BASE_DOMAIN || '')
-      .trim().toLowerCase().replace(/^\.+|\.+$/g, '')
-    if (base) return `https://${slug}.${base}${path}`
-    return `${appBaseUrl()}${path}?tenant=${encodeURIComponent(slug)}`
-  }
-  return `${appBaseUrl()}${path}`
+  return buildTenantPublicUrl(`/r/${segment}/${token}`)
 }
 
 export async function createWorkflowResponseLink(input: {

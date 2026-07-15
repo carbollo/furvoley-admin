@@ -1513,6 +1513,8 @@ function Organigrama() {
           const notas = []
           if ((j.sinTelefono || []).length) notas.push(`${j.sinTelefono.length} sin teléfono`)
           if ((j.noWhatsApp || []).length) notas.push(`sin WhatsApp: ${j.noWhatsApp.join(', ')}`)
+          if (j.picture === 'FAILED') notas.push(`sin escudo (${j.pictureError || 'no se pudo poner'})`)
+          if (j.picture === 'SKIPPED') notas.push('sin escudo (configúralo en Ajustes del club)')
           lines.push(`«${j.group?.name || nameOf(gid)}»: creado con ${j.participants} participante(s)${notas.length ? ` — ${notas.join('; ')}` : ''}`)
         } catch {
           lines.push(`«${nameOf(gid)}»: error de red`)

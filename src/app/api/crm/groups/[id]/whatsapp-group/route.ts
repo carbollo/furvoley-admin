@@ -9,6 +9,8 @@ import {
   isWhatsAppGroupJid,
 } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
+import { getClubBranding } from '@/lib/club-settings'
+import { buildTenantPublicUrl, isPubliclyFetchable } from '@/lib/public-url'
 import { mapWithConcurrency } from '@/lib/concurrency'
 
 export const dynamic = 'force-dynamic'
@@ -181,6 +183,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     )
   }
 
+  // Foto del grupo = escudo del club. ApiWass la descarga por URL (no admite
+  // Base64), así que le pasamos la ruta pública que sirve el logo del tenant.
+  // Desde localhost no sería descargable: mejor no mandarla que provocar error.
+  const branding = await getClubBranding()
+  const logoUrl = branding.logoUrl ? buildTenantPublicUrl('/api/public/club-logo') : ''
+  const image = logoUrl && isPubliclyFetchable(logoUrl) ? logoUrl : ''
+
   try {
     const result = await createApiWassGroup({
       sessionId,
@@ -190,6 +199,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       participants: validos.map((v) =>
         v.jid && v.jid.endsWith('@s.whatsapp.net') ? v.jid : v.phone,
       ),
+      image,
     })
     const wa = (result && typeof result === 'object' ? (result as any).group : null) ?? null
     const waJid = String(wa?.id || '').trim()
@@ -205,6 +215,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       where: { id: group.id },
       data: { whatsappGroupId: waJid, whatsappGroupCreatedAt: new Date() },
     })
+    // La foto es best-effort por contrato: si falla, el grupo existe igual y
+    // ApiWass explica por qué en `pictureError`. Lo contamos, no lo ocultamos.
+    const pictureError = String((result as any)?.pictureError || '').trim() || null
     return NextResponse.json({
       ok: true,
       group: { id: group.id, name: group.name },
@@ -212,6 +225,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       participants: validos.length,
       sinTelefono,
       noWhatsApp,
+      picture: image ? (pictureError ? 'FAILED' : 'SET') : 'SKIPPED',
+      pictureError,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'No se pudo crear el grupo de WhatsApp'
