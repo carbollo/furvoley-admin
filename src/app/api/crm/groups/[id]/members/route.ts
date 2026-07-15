@@ -15,7 +15,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const parsedId = parseCuid(id, 'groupId')
   if (parsedId instanceof Response) return parsedId
 
-  const group = await prisma.group.findUnique({ where: { id: parsedId }, select: { id: true, name: true } })
+  const group = await prisma.group.findUnique({
+    where: { id: parsedId },
+    // whatsappGroupId: el organigrama lo usa para decidir entre "Crear grupo
+    // WhatsApp" y "Mensaje al grupo" (que envía al chat ya creado).
+    select: { id: true, name: true, whatsappGroupId: true },
+  })
   if (!group) return NextResponse.json({ error: 'Grupo no encontrado' }, { status: 404 })
 
   const members = await getEffectiveGroupMembers(parsedId)

@@ -144,6 +144,39 @@ export async function createApiWassGroup(input: {
   })
 }
 
+/** ¿Es el JID de un chat de grupo de WhatsApp? (…@g.us) */
+export function isWhatsAppGroupJid(value: string | null | undefined): boolean {
+  return String(value ?? '').trim().endsWith('@g.us')
+}
+
+/**
+ * Envía un texto AL CHAT de un grupo de WhatsApp (un solo mensaje, no difusión).
+ * Usa el mismo endpoint que los envíos 1 a 1: ApiWass pasa el JID tal cual
+ * cuando lleva '@' (server/phone-utils.js → toWhatsAppJid). Por eso NO se puede
+ * usar `sendApiWassText`, que normaliza el número y destruiría el "@g.us".
+ */
+export async function sendApiWassGroupText(input: {
+  sessionId?: string
+  groupJid: string
+  message: string
+}) {
+  const sessionId = (input.sessionId || getDefaultApiWassSessionId()).trim()
+  if (!sessionId) {
+    throw new Error('Falta sessionId y no hay APIWASS_DEFAULT_SESSION_ID configurado.')
+  }
+  const groupJid = String(input.groupJid || '').trim()
+  if (!isWhatsAppGroupJid(groupJid)) {
+    throw new Error('El identificador del grupo de WhatsApp no es válido.')
+  }
+  const message = String(input.message || '').trim()
+  if (!message) throw new Error('El mensaje no puede estar vacío.')
+
+  return apiWassRequest(`/sessions/${encodeURIComponent(sessionId)}/messages/text`, {
+    method: 'POST',
+    body: { phone: groupJid, message },
+  })
+}
+
 export async function sendApiWassText(input: {
   sessionId?: string
   phone: string

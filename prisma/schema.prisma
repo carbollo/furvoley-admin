@@ -111,6 +111,12 @@ model Group {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// JID del chat de WhatsApp del grupo (…@g.us), si se ha creado desde el
+  /// organigrama. Su presencia es lo que habilita "Mensaje al grupo": con él,
+  /// el mensaje va UNA vez al chat en vez de uno a uno a cada socio.
+  whatsappGroupId        String?
+  whatsappGroupCreatedAt DateTime?
+
   memberships GroupMembership[]
   chatMessages ChatMessage[]
   events    Event[]

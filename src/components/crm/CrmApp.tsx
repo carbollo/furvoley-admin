@@ -1324,6 +1324,8 @@ function Organigrama() {
   const [selMembers, setSelMembers] = useState(() => new Set())
   const [selGroups, setSelGroups] = useState(() => new Set())
   const [waGroupBusy, setWaGroupBusy] = useState(false)
+  /** JID (…@g.us) del chat de WhatsApp del grupo visto; '' si aún no se ha creado. */
+  const [waGroupId, setWaGroupId] = useState('')
   const [planTargetIds, setPlanTargetIds] = useState([])
   const [planTargetLabel, setPlanTargetLabel] = useState('')
 
@@ -1516,6 +1518,8 @@ function Organigrama() {
           lines.push(`«${nameOf(gid)}»: error de red`)
         }
       }
+      // Refresca el grupo visto: si ya tiene chat, el botón pasa a "Mensaje al grupo".
+      await loadMembers(selectedId)
       showAlert(lines.join(' · '))
     } finally { setWaGroupBusy(false) }
   }
@@ -1546,12 +1550,13 @@ function Organigrama() {
   })
 
   const loadMembers = useCallback(async (groupId) => {
-    if (!groupId) { setMembers([]); setGroupName(''); return }
+    if (!groupId) { setMembers([]); setGroupName(''); setWaGroupId(''); return }
     const r = await fetch(`/api/crm/groups/${groupId}/members`, { credentials: 'include', cache: 'no-store' })
-    if (!r.ok) { setMembers([]); return }
+    if (!r.ok) { setMembers([]); setWaGroupId(''); return }
     const j = await r.json()
     setMembers(j.members || [])
     setGroupName(j.group?.name || '')
+    setWaGroupId(j.group?.whatsappGroupId || '')
   }, [])
 
   useEffect(() => { void loadTree() }, [loadTree])
@@ -1630,7 +1635,7 @@ function Organigrama() {
     } finally { setBulkBusy(false) }
   }
 
-  /** Mensaje de WhatsApp a todo el grupo (queda en el hilo del Chat). */
+  /** Mensaje al chat de WhatsApp del grupo (queda en el hilo del Chat). */
   async function enviarMensajeGrupo() {
     const message = msgText.trim()
     if (!selectedId || !message) return
@@ -1644,7 +1649,11 @@ function Organigrama() {
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo enviar el mensaje'); return }
       setMsgModal(false); setMsgText('')
-      showAlert(`Mensaje enviado a ${j.sent}/${j.total} miembros.${j.skippedNoPhone ? ` ${j.skippedNoPhone} sin teléfono.` : ''}${j.failed ? ` ${j.failed} fallidos.` : ''}\nLa conversación queda en la pestaña Chat.`)
+      showAlert(
+        j.viaGroupChat
+          ? `Mensaje enviado al grupo de WhatsApp «${groupName}».\nLa conversación queda en la pestaña Chat.`
+          : `Mensaje enviado a ${j.sent}/${j.total} miembros.${j.skippedNoPhone ? ` ${j.skippedNoPhone} sin teléfono.` : ''}${j.failed ? ` ${j.failed} fallidos.` : ''}\nLa conversación queda en la pestaña Chat.`,
+      )
     } finally { setBulkBusy(false) }
   }
 
@@ -1821,18 +1830,25 @@ function Organigrama() {
                   </div>
                 </div>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                  <button type="button" disabled={bulkBusy || members.length === 0}
-                    onClick={() => { setMsgText(''); setMsgModal(true) }}
-                    style={{padding:'8px 14px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
-                    Mensaje al grupo
-                  </button>
-                  <button type="button"
-                    disabled={bulkBusy || waGroupBusy || (selGroups.size === 0 && directMemberCount === 0)}
-                    title="Crea un chat de WhatsApp solo con los miembros propios de este grupo"
-                    onClick={crearGrupoWhatsAppAccion}
-                    style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--green)',background:'var(--surface-card)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
-                    {waGroupBusy ? 'Creando…' : (selGroups.size > 0 ? `Crear ${selGroups.size} grupo${selGroups.size === 1 ? '' : 's'} WhatsApp` : 'Crear grupo WhatsApp')}
-                  </button>
+                  {/* El mensaje va AL chat de WhatsApp del grupo, así que solo
+                      tiene sentido una vez creado. Mientras no exista, el hueco
+                      lo ocupa el botón de crearlo. */}
+                  {waGroupId && selGroups.size === 0 ? (
+                    <button type="button" disabled={bulkBusy}
+                      title="Envía un mensaje al chat de WhatsApp del grupo"
+                      onClick={() => { setMsgText(''); setMsgModal(true) }}
+                      style={{padding:'8px 14px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                      Mensaje al grupo
+                    </button>
+                  ) : (
+                    <button type="button"
+                      disabled={bulkBusy || waGroupBusy || (selGroups.size === 0 && directMemberCount === 0)}
+                      title="Crea un chat de WhatsApp solo con los miembros propios de este grupo"
+                      onClick={crearGrupoWhatsAppAccion}
+                      style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--green)',background:'var(--surface-card)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                      {waGroupBusy ? 'Creando…' : (selGroups.size > 0 ? `Crear ${selGroups.size} grupo${selGroups.size === 1 ? '' : 's'} WhatsApp` : 'Crear grupo WhatsApp')}
+                    </button>
+                  )}
                   <button type="button" disabled={bulkBusy || members.length === 0}
                     onClick={() => accionEnLote('send-payment-reminder', { confirmMessage: `¿Enviar recordatorio de cobro por WhatsApp a los ${members.length} miembros de «${groupName}»?` })}
                     style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--green-light)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>

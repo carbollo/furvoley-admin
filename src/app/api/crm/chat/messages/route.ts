@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { parseCuid } from '@/lib/db-input-validation'
 import { requireRoles } from '@/lib/rbac-api'
-import { sendApiWassText } from '@/lib/apiwass'
+import { sendApiWassGroupText, sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { getEffectiveGroupMembers } from '@/lib/groups'
 import { mapWithConcurrency } from '@/lib/concurrency'
@@ -115,13 +115,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, messageId: row.id })
   }
 
-  // ── Hilo de grupo (difusión a miembros efectivos) ──
+  // ── Hilo de grupo ──
   if (body.groupId) {
     const parsed = parseCuid(String(body.groupId), 'groupId')
     if (parsed instanceof Response) return parsed
-    const group = await prisma.group.findUnique({ where: { id: parsed }, select: { id: true, name: true } })
+    const group = await prisma.group.findUnique({
+      where: { id: parsed },
+      select: { id: true, name: true, whatsappGroupId: true },
+    })
     if (!group) return NextResponse.json({ error: 'Grupo no encontrado' }, { status: 404 })
 
+    // Si el grupo tiene su chat de WhatsApp, el mensaje va UNA vez a ese chat:
+    // todos lo ven en la misma conversación y pueden responderse entre ellos.
+    if (group.whatsappGroupId) {
+      let status = 'SENT'
+      let error: string | null = null
+      try {
+        await sendApiWassGroupText({ sessionId, groupJid: group.whatsappGroupId, message })
+      } catch (e) {
+        status = 'FAILED'
+        error = e instanceof Error ? e.message : 'Fallo de envío'
+      }
+      const row = await prisma.chatMessage.create({
+        data: { groupId: group.id, body: message, status, error },
+      })
+      if (status === 'FAILED') {
+        return NextResponse.json(
+          { error: `No se pudo enviar al grupo de WhatsApp: ${error}`, messageId: row.id },
+          { status: 502 },
+        )
+      }
+      return NextResponse.json({ ok: true, messageId: row.id, viaGroupChat: true })
+    }
+
+    // Sin chat de grupo: difusión 1 a 1 a los miembros efectivos (comportamiento
+    // histórico, lo sigue usando la pestaña Chat en grupos sin grupo de WhatsApp).
     const effective = await getEffectiveGroupMembers(parsed)
     const withPhone = await prisma.member.findMany({
       where: { id: { in: effective.map((m) => m.memberId) } },

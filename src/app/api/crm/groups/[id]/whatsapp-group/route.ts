@@ -6,6 +6,7 @@ import {
   checkApiWassNumber,
   createApiWassGroup,
   getApiWassSessionStatus,
+  isWhatsAppGroupJid,
 } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { mapWithConcurrency } from '@/lib/concurrency'
@@ -47,9 +48,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const group = await prisma.group.findUnique({
     where: { id: parsedId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, whatsappGroupId: true },
   })
   if (!group) return NextResponse.json({ error: 'Grupo no encontrado' }, { status: 404 })
+  // Crear un segundo chat para el mismo grupo solo genera confusión (y la
+  // creación no es idempotente, así que un reintento tras un timeout duplicaría).
+  if (group.whatsappGroupId) {
+    return NextResponse.json(
+      { error: `«${group.name}» ya tiene un grupo de WhatsApp creado.` },
+      { status: 409 },
+    )
+  }
 
   // Sin fallback a APIWASS_DEFAULT_SESSION_ID: en multi-tenant `process.env` es
   // global y la sesión vinculada (BD del club) es el ÚNICO límite entre clubes.
@@ -183,10 +192,23 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       ),
     })
     const wa = (result && typeof result === 'object' ? (result as any).group : null) ?? null
+    const waJid = String(wa?.id || '').trim()
+    if (!isWhatsAppGroupJid(waJid)) {
+      // Sin JID no podremos enviar al chat después: mejor decirlo que fingir éxito.
+      return NextResponse.json(
+        { error: 'WhatsApp creó el grupo pero no devolvió su identificador. Compruébalo en el teléfono.' },
+        { status: 502 },
+      )
+    }
+    // Guardarlo es lo que habilita "Mensaje al grupo" en el organigrama.
+    await prisma.group.update({
+      where: { id: group.id },
+      data: { whatsappGroupId: waJid, whatsappGroupCreatedAt: new Date() },
+    })
     return NextResponse.json({
       ok: true,
       group: { id: group.id, name: group.name },
-      whatsapp: { id: wa?.id ?? null, subject: wa?.subject ?? group.name },
+      whatsapp: { id: waJid, subject: wa?.subject ?? group.name },
       participants: validos.length,
       sinTelefono,
       noWhatsApp,
