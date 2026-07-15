@@ -1461,6 +1461,8 @@ function Organigrama() {
   }
 
   const haySeleccion = selMembers.size > 0 || selGroups.size > 0
+  /** Miembros PROPIOS del grupo visto (sin los heredados de subgrupos). */
+  const directMemberCount = members.filter((m) => !m.inherited).length
 
   /** Botón "Asignar cuota": sobre la selección (grupos+socios marcados) si la hay; si no, el grupo visto. */
   function asignarCuotaAccion() {
@@ -1484,14 +1486,18 @@ function Organigrama() {
     } finally { setBulkBusy(false) }
   }
 
-  /** Botón "Grupo WhatsApp": uno por grupo/subgrupo marcado si los hay; si no, el grupo visto. */
+  /**
+   * Botón "Grupo WhatsApp": uno por grupo/subgrupo marcado si los hay; si no, el
+   * grupo visto. Cada chat lleva SOLO a los miembros propios de ese grupo (los
+   * de los subgrupos tienen el suyo), a diferencia del resto de acciones.
+   */
   async function crearGrupoWhatsAppAccion() {
     const ids = selGroups.size > 0 ? Array.from(selGroups) : (selectedId ? [selectedId] : [])
     if (ids.length === 0) return
     const nameOf = (gid) => flatGroups.find((g) => g.id === gid)?.name || groupName || 'grupo'
     const msg = ids.length === 1
-      ? `¿Crear el grupo de WhatsApp «${nameOf(ids[0])}» con sus miembros (directos + subgrupos)?`
-      : `¿Crear ${ids.length} grupos de WhatsApp, uno por grupo seleccionado, cada uno con sus miembros efectivos?`
+      ? `¿Crear el grupo de WhatsApp «${nameOf(ids[0])}» con sus miembros propios (los de sus subgrupos no se incluyen)?`
+      : `¿Crear ${ids.length} grupos de WhatsApp, uno por grupo seleccionado, cada uno solo con sus miembros propios?`
     const ok = await showConfirm(msg).catch(() => false)
     if (!ok) return
     setWaGroupBusy(true)
@@ -1502,8 +1508,10 @@ function Organigrama() {
           const r = await fetch(`/api/crm/groups/${gid}/whatsapp-group`, { method: 'POST', credentials: 'include' })
           const j = await r.json().catch(() => ({}))
           if (!r.ok) { lines.push(`«${nameOf(gid)}»: ${j.error || 'no se pudo crear'}`); continue }
-          const skipped = (j.sinTelefono || []).length
-          lines.push(`«${j.group?.name || nameOf(gid)}»: creado con ${j.participants} participante(s)${skipped ? ` — ${skipped} sin teléfono` : ''}`)
+          const notas = []
+          if ((j.sinTelefono || []).length) notas.push(`${j.sinTelefono.length} sin teléfono`)
+          if ((j.noWhatsApp || []).length) notas.push(`sin WhatsApp: ${j.noWhatsApp.join(', ')}`)
+          lines.push(`«${j.group?.name || nameOf(gid)}»: creado con ${j.participants} participante(s)${notas.length ? ` — ${notas.join('; ')}` : ''}`)
         } catch {
           lines.push(`«${nameOf(gid)}»: error de red`)
         }
@@ -1818,7 +1826,9 @@ function Organigrama() {
                     style={{padding:'8px 14px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
                     Mensaje al grupo
                   </button>
-                  <button type="button" disabled={bulkBusy || waGroupBusy || (selGroups.size === 0 && members.length === 0)}
+                  <button type="button"
+                    disabled={bulkBusy || waGroupBusy || (selGroups.size === 0 && directMemberCount === 0)}
+                    title="Crea un chat de WhatsApp solo con los miembros propios de este grupo"
                     onClick={crearGrupoWhatsAppAccion}
                     style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--green)',background:'var(--surface-card)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
                     {waGroupBusy ? 'Creando…' : (selGroups.size > 0 ? `Crear ${selGroups.size} grupo${selGroups.size === 1 ? '' : 's'} WhatsApp` : 'Crear grupo WhatsApp')}

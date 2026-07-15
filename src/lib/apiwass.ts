@@ -84,9 +84,35 @@ export async function apiWassRequest(path: string, options: ApiWassRequestOption
   return json ?? { ok: true }
 }
 
+/** Estado de la sesión (READY, DISCONNECTED…). Respuesta: { success, status, id }. */
+export async function getApiWassSessionStatus(sessionId: string): Promise<string> {
+  const data = await apiWassRequest(`/sessions/${encodeURIComponent(sessionId)}/status`)
+  return String((data && (data as any).status) || '').trim()
+}
+
+/**
+ * ¿Ese teléfono existe en WhatsApp? (Baileys `onWhatsApp`). Devuelve el JID
+ * canónico, que es lo que conviene pasar luego como participante.
+ * Un número sin prefijo internacional (p. ej. "600123456" en vez de
+ * "34600123456") NO existe en WhatsApp y devolverá exists=false.
+ */
+export async function checkApiWassNumber(
+  sessionId: string,
+  phone: string,
+): Promise<{ exists: boolean; jid: string | null }> {
+  const data = await apiWassRequest(`/sessions/${encodeURIComponent(sessionId)}/check-number`, {
+    method: 'POST',
+    body: { phone: normalizePhone(phone) },
+  })
+  return {
+    exists: Boolean((data as any)?.exists),
+    jid: ((data as any)?.jid as string | undefined) || null,
+  }
+}
+
 /**
  * Crea un grupo de WhatsApp en la sesión indicada. `participants` acepta
- * teléfonos en cualquier formato (el servidor los normaliza a JIDs).
+ * teléfonos o JIDs (el servidor normaliza los que no llevan '@').
  * Respuesta ApiWass: { success, group: { id: '…@g.us', … } }.
  */
 export async function createApiWassGroup(input: {
@@ -100,7 +126,14 @@ export async function createApiWassGroup(input: {
   }
   const name = String(input.name || '').trim()
   if (!name) throw new Error('El nombre del grupo no puede estar vacío.')
-  const participants = [...new Set(input.participants.map(normalizePhone).filter(Boolean))]
+  // Los JIDs (…@s.whatsapp.net) se pasan tal cual; el resto se normaliza.
+  const participants = [
+    ...new Set(
+      input.participants
+        .map((p) => (String(p).includes('@') ? String(p).trim() : normalizePhone(p)))
+        .filter(Boolean),
+    ),
+  ]
   if (participants.length === 0) {
     throw new Error('Ningún participante tiene teléfono válido para WhatsApp.')
   }
