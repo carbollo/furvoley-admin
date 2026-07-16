@@ -27,6 +27,10 @@ export type PortalSsoPayload = {
   role: string
   memberId: string | null
   mustChangePassword: boolean
+  /** Club (slug) al que está LIGADO el token: el consumidor (/api/portal/sso)
+   *  rechaza el token si el subdominio resuelto no coincide. Evita que un token
+   *  minteado para el club A sea canjeable en el subdominio del club B. */
+  tenant: string | null
   exp: number
   iss: 'furvoley-portal'
 }
@@ -144,7 +148,11 @@ function signBody(body: string, secret: string) {
   return createHmac('sha256', secret).update(body).digest('base64url')
 }
 
-export function createPortalSsoToken(user: PortalVerifiedUser, secret = getPortalSsoSecret()) {
+export function createPortalSsoToken(
+  user: PortalVerifiedUser,
+  secret = getPortalSsoSecret(),
+  tenantSlug: string | null = null,
+) {
   if (!secret) throw new Error('PORTAL_SSO_SECRET missing')
   const payload: PortalSsoPayload = {
     sub: user.userId,
@@ -153,6 +161,7 @@ export function createPortalSsoToken(user: PortalVerifiedUser, secret = getPorta
     role: user.role,
     memberId: user.memberId,
     mustChangePassword: user.mustChangePassword,
+    tenant: tenantSlug,
     exp: Date.now() + SSO_TTL_MS,
     iss: SSO_ISSUER,
   }
@@ -179,6 +188,18 @@ export function parsePortalSsoToken(token: string, secret = getPortalSsoSecret()
   } catch {
     return null
   }
+}
+
+/**
+ * ¿El token está autorizado para este club? Si lleva claim `tenant`, debe
+ * coincidir con el subdominio resuelto. Tokens sin claim (emitidos antes del
+ * despliegue de esta protección) se aceptan por compatibilidad — como el TTL es
+ * de 60 s, dejan de existir enseguida. No se puede falsificar el claim: el token
+ * va firmado (HMAC), así que cualquier token real que alguien tenga va ligado.
+ */
+export function ssoTokenMatchesTenant(payload: PortalSsoPayload, slug: string | null | undefined): boolean {
+  if (!payload.tenant) return true // token antiguo sin binding: compatibilidad breve
+  return payload.tenant === String(slug || '')
 }
 
 export const MOBILE_ACCESS_TOKEN_MAX_AGE = 30 * 24 * 60 * 60

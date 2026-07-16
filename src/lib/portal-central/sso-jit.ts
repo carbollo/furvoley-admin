@@ -44,6 +44,7 @@ export async function jitTenantUserSession(payload: PortalSsoPayload): Promise<P
     role: normalizeRole(user.role),
     memberId: user.memberId ?? null,
     mustChangePassword: user.mustChangePassword === true,
+    tenant: payload.tenant ?? null,
     exp: payload.exp,
     iss: payload.iss,
   }

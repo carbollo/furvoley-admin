@@ -50,12 +50,15 @@ export const authOptions: NextAuthOptions = {
         // middleware. Sin esto, el login por credenciales no sabría qué BD mirar.
         enterTenantFromHeaders(req?.headers as Record<string, string | string[] | undefined> | undefined)
 
-        // Club suspendido → nadie entra por credenciales (el soporte usa "entrar
-        // como" desde el super-admin, que va por SSO, no por aquí). El estado vive
-        // en la BD del portal; lo leemos con caché. Fail-open ante un fallo de BD.
-        const activeSlug = currentTenant()?.slug
-        if (activeSlug && (await isTenantSuspended(activeSlug))) {
-          throw new Error('Este club está suspendido. Contacta con el administrador de la plataforma.')
+        // Gate de club suspendido. Se llama SOLO tras validar credenciales: así
+        // la lectura a la BD del portal y el mensaje "suspendido" no los provoca
+        // un anónimo (evita amplificación de conexiones y enumeración de clubes).
+        // El soporte entra por "entrar como" (SSO), que no pasa por aquí.
+        async function assertNotSuspended() {
+          const slug = currentTenant()?.slug
+          if (slug && (await isTenantSuspended(slug))) {
+            throw new Error('Este club está suspendido. Contacta con el administrador de la plataforma.')
+          }
         }
 
         if (!credentials?.email || !credentials?.password) {
@@ -79,6 +82,7 @@ export const authOptions: NextAuthOptions = {
           const env = getEnvAdminCredentials()!
           const fixed = await prisma.user.findUnique({ where: { email: env.email } })
           if (fixed) {
+            await assertNotSuspended()
             resetLoginAttempts(rlKey)
             return {
               id: fixed.id,
@@ -117,6 +121,7 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        await assertNotSuspended()
         resetLoginAttempts(rlKey)
         return {
           id: user.id,

@@ -14,6 +14,7 @@ import { isMultiTenant } from '@/lib/multitenant/registry'
 
 const PORTAL_DB_NAME = String(process.env.PORTAL_DB_NAME || 'portal').trim() || 'portal'
 const CACHE_TTL_MS = 30_000
+const CACHE_MAX = 500 // cota: el slug sale del Host, no confiable — no crecer sin límite
 
 type TenantStatus = 'ACTIVE' | 'SUSPENDED' | 'UNKNOWN'
 const cache = new Map<string, { status: TenantStatus; at: number }>()
@@ -55,6 +56,12 @@ export async function getTenantStatus(slug: string): Promise<TenantStatus> {
   const hit = cache.get(slug)
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.status
   const status = await readStatus(slug)
+  // Cota simple: al llenarse, descarta la entrada más antigua (Map conserva el
+  // orden de inserción). El TTL ya evita servir estados viejos.
+  if (cache.size >= CACHE_MAX) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
+  }
   cache.set(slug, { status, at: Date.now() })
   return status
 }
@@ -65,9 +72,4 @@ export async function getTenantStatus(slug: string): Promise<TenantStatus> {
  */
 export async function isTenantSuspended(slug: string): Promise<boolean> {
   return (await getTenantStatus(slug)) === 'SUSPENDED'
-}
-
-/** Invalida la caché de un club (tras suspender/reactivar, si corre en el mismo proceso). */
-export function invalidateTenantStatus(slug: string) {
-  cache.delete(slug)
 }

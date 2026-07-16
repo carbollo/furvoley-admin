@@ -64,6 +64,7 @@ export async function POST(request: Request) {
         mustChangePassword: false,
       },
       secret,
+      match.tenant.slug, // liga el token a este club
     )
     try {
       return NextResponse.json({

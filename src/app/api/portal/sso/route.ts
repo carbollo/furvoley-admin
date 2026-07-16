@@ -4,6 +4,7 @@ import {
   isPortalSsoEnabled,
   parsePortalSsoToken,
   resolvePortalPublicOrigin,
+  ssoTokenMatchesTenant,
   type PortalSsoPayload,
 } from '@/lib/portal-sso'
 import { isMultiTenant } from '@/lib/multitenant/registry'
@@ -35,8 +36,14 @@ export async function GET(request: Request) {
   let sessionPayload: PortalSsoPayload = payload
   if (isMultiTenant()) {
     await enterTenantFromRequest(request)
-    if (!currentTenant()) {
+    const slug = currentTenant()?.slug
+    if (!slug) {
       return NextResponse.redirect(new URL('/login?error=tenant-desconocido', origin))
+    }
+    // El token debe estar LIGADO a este club: si no, un token minteado para el
+    // club A no sirve para colarse en el subdominio del club B.
+    if (!ssoTokenMatchesTenant(payload, slug)) {
+      return NextResponse.redirect(new URL('/login?error=token-otro-club', origin))
     }
     try {
       sessionPayload = await jitTenantUserSession(payload)

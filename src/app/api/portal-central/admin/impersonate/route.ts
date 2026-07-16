@@ -78,6 +78,7 @@ export async function POST(request: Request) {
         mustChangePassword: false,
       },
       secret,
+      tenant.slug, // liga el token a este club
     )
     redirectUrl = buildTenantSsoUrl(tenant.slug, token)
   } catch (e) {
