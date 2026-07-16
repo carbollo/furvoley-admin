@@ -11,6 +11,8 @@ import {
 } from "@/lib/env-admin"
 import { ensureNextAuthSecret } from "@/lib/auth-secret"
 import { enterTenantFromHeaders } from "@/lib/multitenant/request"
+import { currentTenant } from "@/lib/multitenant/context"
+import { isTenantSuspended } from "@/lib/tenant-status"
 import {
   checkLoginRateLimit,
   loginRateKey,
@@ -47,6 +49,14 @@ export const authOptions: NextAuthOptions = {
         // consulta. Debe ir aquí, síncrono, porque /api/auth no pasa por el
         // middleware. Sin esto, el login por credenciales no sabría qué BD mirar.
         enterTenantFromHeaders(req?.headers as Record<string, string | string[] | undefined> | undefined)
+
+        // Club suspendido → nadie entra por credenciales (el soporte usa "entrar
+        // como" desde el super-admin, que va por SSO, no por aquí). El estado vive
+        // en la BD del portal; lo leemos con caché. Fail-open ante un fallo de BD.
+        const activeSlug = currentTenant()?.slug
+        if (activeSlug && (await isTenantSuspended(activeSlug))) {
+          throw new Error('Este club está suspendido. Contacta con el administrador de la plataforma.')
+        }
 
         if (!credentials?.email || !credentials?.password) {
           return null

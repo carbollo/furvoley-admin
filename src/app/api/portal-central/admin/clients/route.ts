@@ -2,8 +2,16 @@ import { NextResponse } from 'next/server'
 import { isPortalAdminConfigured, isPortalAdminRequest } from '@/lib/portal-central/admin-auth'
 import { isPortalCentralHost } from '@/lib/portal-central/config'
 import { sanitizeSlug } from '@/lib/multitenant/registry'
-import { createPortalUser, createTenant, getTenantBySlug, listTenants } from '@/lib/portal-central/portal-store'
+import {
+  createPortalUser,
+  createTenant,
+  getTenantBySlug,
+  listTenants,
+  logPortalAudit,
+  setTenantStatus,
+} from '@/lib/portal-central/portal-store'
 import { provisionTenant } from '@/lib/portal-central/provision'
+import { clientIpFromHeaders } from '@/lib/login-rate-limit'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -25,6 +33,44 @@ export async function GET() {
   const denied = await requireAdmin()
   if (denied) return denied
   return NextResponse.json({ ok: true, tenants: await listTenants() })
+}
+
+/**
+ * Suspender / reactivar un club. Suspendido = sus usuarios no pueden entrar por
+ * credenciales (gate en el login del CRM) y el club desaparece del dashboard y
+ * de la agregación de errores (forEachTenant solo recorre ACTIVE). El soporte
+ * puede seguir entrando con "entrar como".
+ */
+export async function PATCH(request: Request) {
+  const denied = await requireAdmin()
+  if (denied) return denied
+
+  let body: { id?: string; status?: string }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+  }
+  const id = String(body.id || '').trim()
+  const status = String(body.status || '').toUpperCase()
+  if (!id) return NextResponse.json({ error: 'Falta id' }, { status: 400 })
+  if (status !== 'ACTIVE' && status !== 'SUSPENDED') {
+    return NextResponse.json({ error: 'status debe ser ACTIVE o SUSPENDED' }, { status: 400 })
+  }
+
+  const tenant = await prisma.tenant.findUnique({ where: { id }, select: { slug: true, name: true } })
+  if (!tenant) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+
+  await setTenantStatus(id, status)
+  await logPortalAudit({
+    action: status === 'SUSPENDED' ? 'SUSPEND' : 'REACTIVATE',
+    tenantSlug: tenant.slug,
+    tenantName: tenant.name,
+    targetType: 'TENANT',
+    targetId: id,
+    ip: clientIpFromHeaders(request.headers),
+  })
+  return NextResponse.json({ ok: true, status })
 }
 
 /**
@@ -84,6 +130,16 @@ export async function POST(request: Request) {
   }
 
   await createPortalUser({ email: adminEmail, password: adminPassword, name, role: 'ADMIN', tenantId: tenant.id })
+
+  await logPortalAudit({
+    action: 'CREATE_CLIENT',
+    tenantSlug: tenant.slug,
+    tenantName: tenant.name,
+    targetType: 'TENANT',
+    targetId: tenant.id,
+    detail: { adminEmail },
+    ip: clientIpFromHeaders(request.headers),
+  })
 
   return NextResponse.json({
     ok: true,

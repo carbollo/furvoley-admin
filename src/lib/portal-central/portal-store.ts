@@ -112,6 +112,62 @@ export async function resetPortalUserPassword(id: string, newPassword: string) {
   return prisma.portalUser.update({ where: { id }, data: { passwordHash } })
 }
 
+export type PortalAuditInput = {
+  actor?: string
+  action: string
+  tenantSlug?: string | null
+  tenantName?: string | null
+  targetType?: string | null
+  targetId?: string | null
+  detail?: unknown
+  ip?: string | null
+}
+
+/** Registra una acción del super-admin. Best-effort: nunca tumba la acción. */
+export async function logPortalAudit(input: PortalAuditInput) {
+  try {
+    await prisma.portalAuditLog.create({
+      data: {
+        actor: input.actor ?? 'super-admin',
+        action: input.action,
+        tenantSlug: input.tenantSlug ?? null,
+        tenantName: input.tenantName ?? null,
+        targetType: input.targetType ?? null,
+        targetId: input.targetId ?? null,
+        detail: (input.detail ?? undefined) as never,
+        ip: input.ip ?? null,
+      },
+    })
+  } catch (e) {
+    console.warn('[portal-audit] no se pudo registrar la acción:', e instanceof Error ? e.message : e)
+  }
+}
+
+export type PortalAuditRow = {
+  id: string
+  actor: string
+  action: string
+  tenantSlug: string | null
+  tenantName: string | null
+  detail: unknown
+  ip: string | null
+  createdAt: string
+}
+
+export async function listPortalAuditLogs(): Promise<PortalAuditRow[]> {
+  const rows = await prisma.portalAuditLog.findMany({ orderBy: { createdAt: 'desc' }, take: 100 })
+  return rows.map((r) => ({
+    id: r.id,
+    actor: r.actor,
+    action: r.action,
+    tenantSlug: r.tenantSlug,
+    tenantName: r.tenantName,
+    detail: r.detail,
+    ip: r.ip,
+    createdAt: r.createdAt.toISOString(),
+  }))
+}
+
 /** Verifica credenciales para el login central (Paso 4). */
 export async function verifyPortalUser(rawEmail: string, password: string) {
   const email = String(rawEmail || '').trim().toLowerCase()

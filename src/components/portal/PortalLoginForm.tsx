@@ -59,6 +59,17 @@ type ErrorsResponse = {
   errors: PortalError[]
 }
 
+type AuditRow = {
+  id: string
+  actor: string
+  action: string
+  tenantSlug: string | null
+  tenantName: string | null
+  detail: unknown
+  ip: string | null
+  createdAt: string
+}
+
 export function PortalLoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -217,6 +228,8 @@ export function PortalAdminPanel() {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   // Bandeja central de errores por club.
   const [errors, setErrors] = useState<ErrorsResponse | null>(null)
+  // Registro de acciones del super-admin.
+  const [audit, setAudit] = useState<AuditRow[] | null>(null)
 
   const loadClients = useCallback(async () => {
     const r = await fetch('/api/portal-central/admin/clients', { credentials: 'include' })
@@ -251,6 +264,55 @@ export function PortalAdminPanel() {
       setError('Error de red al marcar el error como resuelto.')
     }
   }, [loadErrors])
+  const loadAudit = useCallback(async () => {
+    const r = await fetch('/api/portal-central/admin/audit', { credentials: 'include' })
+    if (r.ok) setAudit((await r.json()).audit || [])
+  }, [])
+
+  /** Suspender / reactivar un club. */
+  const toggleClient = useCallback(async (id: string, status: string) => {
+    const next = status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'
+    setBusy(true)
+    try {
+      const r = await fetch('/api/portal-central/admin/clients', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: next }),
+      })
+      if (!r.ok) { setError((await r.json().catch(() => ({}))).error || 'No se pudo cambiar el estado.'); return }
+      setOkMsg(next === 'SUSPENDED' ? 'Club suspendido.' : 'Club reactivado.')
+      await Promise.all([loadClients(), loadAudit()])
+    } catch {
+      setError('Error de red al cambiar el estado del club.')
+    } finally {
+      setBusy(false)
+    }
+  }, [loadClients, loadAudit])
+
+  /** "Entrar como" el admin del club: navega al CRM con una sesión SSO. */
+  const impersonateClient = useCallback(async (id: string) => {
+    setBusy(true)
+    try {
+      const r = await fetch('/api/portal-central/admin/impersonate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId: id }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok || !data.redirectUrl) {
+        setError(data.error || 'No se pudo entrar al club.')
+        return
+      }
+      // El SSO abre la sesión en el CRM del club (en una pestaña nueva).
+      window.open(data.redirectUrl, '_blank', 'noopener')
+    } catch {
+      setError('Error de red al entrar al club.')
+    } finally {
+      setBusy(false)
+    }
+  }, [])
 
   useEffect(() => {
     fetch('/api/portal-central/admin/login', { credentials: 'include' })
@@ -258,11 +320,11 @@ export function PortalAdminPanel() {
       .then(async (j) => {
         if (j.authenticated) {
           setAuthed(true)
-          await Promise.all([loadMetrics(), loadErrors(), loadClients(), loadUsers()])
+          await Promise.all([loadMetrics(), loadErrors(), loadAudit(), loadClients(), loadUsers()])
         }
       })
       .catch(() => undefined)
-  }, [loadMetrics, loadErrors, loadClients, loadUsers])
+  }, [loadMetrics, loadErrors, loadAudit, loadClients, loadUsers])
 
   async function crearCliente() {
     setError('')
@@ -347,7 +409,7 @@ export function PortalAdminPanel() {
       if (!r.ok) throw new Error(data.error || 'Error')
       setAuthed(true)
       setAdminPassword('')
-      await Promise.all([loadMetrics(), loadErrors(), loadClients(), loadUsers()])
+      await Promise.all([loadMetrics(), loadErrors(), loadAudit(), loadClients(), loadUsers()])
       setOkMsg('Sesión admin iniciada.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
@@ -392,6 +454,7 @@ export function PortalAdminPanel() {
         <>
           <DashboardCard metrics={metrics} />
           <ErrorsCard data={errors} onResolve={resolveError} />
+          <AuditCard rows={audit} />
 
           {/* Modelo C: crear cliente = desplegar su CRM */}
           <div style={cardStyle}>
@@ -425,8 +488,8 @@ export function PortalAdminPanel() {
               <p style={{ color: '#a8a29e', margin: 0 }}>Aún no hay clientes. Crea el primero arriba.</p>
             ) : (
               clients.map((c) => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #44403c', padding: '10px 0' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #44403c', padding: '10px 0', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 160 }}>
                     <strong>{c.name}</strong>
                     <div style={{ color: '#a8a29e', fontSize: 13 }}>
                       {c.slug} · {c.userCount} usuario{c.userCount === 1 ? '' : 's'}
@@ -435,6 +498,23 @@ export function PortalAdminPanel() {
                   <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: c.status === 'ACTIVE' ? 'rgba(74,222,128,.15)' : 'rgba(251,113,133,.15)', color: c.status === 'ACTIVE' ? '#4ade80' : '#fb7185' }}>
                     {c.status === 'ACTIVE' ? 'Activo' : 'Suspendido'}
                   </span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void impersonateClient(c.id)}
+                    title="Entrar al CRM de este club como su administrador (soporte)"
+                    style={{ ...buttonStyle, width: 'auto', background: 'transparent', border: '1px solid #44403c', color: '#faf7f2', fontSize: 12, padding: '7px 12px' }}
+                  >
+                    Entrar como
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void toggleClient(c.id, c.status)}
+                    style={{ ...buttonStyle, width: 'auto', background: c.status === 'ACTIVE' ? 'transparent' : '#44403c', border: c.status === 'ACTIVE' ? '1px solid #fb7185' : '0', color: c.status === 'ACTIVE' ? '#fb7185' : '#faf7f2', fontSize: 12, padding: '7px 12px' }}
+                  >
+                    {c.status === 'ACTIVE' ? 'Suspender' : 'Reactivar'}
+                  </button>
                 </div>
               ))
             )}
@@ -527,6 +607,63 @@ const darkInput: React.CSSProperties = {
   padding: '12px 14px',
   marginBottom: 12,
   font: 'inherit',
+}
+
+// ── Registro de acciones del super-admin ─────────────────────────────────────
+
+const AUDIT_LABEL: Record<string, string> = {
+  SUSPEND: 'Suspendió el club',
+  REACTIVATE: 'Reactivó el club',
+  IMPERSONATE: 'Entró como admin',
+  CREATE_CLIENT: 'Creó el club',
+  CREATE_USER: 'Creó un usuario',
+  DISABLE_USER: 'Desactivó un usuario',
+  ENABLE_USER: 'Activó un usuario',
+  RESET_PASSWORD: 'Reseteó una contraseña',
+}
+const AUDIT_COLOR: Record<string, string> = {
+  SUSPEND: '#fb7185',
+  REACTIVATE: '#4ade80',
+  IMPERSONATE: '#fbbf24',
+  CREATE_CLIENT: '#5b8bff',
+}
+
+function AuditCard({ rows }: { rows: AuditRow[] | null }) {
+  const cardStyle: React.CSSProperties = {
+    background: '#292524',
+    border: '1px solid #44403c',
+    borderRadius: 14,
+    padding: 24,
+    marginBottom: 16,
+  }
+  if (!rows) return null
+
+  return (
+    <div style={cardStyle}>
+      <h2 style={{ margin: 0, fontSize: 18 }}>Actividad reciente</h2>
+      {rows.length === 0 ? (
+        <p style={{ margin: '10px 0 0', color: '#a8a29e', fontSize: 13, lineHeight: 1.55 }}>
+          Aquí queda registro de las acciones sensibles (suspender, entrar como, crear clientes…).
+        </p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 14 }}>
+          {rows.map((a) => (
+            <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, padding: '7px 0', borderBottom: '1px solid rgba(68,64,60,.5)', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, color: AUDIT_COLOR[a.action] || '#faf7f2' }}>
+                {AUDIT_LABEL[a.action] || a.action}
+              </span>
+              {a.tenantName || a.tenantSlug ? (
+                <span style={{ color: '#faf7f2' }}>· {a.tenantName || a.tenantSlug}</span>
+              ) : null}
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: '#78716c', fontFamily: 'ui-monospace, monospace' }}>
+                {a.ip ? `${a.ip} · ` : ''}{timeAgo(a.createdAt)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Bandeja de errores por club ──────────────────────────────────────────────

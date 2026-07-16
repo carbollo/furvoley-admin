@@ -1041,3 +1041,24 @@ model PortalErrorLog {
   @@index([level])
   @@index([resolved])
 }
+
+/// Registro de acciones sensibles del super-admin (suspender/reactivar un club,
+/// entrar como su admin, crear clientes/usuarios…). Lo escribe y lee el portal.
+/// El actor es la sesión de PORTAL_ADMIN_PASSWORD (anónima), así que se guarda
+/// como constante 'super-admin' + la IP para tener algo de trazabilidad.
+model PortalAuditLog {
+  id         String   @id @default(cuid())
+  actor      String   @default("super-admin")
+  action     String // SUSPEND | REACTIVATE | IMPERSONATE | CREATE_CLIENT | CREATE_USER | DISABLE_USER | ENABLE_USER | RESET_PASSWORD
+  tenantSlug String?
+  tenantName String?
+  targetType String? // TENANT | PORTAL_USER
+  targetId   String?
+  detail     Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([tenantSlug, createdAt])
+  @@index([action])
+}
