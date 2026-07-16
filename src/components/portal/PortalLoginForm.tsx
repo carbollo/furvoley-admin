@@ -140,11 +140,6 @@ export function PortalAdminPanel() {
   const [error, setError] = useState('')
   const [okMsg, setOkMsg] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
-  const [tenants, setTenants] = useState<Tenant[]>([])
-  const [name, setName] = useState('')
-  const [id, setId] = useState('')
-  const [url, setUrl] = useState('')
-  const [internalUrl, setInternalUrl] = useState('')
   const [busy, setBusy] = useState(false)
 
   // Modelo C: clientes (tenants) con BD propia + usuarios de acceso.
@@ -172,25 +167,17 @@ export function PortalAdminPanel() {
     if (r.ok) setUsers((await r.json()).users || [])
   }, [])
 
-  const loadTenants = useCallback(async () => {
-    const r = await fetch('/api/portal-central/admin/tenants', { credentials: 'include' })
-    if (!r.ok) return false
-    const data = await r.json()
-    setTenants(Array.isArray(data.tenants) ? data.tenants : [])
-    return true
-  }, [])
-
   useEffect(() => {
     fetch('/api/portal-central/admin/login', { credentials: 'include' })
       .then((r) => r.json())
       .then(async (j) => {
         if (j.authenticated) {
           setAuthed(true)
-          await Promise.all([loadTenants(), loadClients(), loadUsers()])
+          await Promise.all([loadClients(), loadUsers()])
         }
       })
       .catch(() => undefined)
-  }, [loadTenants, loadClients, loadUsers])
+  }, [loadClients, loadUsers])
 
   async function crearCliente() {
     setError('')
@@ -275,81 +262,10 @@ export function PortalAdminPanel() {
       if (!r.ok) throw new Error(data.error || 'Error')
       setAuthed(true)
       setAdminPassword('')
-      await Promise.all([loadTenants(), loadClients(), loadUsers()])
+      await Promise.all([loadClients(), loadUsers()])
       setOkMsg('Sesión admin iniciada.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function saveTenant() {
-    setError('')
-    setBusy(true)
-    try {
-      const r = await fetch('/api/portal-central/admin/tenants', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          id: id.trim(),
-          url: url.trim(),
-          internalUrl: internalUrl.trim(),
-        }),
-      })
-      const data = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(data.error || 'Error')
-      setTenants(data.tenants || [])
-      setName('')
-      setId('')
-      setUrl('')
-      setInternalUrl('')
-      setOkMsg('CRM guardado.')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function removeTenant(tenantId: string) {
-    if (!confirm('¿Eliminar este CRM?')) return
-    setBusy(true)
-    try {
-      const r = await fetch('/api/portal-central/admin/tenants/' + encodeURIComponent(tenantId), {
-        method: 'DELETE',
-        credentials: 'include',
-      })
-      const data = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(data.error || 'Error')
-      setTenants(data.tenants || [])
-      setOkMsg('CRM eliminado.')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function testTenant(tenantId: string) {
-    setError('')
-    setOkMsg('')
-    setBusy(true)
-    try {
-      const r = await fetch('/api/portal-central/admin/tenants/' + encodeURIComponent(tenantId), {
-        method: 'PUT',
-        credentials: 'include',
-      })
-      const data = await r.json().catch(() => ({}))
-      if (data.ok) {
-        setOkMsg(data.message || 'CRM accesible.')
-      } else {
-        setError(data.message || 'Fallo la prueba')
-      }
-    } catch {
-      setError('Error de red')
     } finally {
       setBusy(false)
     }
@@ -480,84 +396,6 @@ export function PortalAdminPanel() {
             )}
           </div>
 
-          <details style={{ ...cardStyle, opacity: 0.85 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 15, fontWeight: 700 }}>Avanzado: CRMs por URL (modelo antiguo)</summary>
-            <div style={{ marginTop: 14 }}>
-            <h2 style={{ margin: '0 0 14px', fontSize: 18 }}>Añadir CRM</h2>
-            <label style={labelStyle}>Nombre del club</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Furvoley" style={darkInput} />
-            <label style={labelStyle}>Identificador (opcional)</label>
-            <input value={id} onChange={(e) => setId(e.target.value)} placeholder="furvoley" style={darkInput} />
-            <label style={labelStyle}>URL pública del CRM</label>
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://furvoley.up.railway.app"
-              style={darkInput}
-            />
-            <label style={labelStyle}>URL interna Railway (opcional)</label>
-            <input
-              value={internalUrl}
-              onChange={(e) => setInternalUrl(e.target.value)}
-              placeholder="http://furvoley.railway.internal:8080"
-              style={darkInput}
-            />
-            <p style={{ margin: '0 0 12px', color: '#78716c', fontSize: 12, lineHeight: 1.5 }}>
-              Copia el hostname de <strong>Private Networking del servicio CRM</strong> (no del portal).
-              Sin puerto se usa :8080. La URL pública no lleva <code>/login</code>.
-            </p>
-            <button type="button" disabled={busy} onClick={() => void saveTenant()} style={buttonStyle}>
-              Guardar CRM
-            </button>
-          </div>
-          <div style={cardStyle}>
-            <h2 style={{ margin: '0 0 14px', fontSize: 18 }}>CRMs configurados</h2>
-            {tenants.length === 0 ? (
-              <p style={{ color: '#a8a29e', margin: 0 }}>Aún no hay CRMs.</p>
-            ) : (
-              tenants.map((t) => (
-                <div
-                  key={t.id}
-                  style={{
-                    border: '1px solid #44403c',
-                    borderRadius: 12,
-                    padding: 14,
-                    marginBottom: 10,
-                  }}
-                >
-                  <strong>{t.name}</strong>
-                  <div style={{ color: '#a8a29e', fontSize: 13, wordBreak: 'break-all' }}>
-                    {t.id} · {t.url}
-                    {t.internalUrl ? (
-                      <>
-                        <br />
-                        interna: {t.internalUrl}
-                      </>
-                    ) : null}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void testTenant(t.id)}
-                      style={{ ...buttonStyle, width: 'auto', background: '#44403c' }}
-                    >
-                      Probar
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void removeTenant(t.id)}
-                      style={{ ...buttonStyle, width: 'auto', background: 'transparent', border: '1px solid #fb7185', color: '#fb7185' }}
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          </details>
         </>
       )}
     </div>
