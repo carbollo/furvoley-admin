@@ -51,7 +51,18 @@ export async function onRequestError(
     const { sanitizeSlug, tenantSlugFromHost } = await import('@/lib/multitenant/registry')
     const h = request.headers || {}
     const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
-    const slug = sanitizeSlug(first(h['x-tenant-slug'])) ?? tenantSlugFromHost(first(h['host']))
+    // El host (subdominio) es la señal AUTORITATIVA del club, igual que en el
+    // middleware. NUNCA se confía en el `x-tenant-slug` del cliente en producción
+    // (el middleware no lo depura en rutas excluidas como /login o /api/auth, así
+    // que uno falseado atribuiría el error a otro club). Solo en modo pruebas
+    // (TENANT_ALLOW_OVERRIDE) se acepta la cabecera, ya que ahí el host es el
+    // dominio de Railway y no resuelve a un tenant.
+    const overrideAllowed =
+      String(process.env.TENANT_ALLOW_OVERRIDE || '').trim().toLowerCase() === 'true'
+    const fromHost = tenantSlugFromHost(first(h['host']))
+    const slug = overrideAllowed
+      ? sanitizeSlug(first(h['x-tenant-slug'])) ?? fromHost
+      : fromHost
 
     await logAppError({
       error,

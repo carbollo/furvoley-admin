@@ -235,13 +235,21 @@ export function PortalAdminPanel() {
     if (r.ok) setErrors(await r.json())
   }, [])
   const resolveError = useCallback(async (id: string) => {
-    await fetch('/api/portal-central/admin/errors', {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, resolved: true }),
-    })
-    await loadErrors()
+    try {
+      const r = await fetch('/api/portal-central/admin/errors', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, resolved: true }),
+      })
+      if (!r.ok) {
+        setError((await r.json().catch(() => ({}))).error || 'No se pudo marcar como resuelto.')
+        return
+      }
+      await loadErrors()
+    } catch {
+      setError('Error de red al marcar el error como resuelto.')
+    }
   }, [loadErrors])
 
   useEffect(() => {
@@ -578,7 +586,7 @@ function ErrorsCard({ data, onResolve }: { data: ErrorsResponse | null; onResolv
                 {!e.resolved ? (
                   <button
                     type="button"
-                    onClick={() => onResolve(e.id)}
+                    onClick={() => void onResolve(e.id)}
                     style={{ fontSize: 11, fontWeight: 600, color: '#4ade80', background: 'transparent', border: '1px solid #44403c', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', font: 'inherit' }}
                   >
                     Resolver

@@ -97,7 +97,15 @@ export async function collectAndStoreSnapshot(): Promise<
   // 1) KPIs por club (forEachTenant solo recorre los ACTIVE).
   const results = await forEachTenant(() => computeClubKpis())
 
-  const client = new Client({ connectionString: url })
+  const client = new Client({
+    connectionString: url,
+    connectionTimeoutMillis: 5000,
+    query_timeout: 15000,
+    statement_timeout: 15000,
+  })
+  // Sin listener, un fallo de conexión asíncrono emitiría un evento 'error' no
+  // capturado que tumbaría el proceso del cron.
+  client.on('error', (e) => console.warn('[snapshot] pg client error:', e instanceof Error ? e.message : e))
   await client.connect()
   try {
     // 2) Nombres y totales de clubes desde el directorio del portal.

@@ -28,16 +28,24 @@ export async function GET() {
   if (denied) return denied
 
   try {
-    const rows = await prisma.portalErrorLog.findMany({
-      orderBy: [{ resolved: 'asc' }, { lastSeenAt: 'desc' }],
-      take: 100,
-    })
-    const unresolved = rows.filter((r) => !r.resolved).length
-    const clubs = new Set(rows.filter((r) => !r.resolved).map((r) => r.tenantSlug)).size
+    // Los conteos van sobre la tabla COMPLETA (no sobre las 100 que se muestran),
+    // si no, con >100 sin resolver el resumen infra-reportaría.
+    const [rows, unresolved, affected] = await Promise.all([
+      prisma.portalErrorLog.findMany({
+        orderBy: [{ resolved: 'asc' }, { lastSeenAt: 'desc' }],
+        take: 100,
+      }),
+      prisma.portalErrorLog.count({ where: { resolved: false } }),
+      prisma.portalErrorLog.findMany({
+        where: { resolved: false },
+        distinct: ['tenantSlug'],
+        select: { tenantSlug: true },
+      }),
+    ])
 
     return NextResponse.json({
       ok: true,
-      summary: { unresolved, clubsAffected: clubs },
+      summary: { unresolved, clubsAffected: affected.length },
       errors: rows.map((r) => ({
         id: r.id,
         tenantSlug: r.tenantSlug,
@@ -53,7 +61,11 @@ export async function GET() {
         lastSeenAt: r.lastSeenAt.toISOString(),
       })),
     })
-  } catch {
+  } catch (e) {
+    // Normalmente solo salta en el primer deploy (tabla aún sin crear). Si es un
+    // fallo real de la BD del portal, al menos que quede rastro en el servidor
+    // en vez de un falso "todo en orden".
+    console.warn('[portal/errors] no se pudo leer la bandeja:', e instanceof Error ? e.message : e)
     return NextResponse.json({ ok: true, summary: { unresolved: 0, clubsAffected: 0 }, errors: [] })
   }
 }

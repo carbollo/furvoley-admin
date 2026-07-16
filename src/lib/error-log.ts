@@ -46,6 +46,22 @@ function portalDbUrl(): string | null {
   return u.toString()
 }
 
+/**
+ * Acota una promesa: si no resuelve en `ms`, rechaza. Imprescindible aquí porque
+ * `logAppError` se llama (y se espera) dentro de onRequestError: una BD caída sin
+ * timeout de driver colgaría la respuesta y retendría conexiones en una tormenta
+ * de errores. La operación subyacente puede seguir, pero dejamos de esperarla.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`[error-log] timeout ${label} (${ms}ms)`)), ms)
+    p.then(
+      (v) => { clearTimeout(t); resolve(v) },
+      (e) => { clearTimeout(t); reject(e) },
+    )
+  })
+}
+
 type ExtractedError = { name: string | null; message: string; stack: string | null }
 
 function extractError(error: unknown): ExtractedError {
@@ -105,7 +121,8 @@ async function writeToClub(slug: string, row: {
   const dbUrl = tenantDbUrl(slug)
   if (!dbUrl) return
   try {
-    await withTenant({ slug, dbUrl }, () =>
+    await withTimeout(
+      withTenant({ slug, dbUrl }, () =>
       prisma.errorLog.upsert({
         where: { fingerprint: row.fingerprint },
         create: {
@@ -133,6 +150,9 @@ async function writeToClub(slug: string, row: {
           resolved: false, // si reaparece tras marcarse resuelto, vuelve a abrirse
         },
       }),
+      ),
+      6000,
+      'club',
     )
   } catch (e) {
     console.warn('[error-log] no se pudo escribir en la BD del club:', e instanceof Error ? e.message : e)
@@ -150,9 +170,19 @@ async function forwardToPortal(slug: string, row: {
 }): Promise<void> {
   const url = portalDbUrl()
   if (!url) return
-  const client = new Client({ connectionString: url })
+  // Timeouts de driver: sin ellos, una BD del portal inalcanzable colgaría el
+  // `connect()`/query hasta el timeout TCP del SO. El listener 'error' evita que
+  // un fallo de conexión asíncrono (reset/cierre del backend) emita un evento
+  // no capturado que tumbaría el proceso — el logger jamás debe crashear.
+  const client = new Client({
+    connectionString: url,
+    connectionTimeoutMillis: 4000,
+    query_timeout: 5000,
+    statement_timeout: 5000,
+  })
+  client.on('error', (e) => console.warn('[error-log] pg client error:', e instanceof Error ? e.message : e))
   try {
-    await client.connect()
+    await withTimeout(client.connect(), 5000, 'portal-connect')
     // Nombre del club (denormalizado para el listado sin JOIN); best-effort.
     let tenantName: string | null = null
     try {
