@@ -11,4 +11,9 @@ export async function register() {
   // programados cuando llega su ventana de antelación. Recorre todos los tenants.
   const { scheduleAttendanceCron } = await import('@/lib/attendance-cron')
   scheduleAttendanceCron()
+
+  // Cron in-process: snapshot de KPIs cross-club para el dashboard del portal.
+  // Solo se arma en crm-mt (guard interno por MULTITENANT).
+  const { scheduleSnapshotCron } = await import('@/lib/snapshot-cron')
+  scheduleSnapshotCron()
 }

@@ -4,6 +4,42 @@ import { useCallback, useEffect, useState } from 'react'
 
 type Tenant = { id: string; name: string; url: string; internalUrl?: string }
 
+type PerClub = {
+  slug: string
+  name: string
+  ok: boolean
+  error?: string
+  membersTotal: number
+  membersActive: number
+  membersOverdue: number
+  incomeMonth: number
+  pendingCount: number
+  pendingAmount: number
+}
+type Metrics = {
+  latest: {
+    createdAt: string
+    clubsTotal: number
+    clubsActive: number
+    tenantsOk: number
+    tenantsFailed: number
+    membersTotal: number
+    membersActive: number
+    membersOverdue: number
+    incomeMonthTotal: number
+    pendingCount: number
+    pendingAmountTotal: number
+    perClub: PerClub[]
+  } | null
+  history: {
+    at: string
+    membersActive: number
+    membersTotal: number
+    incomeMonthTotal: number
+    pendingAmountTotal: number
+  }[]
+}
+
 export function PortalLoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -158,6 +194,9 @@ export function PortalAdminPanel() {
   const [uTenant, setUTenant] = useState('')
   const [uRole, setURole] = useState('COACH')
 
+  // Dashboard cross-club: último snapshot de KPIs + serie histórica.
+  const [metrics, setMetrics] = useState<Metrics | null>(null)
+
   const loadClients = useCallback(async () => {
     const r = await fetch('/api/portal-central/admin/clients', { credentials: 'include' })
     if (r.ok) setClients((await r.json()).tenants || [])
@@ -166,6 +205,10 @@ export function PortalAdminPanel() {
     const r = await fetch('/api/portal-central/admin/users', { credentials: 'include' })
     if (r.ok) setUsers((await r.json()).users || [])
   }, [])
+  const loadMetrics = useCallback(async () => {
+    const r = await fetch('/api/portal-central/admin/metrics', { credentials: 'include' })
+    if (r.ok) setMetrics(await r.json())
+  }, [])
 
   useEffect(() => {
     fetch('/api/portal-central/admin/login', { credentials: 'include' })
@@ -173,11 +216,11 @@ export function PortalAdminPanel() {
       .then(async (j) => {
         if (j.authenticated) {
           setAuthed(true)
-          await Promise.all([loadClients(), loadUsers()])
+          await Promise.all([loadMetrics(), loadClients(), loadUsers()])
         }
       })
       .catch(() => undefined)
-  }, [loadClients, loadUsers])
+  }, [loadMetrics, loadClients, loadUsers])
 
   async function crearCliente() {
     setError('')
@@ -262,7 +305,7 @@ export function PortalAdminPanel() {
       if (!r.ok) throw new Error(data.error || 'Error')
       setAuthed(true)
       setAdminPassword('')
-      await Promise.all([loadClients(), loadUsers()])
+      await Promise.all([loadMetrics(), loadClients(), loadUsers()])
       setOkMsg('Sesión admin iniciada.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
@@ -305,6 +348,8 @@ export function PortalAdminPanel() {
         </div>
       ) : (
         <>
+          <DashboardCard metrics={metrics} />
+
           {/* Modelo C: crear cliente = desplegar su CRM */}
           <div style={cardStyle}>
             <h2 style={{ margin: '0 0 4px', fontSize: 18 }}>Crear cliente</h2>
@@ -439,4 +484,187 @@ const darkInput: React.CSSProperties = {
   padding: '12px 14px',
   marginBottom: 12,
   font: 'inherit',
+}
+
+// ── Dashboard cross-club ─────────────────────────────────────────────────────
+
+function fmtInt(n: number) {
+  return Number(n || 0).toLocaleString('es-ES')
+}
+function fmtEur(n: number) {
+  return `${Number(n || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 })} €`
+}
+function timeAgo(iso: string) {
+  const then = new Date(iso).getTime()
+  const secs = Math.max(0, Math.round((Date.now() - then) / 1000))
+  if (secs < 90) return 'hace un momento'
+  const mins = Math.round(secs / 60)
+  if (mins < 60) return `hace ${mins} min`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `hace ${hrs} h`
+  return `hace ${Math.round(hrs / 24)} d`
+}
+
+/** Sparkline SVG minimalista (serie de valores), tema oscuro, sin dependencias. */
+function Sparkline({ data, color = '#5b8bff', width = 220, height = 40 }: {
+  data: number[]
+  color?: string
+  width?: number
+  height?: number
+}) {
+  if (!data || data.length < 2) return null
+  const max = Math.max(...data)
+  const min = Math.min(...data)
+  const span = max - min || 1
+  const stepX = width / (data.length - 1)
+  const y = (v: number) => height - 4 - ((v - min) / span) * (height - 8)
+  const pts = data.map((v, i) => `${(i * stepX).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  const area = `0,${height} ${pts} ${width},${height}`
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      <polygon points={area} fill={color} opacity="0.12" />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={(data.length - 1) * stepX} cy={y(data[data.length - 1])} r="2.6" fill={color} />
+    </svg>
+  )
+}
+
+function KpiTile({ label, value, sub, accent }: {
+  label: string
+  value: string
+  sub?: string
+  accent?: string
+}) {
+  return (
+    <div style={{ flex: '1 1 130px', minWidth: 130, background: '#0b1220', border: '1px solid #44403c', borderRadius: 12, padding: '14px 15px' }}>
+      <div style={{ fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: '#a8a29e', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 800, color: accent || '#faf7f2', marginTop: 6, lineHeight: 1.1 }}>{value}</div>
+      {sub ? <div style={{ fontSize: 12, color: '#a8a29e', marginTop: 3 }}>{sub}</div> : null}
+    </div>
+  )
+}
+
+function DashboardCard({ metrics }: { metrics: Metrics | null }) {
+  const cardStyle: React.CSSProperties = {
+    background: '#292524',
+    border: '1px solid #44403c',
+    borderRadius: 14,
+    padding: 24,
+    marginBottom: 16,
+  }
+
+  const latest = metrics?.latest ?? null
+  const history = metrics?.history ?? []
+
+  if (!metrics) {
+    return (
+      <div style={cardStyle}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>Dashboard</h2>
+        <p style={{ margin: '10px 0 0', color: '#a8a29e', fontSize: 13 }}>Cargando métricas…</p>
+      </div>
+    )
+  }
+
+  if (!latest) {
+    return (
+      <div style={cardStyle}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>Dashboard</h2>
+        <p style={{ margin: '10px 0 0', color: '#a8a29e', fontSize: 13, lineHeight: 1.55 }}>
+          Aún no hay datos agregados. El CRM genera el primer resumen unos segundos después de
+          arrancar y lo recalcula cada hora. Vuelve en un momento.
+        </p>
+      </div>
+    )
+  }
+
+  // Socios por club (activos), ordenado de más a menos, para las barras.
+  const clubs = [...(latest.perClub || [])]
+    .filter((c) => c.ok)
+    .sort((a, b) => b.membersActive - a.membersActive)
+  const maxMembers = Math.max(1, ...clubs.map((c) => c.membersActive))
+  const failed = (latest.perClub || []).filter((c) => !c.ok)
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>Dashboard</h2>
+        <span style={{ fontSize: 12, color: '#78716c' }}>
+          Actualizado {timeAgo(latest.createdAt)} · se recalcula cada hora
+        </span>
+      </div>
+
+      {/* KPI tiles */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
+        <KpiTile
+          label="Clubes"
+          value={fmtInt(latest.clubsActive)}
+          sub={latest.clubsTotal !== latest.clubsActive ? `${fmtInt(latest.clubsTotal)} en total` : 'activos'}
+          accent="#5b8bff"
+        />
+        <KpiTile
+          label="Socios"
+          value={fmtInt(latest.membersActive)}
+          sub={`${fmtInt(latest.membersTotal)} en total`}
+        />
+        <KpiTile
+          label="Ingresos (mes)"
+          value={fmtEur(latest.incomeMonthTotal)}
+          sub="suma de todos los clubes"
+          accent="#4ade80"
+        />
+        <KpiTile
+          label="Cobros pendientes"
+          value={fmtEur(latest.pendingAmountTotal)}
+          sub={`${fmtInt(latest.pendingCount)} factura(s)`}
+          accent={latest.pendingAmountTotal > 0 ? '#fbbf24' : undefined}
+        />
+      </div>
+
+      {/* Tendencia de socios activos */}
+      {history.length > 1 ? (
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: '#a8a29e', fontWeight: 600, marginBottom: 6 }}>
+            Socios activos · últimas {history.length} tomas
+          </div>
+          <Sparkline data={history.map((h) => h.membersActive)} />
+        </div>
+      ) : null}
+
+      {/* Socios por club */}
+      {clubs.length > 0 ? (
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', color: '#a8a29e', fontWeight: 600, marginBottom: 10 }}>
+            Socios activos por club
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {clubs.map((c) => (
+              <div key={c.slug} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 130, minWidth: 130, fontSize: 13, color: '#faf7f2', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${c.name} (${c.slug})`}>
+                  {c.name}
+                </div>
+                <div style={{ flex: 1, background: '#0b1220', borderRadius: 6, height: 20, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.round((c.membersActive / maxMembers) * 100)}%`, height: '100%', background: '#2563eb', borderRadius: 6, minWidth: c.membersActive > 0 ? 4 : 0 }} />
+                </div>
+                <div style={{ width: 42, textAlign: 'right', fontSize: 13, color: '#a8a29e', fontVariantNumeric: 'tabular-nums' }}>
+                  {fmtInt(c.membersActive)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Clubes cuya agregación falló (aviso operativo) */}
+      {failed.length > 0 ? (
+        <div style={{ marginTop: 16, padding: '10px 12px', borderRadius: 10, background: 'rgba(251,113,133,.10)', border: '1px solid rgba(251,113,133,.35)' }}>
+          <div style={{ fontSize: 13, color: '#fb7185', fontWeight: 600 }}>
+            {failed.length} club(es) no respondieron al recalcular:
+          </div>
+          <div style={{ fontSize: 12, color: '#fca5a5', marginTop: 4, lineHeight: 1.5 }}>
+            {failed.map((c) => `${c.name} (${c.error || 'error'})`).join(' · ')}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
 }

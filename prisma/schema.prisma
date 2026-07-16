@@ -950,3 +950,32 @@ model PortalUser {
 
   @@index([tenantId])
 }
+
+/// Foto agregada de KPIs de TODOS los clubes, para el dashboard del super-admin.
+/// La ESCRIBE el cron del CRM (crm-mt, único con acceso a las BD de tenant) con
+/// un pg Client directo; la LEE el portal con prisma. Se guarda una fila por
+/// pasada (histórico para las gráficas de tendencia). Los agregados globales van
+/// en columnas; el desglose por club en `perClub` (JSON).
+model PortalKpiSnapshot {
+  id                 String   @id @default(cuid())
+  createdAt          DateTime @default(now())
+
+  clubsTotal         Int      @default(0)
+  clubsActive        Int      @default(0)
+  tenantsOk          Int      @default(0) // clubes cuya agregación fue bien
+  tenantsFailed      Int      @default(0)
+
+  membersTotal       Int      @default(0)
+  membersActive      Int      @default(0)
+  membersOverdue     Int      @default(0)
+
+  incomeMonthTotal   Float    @default(0) // ingresos del mes en curso, sumados
+  pendingCount       Int      @default(0) // nº de cobros pendientes
+  pendingAmountTotal Float    @default(0)
+
+  /// [{ slug, name, ok, error?, membersTotal, membersActive, membersOverdue,
+  ///    incomeMonth, pendingCount, pendingAmount }]
+  perClub            Json
+
+  @@index([createdAt])
+}
