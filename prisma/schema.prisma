@@ -916,6 +916,39 @@ model HermesMcpAuditLog {
   @@index([toolName])
 }
 
+/// Registro de errores de ESTE club. Se agrupa por `fingerprint` (huella del
+/// error normalizado) para no inundar: un mismo fallo repetido incrementa
+/// `count` y actualiza `lastSeenAt` en vez de crear filas nuevas. Los campos de
+/// actor (userId/memberId) van sueltos, sin FK: un error puede referirse a algo
+/// ya borrado y el log no debe acoplarse ni sufrir cascadas.
+model ErrorLog {
+  id          String   @id @default(cuid())
+  fingerprint String   @unique
+  level       String   @default("ERROR") // WARN | ERROR | FATAL
+  source      String // onRequestError | cron:snapshot | workflow:whatsapp | unhandledRejection …
+  name        String? // clase del error (TypeError, PrismaClientKnownRequestError…)
+  message     String   @db.Text
+  stack       String?  @db.Text
+  digest      String? // digest de Next para correlacionar
+  route       String?
+  method      String?
+  routeType   String? // render | route | action | proxy
+  context     Json?
+  userId      String?
+  userEmail   String?
+  memberId    String?
+  count       Int      @default(1)
+  resolved    Boolean  @default(false)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([lastSeenAt])
+  @@index([level])
+  @@index([resolved])
+}
+
 // --- PORTAL CENTRAL (multi-tenant · Modelo C) ---
 // Estas tablas viven en la BD del PORTAL (servicio con PORTAL_CENTRAL_HOST=true
 // y su propia DATABASE_URL). En las BDs de cada cliente quedan vacías/sin uso.
@@ -978,4 +1011,33 @@ model PortalKpiSnapshot {
   perClub            Json
 
   @@index([createdAt])
+}
+
+/// Bandeja CENTRAL de errores graves de todos los clubes, para el super-admin.
+/// La ESCRIBE crm-mt con un pg Client directo (nunca prisma) cuando un error de
+/// nivel ERROR/FATAL ocurre en un club; la LEE el portal. Dedup por club+huella
+/// (@@unique) → un mismo fallo repetido en el mismo club incrementa `count`.
+model PortalErrorLog {
+  id          String   @id @default(cuid())
+  tenantSlug  String
+  tenantName  String?
+  fingerprint String // misma huella que en el club (única POR club, no global)
+  level       String   @default("ERROR") // ERROR | FATAL
+  source      String
+  name        String?
+  message     String   @db.Text
+  route       String?
+  stack       String?  @db.Text
+  context     Json?
+  count       Int      @default(1)
+  resolved    Boolean  @default(false)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantSlug, fingerprint])
+  @@index([tenantSlug, lastSeenAt])
+  @@index([level])
+  @@index([resolved])
 }

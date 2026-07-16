@@ -5,6 +5,7 @@ import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { mapWithConcurrency } from '@/lib/concurrency'
 import { ageFromBirthDate } from '@/lib/categories'
 import { effectiveGroupMemberIds } from '@/lib/groups'
+import { logAppError } from '@/lib/error-log'
 
 export type AttendanceLinkResult = {
   group: string
@@ -108,8 +109,16 @@ export async function scheduleAttendanceForm(
       await sendApiWassText({ sessionId, phone, message })
       sent++
       if (viaGuardian) toGuardians++
-    } catch {
+    } catch (e) {
       failed++
+      // Antes era un catch mudo: un fallo de envío no dejaba rastro. Corre
+      // dentro de forEachTenant, así que el club se resuelve por el contexto.
+      void logAppError({
+        error: e,
+        source: 'attendance:whatsapp',
+        level: 'ERROR',
+        context: { memberId: m.id, phase: 'attendance-form-send' },
+      })
     }
   })
 

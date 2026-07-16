@@ -1,5 +1,6 @@
 import { forEachTenant } from '@/lib/multitenant/dispatch'
 import { dispatchDueAttendanceForms } from '@/lib/attendance-link'
+import { logAppError } from '@/lib/error-log'
 
 const DEFAULT_INTERVAL_MS = 15 * 60 * 1000 // 15 min
 
@@ -35,6 +36,14 @@ export function scheduleAttendanceCron() {
           '[attendance-cron] tenants con error:',
           failed.map((f) => `${f.slug}: ${f.error}`).join(' · '),
         )
+        for (const f of failed) {
+          await logAppError({
+            error: f.error || 'Fallo al procesar los formularios de asistencia',
+            source: 'cron:attendance',
+            level: 'ERROR',
+            slug: f.slug,
+          })
+        }
       }
     } catch (e) {
       console.error('[attendance-cron] error:', e instanceof Error ? e.message : e)

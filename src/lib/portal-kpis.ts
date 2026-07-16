@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { forEachTenant } from '@/lib/multitenant/dispatch'
 import { getMemberStatsAccurate } from '@/lib/crm-member-mapper'
+import { logAppError } from '@/lib/error-log'
 
 /**
  * Snapshot de KPIs cross-club para el dashboard del super-admin (Fase 1).
@@ -119,6 +120,19 @@ export async function collectAndStoreSnapshot(): Promise<
       pendingCount: r.value?.pendingCount ?? 0,
       pendingAmount: r.value?.pendingAmount ?? 0,
     }))
+
+    // Los clubes que no respondieron son un problema operativo (BD caída, etc.):
+    // quedan reflejados en el snapshot, pero además los registramos como error
+    // para que salgan en la bandeja del super-admin.
+    for (const c of perClub.filter((x) => !x.ok)) {
+      await logAppError({
+        error: c.error || 'Fallo al agregar los KPIs del club',
+        source: 'cron:snapshot',
+        level: 'ERROR',
+        slug: c.slug,
+        context: { phase: 'snapshot-aggregation' },
+      })
+    }
 
     // 3) Agregados globales (solo sobre los clubes que respondieron bien).
     const ok = perClub.filter((c) => c.ok)

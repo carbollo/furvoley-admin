@@ -40,6 +40,25 @@ type Metrics = {
   }[]
 }
 
+type PortalError = {
+  id: string
+  tenantSlug: string
+  tenantName: string | null
+  level: string
+  source: string
+  name: string | null
+  message: string
+  route: string | null
+  count: number
+  resolved: boolean
+  firstSeenAt: string
+  lastSeenAt: string
+}
+type ErrorsResponse = {
+  summary: { unresolved: number; clubsAffected: number }
+  errors: PortalError[]
+}
+
 export function PortalLoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -196,6 +215,8 @@ export function PortalAdminPanel() {
 
   // Dashboard cross-club: último snapshot de KPIs + serie histórica.
   const [metrics, setMetrics] = useState<Metrics | null>(null)
+  // Bandeja central de errores por club.
+  const [errors, setErrors] = useState<ErrorsResponse | null>(null)
 
   const loadClients = useCallback(async () => {
     const r = await fetch('/api/portal-central/admin/clients', { credentials: 'include' })
@@ -209,6 +230,19 @@ export function PortalAdminPanel() {
     const r = await fetch('/api/portal-central/admin/metrics', { credentials: 'include' })
     if (r.ok) setMetrics(await r.json())
   }, [])
+  const loadErrors = useCallback(async () => {
+    const r = await fetch('/api/portal-central/admin/errors', { credentials: 'include' })
+    if (r.ok) setErrors(await r.json())
+  }, [])
+  const resolveError = useCallback(async (id: string) => {
+    await fetch('/api/portal-central/admin/errors', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, resolved: true }),
+    })
+    await loadErrors()
+  }, [loadErrors])
 
   useEffect(() => {
     fetch('/api/portal-central/admin/login', { credentials: 'include' })
@@ -216,11 +250,11 @@ export function PortalAdminPanel() {
       .then(async (j) => {
         if (j.authenticated) {
           setAuthed(true)
-          await Promise.all([loadMetrics(), loadClients(), loadUsers()])
+          await Promise.all([loadMetrics(), loadErrors(), loadClients(), loadUsers()])
         }
       })
       .catch(() => undefined)
-  }, [loadMetrics, loadClients, loadUsers])
+  }, [loadMetrics, loadErrors, loadClients, loadUsers])
 
   async function crearCliente() {
     setError('')
@@ -305,7 +339,7 @@ export function PortalAdminPanel() {
       if (!r.ok) throw new Error(data.error || 'Error')
       setAuthed(true)
       setAdminPassword('')
-      await Promise.all([loadMetrics(), loadClients(), loadUsers()])
+      await Promise.all([loadMetrics(), loadErrors(), loadClients(), loadUsers()])
       setOkMsg('Sesión admin iniciada.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
@@ -349,6 +383,7 @@ export function PortalAdminPanel() {
       ) : (
         <>
           <DashboardCard metrics={metrics} />
+          <ErrorsCard data={errors} onResolve={resolveError} />
 
           {/* Modelo C: crear cliente = desplegar su CRM */}
           <div style={cardStyle}>
@@ -484,6 +519,87 @@ const darkInput: React.CSSProperties = {
   padding: '12px 14px',
   marginBottom: 12,
   font: 'inherit',
+}
+
+// ── Bandeja de errores por club ──────────────────────────────────────────────
+
+function ErrorsCard({ data, onResolve }: { data: ErrorsResponse | null; onResolve: (id: string) => void }) {
+  const cardStyle: React.CSSProperties = {
+    background: '#292524',
+    border: '1px solid #44403c',
+    borderRadius: 14,
+    padding: 24,
+    marginBottom: 16,
+  }
+  if (!data) return null
+
+  const errors = data.errors || []
+  const unresolved = errors.filter((e) => !e.resolved)
+  const levelColor = (lvl: string) => (lvl === 'FATAL' ? '#f87171' : lvl === 'WARN' ? '#fbbf24' : '#fb7185')
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>Errores recientes</h2>
+        <span style={{ fontSize: 12, color: unresolved.length ? '#fb7185' : '#4ade80' }}>
+          {unresolved.length
+            ? `${unresolved.length} sin resolver · ${data.summary.clubsAffected} club(es)`
+            : 'sin errores pendientes'}
+        </span>
+      </div>
+
+      {errors.length === 0 ? (
+        <p style={{ margin: '10px 0 0', color: '#a8a29e', fontSize: 13, lineHeight: 1.55 }}>
+          Ningún error registrado. Los fallos de servidor de cada club aparecen aquí agrupados por tipo.
+        </p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+          {errors.map((e) => (
+            <div
+              key={e.id}
+              style={{
+                background: '#0b1220',
+                border: '1px solid #44403c',
+                borderRadius: 10,
+                padding: '11px 13px',
+                opacity: e.resolved ? 0.5 : 1,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', color: levelColor(e.level), border: `1px solid ${levelColor(e.level)}`, borderRadius: 6, padding: '1px 6px' }}>
+                  {e.level}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#faf7f2' }}>{e.tenantName || e.tenantSlug}</span>
+                <span style={{ fontSize: 11.5, color: '#a8a29e', fontFamily: 'ui-monospace, monospace' }}>{e.source}</span>
+                {e.count > 1 ? (
+                  <span style={{ fontSize: 11, color: '#fbbf24' }}>×{e.count}</span>
+                ) : null}
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#78716c' }}>{timeAgo(e.lastSeenAt)}</span>
+                {!e.resolved ? (
+                  <button
+                    type="button"
+                    onClick={() => onResolve(e.id)}
+                    style={{ fontSize: 11, fontWeight: 600, color: '#4ade80', background: 'transparent', border: '1px solid #44403c', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', font: 'inherit' }}
+                  >
+                    Resolver
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 11, color: '#4ade80' }}>resuelto</span>
+                )}
+              </div>
+              <div style={{ fontSize: 12.5, color: '#e7e0d8', marginTop: 6, lineHeight: 1.45, wordBreak: 'break-word' }}>
+                {e.name ? <b style={{ color: '#fca5a5' }}>{e.name}: </b> : null}
+                {e.message.length > 240 ? `${e.message.slice(0, 240)}…` : e.message}
+              </div>
+              {e.route ? (
+                <div style={{ fontSize: 11, color: '#78716c', marginTop: 3, fontFamily: 'ui-monospace, monospace' }}>{e.route}</div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Dashboard cross-club ─────────────────────────────────────────────────────
