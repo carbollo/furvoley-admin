@@ -8,8 +8,10 @@ import {
   getTenantBySlug,
   listTenants,
   logPortalAudit,
+  setTenantFeatures,
   setTenantStatus,
 } from '@/lib/portal-central/portal-store'
+import { sanitizeFeatures } from '@/lib/crm-modules'
 import { provisionTenant } from '@/lib/portal-central/provision'
 import { clientIpFromHeaders } from '@/lib/login-rate-limit'
 import { prisma } from '@/lib/prisma'
@@ -36,31 +38,51 @@ export async function GET() {
 }
 
 /**
- * Suspender / reactivar un club. Suspendido = sus usuarios no pueden entrar por
- * credenciales (gate en el login del CRM) y el club desaparece del dashboard y
- * de la agregación de errores (forEachTenant solo recorre ACTIVE). El soporte
- * puede seguir entrando con "entrar como".
+ * Actualiza un club: suspender/reactivar (`status`) o sus módulos activados
+ * (`features`, feature flags del plan). Suspendido = sus usuarios no pueden
+ * entrar por credenciales (gate en el login del CRM) y el club desaparece del
+ * dashboard y de la agregación de errores. El soporte puede seguir entrando con
+ * "entrar como". Cambiar `features` oculta/muestra secciones en el CRM del club.
  */
 export async function PATCH(request: Request) {
   const denied = await requireAdmin()
   if (denied) return denied
 
-  let body: { id?: string; status?: string }
+  let body: { id?: string; status?: string; features?: unknown }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
   const id = String(body.id || '').trim()
-  const status = String(body.status || '').toUpperCase()
   if (!id) return NextResponse.json({ error: 'Falta id' }, { status: 400 })
-  if (status !== 'ACTIVE' && status !== 'SUSPENDED') {
-    return NextResponse.json({ error: 'status debe ser ACTIVE o SUSPENDED' }, { status: 400 })
-  }
 
   const tenant = await prisma.tenant.findUnique({ where: { id }, select: { slug: true, name: true } })
   if (!tenant) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
 
+  const ip = clientIpFromHeaders(request.headers)
+
+  // Cambio de módulos (feature flags).
+  if (body.features !== undefined) {
+    const features = sanitizeFeatures(body.features)
+    await setTenantFeatures(id, features)
+    await logPortalAudit({
+      action: 'UPDATE_FEATURES',
+      tenantSlug: tenant.slug,
+      tenantName: tenant.name,
+      targetType: 'TENANT',
+      targetId: id,
+      detail: features,
+      ip,
+    })
+    return NextResponse.json({ ok: true, features })
+  }
+
+  // Cambio de estado (suspender / reactivar).
+  const status = String(body.status || '').toUpperCase()
+  if (status !== 'ACTIVE' && status !== 'SUSPENDED') {
+    return NextResponse.json({ error: 'Indica status (ACTIVE|SUSPENDED) o features.' }, { status: 400 })
+  }
   await setTenantStatus(id, status)
   await logPortalAudit({
     action: status === 'SUSPENDED' ? 'SUSPEND' : 'REACTIVATE',
@@ -68,7 +90,7 @@ export async function PATCH(request: Request) {
     tenantName: tenant.name,
     targetType: 'TENANT',
     targetId: id,
-    ip: clientIpFromHeaders(request.headers),
+    ip,
   })
   return NextResponse.json({ ok: true, status })
 }

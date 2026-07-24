@@ -959,6 +959,9 @@ model Tenant {
   slug      String   @unique
   name      String
   status    String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  /// Módulos activados del CRM (mapa moduleId → bool). Ausente/null = todos
+  /// activados. Permite vender planes distintos sin desplegar nada.
+  features  Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

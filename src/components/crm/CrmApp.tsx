@@ -23,6 +23,7 @@ import React, {
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 import { canAccessCrmSection, normalizeRole, ROLE_LABEL } from '@/lib/rbac'
+import { isSectionEnabled } from '@/lib/crm-modules'
 import {
   emptyRegistrationValues,
   getDefaultRegistrationFields,
@@ -617,14 +618,17 @@ const NAV = [
 function Sidebar({ active, setActive, onOpenClubSettings }) {
   const { bundle } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
-  // Filtra por RBAC: en grupos, solo los hijos permitidos; el grupo se oculta si queda vacío.
+  const features = bundle?.features
+  // Visible = permitido por rol (RBAC) Y su módulo activado en el plan del club.
+  const canShow = (id) => canAccessCrmSection(role, id) && isSectionEnabled(id, features)
+  // Filtra: en grupos, solo los hijos visibles; el grupo se oculta si queda vacío.
   const visibleNav = NAV
     .map((item) =>
       item.children
-        ? { ...item, children: item.children.filter((c) => canAccessCrmSection(role, c.id)) }
+        ? { ...item, children: item.children.filter((c) => canShow(c.id)) }
         : item,
     )
-    .filter((item) => (item.children ? item.children.length > 0 : canAccessCrmSection(role, item.id)))
+    .filter((item) => (item.children ? item.children.length > 0 : canShow(item.id)))
   const groupOfActive = NAV.find((item) => item.children?.some((c) => c.id === active))?.id ?? null
   const [openGroups, setOpenGroups] = useState(() => new Set(groupOfActive ? [groupOfActive] : []))
   useEffect(() => {
@@ -8381,6 +8385,8 @@ function CrmInner() {
   // Debe declararse antes de cualquier hook que liste `role` en dependencias
   // (evita ReferenceError: Cannot access ... before initialization en SSR/client).
   const role = normalizeRole(bundle?.user?.role)
+  // Sección accesible = permitida por rol Y con su módulo activado en el plan.
+  const canShow = (id) => canAccessCrmSection(role, id) && isSectionEnabled(id, bundle?.features)
 
   // Si volvemos del onboarding de Stripe Connect (?stripeConnect=connected|refresh)
   // abrimos automáticamente el modal en la pestaña Suscripción y limpiamos el query.
@@ -8398,8 +8404,8 @@ function CrmInner() {
   const active: SectionId = CRM_SECTION_IDS.includes(normalizedTab as SectionId)
     ? (normalizedTab as SectionId)
     : 'dashboard'
-  const firstAllowed = (CRM_SECTION_IDS.find((id) => canAccessCrmSection(role, id)) || 'dashboard') as SectionId
-  const safeActive = canAccessCrmSection(role, active) ? active : firstAllowed
+  const firstAllowed = (CRM_SECTION_IDS.find((id) => canShow(id)) || 'dashboard') as SectionId
+  const safeActive = canShow(active) ? active : firstAllowed
 
   useEffect(() => {
     if (loading || !bundle?.user?.role) return
@@ -8410,7 +8416,7 @@ function CrmInner() {
       router.replace(`/?tab=${firstAllowed}`, { scroll: false })
       return
     }
-    if (!canAccessCrmSection(role, t as SectionId)) {
+    if (!canShow(t as SectionId)) {
       router.replace(`/?tab=${firstAllowed}`, { scroll: false })
       return
     }
@@ -8419,13 +8425,15 @@ function CrmInner() {
     }
   }, [router, searchParams, role, firstAllowed, loading, bundle?.user?.role])
 
+  const features = bundle?.features
   const setActive = useCallback(
     (id: string) => {
       if (!CRM_SECTION_IDS.includes(id as SectionId)) return
       if (!canAccessCrmSection(role, id as SectionId)) return
+      if (!isSectionEnabled(id, features)) return
       router.replace(`/?tab=${encodeURIComponent(id)}`, { scroll: false })
     },
-    [router, role]
+    [router, role, features]
   )
 
   const notifications = useMemo(() => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { CRM_MODULES } from '@/lib/crm-modules'
 
 type Tenant = { id: string; name: string; url: string; internalUrl?: string }
 
@@ -210,7 +211,7 @@ export function PortalAdminPanel() {
 
   // Modelo C: clientes (tenants) con BD propia + usuarios de acceso.
   const [clients, setClients] = useState<
-    { id: string; slug: string; name: string; status: string; userCount: number }[]
+    { id: string; slug: string; name: string; status: string; userCount: number; features?: Record<string, boolean> }[]
   >([])
   const [users, setUsers] = useState<
     { id: string; email: string; name: string; role: string; status: string; tenantSlug: string; tenantName: string }[]
@@ -285,6 +286,29 @@ export function PortalAdminPanel() {
       await Promise.all([loadClients(), loadAudit()])
     } catch {
       setError('Error de red al cambiar el estado del club.')
+    } finally {
+      setBusy(false)
+    }
+  }, [loadClients, loadAudit])
+
+  /** Activa/desactiva un módulo (feature flag) de un club. */
+  const toggleClientModule = useCallback(async (id: string, moduleId: string, current: Record<string, boolean> | undefined) => {
+    // features: solo se guardan las desactivaciones (ausente = activado).
+    const next = { ...(current || {}) }
+    if (next[moduleId] === false) delete next[moduleId] // reactivar
+    else next[moduleId] = false // desactivar
+    setBusy(true)
+    try {
+      const r = await fetch('/api/portal-central/admin/clients', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, features: next }),
+      })
+      if (!r.ok) { setError((await r.json().catch(() => ({}))).error || 'No se pudo cambiar el módulo.'); return }
+      await Promise.all([loadClients(), loadAudit()])
+    } catch {
+      setError('Error de red al cambiar el módulo.')
     } finally {
       setBusy(false)
     }
@@ -488,33 +512,59 @@ export function PortalAdminPanel() {
               <p style={{ color: '#a8a29e', margin: 0 }}>Aún no hay clientes. Crea el primero arriba.</p>
             ) : (
               clients.map((c) => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #44403c', padding: '10px 0', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: 160 }}>
-                    <strong>{c.name}</strong>
-                    <div style={{ color: '#a8a29e', fontSize: 13 }}>
-                      {c.slug} · {c.userCount} usuario{c.userCount === 1 ? '' : 's'}
+                <div key={c.id} style={{ borderBottom: '1px solid #44403c', padding: '12px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 160 }}>
+                      <strong>{c.name}</strong>
+                      <div style={{ color: '#a8a29e', fontSize: 13 }}>
+                        {c.slug} · {c.userCount} usuario{c.userCount === 1 ? '' : 's'}
+                      </div>
                     </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: c.status === 'ACTIVE' ? 'rgba(74,222,128,.15)' : 'rgba(251,113,133,.15)', color: c.status === 'ACTIVE' ? '#4ade80' : '#fb7185' }}>
+                      {c.status === 'ACTIVE' ? 'Activo' : 'Suspendido'}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void impersonateClient(c.id)}
+                      title="Entrar al CRM de este club como su administrador (soporte)"
+                      style={{ ...buttonStyle, width: 'auto', background: 'transparent', border: '1px solid #44403c', color: '#faf7f2', fontSize: 12, padding: '7px 12px' }}
+                    >
+                      Entrar como
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void toggleClient(c.id, c.status)}
+                      style={{ ...buttonStyle, width: 'auto', background: c.status === 'ACTIVE' ? 'transparent' : '#44403c', border: c.status === 'ACTIVE' ? '1px solid #fb7185' : '0', color: c.status === 'ACTIVE' ? '#fb7185' : '#faf7f2', fontSize: 12, padding: '7px 12px' }}
+                    >
+                      {c.status === 'ACTIVE' ? 'Suspender' : 'Reactivar'}
+                    </button>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: c.status === 'ACTIVE' ? 'rgba(74,222,128,.15)' : 'rgba(251,113,133,.15)', color: c.status === 'ACTIVE' ? '#4ade80' : '#fb7185' }}>
-                    {c.status === 'ACTIVE' ? 'Activo' : 'Suspendido'}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void impersonateClient(c.id)}
-                    title="Entrar al CRM de este club como su administrador (soporte)"
-                    style={{ ...buttonStyle, width: 'auto', background: 'transparent', border: '1px solid #44403c', color: '#faf7f2', fontSize: 12, padding: '7px 12px' }}
-                  >
-                    Entrar como
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void toggleClient(c.id, c.status)}
-                    style={{ ...buttonStyle, width: 'auto', background: c.status === 'ACTIVE' ? 'transparent' : '#44403c', border: c.status === 'ACTIVE' ? '1px solid #fb7185' : '0', color: c.status === 'ACTIVE' ? '#fb7185' : '#faf7f2', fontSize: 12, padding: '7px 12px' }}
-                  >
-                    {c.status === 'ACTIVE' ? 'Suspender' : 'Reactivar'}
-                  </button>
+                  {/* Módulos del plan: chip verde = activado, gris = apagado. Clic para alternar. */}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: '#78716c', marginRight: 2 }}>Módulos:</span>
+                    {CRM_MODULES.map((m) => {
+                      const on = c.features?.[m.id] !== false
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void toggleClientModule(c.id, m.id, c.features)}
+                          title={on ? `Desactivar ${m.label}` : `Activar ${m.label}`}
+                          style={{
+                            fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999, cursor: 'pointer', font: 'inherit',
+                            background: on ? 'rgba(74,222,128,.12)' : 'transparent',
+                            border: `1px solid ${on ? 'rgba(74,222,128,.5)' : '#57534e'}`,
+                            color: on ? '#4ade80' : '#78716c',
+                          }}
+                        >
+                          {on ? '✓ ' : '✕ '}{m.label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               ))
             )}
@@ -616,6 +666,7 @@ const AUDIT_LABEL: Record<string, string> = {
   REACTIVATE: 'Reactivó el club',
   IMPERSONATE: 'Entró como admin',
   CREATE_CLIENT: 'Creó el club',
+  UPDATE_FEATURES: 'Cambió los módulos',
   CREATE_USER: 'Creó un usuario',
   DISABLE_USER: 'Desactivó un usuario',
   ENABLE_USER: 'Activó un usuario',

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { sanitizeSlug } from '@/lib/multitenant/registry'
+import { sanitizeFeatures, type TenantFeatures } from '@/lib/crm-modules'
 
 /**
  * Directorio del portal (Modelo C) sobre la BD del propio portal:
@@ -14,6 +15,7 @@ export type TenantRow = {
   slug: string
   name: string
   status: string
+  features: TenantFeatures
   createdAt: string
   userCount: number
 }
@@ -40,6 +42,7 @@ export async function listTenants(): Promise<TenantRow[]> {
     slug: t.slug,
     name: t.name,
     status: t.status,
+    features: sanitizeFeatures(t.features),
     createdAt: t.createdAt.toISOString(),
     userCount: t._count.users,
   }))
@@ -60,6 +63,12 @@ export async function createTenant(input: { slug: string; name: string }) {
 
 export async function setTenantStatus(id: string, status: 'ACTIVE' | 'SUSPENDED') {
   return prisma.tenant.update({ where: { id }, data: { status } })
+}
+
+/** Guarda los módulos activados de un club (feature flags). */
+export async function setTenantFeatures(id: string, features: TenantFeatures) {
+  const clean = sanitizeFeatures(features)
+  return prisma.tenant.update({ where: { id }, data: { features: clean as never } })
 }
 
 export async function listPortalUsers(): Promise<PortalUserRow[]> {

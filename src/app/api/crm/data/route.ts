@@ -8,6 +8,8 @@ import { scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 import { crmInvoiceEstado, isInvoicePastDue } from '@/lib/invoice-display'
 import { isEnvFixedAdminEmail } from '@/lib/env-admin'
 import { getMemberStatsAccurate } from '@/lib/crm-member-mapper'
+import { currentTenant } from '@/lib/multitenant/context'
+import { getTenantFeatures } from '@/lib/tenant-features'
 
 function initials(name: string) {
   return name
@@ -366,7 +368,12 @@ export async function GET(request: Request) {
     authorName: post.author?.name || post.author?.email || '',
   }))
 
+  // Feature flags del club (qué módulos tiene activados su plan). El CRM oculta
+  // las secciones de los módulos apagados. Se lee de la BD del portal (cacheado).
+  const features = await getTenantFeatures(currentTenant()?.slug)
+
   const res = NextResponse.json({
+    features,
     user: {
       name: displayName,
       email: sessionUser.email ?? '',
