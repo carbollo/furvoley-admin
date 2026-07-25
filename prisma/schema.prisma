@@ -682,6 +682,81 @@ model Attendance {
   @@unique([eventId, memberId])
 }
 
+// --- TRAINING / ENTRENAMIENTO MODELS ---
+// Módulo de entrenamiento (estilo 360Player), construido con nuestro código:
+// jerarquía Colección → Sesión → Bloque → Ejercicio. Cada ejercicio guarda un
+// diagrama de pizarra táctica en `diagram` (Json): tipo de campo + fichas +
+// diapositivas con posiciones normalizadas (0..1) para animar el movimiento de
+// las fichas al pasar de una diapositiva a la siguiente.
+// Datos POR-TENANT: viven en la BD tenant_<slug> y se acceden con el proxy `prisma`.
+
+model TrainingCollection {
+  id          String   @id @default(cuid())
+  name        String
+  description String?   @db.Text
+  courtType   String   @default("volleyball") // volleyball, football, futsal, basketball, tennis, handball, blank
+  tags        String?  // etiquetas separadas por coma
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessions    TrainingSession[]
+
+  @@index([name])
+}
+
+model TrainingSession {
+  id           String   @id @default(cuid())
+  title        String
+  objective    String?  @db.Text
+  tags         String?  // etiquetas separadas por coma
+  durationMin  Int?     // duración total en minutos (informativa)
+  groupId      String?  // equipo asociado (referencia suelta a Group.id; sin relación FK)
+  position     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  collectionId String?
+  collection   TrainingCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+
+  blocks       TrainingBlock[]
+
+  @@index([collectionId])
+}
+
+model TrainingBlock {
+  id          String   @id @default(cuid())
+  name        String
+  durationMin Int?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessionId   String
+  session     TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  exercises   TrainingExercise[]
+
+  @@index([sessionId])
+}
+
+model TrainingExercise {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  durationMin Int?
+  players     Int?
+  courtType   String   @default("volleyball") // volleyball, football, futsal, basketball, tennis, handball, blank
+  diagram     Json?    // { courtType, transitionMs, tokens:[{id,kind,label}], slides:[{id,positions:{[tokenId]:{x,y}}}] }
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  blockId     String
+  block       TrainingBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@index([blockId])
+}
+
 // --- STORE & PRODUCTS MODELS ---
 
 model Product {

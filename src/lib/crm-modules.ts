@@ -9,7 +9,7 @@ import type { CrmSectionId } from '@/lib/rbac'
  * (por defecto todo activado), así que solo se guardan las desactivaciones.
  */
 
-export type CrmModuleId = 'contabilidad' | 'workflows' | 'whatsapp' | 'hermes'
+export type CrmModuleId = 'contabilidad' | 'workflows' | 'whatsapp' | 'hermes' | 'entrenamiento'
 
 export type TenantFeatures = Partial<Record<CrmModuleId, boolean>>
 
@@ -22,6 +22,7 @@ export const CRM_MODULES: { id: CrmModuleId; label: string; sections: CrmSection
   { id: 'workflows', label: 'Flujos (workflows)', sections: ['workflows'] },
   { id: 'whatsapp', label: 'WhatsApp', sections: ['whatsapp'] },
   { id: 'hermes', label: 'Bot (Hermes)', sections: ['hermes'] },
+  { id: 'entrenamiento', label: 'Entrenamiento', sections: ['entrenamiento'] },
 ]
 
 const SECTION_MODULE = new Map<string, CrmModuleId>()

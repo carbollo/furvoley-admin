@@ -20,6 +20,8 @@ export type CrmSectionId =
   | 'whatsapp'
   | 'hermes'
   | 'personal'
+  // Desarrollo deportivo (Entrenamiento)
+  | 'entrenamiento'
   // Roadmap: Admin (Sumario · Organigrama · Contactos · Asistencia)
   | 'admin-sumario'
   | 'organigrama'
@@ -37,11 +39,11 @@ export type CrmSectionId =
 const CRM_SECTIONS_BY_ROLE: Record<AppRole, CrmSectionId[]> = {
   ADMIN: [
     'dashboard', 'socios', 'cuotas', 'contabilidad', 'calendario', 'informes',
-    'workflows', 'whatsapp', 'hermes', 'personal',
+    'workflows', 'whatsapp', 'hermes', 'personal', 'entrenamiento',
     'admin-sumario', 'organigrama', 'contactos', 'asistencia',
     'facturas', 'impagos', 'productos', 'descuentos', 'forms', 'api',
   ],
-  COACH: ['calendario', 'asistencia'],
+  COACH: ['calendario', 'asistencia', 'entrenamiento'],
   TREASURER: ['cuotas', 'contabilidad', 'facturas', 'informes', 'impagos', 'productos', 'descuentos'],
   MEMBER: [],
 }

@@ -3,6 +3,7 @@
 
 import { WorkflowsSection } from './WorkflowsSection'
 import { CuotasSection } from './CuotasSection'
+import { EntrenamientoSection } from './EntrenamientoSection'
 import { ClubSettingsModal } from './ClubSettingsModal'
 import { HermesAgentSection } from './HermesAgentSection'
 import { PaymentReminderButton } from './PaymentReminderButton'
@@ -468,6 +469,7 @@ const Icon = ({ name, size = 18 }) => {
     arrow_right: <><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></>,
     dots: <><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></>,
     export: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
+    entrenamiento: <><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/><circle cx="12" cy="12" r="2.4"/></>,
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -580,6 +582,7 @@ const KPICard = ({ label, value, sub, icon, color, trend, badge, chart }) => {
 const NAV = [
   { id: 'dashboard', label: 'Inicio', icon: 'dashboard' },
   { id: 'calendario', label: 'Calendario', icon: 'calendar' },
+  { id: 'entrenamiento', label: 'Entrenamiento', icon: 'entrenamiento' },
   { id: 'whatsapp', label: 'Chat', icon: 'whatsapp' },
   { id: 'socios', label: 'Socios', icon: 'users' },
   {
@@ -7345,6 +7348,13 @@ function Workflows() {
   return <WorkflowsSection bundle={bundle} reload={reload} />;
 }
 
+function Entrenamiento() {
+  const { bundle, showAlert, showConfirm } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  if (!(role === 'ADMIN' || role === 'COACH')) return null
+  return <EntrenamientoSection showAlert={showAlert} showConfirm={showConfirm} />
+}
+
 function Personal() {
   const { bundle, reload, showAlert, showConfirm } = useCrm()
   const role = normalizeRole(bundle?.user?.role)
@@ -8352,6 +8362,7 @@ function WhatsAppSection() {
 // Mantener sincronizado con CrmSectionId (src/lib/rbac.ts).
 const CRM_SECTION_IDS = [
   'dashboard','socios','cuotas','contabilidad','calendario','informes','workflows','whatsapp','hermes','personal',
+  'entrenamiento',
   // Roadmap: Admin · Contabilidad · Configuración
   'admin-sumario','organigrama','contactos','asistencia',
   'facturas','impagos','productos','descuentos',
@@ -8370,6 +8381,17 @@ const SECTION_TITLES: Record<SectionId, string> = {
   whatsapp: 'WhatsApp',
   hermes: 'Hermes Agent',
   personal: 'Personal',
+  entrenamiento: 'Entrenamiento',
+  'admin-sumario': 'Sumario',
+  organigrama: 'Organigrama',
+  contactos: 'Contactos',
+  asistencia: 'Asistencia',
+  facturas: 'Facturas',
+  impagos: 'Impagos',
+  productos: 'Productos',
+  descuentos: 'Descuentos',
+  forms: 'Forms',
+  api: 'API',
 }
 
 function CrmInner() {
@@ -8601,6 +8623,7 @@ function CrmInner() {
     whatsapp: ChatSection,
     hermes: HermesAgentSection,
     personal: Personal,
+    entrenamiento: Entrenamiento,
     // Roadmap
     'admin-sumario': AdminSumario,
     organigrama: Organigrama,
