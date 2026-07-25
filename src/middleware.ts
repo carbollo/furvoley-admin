@@ -241,6 +241,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!login|join|api/auth|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|join|api/auth|_next/static|_next/image|favicon.ico|icon.png|apple-icon.png).*)",
   ],
 }
