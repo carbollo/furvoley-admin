@@ -24,7 +24,7 @@ export default function PortalAdminPage() {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, overflow: 'auto', background: '#1c1917' }}>
+    <div style={{ position: 'fixed', inset: 0, overflow: 'auto', background: '#0a0a0a' }}>
       <PortalAdminPanel />
     </div>
   )
