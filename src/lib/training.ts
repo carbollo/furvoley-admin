@@ -122,7 +122,7 @@ export function normalizeTags(input: unknown): string | null {
   if (typeof input !== 'string') return null
   const tags = input
     .split(',')
-    .map((t) => t.trim())
+    .map((t) => t.trim().slice(0, MAX_LABEL_LEN)) // acota cada etiqueta como las del diagrama
     .filter(Boolean)
     .slice(0, 12)
   return tags.length ? tags.join(', ') : null

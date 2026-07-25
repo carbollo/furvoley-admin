@@ -40,8 +40,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     await prisma.trainingCollection.update({ where: { id: parsedId }, data })
     return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'Colección no encontrada.' }, { status: 404 })
+  } catch (e) {
+    if (typeof e === 'object' && e && (e as { code?: string }).code === 'P2025') {
+      return NextResponse.json({ error: 'Colección no encontrada.' }, { status: 404 })
+    }
+    throw e
   }
 }
 
@@ -56,7 +59,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     // Al borrar la colección, sus sesiones quedan sueltas (onDelete: SetNull).
     await prisma.trainingCollection.delete({ where: { id: parsedId } })
     return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'Colección no encontrada.' }, { status: 404 })
+  } catch (e) {
+    if (typeof e === 'object' && e && (e as { code?: string }).code === 'P2025') {
+      return NextResponse.json({ error: 'Colección no encontrada.' }, { status: 404 })
+    }
+    throw e
   }
 }

@@ -66,8 +66,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     await prisma.trainingExercise.update({ where: { id: parsedId }, data })
     return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'Ejercicio no encontrado.' }, { status: 404 })
+  } catch (e) {
+    if (typeof e === 'object' && e && (e as { code?: string }).code === 'P2025') {
+      return NextResponse.json({ error: 'Ejercicio no encontrado.' }, { status: 404 })
+    }
+    throw e
   }
 }
 
@@ -81,7 +84,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   try {
     await prisma.trainingExercise.delete({ where: { id: parsedId } })
     return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'Ejercicio no encontrado.' }, { status: 404 })
+  } catch (e) {
+    if (typeof e === 'object' && e && (e as { code?: string }).code === 'P2025') {
+      return NextResponse.json({ error: 'Ejercicio no encontrado.' }, { status: 404 })
+    }
+    throw e
   }
 }

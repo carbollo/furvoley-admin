@@ -167,7 +167,7 @@ function MiniCourt({ diagram, courtType, height = 96 }) {
         if (!p) return null
         const px = toPx(p)
         const isBall = t.kind === 'ball'
-        return <circle key={t.id} cx={px.x} cy={px.y} r={isBall ? 14 : 22} fill={TOKEN_COLOR[t.kind] || 'var(--accent)'} />
+        return <circle key={t.id} cx={px.x} cy={px.y} r={isBall ? 14 : 22} fill={TOKEN_COLOR[t.kind] || 'var(--accent)'} stroke="#fff" strokeWidth={4} />
       })}
     </svg>
   )
@@ -419,7 +419,7 @@ function TacticalBoard({ initial, onChange }) {
                   const p = s.positions[t.id]
                   if (!p) return null
                   const px = toPx(p)
-                  return <circle key={t.id} cx={px.x} cy={px.y} r={t.kind === 'ball' ? 16 : 26} fill={TOKEN_COLOR[t.kind] || 'var(--accent)'} />
+                  return <circle key={t.id} cx={px.x} cy={px.y} r={t.kind === 'ball' ? 16 : 26} fill={TOKEN_COLOR[t.kind] || 'var(--accent)'} stroke="#fff" strokeWidth={4} />
                 })}
               </svg>
             </div>
@@ -560,6 +560,7 @@ function SessionDetail({ sessionId, api, showAlert, showConfirm, onBack }) {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editor, setEditor] = useState(null) // { blockId, exercise? }
+  const [addingBlock, setAddingBlock] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -577,10 +578,12 @@ function SessionDetail({ sessionId, api, showAlert, showConfirm, onBack }) {
   useEffect(() => { load() }, [load])
 
   async function addBlock() {
+    if (addingBlock) return // evita bloques duplicados por doble clic
+    setAddingBlock(true)
     try {
       await api('/api/crm/training/blocks', 'POST', { sessionId, name: 'Nuevo bloque' })
-      load()
-    } catch (e) { showAlert(e.message) }
+      await load()
+    } catch (e) { showAlert(e.message) } finally { setAddingBlock(false) }
   }
   async function renameBlock(block) {
     const name = window.prompt('Nombre del bloque', block.name)
@@ -673,7 +676,7 @@ function SessionDetail({ sessionId, api, showAlert, showConfirm, onBack }) {
         </div>
       ))}
 
-      <button type="button" onClick={addBlock} style={{ ...btnSecondary, alignSelf: 'flex-start' }}>＋ Añadir bloque</button>
+      <button type="button" onClick={addBlock} disabled={addingBlock} style={{ ...btnSecondary, alignSelf: 'flex-start', opacity: addingBlock ? 0.6 : 1 }}>＋ Añadir bloque</button>
 
       {editor && (
         <ExerciseEditorModal

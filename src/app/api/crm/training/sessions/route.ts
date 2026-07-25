@@ -38,13 +38,13 @@ export async function GET(request: Request) {
       collectionId: true,
       collection: { select: { name: true } },
       blocks: {
-        orderBy: { position: 'asc' },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
         select: {
           durationMin: true,
           _count: { select: { exercises: true } },
           exercises: {
             take: 1,
-            orderBy: { position: 'asc' },
+            orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
             select: { diagram: true, courtType: true },
           },
         },
@@ -69,8 +69,10 @@ export async function GET(request: Request) {
         collectionName: s.collection?.name ?? null,
         blockCount,
         exerciseCount,
+        // La miniatura solo pinta la primera diapositiva: recortamos el diagrama
+        // para no transferir todas las slides del ejercicio en el listado.
         thumb: firstExercise
-          ? { diagram: firstExercise.diagram, courtType: firstExercise.courtType }
+          ? { diagram: thumbDiagram(firstExercise.diagram), courtType: firstExercise.courtType }
           : null,
       }
     }),
@@ -121,4 +123,16 @@ function normalizeDuration(v: unknown): number | null {
   const n = Math.trunc(Number(v))
   if (!Number.isFinite(n) || n <= 0) return null
   return Math.min(600, n)
+}
+
+// Recorta un diagrama a lo justo para la miniatura (courtType + fichas + 1ª slide).
+function thumbDiagram(diagram: unknown): unknown {
+  if (!diagram || typeof diagram !== 'object') return null
+  const d = diagram as { courtType?: unknown; tokens?: unknown; slides?: unknown }
+  const slides = Array.isArray(d.slides) && d.slides.length ? [d.slides[0]] : []
+  return {
+    courtType: d.courtType,
+    tokens: Array.isArray(d.tokens) ? d.tokens : [],
+    slides,
+  }
 }

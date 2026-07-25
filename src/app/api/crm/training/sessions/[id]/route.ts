@@ -26,14 +26,14 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       collectionId: true,
       collection: { select: { id: true, name: true } },
       blocks: {
-        orderBy: { position: 'asc' },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
         select: {
           id: true,
           name: true,
           durationMin: true,
           position: true,
           exercises: {
-            orderBy: { position: 'asc' },
+            orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
             select: {
               id: true,
               name: true,
@@ -102,8 +102,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     await prisma.trainingSession.update({ where: { id: parsedId }, data })
     return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'Sesión no encontrada.' }, { status: 404 })
+  } catch (e) {
+    if (typeof e === 'object' && e && (e as { code?: string }).code === 'P2025') {
+      return NextResponse.json({ error: 'Sesión no encontrada.' }, { status: 404 })
+    }
+    throw e
   }
 }
 
@@ -118,7 +121,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     // Cascade borra bloques y ejercicios de la sesión.
     await prisma.trainingSession.delete({ where: { id: parsedId } })
     return NextResponse.json({ ok: true })
-  } catch {
-    return NextResponse.json({ error: 'Sesión no encontrada.' }, { status: 404 })
+  } catch (e) {
+    if (typeof e === 'object' && e && (e as { code?: string }).code === 'P2025') {
+      return NextResponse.json({ error: 'Sesión no encontrada.' }, { status: 404 })
+    }
+    throw e
   }
 }
