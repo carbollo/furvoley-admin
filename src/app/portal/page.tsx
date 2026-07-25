@@ -7,7 +7,7 @@ export default function PortalLoginPage() {
   return (
     <AuthScreen>
       <AuthCard>
-        <h1 style={{ margin: '0 0 8px', fontSize: 28, textAlign: 'center', color: '#1c1917' }}>Furvoley</h1>
+        <h1 style={{ margin: '0 0 8px', fontSize: 28, textAlign: 'center', color: '#1c1917' }}>ProClubCRM</h1>
         <p
           style={{
             margin: '0 0 24px',

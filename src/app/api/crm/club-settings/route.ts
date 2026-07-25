@@ -103,7 +103,7 @@ export async function PATCH(request: Request) {
   }
 
   // Si se intenta dejar name a null, ponemos un valor por defecto
-  if (data.name === null) data.name = 'Furvoley'
+  if (data.name === null) data.name = 'ProClubCRM'
 
   if (typeof data.contactEmail === 'string' && data.contactEmail && !data.contactEmail.includes('@')) {
     return NextResponse.json({ error: 'El email de contacto no es válido' }, { status: 400 })
@@ -156,7 +156,7 @@ export async function PATCH(request: Request) {
     update: data,
     create: {
       isDefault: true,
-      name: typeof data.name === 'string' ? data.name : 'Furvoley',
+      name: typeof data.name === 'string' ? data.name : 'ProClubCRM',
       ...data,
     },
   })

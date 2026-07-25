@@ -73,7 +73,7 @@ function resolveBranding(
 ): MemberShellBranding {
   const pick = live ?? server
   return {
-    name: (pick?.name || 'Furvoley').trim() || 'Furvoley',
+    name: (pick?.name || 'ProClubCRM').trim() || 'ProClubCRM',
     logoUrl: pick?.logoUrl ?? null,
     primaryColor: pick?.primaryColor ?? null,
     subtitle: pick?.subtitle?.trim() || null,

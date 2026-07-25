@@ -178,9 +178,9 @@ export type SidebarBranding = {
 export function Sidebar({ branding }: { branding?: SidebarBranding } = {}) {
   const pathname = usePathname() || ''
   const { data: session } = useSession()
-  const clubName = (branding?.name || 'Furvoley').trim() || 'Furvoley'
+  const clubName = (branding?.name || 'ProClubCRM').trim() || 'ProClubCRM'
   const clubLogo = branding?.logoUrl || null
-  const clubInitial = clubName.charAt(0).toUpperCase() || 'F'
+  const clubInitial = clubName.charAt(0).toUpperCase() || 'P'
   const [accountingOpen, setAccountingOpen] = useState(() => isAccountingSectionPath(pathname))
 
   useEffect(() => {

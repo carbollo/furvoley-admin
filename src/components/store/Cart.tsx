@@ -59,7 +59,7 @@ export function CartDrawer({
   const handleWhatsAppCheckout = () => {
     if (cart.length === 0) return;
 
-    let message = "¡Hola! Me gustaría hacer un pedido en la tienda de Furvoley:%0A%0A";
+    let message = "¡Hola! Me gustaría hacer un pedido en la tienda de ProClubCRM:%0A%0A";
     
     cart.forEach((item: any) => {
       message += `- ${item.quantity}x ${item.product.name} (${item.product.price}€/ud)%0A`;

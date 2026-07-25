@@ -6,7 +6,7 @@ import { registerMemberTools } from '@/lib/hermes-mcp/tools/members'
 import { registerPhaseBTools } from '@/lib/hermes-mcp/tools/phase-b'
 import { registerWhatsAppTools } from '@/lib/hermes-mcp/tools/whatsapp'
 
-const INSTRUCTIONS = `Eres el agente Hermes conectado al CRM Furvoley vía MCP.
+const INSTRUCTIONS = `Eres el agente Hermes conectado al CRM ProClubCRM vía MCP.
 
 Reglas:
 - Responde en español salvo que el admin escriba en otro idioma.

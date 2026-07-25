@@ -158,7 +158,7 @@ export async function PATCH(request: Request) {
     },
     create: {
       isDefault: true,
-      name: 'Furvoley',
+      name: 'ProClubCRM',
       hermesEnabled: enabled,
       hermesModelProvider: modelProvider,
       hermesOllamaApiKey: ollamaApiKey,
@@ -236,7 +236,7 @@ export async function POST(request: Request) {
     await prisma.clubSettings.upsert({
       where: { isDefault: true },
       update: { hermesMcpApiKey: newKey },
-      create: { isDefault: true, name: 'Furvoley', hermesMcpApiKey: newKey },
+      create: { isDefault: true, name: 'ProClubCRM', hermesMcpApiKey: newKey },
     })
 
     await writeHermesConfigFiles()

@@ -468,7 +468,7 @@ export function ClubSettingsModal({
               id="club-settings-title"
               style={{ margin: '4px 0 0', fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}
             >
-              {form.name || 'Furvoley'}
+              {form.name || 'ProClubCRM'}
             </h2>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
               Sesión activa: <b style={{ color: 'var(--text-primary)' }}>{initialUser?.name || 'Administrador'}</b>
@@ -699,7 +699,7 @@ function IdentityTab({
                 type="text"
                 value={form.name}
                 onChange={(e) => update('name', e.target.value)}
-                placeholder="Furvoley"
+                placeholder="ProClubCRM"
                 style={inputStyle}
               />
             </Field>
@@ -726,7 +726,7 @@ function IdentityTab({
                 type="text"
                 value={form.website}
                 onChange={(e) => update('website', e.target.value)}
-                placeholder="https://furvoley.es"
+                placeholder="https://tuclub.com"
                 style={inputStyle}
               />
             </Field>
@@ -741,7 +741,7 @@ function IdentityTab({
               type="email"
               value={form.contactEmail}
               onChange={(e) => update('contactEmail', e.target.value)}
-              placeholder="info@furvoley.es"
+              placeholder="info@tuclub.com"
               style={inputStyle}
             />
           </Field>
@@ -776,7 +776,7 @@ function LegalTab({
               type="text"
               value={form.legalName}
               onChange={(e) => update('legalName', e.target.value)}
-              placeholder="Club Furvoley S.L."
+              placeholder="Club Deportivo S.L."
               style={inputStyle}
             />
           </Field>

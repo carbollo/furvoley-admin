@@ -116,7 +116,7 @@ export async function getClubSettings(): Promise<ClubSettingsFull> {
   return prisma.clubSettings.create({
     data: {
       isDefault: true,
-      name: 'Furvoley',
+      name: 'ProClubCRM',
       country: 'España',
     },
   })
@@ -131,14 +131,14 @@ export async function getClubBranding(): Promise<ClubBranding> {
   try {
     const s = await getClubSettings()
     return {
-      name: s.name || 'Furvoley',
+      name: s.name || 'ProClubCRM',
       logoUrl: s.logoUrl || null,
       primaryColor: s.primaryColor || null,
       website: s.website || null,
       subtitle: s.legalName?.trim() || null,
     }
   } catch {
-    return { name: 'Furvoley', logoUrl: null, primaryColor: null, website: null, subtitle: null }
+    return { name: 'ProClubCRM', logoUrl: null, primaryColor: null, website: null, subtitle: null }
   }
 }
 
@@ -153,7 +153,7 @@ export function clubSettingsToIssuer(s: ClubSettingsFull): ClubIssuer {
   const regionLine = [s.province, s.country].filter(Boolean).join(' · ')
   if (regionLine) addressLines.push(regionLine)
   return {
-    name: s.name || 'Furvoley',
+    name: s.name || 'ProClubCRM',
     legalName: s.legalName || null,
     taxId: s.taxId || null,
     addressLines,

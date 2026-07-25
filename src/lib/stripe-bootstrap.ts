@@ -267,7 +267,7 @@ export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
       existingId: row.platformWebhookId,
       existingSecret: row.platformWebhookSecret,
       envSecret: envPlatform,
-      description: 'Furvoley CRM — platform events (auto)',
+      description: 'ProClubCRM —platform events (auto)',
     })
 
     const connect = await syncWebhookEndpoint(stripe, {
@@ -276,7 +276,7 @@ export async function ensureStripeWebhooks(): Promise<StripeBootstrapStatus> {
       existingId: row.connectWebhookId,
       existingSecret: row.connectWebhookSecret,
       envSecret: envConnect,
-      description: 'Furvoley CRM — Connect events (auto)',
+      description: 'ProClubCRM —Connect events (auto)',
     })
 
     const hints: string[] = []

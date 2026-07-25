@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 async function generateMetadataImpl(): Promise<Metadata> {
   const branding = await getClubBranding();
-  const name = (branding.name || "Furvoley").trim() || "Furvoley";
+  const name = (branding.name || "ProClubCRM").trim() || "ProClubCRM";
   return {
     title: `${name} · Panel de administración`,
     description: `Panel administrativo para la gestión de socios, cobros y actividades de ${name}.`,

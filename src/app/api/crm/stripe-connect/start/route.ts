@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   let row = await prisma.clubSettings.findUnique({ where: { isDefault: true } })
   if (!row) {
     row = await prisma.clubSettings.create({
-      data: { isDefault: true, name: issuer.name || 'Furvoley' },
+      data: { isDefault: true, name: issuer.name || 'ProClubCRM' },
     })
   }
 

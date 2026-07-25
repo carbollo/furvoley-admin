@@ -663,7 +663,7 @@ function Sidebar({ active, setActive, onOpenClubSettings }) {
           <div style={{
             color:'#ffffff',fontWeight:700,fontSize:22,letterSpacing:'-0.02em',lineHeight:1.1,
             whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'
-          }}>{bundle?.club?.name || 'Furvoley'}</div>
+          }}>{bundle?.club?.name || 'ProClubCRM'}</div>
           <div style={{
             color:'#78716c',fontSize:11,fontWeight:700,
             letterSpacing:'0.08em',marginTop:6,textTransform:'uppercase'
@@ -894,7 +894,7 @@ function Dashboard({ setActive }) {
   const GREEN = '#059669';
   const RED = '#e11d48';
   const cobrosPendMonto = kp?.cobrosPendientesMonto ?? 0
-  const clubName = (bundle?.club?.name || 'Furvoley').trim() || 'Furvoley'
+  const clubName = (bundle?.club?.name || 'ProClubCRM').trim() || 'ProClubCRM'
   const overdueCount = kp?.facturasVencidas ?? 0
   const pendingCount = kp?.cobrosPendientes ?? 0
   const fechaLarga = meta.toLocaleDateString('es-ES', {
@@ -8335,7 +8335,7 @@ function WhatsAppSection() {
             <label style={{fontSize:12,fontWeight:700,color:'var(--text-secondary)',display:'block',marginBottom:6,letterSpacing:'0.02em'}}>Teléfono (E.164 sin +)</label>
             <input value={sendPhone} onChange={(e)=>setSendPhone(e.target.value)} placeholder="34666777888" style={{...inputStyle,marginBottom:14}} />
             <label style={{fontSize:12,fontWeight:700,color:'var(--text-secondary)',display:'block',marginBottom:6,letterSpacing:'0.02em'}}>Mensaje</label>
-            <textarea value={sendMessage} onChange={(e)=>setSendMessage(e.target.value)} rows={4} placeholder="Hola, este mensaje sale desde Furvoley CRM." style={{...inputStyle,marginBottom:14,resize:'vertical'}} />
+            <textarea value={sendMessage} onChange={(e)=>setSendMessage(e.target.value)} rows={4} placeholder="Hola, este mensaje sale desde ProClubCRM." style={{...inputStyle,marginBottom:14,resize:'vertical'}} />
             <button type="submit" disabled={busy || !activeSessionId} style={{padding:'10px 18px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontWeight:700,fontSize:13,cursor:busy?'not-allowed':'pointer',boxShadow:'0 1px 2px rgba(0,74,198,0.2)'}}>Enviar WhatsApp</button>
           </form>
 

@@ -543,7 +543,7 @@ export function WorkflowsSection({
       }
       const workflows = parseWorkflowsFromJson(parsed)
       if (workflows.length === 0) {
-        alert('No se encontraron flujos válidos. Exporta un flujo desde Furvoley e impórtalo aquí.')
+        alert('No se encontraron flujos válidos. Exporta un flujo desde ProClubCRM e impórtalo aquí.')
         return
       }
       const r = await fetch('/api/crm/workflows/template-catalog', {

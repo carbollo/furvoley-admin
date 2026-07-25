@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   const workflows = parseWorkflowsFromJson(payload)
   if (workflows.length === 0) {
     return NextResponse.json(
-      { error: 'No se encontraron flujos válidos. Usa el JSON exportado desde Furvoley.' },
+      { error: 'No se encontraron flujos válidos. Usa el JSON exportado desde ProClubCRM.' },
       { status: 400 },
     )
   }

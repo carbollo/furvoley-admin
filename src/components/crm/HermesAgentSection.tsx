@@ -816,7 +816,7 @@ export function HermesAgentSection() {
           </div>
 
           <div style={cardStyle}>
-            <h2 style={{ margin: '0 0 12px', fontSize: 16 }}>MCP Furvoley</h2>
+            <h2 style={{ margin: '0 0 12px', fontSize: 16 }}>MCP ProClubCRM</h2>
             <label style={labelStyle}>URL</label>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
               <code style={{ ...inputStyle, flex: 1, wordBreak: 'break-all' }}>{data?.mcpUrl || '—'}</code>

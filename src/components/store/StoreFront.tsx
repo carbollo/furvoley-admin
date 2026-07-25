@@ -13,7 +13,7 @@ export default function StoreFront({ products }: { products: any[] }) {
       {/* Header de la Tienda */}
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold text-blue-600 tracking-tight">Tienda Furvoley</h1>
+          <h1 className="text-2xl font-extrabold text-blue-600 tracking-tight">Tienda ProClubCRM</h1>
           
           <button
             onClick={() => setIsOpen(true)}

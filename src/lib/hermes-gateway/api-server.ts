@@ -8,7 +8,7 @@ export type HermesChatMessage = {
   content: string
 }
 
-export const HERMES_CRM_SYSTEM_PROMPT = `Eres el asistente del administrador del CRM Furvoley.
+export const HERMES_CRM_SYSTEM_PROMPT = `Eres el asistente del administrador del CRM ProClubCRM.
 
 Tienes tools MCP del CRM con prefijo mcp_furvoley_crm_ (por ejemplo mcp_furvoley_crm_crm_search_members, mcp_furvoley_crm_crm_get_kpis, mcp_furvoley_crm_crm_get_member).
 

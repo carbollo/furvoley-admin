@@ -43,7 +43,7 @@ async function ensureHermesMcpApiKey(settings: Awaited<ReturnType<typeof getHerm
   await prisma.clubSettings.upsert({
     where: { isDefault: true },
     update: { hermesMcpApiKey: key },
-    create: { isDefault: true, name: 'Furvoley', hermesMcpApiKey: key },
+    create: { isDefault: true, name: 'ProClubCRM', hermesMcpApiKey: key },
   })
   return key
 }
@@ -59,7 +59,7 @@ async function ensureHermesApiServerKey(settings: Awaited<ReturnType<typeof getH
   await prisma.clubSettings.upsert({
     where: { isDefault: true },
     update: { hermesApiServerKey: key },
-    create: { isDefault: true, name: 'Furvoley', hermesApiServerKey: key },
+    create: { isDefault: true, name: 'ProClubCRM', hermesApiServerKey: key },
   })
   return key
 }
@@ -90,7 +90,7 @@ export async function writeHermesConfigFiles() {
   const allowedUsersEnv = allowedUsers.join(',')
   const activeLlm = resolveActiveLlm(settings)
 
-  const configYaml = `# Generado por Furvoley CRM — no editar a mano
+  const configYaml = `# Generado por ProClubCRM — no editar a mano
 model:
   provider: ${activeLlm.provider}
   default: ${yamlQuote(activeLlm.model)}
@@ -135,7 +135,7 @@ ${allowedYaml}
       model_name: hermes-agent
 `
 
-  const envLines = ['# Generado por Furvoley CRM']
+  const envLines = ['# Generado por ProClubCRM']
   envLines.push(`WHATSAPP_ENABLED=${whatsappPaired ? 'true' : 'false'}`)
   envLines.push(`WHATSAPP_MODE=${settings.whatsappMode}`)
   envLines.push(`WHATSAPP_ALLOWED_USERS=${allowedUsersEnv}`)
