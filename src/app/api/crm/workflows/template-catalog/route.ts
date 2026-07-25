@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { assertModuleForRequest } from '@/lib/rbac-api'
 import { parseWorkflowsFromJson } from '@/lib/workflow-import'
 import {
   createWorkflowTemplatesFromImport,
@@ -17,6 +18,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
+  const gate = await assertModuleForRequest(request)
+  if (gate) return gate
+
   const templates = await listWorkflowTemplates()
   return NextResponse.json({ templates })
 }
@@ -28,6 +32,9 @@ export async function POST(request: Request) {
   if (!session?.user || role !== 'ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+
+  const gate = await assertModuleForRequest(request)
+  if (gate) return gate
 
   let body: Record<string, unknown>
   try {

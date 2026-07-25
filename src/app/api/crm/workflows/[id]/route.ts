@@ -3,6 +3,7 @@ import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { Prisma } from '@/generated/prisma/client'
+import { assertModuleForRequest } from '@/lib/rbac-api'
 import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { isWorkflowActionAllowed } from '@/lib/crm-workflow-actions'
@@ -38,6 +39,9 @@ export async function PATCH(
   if (!session?.user || role !== 'ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+
+  const gate = await assertModuleForRequest(request)
+  if (gate) return gate
 
   const { id } = await context.params
   const parsedId = parseCuid(id, 'id')
@@ -138,6 +142,9 @@ export async function DELETE(
   if (!session?.user || role !== 'ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+
+  const gate = await assertModuleForRequest(_request)
+  if (gate) return gate
 
   const { id } = await context.params
   const parsedId = parseCuid(id, 'id')

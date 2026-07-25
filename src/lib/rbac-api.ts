@@ -6,8 +6,57 @@ import { prisma } from '@/lib/prisma'
 import { hasRole, normalizeRole, type AppRole } from '@/lib/rbac'
 import { getSessionFromRequest } from '@/lib/session'
 import { enterTenantFromRequest } from '@/lib/multitenant/request'
+import { currentTenant } from '@/lib/multitenant/context'
+import { getTenantFeatures } from '@/lib/tenant-features'
+import { isModuleEnabled, type CrmModuleId } from '@/lib/crm-modules'
 
 export type SessionRole = AppRole
+
+/**
+ * Gate por plan del club a nivel de SERVIDOR. Además de ocultarse en la UI, las
+ * rutas de un módulo desactivado en el tenant devuelven 403 (defensa en
+ * profundidad: un ADMIN/COACH no puede usar por API un módulo fuera de su plan).
+ * El módulo se infiere del prefijo de la URL. La mayoría de rutas heredan el gate
+ * vía requireRoles; las que autentican por su cuenta (whatsapp/**, workflows/**)
+ * llaman a `assertModuleForRequest(request)` directamente. Solo se gatean prefijos
+ * de módulos AISLADOS: se excluyen a propósito /api/crm/invoices, /products y
+ * /discounts porque el flujo CORE de cuotas/socios (p.ej. marcar una cuota pagada
+ * vía /api/crm/invoices/:id/mark-paid) los comparte y no debe acoplarse al plan.
+ * Fail-open: si no se pueden leer los flags, no se bloquea nada.
+ */
+const MODULE_ROUTE_PREFIXES: { prefix: string; module: CrmModuleId }[] = [
+  { prefix: '/api/crm/training', module: 'entrenamiento' },
+  { prefix: '/api/crm/workflows', module: 'workflows' },
+  { prefix: '/api/crm/whatsapp', module: 'whatsapp' },
+  { prefix: '/api/crm/chat', module: 'whatsapp' },
+  { prefix: '/api/crm/accounting', module: 'contabilidad' },
+  { prefix: '/api/hermes', module: 'hermes' },
+]
+
+/**
+ * Devuelve una respuesta 403 si la ruta pertenece a un módulo desactivado en el
+ * tenant, o null si está permitido. Requiere que el tenant ya esté activo
+ * (requireRoles o enterTenantFromRequest lo hacen antes).
+ */
+export async function assertModuleForRequest(request?: Request): Promise<NextResponse | null> {
+  if (!request) return null
+  let pathname: string
+  try {
+    pathname = new URL(request.url).pathname
+  } catch {
+    return null
+  }
+  const match = MODULE_ROUTE_PREFIXES.find(
+    (m) => pathname === m.prefix || pathname.startsWith(`${m.prefix}/`),
+  )
+  if (!match) return null
+  const features = await getTenantFeatures(currentTenant()?.slug)
+  if (isModuleEnabled(match.module, features)) return null
+  return NextResponse.json(
+    { error: 'Este módulo no está disponible en tu plan.' },
+    { status: 403 },
+  )
+}
 
 export async function getSessionRole(request?: Request) {
   const session = request
@@ -26,6 +75,11 @@ export async function requireRoles(allowed: AppRole[], request?: Request) {
       ok: false as const,
       response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
     }
+  }
+  // Gate por plan del club (módulo desactivado ⇒ 403), tras validar rol.
+  const gated = await assertModuleForRequest(request)
+  if (gated) {
+    return { ok: false as const, response: gated }
   }
   return {
     ok: true as const,

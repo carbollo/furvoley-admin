@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { assertModuleForRequest } from '@/lib/rbac-api'
 import { prisma } from '@/lib/prisma'
 
 import { isWorkflowActionAllowed } from '@/lib/crm-workflow-actions'
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
   if (!session?.user || role !== 'ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+
+  const gate = await assertModuleForRequest(request)
+  if (gate) return gate
 
   let body: Record<string, unknown>
   try {

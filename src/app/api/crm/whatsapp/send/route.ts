@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
+import { assertModuleForRequest } from '@/lib/rbac-api'
 
 async function assertAdmin() {
   const session = await getServerSession(authOptions)
@@ -15,6 +16,8 @@ export async function POST(request: Request) {
   await enterTenantFromRequest(request)
   try {
     await assertAdmin()
+    const gate = await assertModuleForRequest(request)
+    if (gate) return gate
     const body = await request.json().catch(() => ({}))
     const phone = String(body?.phone || '').trim()
     const message = String(body?.message || '').trim()

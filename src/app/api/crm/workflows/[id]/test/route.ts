@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { assertModuleForRequest } from '@/lib/rbac-api'
 import { parseCuid } from '@/lib/db-input-validation'
 import { runWorkflowTest } from '@/lib/workflow-test'
 
@@ -15,6 +16,9 @@ export async function POST(
   if (!session?.user || role !== 'ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+
+  const gate = await assertModuleForRequest(request)
+  if (gate) return gate
 
   const { id } = await context.params
   const parsedId = parseCuid(id, 'id')

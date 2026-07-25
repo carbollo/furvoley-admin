@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { apiWassRequest, parseApiWassSessionId } from '@/lib/apiwass'
 import { getWhatsAppConfig, setLinkedWhatsAppSessionId } from '@/lib/whatsapp-config'
+import { assertModuleForRequest } from '@/lib/rbac-api'
 
 async function assertAdmin() {
   const session = await getServerSession(authOptions)
@@ -15,6 +16,8 @@ export async function GET(request: Request) {
   await enterTenantFromRequest(request)
   try {
     await assertAdmin()
+    const gate = await assertModuleForRequest(request)
+    if (gate) return gate
     const data = await apiWassRequest('/sessions')
     const all = Array.isArray(data) ? data : data?.sessions || []
     const cfg = await getWhatsAppConfig()
@@ -33,6 +36,8 @@ export async function POST(request: Request) {
   await enterTenantFromRequest(request)
   try {
     await assertAdmin()
+    const gate = await assertModuleForRequest(request)
+    if (gate) return gate
     const cfg = await getWhatsAppConfig()
     if (cfg.linkedSessionId) {
       return NextResponse.json(
