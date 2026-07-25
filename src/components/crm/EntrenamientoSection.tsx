@@ -34,8 +34,19 @@ const KIND_LABEL = {
   cone: 'Cono',
   label: 'Etiqueta',
 }
-const LINE = 'var(--text-muted)'
-const COURT_BG = 'var(--surface-low)'
+// Colores típicos de cada superficie (dominio deportivo), con líneas BLANCAS
+// como en las pistas reales. El campo "en blanco" usa neutro cálido + líneas gris.
+const COURT_FILL = {
+  volleyball: '#c96f43', // taraflex naranja/terracota (indoor)
+  football: '#2e8b4f',   // césped
+  futsal: '#2f7f9e',     // pista azul
+  basketball: '#c0894a', // parquet / madera
+  tennis: '#2f6fb0',     // pista dura azul
+  handball: '#3f79bd',   // pista azul
+  blank: 'var(--surface-low)',
+}
+const courtFill = (type) => COURT_FILL[type] || 'var(--surface-low)'
+const courtLine = (type) => (type === 'blank' ? 'var(--text-muted)' : '#ffffff')
 
 let _idc = 0
 function genId(prefix) {
@@ -80,9 +91,11 @@ function courtMarkings(type) {
   const { x, y, w, h } = R
   const cx = x + w / 2
   const cy = y + h / 2
+  const LN = courtLine(type)
+  const AREA = type === 'blank' ? 'var(--accent)' : '#ffffff' // relleno tenue de zonas
   const L = (x1, y1, x2, y2, sw = 2, dash) => (
     <line key={`l${x1}-${y1}-${x2}-${y2}-${dash || ''}`} x1={x1} y1={y1} x2={x2} y2={y2}
-      stroke={LINE} strokeWidth={sw} strokeOpacity={0.6} strokeDasharray={dash || undefined} />
+      stroke={LN} strokeWidth={sw} strokeOpacity={0.85} strokeDasharray={dash || undefined} />
   )
   const out = []
   if (type === 'volleyball') {
@@ -91,24 +104,24 @@ function courtMarkings(type) {
     out.push(L(cx + w / 6, y, cx + w / 6, y + h, 2, '10 8'))
   } else if (type === 'football' || type === 'futsal') {
     out.push(L(cx, y, cx, y + h, 2))
-    out.push(<circle key="cc" cx={cx} cy={cy} r={h * 0.16} fill="none" stroke={LINE} strokeWidth={2} strokeOpacity={0.6} />)
-    out.push(<circle key="cs" cx={cx} cy={cy} r={3} fill={LINE} />)
+    out.push(<circle key="cc" cx={cx} cy={cy} r={h * 0.16} fill="none" stroke={LN} strokeWidth={2} strokeOpacity={0.85} />)
+    out.push(<circle key="cs" cx={cx} cy={cy} r={3} fill={LN} />)
     const pbH = h * 0.55, pbW = w * 0.13, gaH = h * 0.3, gaW = w * 0.055
-    out.push(<rect key="pb1" x={x} y={cy - pbH / 2} width={pbW} height={pbH} fill="none" stroke={LINE} strokeWidth={2} strokeOpacity={0.6} />)
-    out.push(<rect key="pb2" x={x + w - pbW} y={cy - pbH / 2} width={pbW} height={pbH} fill="none" stroke={LINE} strokeWidth={2} strokeOpacity={0.6} />)
-    out.push(<rect key="ga1" x={x} y={cy - gaH / 2} width={gaW} height={gaH} fill="none" stroke={LINE} strokeWidth={2} strokeOpacity={0.6} />)
-    out.push(<rect key="ga2" x={x + w - gaW} y={cy - gaH / 2} width={gaW} height={gaH} fill="none" stroke={LINE} strokeWidth={2} strokeOpacity={0.6} />)
+    out.push(<rect key="pb1" x={x} y={cy - pbH / 2} width={pbW} height={pbH} fill="none" stroke={LN} strokeWidth={2} strokeOpacity={0.85} />)
+    out.push(<rect key="pb2" x={x + w - pbW} y={cy - pbH / 2} width={pbW} height={pbH} fill="none" stroke={LN} strokeWidth={2} strokeOpacity={0.85} />)
+    out.push(<rect key="ga1" x={x} y={cy - gaH / 2} width={gaW} height={gaH} fill="none" stroke={LN} strokeWidth={2} strokeOpacity={0.85} />)
+    out.push(<rect key="ga2" x={x + w - gaW} y={cy - gaH / 2} width={gaW} height={gaH} fill="none" stroke={LN} strokeWidth={2} strokeOpacity={0.85} />)
   } else if (type === 'basketball') {
     out.push(L(cx, y, cx, y + h, 2))
-    out.push(<circle key="cc" cx={cx} cy={cy} r={h * 0.13} fill="none" stroke={LINE} strokeWidth={2} strokeOpacity={0.6} />)
+    out.push(<circle key="cc" cx={cx} cy={cy} r={h * 0.13} fill="none" stroke={LN} strokeWidth={2} strokeOpacity={0.85} />)
     const keyH = h * 0.36, keyW = w * 0.16
-    out.push(<rect key="k1" x={x} y={cy - keyH / 2} width={keyW} height={keyH} fill="var(--accent)" fillOpacity={0.05} stroke={LINE} strokeWidth={2} strokeOpacity={0.6} />)
-    out.push(<rect key="k2" x={x + w - keyW} y={cy - keyH / 2} width={keyW} height={keyH} fill="var(--accent)" fillOpacity={0.05} stroke={LINE} strokeWidth={2} strokeOpacity={0.6} />)
-    out.push(<circle key="ft1" cx={x + keyW} cy={cy} r={keyH * 0.36} fill="none" stroke={LINE} strokeWidth={2} strokeOpacity={0.55} />)
-    out.push(<circle key="ft2" cx={x + w - keyW} cy={cy} r={keyH * 0.36} fill="none" stroke={LINE} strokeWidth={2} strokeOpacity={0.55} />)
+    out.push(<rect key="k1" x={x} y={cy - keyH / 2} width={keyW} height={keyH} fill={AREA} fillOpacity={0.14} stroke={LN} strokeWidth={2} strokeOpacity={0.85} />)
+    out.push(<rect key="k2" x={x + w - keyW} y={cy - keyH / 2} width={keyW} height={keyH} fill={AREA} fillOpacity={0.14} stroke={LN} strokeWidth={2} strokeOpacity={0.85} />)
+    out.push(<circle key="ft1" cx={x + keyW} cy={cy} r={keyH * 0.36} fill="none" stroke={LN} strokeWidth={2} strokeOpacity={0.8} />)
+    out.push(<circle key="ft2" cx={x + w - keyW} cy={cy} r={keyH * 0.36} fill="none" stroke={LN} strokeWidth={2} strokeOpacity={0.8} />)
     const r3 = h * 0.46
-    out.push(<path key="a1" d={`M ${x + 6} ${cy - r3} A ${r3} ${r3} 0 0 1 ${x + 6} ${cy + r3}`} fill="none" stroke={LINE} strokeWidth={2} strokeOpacity={0.55} />)
-    out.push(<path key="a2" d={`M ${x + w - 6} ${cy - r3} A ${r3} ${r3} 0 0 0 ${x + w - 6} ${cy + r3}`} fill="none" stroke={LINE} strokeWidth={2} strokeOpacity={0.55} />)
+    out.push(<path key="a1" d={`M ${x + 6} ${cy - r3} A ${r3} ${r3} 0 0 1 ${x + 6} ${cy + r3}`} fill="none" stroke={LN} strokeWidth={2} strokeOpacity={0.8} />)
+    out.push(<path key="a2" d={`M ${x + w - 6} ${cy - r3} A ${r3} ${r3} 0 0 0 ${x + w - 6} ${cy + r3}`} fill="none" stroke={LN} strokeWidth={2} strokeOpacity={0.8} />)
   } else if (type === 'tennis') {
     out.push(L(cx, y - 4, cx, y + h + 4, 3, '2 7'))
     const inset = h * 0.12
@@ -120,10 +133,10 @@ function courtMarkings(type) {
     out.push(L(x + sl, cy, x + w - sl, cy, 2))
   } else if (type === 'handball') {
     out.push(L(cx, y, cx, y + h, 2))
-    out.push(<circle key="cs" cx={cx} cy={cy} r={3} fill={LINE} />)
+    out.push(<circle key="cs" cx={cx} cy={cy} r={3} fill={LN} />)
     const ga = h * 0.5
-    out.push(<path key="g1" d={`M ${x} ${cy - ga / 2} A ${w * 0.16} ${ga / 2} 0 0 1 ${x} ${cy + ga / 2}`} fill="var(--accent)" fillOpacity={0.05} stroke={LINE} strokeWidth={2} strokeOpacity={0.6} />)
-    out.push(<path key="g2" d={`M ${x + w} ${cy - ga / 2} A ${w * 0.16} ${ga / 2} 0 0 0 ${x + w} ${cy + ga / 2}`} fill="var(--accent)" fillOpacity={0.05} stroke={LINE} strokeWidth={2} strokeOpacity={0.6} />)
+    out.push(<path key="g1" d={`M ${x} ${cy - ga / 2} A ${w * 0.16} ${ga / 2} 0 0 1 ${x} ${cy + ga / 2}`} fill={AREA} fillOpacity={0.16} stroke={LN} strokeWidth={2} strokeOpacity={0.85} />)
+    out.push(<path key="g2" d={`M ${x + w} ${cy - ga / 2} A ${w * 0.16} ${ga / 2} 0 0 0 ${x + w} ${cy + ga / 2}`} fill={AREA} fillOpacity={0.16} stroke={LN} strokeWidth={2} strokeOpacity={0.85} />)
   }
   return out
 }
@@ -132,7 +145,7 @@ function CourtFrame({ type, children }) {
   return (
     <>
       <rect x={R.x - 8} y={R.y - 8} width={R.w + 16} height={R.h + 16} rx={12} fill="var(--surface-mid)" />
-      <rect x={R.x} y={R.y} width={R.w} height={R.h} rx={6} fill={COURT_BG} stroke={LINE} strokeOpacity={0.75} strokeWidth={3} />
+      <rect x={R.x} y={R.y} width={R.w} height={R.h} rx={6} fill={courtFill(type)} stroke={courtLine(type)} strokeOpacity={type === 'blank' ? 0.75 : 0.9} strokeWidth={3} />
       {courtMarkings(type)}
       {children}
     </>
@@ -401,7 +414,7 @@ function TacticalBoard({ initial, onChange }) {
                   style={{ position: 'absolute', top: 2, right: 2, width: 17, height: 17, borderRadius: 5, border: 'none', background: 'rgba(0,0,0,.35)', color: '#fff', cursor: 'pointer', fontSize: 11, lineHeight: 1, zIndex: 1 }}>✕</button>
               )}
               <svg viewBox={`0 0 ${VBW} ${VBH}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: 56, display: 'block' }}>
-                <rect x={R.x} y={R.y} width={R.w} height={R.h} rx={8} fill={COURT_BG} stroke={LINE} strokeOpacity={0.5} strokeWidth={4} />
+                <rect x={R.x} y={R.y} width={R.w} height={R.h} rx={8} fill={courtFill(dg.courtType)} stroke={courtLine(dg.courtType)} strokeOpacity={0.6} strokeWidth={4} />
                 {dg.tokens.map((t) => {
                   const p = s.positions[t.id]
                   if (!p) return null
