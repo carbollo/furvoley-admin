@@ -59,6 +59,9 @@ export async function assertModuleForRequest(request?: Request): Promise<NextRes
 }
 
 export async function getSessionRole(request?: Request) {
+  // El enlace sesión↔tenant activo se aplica en el punto único (callback `session`
+  // en auth.ts + ruta Bearer en session.ts), así que aquí basta con leer la sesión:
+  // si no pertenece al club activo, ya llega sin `user`.
   const session = request
     ? await getSessionFromRequest(request)
     : await getServerSession(authOptions)

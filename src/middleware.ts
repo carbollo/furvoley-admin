@@ -128,6 +128,21 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
+  // Tareas programadas (cron): se autentican con Bearer CRON_SECRET en la propia
+  // ruta (fail-closed), nunca con sesión. Va ANTES del bloque del portal porque
+  // allí todo lo que no sea ruta pública se redirige a /portal: si no, los crons
+  // del servicio portal (p. ej. suspender pruebas caducadas) serían inalcanzables.
+  if (path.startsWith("/api/jobs/")) {
+    return pass()
+  }
+
+  // Webhook de la pasarela de cobro: lo llama la pasarela (server-to-server), sin
+  // sesión. Se autentica con firma HMAC en la propia ruta y resuelve el club por
+  // la cuenta que trae el evento, no por el host.
+  if (path.startsWith("/api/whop/webhook")) {
+    return pass()
+  }
+
   if (isPortalPublicPath(path)) {
     return pass()
   }
@@ -144,11 +159,6 @@ export async function middleware(req: NextRequest) {
 
   // MCP Hermes: auth Bearer en la ruta, no sesión NextAuth (gateway en localhost).
   if (path.startsWith("/api/hermes/mcp")) {
-    return pass()
-  }
-
-  // Tareas programadas (cron): auth Bearer CRON_SECRET en la ruta, sin sesión.
-  if (path.startsWith("/api/jobs/")) {
     return pass()
   }
 

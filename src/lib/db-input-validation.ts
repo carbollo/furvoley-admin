@@ -12,6 +12,17 @@ export function isHexToken(value: string | null | undefined, byteLen = 24): bool
   return new RegExp(`^[a-f0-9]{${byteLen * 2}}$`).test(v)
 }
 
+/**
+ * ¿Es UNA sola dirección de email válida? Rechaza listas (comas/;), espacios y
+ * cabeceras (<>", saltos de línea) para evitar inyección de destinatarios en SMTP
+ * (nodemailer parsea listas separadas por coma en el campo `to`).
+ */
+export function isSingleEmail(value: string | null | undefined): boolean {
+  const s = String(value ?? '').trim()
+  if (!s || s.length > 254) return false
+  return /^[^\s@,;<>"'()\[\]]+@[^\s@,;<>"'()\[\]]+\.[^\s@,;<>"'()\[\]]+$/.test(s)
+}
+
 export function validationError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status })
 }

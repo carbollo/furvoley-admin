@@ -63,11 +63,19 @@ export function enterTenantFromHeaders(
     const v = h[k] ?? h[k.toLowerCase()]
     return Array.isArray(v) ? v[0] : v
   }
-  let slug = sanitizeSlug(get('x-tenant-slug'))
-  if (!slug && TENANT_ALLOW_OVERRIDE) {
-    const cookie = String(get('cookie') || '')
-    const m = cookie.match(/(?:^|;\s*)furvoley-tenant=([^;]+)/)
-    if (m) slug = sanitizeSlug(decodeURIComponent(m[1]))
+  // SEGURIDAD (cross-tenant): /api/auth NO pasa por el middleware (que es quien
+  // depura el `x-tenant-slug` del cliente), así que en el login el tenant se
+  // resuelve SOLO por host. NUNCA se confía en `x-tenant-slug` ni en la cookie que
+  // envía el cliente salvo en modo pruebas (TENANT_ALLOW_OVERRIDE); de lo contrario
+  // un atacante podría autenticarse contra la BD de OTRO club.
+  let slug: string | null | undefined = ''
+  if (TENANT_ALLOW_OVERRIDE) {
+    slug = sanitizeSlug(get('x-tenant-slug'))
+    if (!slug) {
+      const cookie = String(get('cookie') || '')
+      const m = cookie.match(/(?:^|;\s*)furvoley-tenant=([^;]+)/)
+      if (m) slug = sanitizeSlug(decodeURIComponent(m[1]))
+    }
   }
   if (!slug) slug = tenantSlugFromHost(get('host'))
   if (!slug) return
@@ -87,10 +95,17 @@ export function enterTenantFromHeaders(
 async function resolveTenantCtx(): Promise<TenantContext | null> {
   try {
     const h = await headers()
-    let slug = sanitizeSlug(h.get('x-tenant-slug'))
-    if (!slug && TENANT_ALLOW_OVERRIDE) {
-      const jar = await cookies()
-      slug = sanitizeSlug(jar.get('furvoley-tenant')?.value)
+    // SEGURIDAD (cross-tenant): rutas excluidas del middleware (p.ej. /join) NO
+    // depuran el `x-tenant-slug` del cliente, así que aquí el tenant se resuelve por
+    // HOST. Solo en modo pruebas (TENANT_ALLOW_OVERRIDE) se aceptan header/cookie.
+    // En rutas cubiertas por el middleware, el host ya identifica al club igualmente.
+    let slug: string | null | undefined = ''
+    if (TENANT_ALLOW_OVERRIDE) {
+      slug = sanitizeSlug(h.get('x-tenant-slug'))
+      if (!slug) {
+        const jar = await cookies()
+        slug = sanitizeSlug(jar.get('furvoley-tenant')?.value)
+      }
     }
     if (!slug) slug = tenantSlugFromHost(h.get('host'))
     if (!slug) return null

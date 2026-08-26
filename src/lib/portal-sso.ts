@@ -217,6 +217,8 @@ export async function issueMobileAccessToken(payload: PortalSsoPayload) {
       role: normalizeRole(payload.role),
       memberId: payload.memberId,
       mustChangePassword: payload.mustChangePassword,
+      // Liga el token al club (anti reuso cross-tenant en requireRoles).
+      tenant: payload.tenant ?? null,
     },
     secret,
     maxAge: MOBILE_ACCESS_TOKEN_MAX_AGE,
@@ -250,6 +252,8 @@ export async function buildPortalSessionCookie(payload: PortalSsoPayload) {
       role: normalizeRole(payload.role),
       memberId: payload.memberId,
       mustChangePassword: payload.mustChangePassword,
+      // Liga la cookie de sesión al club (anti reuso cross-tenant en requireRoles).
+      tenant: payload.tenant ?? null,
     },
     secret,
     maxAge,

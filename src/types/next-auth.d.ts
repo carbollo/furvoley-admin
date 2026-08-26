@@ -8,6 +8,8 @@ declare module "next-auth" {
       role: AppRole
       memberId?: string | null
       mustChangePassword?: boolean
+      /** Club (slug) al que pertenece la sesión. Se valida contra el tenant activo. */
+      tenant?: string | null
     } & DefaultSession["user"]
   }
 
@@ -15,6 +17,7 @@ declare module "next-auth" {
     role: AppRole
     memberId?: string | null
     mustChangePassword?: boolean
+    tenant?: string | null
   }
 }
 
@@ -24,5 +27,7 @@ declare module "next-auth/jwt" {
     role?: AppRole
     memberId?: string | null
     mustChangePassword?: boolean
+    /** Club (slug) al que se emitió el token; se compara con el tenant activo. */
+    tenant?: string | null
   }
 }

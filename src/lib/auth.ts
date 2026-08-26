@@ -12,6 +12,7 @@ import {
 import { ensureNextAuthSecret } from "@/lib/auth-secret"
 import { enterTenantFromHeaders } from "@/lib/multitenant/request"
 import { currentTenant } from "@/lib/multitenant/context"
+import { sessionMatchesActiveTenant } from "@/lib/tenant-session"
 import { isTenantSuspended } from "@/lib/tenant-status"
 import {
   checkLoginRateLimit,
@@ -91,6 +92,8 @@ export const authOptions: NextAuthOptions = {
               role: normalizeRole(fixed.role),
               memberId: fixed.memberId,
               mustChangePassword: false,
+              // Club (por host) al que queda LIGADA la sesión (anti reuso cross-tenant).
+              tenant: currentTenant()?.slug ?? null,
             }
           }
         }
@@ -130,6 +133,8 @@ export const authOptions: NextAuthOptions = {
           role: normalizeRole(user.role),
           memberId: user.memberId,
           mustChangePassword: user.mustChangePassword === true,
+          // Club (por host) al que queda LIGADA la sesión (anti reuso cross-tenant).
+          tenant: currentTenant()?.slug ?? null,
         }
       }
     })
@@ -144,6 +149,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id
         token.memberId = user.memberId ?? null
         token.mustChangePassword = (user as { mustChangePassword?: boolean }).mustChangePassword === true
+        token.tenant = (user as { tenant?: string | null }).tenant ?? null
       }
 
       // Refresca campos sensibles desde la DB cuando el cliente llama
@@ -168,11 +174,21 @@ export const authOptions: NextAuthOptions = {
           role?: string
           memberId?: string | null
           mustChangePassword?: boolean
+          tenant?: string | null
         }
         u.role = normalizeRole(token.role)
         u.id = token.id as string
         u.memberId = (token.memberId as string | null | undefined) ?? null
         u.mustChangePassword = token.mustChangePassword === true
+        u.tenant = (token.tenant as string | null | undefined) ?? null
+        // SEGURIDAD cross-tenant: si la sesión no pertenece al club activo (p.ej. un
+        // token de otro club reenviado a este host), se invalida el usuario para que
+        // TODA ruta que use getServerSession la trate como no autenticada. Es el
+        // punto único que protege también las rutas self-auth (whatsapp/**,
+        // workflows/**, server actions) que no pasan por requireRoles.
+        if (!(await sessionMatchesActiveTenant(u))) {
+          delete (session as { user?: unknown }).user
+        }
       }
       return session
     }

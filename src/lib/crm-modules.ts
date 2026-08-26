@@ -9,20 +9,44 @@ import type { CrmSectionId } from '@/lib/rbac'
  * (por defecto todo activado), así que solo se guardan las desactivaciones.
  */
 
-export type CrmModuleId = 'contabilidad' | 'workflows' | 'whatsapp' | 'hermes' | 'entrenamiento'
+export type CrmModuleId =
+  | 'inicio'
+  | 'calendario'
+  | 'entrenamiento'
+  | 'whatsapp'
+  | 'socios'
+  | 'admin'
+  | 'contabilidad'
+  | 'workflows'
+  | 'hermes'
 
 export type TenantFeatures = Partial<Record<CrmModuleId, boolean>>
 
+/**
+ * Cada pestaña del CRM es un módulo activable/desactivable por club. El orden es el
+ * del menú lateral. Al desactivar un módulo, todas sus secciones desaparecen del
+ * sidebar (isSectionEnabled) y su pestaña queda inaccesible; el CRM abre la primera
+ * pestaña disponible (firstAllowed). Nota: `inicio` (Panel) también es un módulo por
+ * petición; si se desactiva, el CRM abre en la siguiente pestaña activa.
+ */
 export const CRM_MODULES: { id: CrmModuleId; label: string; sections: CrmSectionId[] }[] = [
+  { id: 'inicio', label: 'Inicio', sections: ['dashboard'] },
+  { id: 'calendario', label: 'Calendario', sections: ['calendario'] },
+  { id: 'entrenamiento', label: 'Entrenamiento', sections: ['entrenamiento'] },
+  { id: 'whatsapp', label: 'Chat', sections: ['whatsapp'] },
+  { id: 'socios', label: 'Socios', sections: ['socios'] },
+  {
+    id: 'admin',
+    label: 'Admin',
+    sections: ['admin-sumario', 'organigrama', 'contactos', 'asistencia', 'personal'],
+  },
   {
     id: 'contabilidad',
     label: 'Contabilidad',
-    sections: ['contabilidad', 'facturas', 'impagos', 'productos', 'descuentos'],
+    sections: ['contabilidad', 'facturas', 'cuotas', 'impagos', 'productos', 'descuentos', 'informes'],
   },
   { id: 'workflows', label: 'Flujos (workflows)', sections: ['workflows'] },
-  { id: 'whatsapp', label: 'WhatsApp', sections: ['whatsapp'] },
   { id: 'hermes', label: 'Bot (Hermes)', sections: ['hermes'] },
-  { id: 'entrenamiento', label: 'Entrenamiento', sections: ['entrenamiento'] },
 ]
 
 const SECTION_MODULE = new Map<string, CrmModuleId>()
