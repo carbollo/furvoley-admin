@@ -17,6 +17,8 @@ type Plan = {
   billingDayOfMonth: number
   isActive: boolean
   subscriptionCount: number
+  /** La cuota ya tiene su plan espejo en la pasarela con el precio actual. */
+  onlineReady?: boolean
 }
 
 type SubscriptionRow = {
@@ -89,6 +91,8 @@ export function CuotasSection({
 
   const [assignModal, setAssignModal] = useState(false)
   const [assignForm, setAssignForm] = useState({
+    /** Socios a los que se aplicará la misma cuota. */
+    members: [] as { id: string; name: string }[],
     memberId: '',
     planId: '',
     startDate: '',
@@ -233,24 +237,24 @@ export function CuotasSection({
 
   async function assignCuota(e: React.FormEvent) {
     e.preventDefault()
-    if (!assignForm.memberId || !assignForm.planId) {
-      showAlert('Selecciona socio y plan')
+    if (assignForm.members.length === 0 || !assignForm.planId) {
+      showAlert('Añade al menos un socio y elige la cuota')
       return
     }
     const paymentRequired = assignForm.paymentRequiredOnEnrollment
+    const count = assignForm.members.length
     setBusy(true)
     try {
-      const r = await fetch('/api/crm/subscriptions', {
+      const r = await fetch('/api/crm/whop/assign-plan', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          memberId: assignForm.memberId,
+          memberIds: assignForm.members.map((m) => m.id),
           planId: assignForm.planId,
-          startDate: assignForm.startDate || undefined,
-          autoPay: assignForm.autoPay,
           paymentRequiredOnEnrollment: assignForm.paymentRequiredOnEnrollment,
-          discountCodeId: assignForm.discountCodeId || undefined,
+          // El enlace solo tiene sentido entregarlo cuando es para un socio.
+          withLink: count === 1,
         }),
       })
       const j = await r.json().catch(() => ({}))
@@ -258,9 +262,10 @@ export function CuotasSection({
         showAlert(j.error || 'No se pudo asignar la cuota')
         return
       }
-      track('asignar-cuota', { pagoAlAlta: paymentRequired })
+      track('asignar-cuota', { pagoAlAlta: paymentRequired, socios: count })
       setAssignModal(false)
       setAssignForm({
+        members: [],
         memberId: '',
         planId: '',
         startDate: '',
@@ -270,11 +275,24 @@ export function CuotasSection({
       })
       await loadData()
       await reload()
-      showAlert(
-        paymentRequired
-          ? 'Cuota asignada. El socio queda en «Alta pendiente de pago» hasta que pague la primera factura.'
-          : 'Cuota asignada. Se ha generado la primera factura del periodo.',
-      )
+
+      const base =
+        count === 1
+          ? paymentRequired
+            ? 'Cuota asignada. El socio queda en «Alta pendiente de pago» hasta que pague.'
+            : 'Cuota asignada y primera factura generada.'
+          : `Cuota asignada a ${j.succeeded ?? count} socio(s)${j.failed ? `, ${j.failed} con error` : ''}.`
+
+      if (j.url) {
+        try {
+          await navigator.clipboard?.writeText(String(j.url))
+          showAlert(`${base}\n\nEnlace de pago copiado al portapapeles:\n${j.url}`)
+        } catch {
+          showAlert(`${base}\n\nEnlace de pago:\n${j.url}`)
+        }
+      } else {
+        showAlert(j.linkError ? `${base}\n\n(No se pudo generar el enlace: ${j.linkError})` : base)
+      }
     } finally {
       setBusy(false)
     }
@@ -451,46 +469,10 @@ export function CuotasSection({
             <PaymentReminderButton />
             <button
               type="button"
-              disabled={generateBusy}
-              onClick={() => void emitirCuotasPendientes()}
-              style={{
-                padding: '10px 16px',
-                borderRadius: 10,
-                border: '1px solid var(--border)',
-                background: '#fff',
-                cursor: generateBusy ? 'wait' : 'pointer',
-                fontFamily: 'inherit',
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-              }}
-            >
-              {generateBusy ? 'Emitiendo…' : 'Emitir cuotas pendientes'}
-            </button>
-            <button
-              type="button"
-              disabled={gatewayBusy}
-              onClick={() => void prepararCobroOnline()}
-              title="Crea en la pasarela un plan por cada cuota para poder cobrarlas online de forma recurrente"
-              style={{
-                padding: '10px 16px',
-                borderRadius: 10,
-                border: '1px solid var(--border)',
-                background: '#fff',
-                cursor: gatewayBusy ? 'wait' : 'pointer',
-                fontFamily: 'inherit',
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-              }}
-            >
-              {gatewayBusy ? 'Preparando…' : 'Preparar cobro online'}
-            </button>
-            <button
-              type="button"
               onClick={() => {
                 const firstPlanId = activePlans[0]?.id || ''
                 setAssignForm({
+                  members: [],
                   memberId: '',
                   planId: firstPlanId,
                   startDate: new Date().toISOString().slice(0, 10),
@@ -514,7 +496,7 @@ export function CuotasSection({
                 opacity: activePlans.length === 0 ? 0.5 : 1,
               }}
             >
-              Asignar cuota a socio
+              Asignar cuotas
             </button>
             <button
               type="button"
@@ -610,7 +592,7 @@ export function CuotasSection({
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
-                    {['Plan', 'Importe', 'Periodicidad', 'Día cobro', 'Matrícula', 'Pago al alta', 'Socios', 'Estado', ''].map((h) => (
+                    {['Plan', 'Importe', 'Periodicidad', 'Día cobro', 'Matrícula', 'Pago al alta', 'Cobro online', 'Socios', 'Estado', ''].map((h) => (
                       <th
                         key={h}
                         style={{
@@ -650,6 +632,20 @@ export function CuotasSection({
                           <span style={{ fontWeight: 700, color: 'var(--accent)' }}>Obligatorio</span>
                         ) : (
                           <span style={{ color: 'var(--text-muted)' }}>Opcional</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '16px 20px', fontSize: 13 }}>
+                        {p.onlineReady ? (
+                          <span style={{ fontWeight: 700, color: 'var(--green)' }} title="Esta cuota ya se puede cobrar online">
+                            ✓ Listo
+                          </span>
+                        ) : (
+                          <span
+                            style={{ color: 'var(--text-muted)' }}
+                            title="Pulsa «Preparar cobro online» para poder cobrarla por internet"
+                          >
+                            — Sin preparar
+                          </span>
                         )}
                       </td>
                       <td style={{ padding: '16px 20px', fontSize: 14 }}>{p.subscriptionCount}</td>
@@ -1176,16 +1172,68 @@ export function CuotasSection({
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700 }}>Asignar cuota a socio</h2>
+            <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700 }}>Asignar cuota a socios</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <MemberCombobox
-                label="Socio *"
-                required
-                value={assignForm.memberId}
-                onChange={(memberId) => setAssignForm((f) => ({ ...f, memberId }))}
-                placeholder="Buscar socio…"
-                style={{ marginBottom: 0 }}
-              />
+              <div>
+                <MemberCombobox
+                  label="Socios *"
+                  value=""
+                  onChange={(memberId, member) => {
+                    if (!memberId) return
+                    setAssignForm((f) =>
+                      f.members.some((m) => m.id === memberId)
+                        ? f
+                        : { ...f, members: [...f.members, { id: memberId, name: member?.nombre || 'Socio' }] },
+                    )
+                  }}
+                  placeholder="Buscar socio y añadirlo…"
+                  style={{ marginBottom: 0 }}
+                />
+                {assignForm.members.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                    {assignForm.members.map((m) => (
+                      <span
+                        key={m.id}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          padding: '4px 8px 4px 10px',
+                          borderRadius: 999,
+                          background: 'var(--accent-pill)',
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        {m.name}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAssignForm((f) => ({ ...f, members: f.members.filter((x) => x.id !== m.id) }))
+                          }
+                          title="Quitar de la lista"
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            cursor: 'pointer',
+                            color: 'inherit',
+                            fontSize: 14,
+                            lineHeight: 1,
+                            padding: 0,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                    Busca y añade tantos socios como quieras: se les asignará la misma cuota.
+                  </div>
+                )}
+              </div>
               <label style={{ fontSize: 13, fontWeight: 600 }}>
                 Plan *
                 <select

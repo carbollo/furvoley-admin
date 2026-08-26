@@ -21,6 +21,8 @@ const TRIGGER_DESCRIPTIONS: Record<string, string> = {
   PAYMENT_PAID: 'Legacy: un cobro pasa a estado pagado.',
   PAYMENT_FAILED: 'Un cobro o cargo Stripe falla.',
   INVOICE_CREATED: 'Se genera una factura para el socio.',
+  ENROLLMENT_PAYMENT_DUE:
+    'Un socio nuevo se da de alta con una cuota que exige pago para completar la inscripción. El enlace de cobro ya viene resuelto en {enlace_cobro}.',
   INVOICE_PAID: 'La factura queda pagada (webhook o marcado manual).',
   INVOICE_OVERDUE: 'Factura vencida sin pago en plazo.',
   INVOICE_OVERDUE_ESCALATED: 'Impago en fase escalada (segundo aviso o bloqueo).',

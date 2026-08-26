@@ -3164,6 +3164,12 @@ function Socios({ contactosMode = false }) {
   const [selected, setSelected] = useState(null);
   const [menuSocioId, setMenuSocioId] = useState<string | null>(null)
   const [menuSocioPos, setMenuSocioPos] = useState({ top: 0, right: 0 })
+  // "Aplicar cuota" desde la ficha del socio: elige cuota y devuelve el enlace de pago.
+  const [aplicarCuota, setAplicarCuota] = useState<{ id: string; nombre: string } | null>(null)
+  const [aplicarCuotaPlanId, setAplicarCuotaPlanId] = useState('')
+  const [aplicarCuotaPlanes, setAplicarCuotaPlanes] = useState<{ id: string; name: string; amount: number; billingPeriodLabel: string; paymentRequiredOnEnrollment: boolean }[]>([])
+  const [aplicarCuotaBusy, setAplicarCuotaBusy] = useState(false)
+  const [aplicarCuotaUrl, setAplicarCuotaUrl] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [bulkMenu, setBulkMenu] = useState<{ top: number; left: number } | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -3600,6 +3606,61 @@ function Socios({ contactosMode = false }) {
       await loadSociosDb()
     } finally {
       setBulkBusy(false)
+    }
+  }
+
+  /** Abre el diálogo para aplicar una cuota a un socio concreto. */
+  async function abrirAplicarCuota(socio: { id: string; nombre: string }) {
+    setAplicarCuota({ id: socio.id, nombre: socio.nombre })
+    setAplicarCuotaUrl('')
+    try {
+      const r = await fetch('/api/crm/membership-plans', { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) return
+      const j = await r.json()
+      const planes = (j.plans || []).filter((p: { isActive?: boolean }) => p.isActive !== false)
+      setAplicarCuotaPlanes(planes)
+      if (planes[0]?.id) setAplicarCuotaPlanId(planes[0].id)
+    } catch {
+      /* el diálogo avisa si no hay cuotas */
+    }
+  }
+
+  /** Aplica la cuota elegida y devuelve el enlace de pago en el momento. */
+  async function confirmarAplicarCuota() {
+    if (!aplicarCuota || !aplicarCuotaPlanId || aplicarCuotaBusy) return
+    setAplicarCuotaBusy(true)
+    try {
+      const plan = aplicarCuotaPlanes.find((p) => p.id === aplicarCuotaPlanId)
+      const r = await fetch('/api/crm/whop/assign-plan', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberIds: [aplicarCuota.id],
+          planId: aplicarCuotaPlanId,
+          paymentRequiredOnEnrollment: plan?.paymentRequiredOnEnrollment,
+        }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        showAlert(j.error || 'No se pudo aplicar la cuota')
+        return
+      }
+      track('aplicar-cuota-socio')
+      await reload()
+      if (j.url) {
+        setAplicarCuotaUrl(String(j.url))
+        try { await navigator.clipboard?.writeText(String(j.url)) } catch { /* se muestra igual */ }
+      } else {
+        setAplicarCuota(null)
+        showAlert(
+          j.linkError
+            ? `Cuota aplicada, pero no se pudo generar el enlace de pago: ${j.linkError}`
+            : 'Cuota aplicada correctamente.',
+        )
+      }
+    } finally {
+      setAplicarCuotaBusy(false)
     }
   }
 
@@ -4140,6 +4201,21 @@ function Socios({ contactosMode = false }) {
               onClick={() => {
                 const socio = SOCIOS_UI.find((x) => x.id === menuSocioId)
                 if (!socio) return
+                setMenuSocioId(null)
+                void abrirAplicarCuota(socio)
+              }}
+              style={{
+                width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderBottom:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#44403c',fontWeight:600
+              }}
+            >
+              Aplicar cuota
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const socio = SOCIOS_UI.find((x) => x.id === menuSocioId)
+                if (!socio) return
                 eliminarSocio(socio)
               }}
               style={{
@@ -4149,6 +4225,77 @@ function Socios({ contactosMode = false }) {
               Eliminar socio
             </button>
           </ViewportMenu>
+        )}
+        {aplicarCuota && (
+          <div
+            role="presentation"
+            onMouseDown={(e) => { if (e.target === e.currentTarget && !aplicarCuotaBusy) setAplicarCuota(null) }}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:1300 }}
+          >
+            <div style={{ width:'100%', maxWidth:460, background:'#fff', borderRadius:16, padding:24, boxShadow:'0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+              <h3 style={{ margin:'0 0 6px', fontSize:18, fontWeight:700 }}>Aplicar cuota</h3>
+              <p style={{ margin:'0 0 18px', fontSize:13.5, color:'var(--text-secondary)' }}>
+                Socio: <strong>{aplicarCuota.nombre}</strong>
+              </p>
+
+              {aplicarCuotaUrl ? (
+                <>
+                  <div style={{ padding:'10px 14px', borderRadius:10, background:'var(--green-soft)', color:'var(--green)', fontSize:13, fontWeight:600, marginBottom:12 }}>
+                    ✓ Cuota aplicada. Enlace de pago copiado al portapapeles.
+                  </div>
+                  <input
+                    readOnly
+                    value={aplicarCuotaUrl}
+                    onFocus={(e) => e.currentTarget.select()}
+                    style={{ width:'100%', padding:'10px 12px', borderRadius:10, border:'1px solid var(--border)', fontSize:12.5, fontFamily:'ui-monospace, monospace', boxSizing:'border-box' }}
+                  />
+                  <p style={{ fontSize:12, color:'var(--text-muted)', margin:'8px 0 0' }}>
+                    Envíaselo al socio: al pagarlo, su cuota queda activa y se renueva sola.
+                  </p>
+                  <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:18 }}>
+                    <button type="button" onClick={() => { setAplicarCuota(null); setAplicarCuotaUrl('') }}
+                      style={{ padding:'10px 18px', borderRadius:10, border:'none', background:'var(--accent)', color:'#fff', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+                      Hecho
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label style={{ fontSize:13, fontWeight:600, display:'block' }}>
+                    Cuota
+                    <select
+                      value={aplicarCuotaPlanId}
+                      onChange={(e) => setAplicarCuotaPlanId(e.target.value)}
+                      style={{ width:'100%', padding:'10px 12px', borderRadius:10, border:'1px solid var(--border)', fontSize:14, fontFamily:'inherit', marginTop:6, boxSizing:'border-box', cursor:'pointer' }}
+                    >
+                      {aplicarCuotaPlanes.length === 0 ? (
+                        <option value="">No hay cuotas activas</option>
+                      ) : (
+                        aplicarCuotaPlanes.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} · {fmtMoney(p.amount)} {p.billingPeriodLabel}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </label>
+                  <p style={{ fontSize:12, color:'var(--text-muted)', margin:'10px 0 0' }}>
+                    Se le asignará esta cuota (cancelando la anterior si tenía) y se generará su enlace de pago.
+                  </p>
+                  <div style={{ display:'flex', justifyContent:'flex-end', gap:10, marginTop:18 }}>
+                    <button type="button" disabled={aplicarCuotaBusy} onClick={() => setAplicarCuota(null)}
+                      style={{ padding:'10px 18px', borderRadius:10, border:'1px solid var(--border)', background:'#fff', fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
+                      Cancelar
+                    </button>
+                    <button type="button" disabled={aplicarCuotaBusy || !aplicarCuotaPlanId} onClick={() => void confirmarAplicarCuota()}
+                      style={{ padding:'10px 18px', borderRadius:10, border:'none', background:'var(--accent)', color:'#fff', fontWeight:700, fontSize:13, cursor: aplicarCuotaBusy ? 'wait' : 'pointer', fontFamily:'inherit', opacity: aplicarCuotaBusy || !aplicarCuotaPlanId ? 0.6 : 1 }}>
+                      {aplicarCuotaBusy ? 'Aplicando…' : 'Aplicar y obtener enlace'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         )}
         {bulkMenu && selectedIds.size > 0 && (
           <ViewportMenu

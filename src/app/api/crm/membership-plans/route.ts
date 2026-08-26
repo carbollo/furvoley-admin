@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
+import { billingPeriodDays as whopBillingPeriodDays } from '@/lib/whop/plans'
 import { clampBillingDay } from '@/lib/billing-dates'
 import {
   createMembershipPlan,
@@ -23,7 +24,13 @@ export async function GET(request: Request) {
   const [plans, subscriptions] = await Promise.all([
     prisma.membershipPlan.findMany({
       orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
-      include: { _count: { select: { subscriptions: true } } },
+      include: {
+        _count: { select: { subscriptions: true } },
+        // Para saber si la cuota está lista para cobrarse online.
+        whopMapping: {
+          select: { whopPlanId: true, amount: true, billingPeriodDays: true, currency: true },
+        },
+      },
     }),
     prisma.subscription.findMany({
       where: { status: { in: ['ACTIVE', 'PAUSED'] } },
@@ -49,6 +56,15 @@ export async function GET(request: Request) {
       billingDayOfMonth: p.billingDayOfMonth,
       isActive: p.isActive,
       subscriptionCount: p._count.subscriptions,
+      // Cobro online: solo cuenta como listo si el plan espejado sigue coincidiendo
+      // con el precio y la periodicidad actuales (si no, hay que volver a prepararlo).
+      onlineReady: Boolean(
+        p.whopMapping &&
+          Number(p.whopMapping.amount.toFixed(2)) === Number(p.amount.toFixed(2)) &&
+          p.whopMapping.billingPeriodDays === whopBillingPeriodDays(p.billingPeriod) &&
+          (p.whopMapping.currency || 'EUR').toLowerCase() ===
+            (p.currency || 'EUR').trim().toLowerCase(),
+      ),
       updatedAt: p.updatedAt.toISOString(),
     })),
     subscriptions: subscriptions.map((s) => ({

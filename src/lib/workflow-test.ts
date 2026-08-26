@@ -111,7 +111,8 @@ async function buildSyntheticTriggerContext(
     triggerType === 'INVOICE_CREATED' ||
     triggerType === 'INVOICE_PAID' ||
     triggerType === 'INVOICE_OVERDUE' ||
-    triggerType === 'INVOICE_OVERDUE_ESCALATED'
+    triggerType === 'INVOICE_OVERDUE_ESCALATED' ||
+    triggerType === 'ENROLLMENT_PAYMENT_DUE'
   ) {
     const invoice = await prisma.invoice.findFirst({
       where: { memberId: member.id },
@@ -125,6 +126,7 @@ async function buildSyntheticTriggerContext(
         status: true,
         dueDate: true,
         stripeCheckoutUrl: true,
+        whopCheckoutUrl: true,
       },
     })
     if (invoice) ctx.invoice = invoice

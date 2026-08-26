@@ -47,9 +47,17 @@ export function buildInvoiceVariables(invoice: {
   status: string
   dueDate: Date
   stripeCheckoutUrl: string | null
+  whopCheckoutUrl?: string | null
 }) {
   const pending = Math.max(0, invoice.totalAmount - invoice.paidAmount)
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '')
+  // Enlace de la pasarela activa; el de Stripe queda como respaldo para los clubes
+  // que aún cobran con la integración anterior. Solo se usa el guardado si sigue
+  // valiendo lo que se debe: un enlace viejo cobraría el importe de antes del
+  // último pago parcial. Quien necesite uno fresco usa createInvoiceCheckoutUrl.
+  const cached = invoice.whopCheckoutUrl || invoice.stripeCheckoutUrl || ''
+  const stale = invoice.status === 'PARTIAL' || invoice.paidAmount > 0
+  const paymentUrl = stale ? '' : cached
   return {
     invoiceId: invoice.id,
     invoiceNumber: invoice.invoiceNumber,
@@ -58,7 +66,10 @@ export function buildInvoiceVariables(invoice: {
     pendingAmount: pending.toFixed(2),
     invoiceStatus: invoice.status,
     invoiceDueDate: invoice.dueDate.toISOString(),
-    paymentUrl: invoice.stripeCheckoutUrl || '',
+    paymentUrl,
+    /** Alias en español: es el que se ofrece en el editor de flujos. */
+    enlace_cobro: paymentUrl,
+    importe_pendiente: pending.toFixed(2),
     invoicePdfUrl: `${appUrl}/api/invoices/${invoice.id}/pdf`,
   }
 }

@@ -23,6 +23,7 @@ import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
 import { createInvoiceWithNumber, nextInvoiceNumber, isUniqueViolation } from '@/lib/crm-invoice-create'
 import {
   runInvoiceCreatedWorkflows,
+  runEnrollmentPaymentDueWorkflows,
   runInvoiceOverdueWorkflows,
   runInvoicePaidWorkflows,
   runMemberStatusChangedWorkflows,
@@ -118,6 +119,8 @@ export async function createSubscription(data: {
   paymentRequiredOnEnrollment?: boolean
   /** Código de descuento (roadmap · 6.5) aplicado a las facturas de la suscripción. */
   discountCodeId?: string | null
+  /** false en altas masivas: evita mandar un aviso de cobro por cada socio. */
+  notifyEnrollment?: boolean
 }) {
   const plan = await prisma.membershipPlan.findUnique({ where: { id: data.planId } })
   if (!plan) throw new Error('Plan not found')
@@ -163,7 +166,7 @@ export async function createSubscription(data: {
   }
 
   // first invoice
-  await createInvoiceForSubscription(subscription.id)
+  await createInvoiceForSubscription(subscription.id, data.notifyEnrollment !== false)
   await runSubscriptionCreatedWorkflows(subscription.id)
   revalidatePath('/')
   return subscription
@@ -189,7 +192,13 @@ async function tryActivateMemberAfterEnrollmentPayment(invoiceId: string) {
   })
 }
 
-export async function createInvoiceForSubscription(subscriptionId: string) {
+/**
+ * @param notifyEnrollment  Si es false, NO se dispara el aviso de cobro al alta.
+ *   Lo usan la importación masiva y las acciones en lote: con 500 socios, avisar
+ *   a cada uno significaría 500 llamadas a la pasarela y 500 WhatsApps dentro de
+ *   la misma petición.
+ */
+export async function createInvoiceForSubscription(subscriptionId: string, notifyEnrollment = true) {
   const subscription = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
     include: { plan: true, member: true, discountCode: true },
@@ -306,7 +315,20 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
   if (invoiceStatus === 'OVERDUE') {
     await runInvoiceOverdueWorkflows(invoice.id)
   }
-  await runInvoiceCreatedWorkflows(invoice.id)
+  if (enrollmentRequired && notifyEnrollment) {
+    // Alta que exige pago: evento propio, con el enlace de cobro ya resuelto.
+    // Sustituye a INVOICE_CREATED en este caso (no se emiten los dos) para que el
+    // socio no reciba dos mensajes casi idénticos si el club tiene flujos en ambos.
+    //
+    // Va fuera del camino crítico: generar el enlace habla con la pasarela y
+    // enviar el WhatsApp con otro proveedor; si algo se atasca, el alta del socio
+    // no debe quedarse colgada esperando.
+    void runEnrollmentPaymentDueWorkflows(invoice.id).catch((e) =>
+      console.error('[billing] flujo de cobro al alta', invoice?.id, e),
+    )
+  } else {
+    await runInvoiceCreatedWorkflows(invoice.id)
+  }
   return invoice
 }
 

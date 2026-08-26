@@ -425,6 +425,26 @@ function triggerTokenOptionsByType(
     { token: '{triggerPaymentUpdatedAt}', label: 'Trigger · pago actualizado' },
   ]
 
+  // Disponibles cuando el evento llega con una factura en contexto.
+  const invoiceTokens: TokenOption[] = [
+    { token: '{enlace_cobro}', label: 'Enlace de cobro (pago online)' },
+    { token: '{importe_pendiente}', label: 'Importe pendiente' },
+    { token: '{invoiceNumber}', label: 'Factura · número' },
+    { token: '{invoiceTotal}', label: 'Factura · total' },
+    { token: '{invoiceCurrency}', label: 'Factura · moneda' },
+    { token: '{invoiceDueDate}', label: 'Factura · vencimiento' },
+    { token: '{invoicePdfUrl}', label: 'Factura · PDF' },
+  ]
+
+  if (
+    triggerType === 'ENROLLMENT_PAYMENT_DUE' ||
+    triggerType === 'INVOICE_CREATED' ||
+    triggerType === 'INVOICE_PAID' ||
+    triggerType === 'INVOICE_OVERDUE' ||
+    triggerType === 'INVOICE_OVERDUE_ESCALATED'
+  ) {
+    return [...memberBase, ...triggerBase, ...invoiceTokens]
+  }
   if (triggerType === 'MEMBER_STATUS_CHANGED') {
     return [...memberBase, ...triggerBase, ...memberStatusChanged]
   }

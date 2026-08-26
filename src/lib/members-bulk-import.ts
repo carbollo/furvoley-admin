@@ -94,6 +94,9 @@ export async function importMembersFromCsvRows(
               typeof options.paymentRequiredOnEnrollment === 'boolean'
                 ? options.paymentRequiredOnEnrollment
                 : plan.paymentRequiredOnEnrollment,
+            // Importar un CSV no debe disparar un WhatsApp por cada fila (hasta
+            // 500) ni una llamada a la pasarela por socio dentro de la petición.
+            notifyEnrollment: false,
           })
         } catch (e) {
           errors.push({

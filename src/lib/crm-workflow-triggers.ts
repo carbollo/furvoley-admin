@@ -23,6 +23,10 @@ export const WORKFLOW_TRIGGER_OPTIONS = [
   { value: 'PAYMENT_PAID', label: 'Cobro marcado como pagado (legacy)' },
   { value: 'PAYMENT_FAILED', label: 'Pago fallido' },
   { value: 'INVOICE_CREATED', label: 'Factura creada' },
+  {
+    value: 'ENROLLMENT_PAYMENT_DUE',
+    label: 'Alta con pago obligatorio (enlace de cobro listo)',
+  },
   { value: 'INVOICE_PAID', label: 'Factura pagada' },
   { value: 'INVOICE_OVERDUE', label: 'Factura vencida / impago' },
   { value: 'INVOICE_OVERDUE_ESCALATED', label: 'Impago escalado' },

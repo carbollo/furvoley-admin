@@ -240,6 +240,9 @@ async function assignPlanToMember(memberId: string, options: BatchOptions) {
     startDate,
     autoPay: options.autoPay === true,
     paymentRequiredOnEnrollment: options.paymentRequiredOnEnrollment,
+    // En lote no se avisa socio por socio: serían tantas llamadas a la pasarela y
+    // tantos WhatsApps como socios, dentro de la misma petición.
+    notifyEnrollment: false,
   })
 }
 

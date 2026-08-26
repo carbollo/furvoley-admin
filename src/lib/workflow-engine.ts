@@ -79,6 +79,7 @@ export type WorkflowTriggerType =
   | 'PAYMENT_CREATED'
   | 'PAYMENT_PAID'
   | 'INVOICE_CREATED'
+  | 'ENROLLMENT_PAYMENT_DUE'
   | 'INVOICE_PAID'
   | 'INVOICE_OVERDUE'
   | 'SUBSCRIPTION_CREATED'
@@ -136,6 +137,8 @@ export type WorkflowTriggerContext = {
     status: string
     dueDate: Date
     stripeCheckoutUrl: string | null
+    /** Enlace de la pasarela activa; tiene prioridad sobre el de Stripe. */
+    whopCheckoutUrl?: string | null
   } | null
   event?: {
     id: string
@@ -239,6 +242,10 @@ function defaultWorkflowVariables() {
     invoiceStatus: '',
     invoiceDueDate: '',
     paymentUrl: '',
+    // Alias en español (los que ofrece el editor de flujos): deben existir aunque
+    // no haya factura en contexto, o el token se enviaría tal cual al socio.
+    enlace_cobro: '',
+    importe_pendiente: '',
     invoicePdfUrl: '',
     subscriptionId: '',
     signupLinkUrl: '',
@@ -1319,10 +1326,59 @@ export async function runInvoiceCreatedWorkflows(invoiceId: string) {
       status: true,
       dueDate: true,
       stripeCheckoutUrl: true,
+      whopCheckoutUrl: true,
     },
   })
   if (!invoice) return
   await runWorkflowsForMemberByTrigger(invoice.memberId, 'INVOICE_CREATED', { invoice })
+}
+
+/**
+ * Alta de un socio con una cuota que exige pago para completarse.
+ *
+ * A diferencia de `INVOICE_CREATED` (que se dispara también en cada cuota
+ * mensual), este evento es solo el del alta, y llega con el **enlace de cobro ya
+ * generado**: así un flujo puede mandarlo por WhatsApp con un único paso, sin
+ * tener que encadenar antes una acción que lo cree.
+ */
+export async function runEnrollmentPaymentDueWorkflows(invoiceId: string) {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    select: {
+      id: true,
+      memberId: true,
+      invoiceNumber: true,
+      totalAmount: true,
+      paidAmount: true,
+      currency: true,
+      status: true,
+      dueDate: true,
+      stripeCheckoutUrl: true,
+      whopCheckoutUrl: true,
+    },
+  })
+  if (!invoice) return
+
+  // El enlace se genera por adelantado. Si no se consigue, NO se ejecuta el flujo:
+  // el sentido de este evento es mandar un enlace de pago, y un mensaje con el
+  // hueco en blanco ("Puedes pagarla aquí:" seguido de nada) es peor que ninguno.
+  let checkoutUrl = ''
+  try {
+    const { createInvoiceCheckoutUrl } = await import('@/lib/payments/invoice-checkout')
+    const link = await createInvoiceCheckoutUrl(invoice.id)
+    if (link.ok) checkoutUrl = link.url
+    else console.warn('[workflow] alta con pago: sin enlace de cobro —', link.error)
+  } catch (e) {
+    console.warn('[workflow] alta con pago: no se pudo generar el enlace', e)
+  }
+  if (!checkoutUrl) {
+    console.warn('[workflow] alta con pago: flujo omitido (la pasarela no devolvió enlace)')
+    return
+  }
+
+  await runWorkflowsForMemberByTrigger(invoice.memberId, 'ENROLLMENT_PAYMENT_DUE', {
+    invoice: { ...invoice, whopCheckoutUrl: checkoutUrl },
+  })
 }
 
 export async function runInvoicePaidWorkflows(invoiceId: string) {
@@ -1338,6 +1394,7 @@ export async function runInvoicePaidWorkflows(invoiceId: string) {
       status: true,
       dueDate: true,
       stripeCheckoutUrl: true,
+      whopCheckoutUrl: true,
     },
   })
   if (!invoice) return
@@ -1357,6 +1414,7 @@ export async function runInvoiceOverdueWorkflows(invoiceId: string) {
       status: true,
       dueDate: true,
       stripeCheckoutUrl: true,
+      whopCheckoutUrl: true,
     },
   })
   if (!invoice) return
