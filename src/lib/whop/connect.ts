@@ -34,6 +34,8 @@ export const WHOP_REQUIRED_SCOPES: { action: string; label: string }[] = [
   { action: 'developer:manage_webhook', label: 'Recibir avisos de cobro en tiempo real' },
   { action: 'company:balance:read', label: 'Consultar tu saldo' },
   { action: 'payout:account:read', label: 'Ver tu cuenta bancaria' },
+  { action: 'payout:destination:read', label: 'Leer tus datos bancarios guardados' },
+  { action: 'payout:create_destination', label: 'Guardar tu cuenta bancaria' },
   { action: 'payout:withdraw_funds', label: 'Enviarte el dinero a tu banco' },
 ]
 

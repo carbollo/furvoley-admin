@@ -41,6 +41,14 @@ export type TenantRunResult<T> = {
  */
 export async function forEachTenant<T>(
   fn: (slug: string | null) => Promise<T>,
+  opts: {
+    /**
+     * Desplaza el punto de arranque del recorrido. El orden por slug es fijo, así
+     * que una tarea que no llega al final del listado dejaría fuera SIEMPRE a los
+     * mismos clubes; rotando cada día les toca a todos.
+     */
+    rotateBy?: number
+  } = {},
 ): Promise<TenantRunResult<T>[]> {
   if (!isMultiTenant()) {
     try {
@@ -50,7 +58,9 @@ export async function forEachTenant<T>(
     }
   }
 
-  const slugs = await listActiveTenantSlugs()
+  const all = await listActiveTenantSlugs()
+  const offset = all.length > 0 ? ((Math.trunc(opts.rotateBy ?? 0) % all.length) + all.length) % all.length : 0
+  const slugs = offset === 0 ? all : [...all.slice(offset), ...all.slice(0, offset)]
   const results: TenantRunResult<T>[] = []
   for (const slug of slugs) {
     const dbUrl = tenantDbUrl(slug)

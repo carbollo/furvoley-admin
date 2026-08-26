@@ -250,6 +250,37 @@ model WhopUnreconciledEvent {
   @@index([externalId])
 }
 
+/// Cada transferencia del saldo del club a su banco.
+///
+/// Se escribe ANTES de pedirla a la pasarela y con su clave de reintento ya
+/// fijada: la clave es única en esta tabla, así que ni un reintento del cron ni
+/// dos usuarios a la vez pueden generar dos transferencias del mismo barrido,
+/// aunque la pasarela fallara en deduplicar. También es el registro con el que
+/// el club sabe de qué es cada ingreso que le entra en el banco.
+model WhopPayout {
+  id             String    @id @default(cuid())
+  /// Clave de reintento enviada a la pasarela. Estable por barrido: reintentar
+  /// con ella repite la respuesta original en vez de mover el dinero otra vez.
+  idempotencyKey String    @unique
+  /// Id en la pasarela (po_…). Nulo mientras no se confirme.
+  payoutId       String?   @unique
+  amount         Float
+  currency       String
+  /// SENDING (pedida, sin confirmar) | SENT | FAILED | UNKNOWN (resultado
+  /// indeterminado: hubo timeout y hay que comprobarlo antes de reintentar).
+  status         String    @default("SENDING")
+  /// AUTO (barrido programado) | MANUAL (botón del club).
+  trigger        String    @default("AUTO")
+  /// Motivo del fallo, en lenguaje que se le puede enseñar al club.
+  error          String?
+  confirmedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
 model WhopPlanMapping {
   id               String   @id @default(cuid())
   /// Cuenta de la pasarela a la que pertenecen el producto y el plan. Si el club
@@ -1030,12 +1061,20 @@ model ClubSettings {
   whopPayoutsEnabled       Boolean? @default(false)
   /// Método de payout (banco del club, potk_…) al que el CRM transfiere el saldo.
   whopPayoutMethodId       String?
+  /// Divisa en la que esa cuenta recibe el dinero. El barrido automático sólo
+  /// transfiere saldo de esta divisa: mandar otra implicaría un cambio de moneda
+  /// al tipo del día, y eso lo decide el club a mano.
+  whopPayoutCurrency       String?  @default("EUR")
   whopAccountStatusAt      DateTime?
   /// Auto-transferencia del saldo al banco del club: OFF | DAILY | WEEKLY | MONTHLY.
   whopSweepFrequency       String?  @default("WEEKLY")
   /// Importe mínimo (EUR) para lanzar la transferencia automática.
   whopSweepMinAmount       Float?   @default(10)
   whopLastSweepAt          DateTime?
+  /// Cerrojo del barrido: mientras esté puesto (y no caducado) ningún otro
+  /// proceso puede lanzar transferencias de este club. Evita que dos pestañas,
+  /// dos usuarios o el cron y el botón manual muevan el dinero a la vez.
+  whopSweepLockAt          DateTime?
 
   /** API key para Hermes Agent MCP (Bearer). Env HERMES_MCP_API_KEY tiene prioridad. */
   hermesMcpApiKey          String?  @db.Text

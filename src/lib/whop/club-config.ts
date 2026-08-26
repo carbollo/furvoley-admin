@@ -19,6 +19,8 @@ export type WhopClubConfig = {
   payoutsEnabled: boolean
   payoutMethodId: string
   hasPayoutMethod: boolean
+  /** Divisa en la que la cuenta bancaria del club recibe el dinero. */
+  payoutCurrency: string
   sweepFrequency: 'OFF' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
   sweepMinAmount: number
   lastSweepAt: string | null
@@ -55,6 +57,7 @@ export async function getWhopClubConfig(): Promise<WhopClubConfig> {
     whopChargesEnabled: boolean | null
     whopPayoutsEnabled: boolean | null
     whopPayoutMethodId: string | null
+    whopPayoutCurrency: string | null
     whopSweepFrequency: string | null
     whopSweepMinAmount: number | null
     whopLastSweepAt: Date | null
@@ -69,6 +72,7 @@ export async function getWhopClubConfig(): Promise<WhopClubConfig> {
         whopChargesEnabled: true,
         whopPayoutsEnabled: true,
         whopPayoutMethodId: true,
+        whopPayoutCurrency: true,
         whopSweepFrequency: true,
         whopSweepMinAmount: true,
         whopLastSweepAt: true,
@@ -92,6 +96,7 @@ export async function getWhopClubConfig(): Promise<WhopClubConfig> {
     payoutsEnabled: Boolean(s?.whopPayoutsEnabled),
     payoutMethodId,
     hasPayoutMethod: payoutMethodId !== '',
+    payoutCurrency: (s?.whopPayoutCurrency || 'EUR').toUpperCase(),
     sweepFrequency: normalizeFrequency(s?.whopSweepFrequency),
     sweepMinAmount: typeof s?.whopSweepMinAmount === 'number' ? s.whopSweepMinAmount : 10,
     lastSweepAt: s?.whopLastSweepAt ? s.whopLastSweepAt.toISOString() : null,
