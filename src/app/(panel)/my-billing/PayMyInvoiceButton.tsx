@@ -27,7 +27,7 @@ export function PayMyInvoiceButton({ invoiceId }: { invoiceId: string }) {
                 window.location.href = j.url
                 return
               }
-              setError('Stripe no devolvió un enlace de pago válido.')
+              setError('No se pudo obtener un enlace de pago válido. Avisa a tu club.')
             } catch {
               setError('Error de conexión. Comprueba tu red e inténtalo de nuevo.')
             }
@@ -47,7 +47,7 @@ export function PayMyInvoiceButton({ invoiceId }: { invoiceId: string }) {
           boxShadow: '0 1px 2px rgba(0,88,190,0.2)',
         }}
       >
-        {pending ? 'Redirigiendo a Stripe…' : 'Pagar con Stripe'}
+        {pending ? 'Abriendo el pago…' : 'Pagar ahora'}
       </button>
       {error ? (
         <span style={{ fontSize: 11, color: '#b91c1c', maxWidth: 220, lineHeight: 1.35 }}>{error}</span>

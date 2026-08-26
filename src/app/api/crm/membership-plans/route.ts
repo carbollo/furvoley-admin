@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 import { billingPeriodDays as whopBillingPeriodDays } from '@/lib/whop/plans'
 import { clampBillingDay } from '@/lib/billing-dates'
-import { SUBSCRIPTION_VISIBLE, SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
+import { SUBSCRIPTION_VISIBLE } from '@/lib/subscription-statuses'
 import {
   createMembershipPlan,
   deleteMembershipPlan,
@@ -41,12 +41,14 @@ export async function GET(request: Request) {
       },
       orderBy: { createdAt: 'desc' },
     }),
-    // Socios sin cuota: ni activa ni pendiente de pago. Se excluyen los inactivos
-    // y los leads, que aún no son socios de pleno derecho.
+    // Socios sin cuota: los que no aparecen en la lista de «con cuota», ni
+    // siquiera pausados. Se comparan contra el MISMO conjunto de estados que usa
+    // esa lista, o un socio en pausa saldría en las dos a la vez. Se excluyen los
+    // inactivos y los leads, que aún no son socios de pleno derecho.
     prisma.member.findMany({
       where: {
         status: { notIn: ['INACTIVE', 'LEAD'] },
-        subscriptions: { none: { status: { in: SUBSCRIPTION_ACTIVE_LIKE } } },
+        subscriptions: { none: { status: { in: SUBSCRIPTION_VISIBLE } } },
       },
       select: { id: true, name: true, email: true, phone: true, status: true },
       orderBy: { name: 'asc' },

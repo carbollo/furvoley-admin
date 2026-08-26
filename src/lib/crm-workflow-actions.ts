@@ -15,7 +15,7 @@ export const WORKFLOW_ACTION_OPTIONS = [
   { value: 'SEND_WHATSAPP', label: 'Enviar WhatsApp' },
   { value: 'SEND_WHATSAPP_TO_COACH', label: 'WhatsApp al entrenador' },
   { value: 'SEND_WHATSAPP_TO_TEAM', label: 'WhatsApp al equipo' },
-  { value: 'SEND_PAYMENT_LINK', label: 'Enviar enlace de pago (Stripe)' },
+  { value: 'SEND_PAYMENT_LINK', label: 'Enviar enlace de pago' },
   { value: 'SEND_INVOICE_PDF_WHATSAPP', label: 'Factura PDF por WhatsApp' },
   { value: 'CREATE_SUBSCRIPTION', label: 'Crear suscripción' },
   { value: 'CREATE_INVOICE_FROM_PLAN', label: 'Generar factura desde plan' },

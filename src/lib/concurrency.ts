@@ -3,7 +3,7 @@
  * Mantiene el orden de los resultados y nunca lanza: cada tarea se resuelve
  * individualmente (usa try/catch dentro de `fn` si necesitas tolerar fallos).
  *
- * Pensado para acelerar envíos masivos (WhatsApp/ApiWass, enlaces Stripe…) que
+ * Pensado para acelerar envíos masivos (WhatsApp/ApiWass, enlaces de pago…) que
  * antes se hacían de uno en uno y tardaban demasiado, sin saturar el proveedor.
  */
 export async function mapWithConcurrency<T, R>(

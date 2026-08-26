@@ -1,16 +1,14 @@
 // Módulo de SERVIDOR (deliberadamente SIN 'use server'): estas funciones NO son
 // server actions RPC. Solo las invocan, ya autorizados, las rutas API (requireRoles),
-// el webhook de Stripe (firma), los crons (forEachTenant), los workflows y Hermes
+// el webhook de la pasarela (firma), los crons (forEachTenant), los workflows y Hermes
 // (Bearer), además de otros módulos de servidor. Antes tenía 'use server', lo que
 // exponía cada función (cobros, planes, suscripciones, facturas) como endpoint RPC
 // invocable por cualquier cliente autenticado sin comprobación de rol.
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { getStripe } from '@/lib/stripe'
 import { createJournalEntry } from '@/lib/accounting/engine'
 import { ensureBasePgcAccounts } from '@/lib/accounting/pgc'
-import { getClubIssuer, getStripeConnectConfig } from '@/lib/club-settings'
-import type Stripe from 'stripe'
+import { getClubIssuer } from '@/lib/club-settings'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import {
@@ -19,7 +17,6 @@ import {
   clampBillingDay,
   nextBillingDate,
 } from '@/lib/billing-dates'
-import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
 import { createInvoiceWithNumber, nextInvoiceNumber, isUniqueViolation } from '@/lib/crm-invoice-create'
 import {
   runInvoiceCreatedWorkflows,
@@ -133,8 +130,6 @@ export async function createSubscription(data: {
   const initialNextInvoiceDate = paymentRequired
     ? startOfDay(new Date())
     : nextBillingDate(startDate, billingDay, plan.billingPeriod)
-
-  void ensureMemberStripeCustomer(data.memberId).catch(() => {})
 
   const subscription = await prisma.subscription.create({
     data: {
@@ -456,8 +451,6 @@ export async function recordInvoicePayment(data: {
   amount: number
   method?: string
   status?: string
-  stripePaymentIntent?: string
-  stripeSessionId?: string
   /** Id del pago en la pasarela: clave de dedupe (@unique) ante reentregas. */
   externalPaymentId?: string
   errorMessage?: string
@@ -469,10 +462,8 @@ export async function recordInvoicePayment(data: {
   const attemptData = {
     invoiceId: data.invoiceId,
     amount: data.amount,
-    method: data.method ?? 'STRIPE',
+    method: data.method ?? 'WHOP',
     status: data.status ?? 'SUCCEEDED',
-    stripePaymentIntent: data.stripePaymentIntent,
-    stripeSessionId: data.stripeSessionId,
     externalPaymentId: data.externalPaymentId,
     errorMessage: data.errorMessage,
   }
@@ -519,21 +510,22 @@ export async function recordInvoicePayment(data: {
   }
 
   if ((data.status ?? 'SUCCEEDED') === 'SUCCEEDED') {
-    const method = data.method ?? 'STRIPE'
+    const method = data.method ?? 'WHOP'
 
-    // ⚠️ Política contable: los cobros recibidos por Stripe **no** generan
-    // automáticamente Transaction ni JournalEntry. La contabilidad oficial se
-    // llena exclusivamente desde el CSV bancario (importBankCsv +
-    // reconcileBankLine). Cuando el ingreso de Stripe aparezca en el extracto,
-    // el admin lo conciliará o creará el asiento desde la línea bancaria.
+    // ⚠️ Política contable: los cobros recibidos por la pasarela **no** generan
+    // automáticamente Transaction ni JournalEntry. Ese dinero llega a la cuenta
+    // de la pasarela y solo entra en el banco del club cuando se transfiere, así
+    // que el asiento se crea al conciliar el extracto (importBankCsv +
+    // reconcileBankLine), no al cobrar.
     //
     // Para BANK_TRANSFER y CASH (cobros registrados manualmente desde el CRM)
     // sí creamos el asiento de inmediato, porque esos cobros nunca pasan por
     // el CSV bancario (efectivo en mano) o porque su matching con el extracto
     // se hará por importe/referencia (transferencia manual).
-    // WHOP sigue la MISMA política que STRIPE: el dinero llega a la cuenta de la
-    // pasarela y solo entra en el banco del club cuando se transfiere, así que el
-    // asiento se crea al conciliar el extracto, no al cobrar.
+    //
+    // 'STRIPE' ya no lo produce nadie (pasarela retirada), pero se sigue
+    // excluyendo: si algún reproceso tocara una fila histórica, duplicaría un
+    // asiento que ya se concilió en su día.
     if (method !== 'STRIPE' && method !== 'WHOP') {
       let source = 'INVOICE_PAYMENT'
       if (method === 'BANK_TRANSFER') source = 'BANK_TRANSFER'
@@ -608,7 +600,7 @@ export async function recordManualInvoicePayment(data: {
 }
 
 /** Enlace de pago de una factura con la pasarela activa del club. */
-export async function createInvoiceStripeLink(invoiceId: string) {
+export async function createInvoicePaymentLink(invoiceId: string) {
   const { createInvoiceCheckoutUrl } = await import('@/lib/payments/invoice-checkout')
   const result = await createInvoiceCheckoutUrl(invoiceId)
   if (!result.ok) throw new Error(result.error)
@@ -616,69 +608,6 @@ export async function createInvoiceStripeLink(invoiceId: string) {
   return result.url
 }
 
-export async function createSubscriptionStripeLink(subscriptionId: string) {
-  const subscription = await prisma.subscription.findUnique({
-    where: { id: subscriptionId },
-    include: { member: true, plan: true },
-  })
-  if (!subscription) throw new Error('Subscription not found')
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const issuer = await getClubIssuer()
-  const connect = await getStripeConnectConfig()
-  const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
-
-  const stripe = getStripe()
-  const params: Stripe.Checkout.SessionCreateParams = {
-    mode: 'subscription',
-    client_reference_id: subscription.id,
-    metadata: {
-      subscriptionId: subscription.id,
-      memberId: subscription.memberId,
-      clubId: clubSlug,
-      clubName: issuer.name,
-      clubLegalName: issuer.legalName || '',
-      clubTaxId: issuer.taxId || '',
-      stripeAccount: connect.connectedAccountId || '',
-    },
-    line_items: [
-      {
-        quantity: 1,
-        price_data: {
-          currency: subscription.plan.currency.toLowerCase(),
-          unit_amount: Math.round(subscription.plan.amount * 100),
-          recurring: {
-            interval:
-              subscription.plan.billingPeriod === 'MONTHLY'
-                ? 'month'
-                : subscription.plan.billingPeriod === 'QUARTERLY'
-                ? 'month'
-                : 'year',
-            interval_count: subscription.plan.billingPeriod === 'QUARTERLY' ? 3 : 1,
-          },
-          product_data: {
-            name: `${issuer.name} · ${subscription.plan.name}`,
-            description: `Socio: ${subscription.member.name}`,
-          },
-        },
-      },
-    ],
-    success_url: `${appUrl}/?tab=contabilidad&success=true`,
-    cancel_url: `${appUrl}/?tab=contabilidad&canceled=true`,
-    subscription_data: {
-      metadata: { subscriptionId: subscription.id, memberId: subscription.memberId },
-      ...(connect.applicationFeePercent > 0
-        ? { application_fee_percent: connect.applicationFeePercent }
-        : {}),
-    },
-  }
-
-  const requestOptions: Stripe.RequestOptions | undefined = connect.hasConnectedAccount
-    ? { stripeAccount: connect.connectedAccountId }
-    : undefined
-  const session = await stripe.checkout.sessions.create(params, requestOptions)
-  return session.url
-}
 
 export async function runReminderJob() {
   const today = startOfDay(new Date())
@@ -717,7 +646,7 @@ export async function runReminderJob() {
         let payLine = ''
         try {
           // Siempre por el generador: la caché por pasarela la gestiona él.
-          const url = await createInvoiceStripeLink(invoice.id)
+          const url = await createInvoicePaymentLink(invoice.id)
           if (url) payLine = ` Pagar: ${url}`
         } catch {
           /* optional */

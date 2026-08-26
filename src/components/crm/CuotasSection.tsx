@@ -717,7 +717,7 @@ export function CuotasSection({
               </table>
             )}
           </div>
-        ) : (
+        ) : tab === 'asignaciones' ? (
           <div
             style={{
               background: 'var(--surface-card)',
@@ -950,7 +950,7 @@ export function CuotasSection({
               </table>
             )}
           </div>
-        )}
+        ) : null}
 
         {!loading && tab === 'sin-cuota' && (
           <div
@@ -1471,7 +1471,7 @@ export function CuotasSection({
                   checked={assignForm.autoPay}
                   onChange={(e) => setAssignForm((f) => ({ ...f, autoPay: e.target.checked }))}
                 />
-                Cobro automático (Stripe) cuando esté configurado
+                Cobro automático cuando la pasarela esté configurada
               </label>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>

@@ -124,7 +124,6 @@ export async function runBillingCycleWorkflows() {
           currency: invoice.currency,
           status: invoice.status,
           dueDate: invoice.dueDate,
-          stripeCheckoutUrl: invoice.stripeCheckoutUrl,
         },
       })
     } catch (e) {

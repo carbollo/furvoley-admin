@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
 import { getTaxConfig } from '@/lib/tax-config'
-import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
 import { runInvoiceCreatedWorkflows } from '@/lib/workflow-engine'
 
 export type InvoiceCreateInput = {
@@ -176,7 +175,6 @@ export async function createMemberInvoice(memberId: string, input: InvoiceCreate
     select: { id: true },
   }))
 
-  void ensureMemberStripeCustomer(memberId).catch(() => {})
   void runInvoiceCreatedWorkflows(invoice.id).catch((e) =>
     console.warn('[crm-invoices] workflow', e),
   )
@@ -250,7 +248,6 @@ export async function createTeamInvoices(groupId: string, input: InvoiceCreateIn
   if (!invoices) throw new Error('No se pudieron generar las facturas del equipo')
 
   for (const invoice of invoices) {
-    void ensureMemberStripeCustomer(invoice.memberId).catch(() => {})
     void runInvoiceCreatedWorkflows(invoice.id).catch((e) =>
       console.warn('[crm-invoices] workflow', e),
     )

@@ -136,8 +136,7 @@ export type WorkflowTriggerContext = {
     currency: string
     status: string
     dueDate: Date
-    stripeCheckoutUrl: string | null
-    /** Enlace de la pasarela activa; tiene prioridad sobre el de Stripe. */
+    /** Enlace de cobro de la pasarela del club. */
     whopCheckoutUrl?: string | null
   } | null
   event?: {
@@ -1325,7 +1324,6 @@ export async function runInvoiceCreatedWorkflows(invoiceId: string) {
       currency: true,
       status: true,
       dueDate: true,
-      stripeCheckoutUrl: true,
       whopCheckoutUrl: true,
     },
   })
@@ -1353,7 +1351,6 @@ export async function runEnrollmentPaymentDueWorkflows(invoiceId: string) {
       currency: true,
       status: true,
       dueDate: true,
-      stripeCheckoutUrl: true,
       whopCheckoutUrl: true,
     },
   })
@@ -1393,7 +1390,6 @@ export async function runInvoicePaidWorkflows(invoiceId: string) {
       currency: true,
       status: true,
       dueDate: true,
-      stripeCheckoutUrl: true,
       whopCheckoutUrl: true,
     },
   })
@@ -1413,7 +1409,6 @@ export async function runInvoiceOverdueWorkflows(invoiceId: string) {
       currency: true,
       status: true,
       dueDate: true,
-      stripeCheckoutUrl: true,
       whopCheckoutUrl: true,
     },
   })

@@ -9,7 +9,6 @@ import { authOptions } from '@/lib/auth'
 import { normalizeRole } from '@/lib/rbac'
 import { runWithTenant } from '@/lib/multitenant/request'
 import { runMemberCreatedWorkflows } from '@/lib/workflow-engine'
-import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
 import type { RegistrationMemberData } from '@/lib/registration-fields'
 import { isHexToken } from '@/lib/db-input-validation'
 
@@ -89,7 +88,6 @@ export async function submitSignupFromLink(data: RegistrationMemberData & { toke
       status: 'ACTIVE',
     },
   })
-  void ensureMemberStripeCustomer(member.id).catch(() => {})
   await runMemberCreatedWorkflows(member.id)
 
   // El uso ya se consumió atómicamente arriba; aquí solo registramos el socio creado.

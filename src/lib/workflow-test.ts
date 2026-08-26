@@ -125,7 +125,6 @@ async function buildSyntheticTriggerContext(
         currency: true,
         status: true,
         dueDate: true,
-        stripeCheckoutUrl: true,
         whopCheckoutUrl: true,
       },
     })

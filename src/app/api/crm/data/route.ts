@@ -4,7 +4,6 @@ import { getTaxConfig } from '@/lib/tax-config'
 import { requireRoles } from '@/lib/rbac-api'
 import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
 import { getClubBranding, getRegistrationFieldsConfig } from '@/lib/club-settings'
-import { scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 import { crmInvoiceEstado, isInvoicePastDue } from '@/lib/invoice-display'
 import { isEnvFixedAdminEmail } from '@/lib/env-admin'
 import { getMemberStatsAccurate } from '@/lib/crm-member-mapper'
@@ -40,13 +39,6 @@ export async function GET(request: Request) {
   const auth = await requireRoles(['ADMIN', 'COACH', 'TREASURER'], request)
   if (!auth.ok) return auth.response
   const role = auth.role
-  // Bootstrap automático de los webhook endpoints de Stripe (idempotente,
-  // throttled a una vez cada 5 minutos). Solo lo intentamos cuando el admin
-  // accede al CRM: así un clon nuevo del servicio se autoconfigura sin que
-  // nadie tenga que crear webhooks en el Dashboard de Stripe.
-  if (role === 'ADMIN') {
-    scheduleEnsureStripeWebhooks()
-  }
   const sessionUser = auth.session.user as { memberId?: string | null; name?: string | null; email?: string | null; role?: string }
   const sessionMemberId = sessionUser.memberId || null
   const canUseAccounting = role === 'ADMIN' || role === 'TREASURER'
@@ -221,7 +213,8 @@ export async function GET(request: Request) {
     let label = 'Otros'
     if (t.invoice?.kind === 'MEMBERSHIP') label = 'Cuotas mensuales'
     else if (t.invoice?.kind === 'OTHER') label = 'Cobros adicionales'
-    else if (t.source === 'STRIPE') label = 'Pagos Stripe'
+    // Histórico: las filas antiguas se etiquetaron con la pasarela anterior.
+    else if (t.source === 'STRIPE' || t.source === 'WHOP') label = 'Cobros online'
     else if (t.source === 'BANK_TRANSFER') label = 'Transferencias'
     else if (t.source === 'CASH') label = 'Efectivo'
     else if (t.source === 'MANUAL') label = 'Manual'

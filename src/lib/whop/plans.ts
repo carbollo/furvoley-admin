@@ -5,7 +5,7 @@ import { getWhopClubConfig, getWhopClubCredential } from '@/lib/whop/club-config
 /**
  * Espejo de las cuotas del CRM como planes recurrentes en la pasarela.
  *
- * A diferencia de Stripe (que generaba el precio al vuelo en cada cobro), aquí
+ * A diferencia de la pasarela anterior (que generaba el precio al vuelo en cada cobro), aquí
  * los planes se crean por adelantado: una cuota del CRM ↔ un plan de la pasarela,
  * guardado en `WhopPlanMapping`.
  *

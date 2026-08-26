@@ -13,7 +13,7 @@ import {
   runPaymentCreatedWorkflows,
   runPaymentPaidWorkflows,
 } from '@/lib/workflow-engine'
-import { createInvoiceStripeLink } from '@/app/actions/billing'
+import { createInvoicePaymentLink } from '@/app/actions/billing'
 
 /**
  * Autorización de estos server actions (endpoints RPC invocables por cualquier
@@ -118,7 +118,7 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
 
   const members = [...byMember.values()]
   // Envío con concurrencia limitada: antes era 1 a 1 (lento con muchos socios,
-  // cada uno generaba además su enlace Stripe en serie). 6 en paralelo acelera
+  // cada uno generaba además su enlace de pago en serie). 6 en paralelo acelera
   // mucho sin saturar ApiWass.
   const { mapWithConcurrency } = await import('@/lib/concurrency')
   await mapWithConcurrency(members, 6, async (member) => {
@@ -131,7 +131,7 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
     try {
       // Siempre por el generador de enlaces: leer aquí un enlace guardado de una
       // pasarela anterior mandaría al socio a pagar donde ya no se concilia.
-      const url = await createInvoiceStripeLink(member.oldestInvoiceId)
+      const url = await createInvoicePaymentLink(member.oldestInvoiceId)
       if (url) payLine = `\nPagar aquí: ${url}`
     } catch {
       /* enlace opcional */
@@ -171,81 +171,6 @@ export async function createPayment(data: { memberId: string; amount: number; mo
   }
   revalidatePath('/')
   return payment
-  })
-}
-
-export async function generateStripeLink(paymentId: string) {
-  return runWithTenant(async () => {
-  await assertAccountingStaff()
-  const payment = await prisma.payment.findUnique({
-    where: { id: paymentId },
-    include: { member: true }
-  })
-
-  if (!payment) throw new Error("Payment not found")
-  if (payment.stripeUrl) return payment.stripeUrl
-
-  const { getStripe } = await import('@/lib/stripe')
-  const { getClubIssuer, getStripeConnectConfig } = await import('@/lib/club-settings')
-  const stripe = getStripe()
-  const issuer = await getClubIssuer()
-  const connect = await getStripeConnectConfig()
-  const clubSlug = issuer.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'club'
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const amountCents = Math.round(payment.amount * 100)
-  const applicationFeeCents = connect.applicationFeePercent > 0
-    ? Math.round((amountCents * connect.applicationFeePercent) / 100)
-    : 0
-
-  const params = {
-    line_items: [
-      {
-        price_data: {
-          currency: 'eur' as const,
-          product_data: {
-            name: `${issuer.name} · Mensualidad ${payment.month}/${payment.year}`,
-            description: `Socio: ${payment.member.name}`,
-          },
-          unit_amount: amountCents,
-        },
-        quantity: 1,
-      },
-    ],
-    mode: 'payment' as const,
-    success_url: `${appUrl}/?tab=contabilidad&stripeSuccess=1`,
-    cancel_url: `${appUrl}/?tab=contabilidad&stripeCanceled=1`,
-    client_reference_id: payment.id,
-    metadata: {
-      paymentId: payment.id,
-      memberId: payment.memberId,
-      clubId: clubSlug,
-      clubName: issuer.name,
-      clubLegalName: issuer.legalName || '',
-      clubTaxId: issuer.taxId || '',
-      stripeAccount: connect.connectedAccountId || '',
-    },
-    payment_intent_data: {
-      metadata: { paymentId: payment.id, memberId: payment.memberId },
-      ...(applicationFeeCents > 0 ? { application_fee_amount: applicationFeeCents } : {}),
-    },
-  }
-
-  const session = await stripe.checkout.sessions.create(
-    params,
-    connect.hasConnectedAccount ? { stripeAccount: connect.connectedAccountId } : undefined,
-  )
-
-  await prisma.payment.update({
-    where: { id: payment.id },
-    data: {
-      stripeUrl: session.url,
-      stripeSessionId: session.id
-    }
-  })
-
-  revalidatePath('/')
-  return session.url
   })
 }
 

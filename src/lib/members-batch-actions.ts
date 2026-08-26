@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getClubIssuer } from '@/lib/club-settings'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
-import { createInvoiceStripeLink, createSubscription } from '@/app/actions/billing'
+import { createInvoicePaymentLink, createSubscription } from '@/app/actions/billing'
 import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 
 export const MAX_BATCH_MEMBERS = 200
@@ -153,7 +153,7 @@ async function sendPaymentReminder(memberId: string) {
   try {
     // Siempre por el generador (la caché por pasarela la lleva él): un enlace
     // guardado de otra pasarela cobraría donde el CRM ya no concilia.
-    const url = await createInvoiceStripeLink(oldestInvoiceId)
+    const url = await createInvoicePaymentLink(oldestInvoiceId)
     if (url) payLine = `\nPagar aquí: ${url}`
   } catch {
     /* optional */

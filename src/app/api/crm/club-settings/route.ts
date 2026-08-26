@@ -4,8 +4,6 @@ import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 import {
   getClubSettings,
-  getStripePortalConfig,
-  getStripeConnectConfig,
   normalizeInvoicePdfTemplate,
   registrationFieldsFromSettings,
 } from '@/lib/club-settings'
@@ -13,16 +11,12 @@ import {
   normalizeRegistrationFieldsConfig,
   validateRegistrationFieldsConfig,
 } from '@/lib/registration-fields'
-import { getStripeBootstrapStatus, scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
 import { getWhopClubConfig } from '@/lib/whop/club-config'
 import { whopSignupUrl, whopApiKeysUrl } from '@/lib/whop/connect'
 
 const MAX_LOGO_SIZE_BYTES = 768 * 1024 // ~768 KB para data URLs base64 (~ 1 MB en raw)
 
 async function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
-  const stripe = getStripePortalConfig()
-  const connect = await getStripeConnectConfig()
-  const bootstrap = await getStripeBootstrapStatus()
   return {
     id: s.id,
     name: s.name,
@@ -41,25 +35,6 @@ async function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
     invoicePdfTemplate: normalizeInvoicePdfTemplate(s.invoicePdfTemplate),
     registrationFieldsConfig: registrationFieldsFromSettings(s),
     updatedAt: s.updatedAt.toISOString(),
-    // Datos de Stripe (read-only desde Railway env vars)
-    stripe: {
-      source: 'env' as const,
-      hasCustomerId: stripe.hasCustomerId,
-      customerIdMasked: stripe.customerIdMasked,
-      dashboardUrl: stripe.dashboardUrl,
-    },
-    connect: {
-      source: connect.source,
-      hasConnectedAccount: connect.hasConnectedAccount,
-      connectedAccountIdMasked: connect.connectedAccountIdMasked,
-      applicationFeePercent: connect.applicationFeePercent,
-      accountType: connect.accountType,
-      chargesEnabled: connect.chargesEnabled,
-      payoutsEnabled: connect.payoutsEnabled,
-      detailsSubmitted: connect.detailsSubmitted,
-      statusAt: connect.statusAt,
-    },
-    webhooks: bootstrap,
     whop: await serializeWhop(),
   }
 }
@@ -88,8 +63,6 @@ async function serializeWhop() {
 export async function GET(request: Request) {
   const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
-  // Disparo lazy del bootstrap (no bloqueante).
-  scheduleEnsureStripeWebhooks()
   const s = await getClubSettings()
   return NextResponse.json({ settings: await serialize(s) })
 }

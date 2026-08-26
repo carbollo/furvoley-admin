@@ -18,7 +18,7 @@ export default async function BankImportListPage() {
           <h1 className="text-3xl font-bold mt-2">Importar extracto bancario</h1>
           <p className="text-stone-600 mt-1 text-sm max-w-2xl">
             Sube un CSV del banco, revisa los movimientos y concílialos con los asientos ya
-            registrados (cuotas, Stripe, caja…) o crea asientos nuevos. Las sugerencias buscan
+            registrados (cuotas, cobros online, caja…) o crea asientos nuevos. Las sugerencias buscan
             mismo importe y fechas cercanas (±10 días).
           </p>
         </div>

@@ -5318,11 +5318,11 @@ function Contabilidad({ setActive }) {
         const count = Number(result?.count || 0)
         showAlert(
           count > 0
-            ? `${count} cobros creados. Cada jugador los verá en Mis pagos con el botón Pagar (Stripe).`
-            : 'Cobros creados. Cada jugador los verá en Mis pagos con el botón Pagar (Stripe).',
+            ? `${count} cobros creados. Cada jugador los verá en Mis pagos con el botón Pagar.`
+            : 'Cobros creados. Cada jugador los verá en Mis pagos con el botón Pagar.',
         )
       } else {
-        showAlert('Cobro creado. El socio lo verá en Mis pagos con el botón Pagar (Stripe).')
+        showAlert('Cobro creado. El socio lo verá en Mis pagos con el botón Pagar.')
       }
     } finally {
       setNuevoCobroBusy(false)
@@ -7342,7 +7342,8 @@ function Informes({ setActive }) {
     let label = 'Otros';
     if (t.invoiceKind === 'MEMBERSHIP') label = 'Cuotas mensuales';
     else if (t.invoiceKind === 'OTHER') label = 'Cobros adicionales';
-    else if (t.source === 'STRIPE') label = 'Pagos Stripe';
+    // Histórico: las filas antiguas se etiquetaron con la pasarela anterior.
+    else if (t.source === 'STRIPE' || t.source === 'WHOP') label = 'Cobros online';
     else if (t.source === 'BANK_TRANSFER') label = 'Transferencias';
     else if (t.source === 'CASH') label = 'Efectivo';
     else if (t.source === 'MANUAL') label = 'Manual';
@@ -8576,19 +8577,6 @@ function CrmInner() {
   // Sección accesible = permitida por rol Y con su módulo activado en el plan.
   const canShow = (id) => canAccessCrmSection(role, id) && isSectionEnabled(id, bundle?.features)
 
-  // Si volvemos del onboarding de Stripe Connect (?stripeConnect=connected|refresh)
-  // abrimos automáticamente el modal en la pestaña Suscripción y limpiamos el query.
-  useEffect(() => {
-    const sc = searchParams.get('stripeConnect')
-    if (!sc || loading || !bundle?.user?.role) return
-    if (role === 'ADMIN') {
-      setShowClubSettings(true)
-    }
-    const params = new URLSearchParams(searchParams.toString())
-    params.delete('stripeConnect')
-    const qs = params.toString()
-    router.replace(qs ? `/?${qs}` : '/', { scroll: false })
-  }, [searchParams, router, role, loading, bundle?.user?.role])
   const active: SectionId = CRM_SECTION_IDS.includes(normalizedTab as SectionId)
     ? (normalizedTab as SectionId)
     : 'dashboard'

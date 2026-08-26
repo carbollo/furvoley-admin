@@ -4,40 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getDefaultRegistrationFields, type RegistrationFieldDef } from '@/lib/registration-fields'
 import { RegistrationFieldsTab } from '@/components/crm/RegistrationFieldsTab'
 
-type StripeConfig = {
-  source: 'env'
-  hasCustomerId: boolean
-  customerIdMasked: string
-  dashboardUrl: string
-}
-
-type ConnectConfig = {
-  source: 'env' | 'db' | 'none'
-  hasConnectedAccount: boolean
-  connectedAccountIdMasked: string
-  applicationFeePercent: number
-  accountType: 'express' | 'standard' | 'custom' | 'unknown'
-  chargesEnabled: boolean | null
-  payoutsEnabled: boolean | null
-  detailsSubmitted: boolean | null
-  statusAt: string | null
-}
-
-type WebhooksStatus = {
-  ok: boolean
-  configured: boolean
-  publicUrl: string | null
-  webhookUrl: string | null
-  platformWebhookId: string | null
-  connectWebhookId: string | null
-  hasPlatformSecret: boolean
-  hasConnectSecret: boolean
-  envOverridesPlatform: boolean
-  envOverridesConnect: boolean
-  lastSyncedAt: string | null
-  error: string | null
-}
-
 type Settings = {
   id?: string
   name: string
@@ -55,9 +21,6 @@ type Settings = {
   primaryColor: string
   invoicePdfTemplate: string
   registrationFieldsConfig: RegistrationFieldDef[]
-  stripe: StripeConfig
-  connect: ConnectConfig
-  webhooks: WebhooksStatus
   whop: WhopConfig
 }
 
@@ -121,40 +84,6 @@ type WhopConfig = {
   apiKeysUrl: string
 }
 
-const EMPTY_STRIPE: StripeConfig = {
-  source: 'env',
-  hasCustomerId: false,
-  customerIdMasked: '',
-  dashboardUrl: 'https://dashboard.stripe.com/',
-}
-
-const EMPTY_CONNECT: ConnectConfig = {
-  source: 'none',
-  hasConnectedAccount: false,
-  connectedAccountIdMasked: '',
-  applicationFeePercent: 0,
-  accountType: 'unknown',
-  chargesEnabled: null,
-  payoutsEnabled: null,
-  detailsSubmitted: null,
-  statusAt: null,
-}
-
-const EMPTY_WEBHOOKS: WebhooksStatus = {
-  ok: false,
-  configured: false,
-  publicUrl: null,
-  webhookUrl: null,
-  platformWebhookId: null,
-  connectWebhookId: null,
-  hasPlatformSecret: false,
-  hasConnectSecret: false,
-  envOverridesPlatform: false,
-  envOverridesConnect: false,
-  lastSyncedAt: null,
-  error: null,
-}
-
 const EMPTY_WHOP: WhopConfig = {
   hasCompany: false,
   companyIdMasked: '',
@@ -184,13 +113,10 @@ const EMPTY: Settings = {
   primaryColor: '',
   invoicePdfTemplate: 'CLASSIC',
   registrationFieldsConfig: getDefaultRegistrationFields(),
-  stripe: EMPTY_STRIPE,
-  connect: EMPTY_CONNECT,
-  webhooks: EMPTY_WEBHOOKS,
   whop: EMPTY_WHOP,
 }
 
-type Tab = 'identity' | 'legal' | 'registration' | 'subscription' | 'whop'
+type Tab = 'identity' | 'legal' | 'registration' | 'whop'
 
 export function ClubSettingsModal({
   open,
@@ -204,8 +130,6 @@ export function ClubSettingsModal({
   const [tab, setTab] = useState<Tab>('identity')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [openingStripeWindow, setOpeningStripeWindow] = useState(false)
-  const [connectBusy, setConnectBusy] = useState(false)
   // Pasarela Whop: asistente de conexión (API key + permisos concedidos).
   const [whopBusy, setWhopBusy] = useState(false)
   const [whopScopes, setWhopScopes] = useState<WhopScope[] | null>(null)
@@ -216,7 +140,6 @@ export function ClubSettingsModal({
   const [bankFields, setBankFields] = useState<Record<string, string>>({})
   const [bankMethodId, setBankMethodId] = useState('')
   const [bankCountry, setBankCountry] = useState('')
-  const [webhookBusy, setWebhookBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [form, setForm] = useState<Settings>(EMPTY)
@@ -245,9 +168,6 @@ export function ClubSettingsModal({
         registrationFieldsConfig: Array.isArray(incoming.registrationFieldsConfig)
           ? incoming.registrationFieldsConfig
           : getDefaultRegistrationFields(),
-        stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
-        connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
-        webhooks: { ...EMPTY_WEBHOOKS, ...(incoming.webhooks || {}) },
         whop: { ...EMPTY_WHOP, ...(incoming.whop || {}) },
       }
       setForm(s)
@@ -266,7 +186,7 @@ export function ClubSettingsModal({
   }, [open, load])
 
   // Cerrar con Escape
-  const modalInteractionLocked = busy || openingStripeWindow || connectBusy || webhookBusy || whopBusy
+  const modalInteractionLocked = busy || payoutsBusy || whopBusy
 
   useEffect(() => {
     if (!open) return
@@ -317,8 +237,8 @@ export function ClubSettingsModal({
     setError(null)
     setInfo(null)
     try {
-      // No enviamos `stripe`, `connect`, `webhooks` ni `whop`: son read-only.
-      const { stripe: _s, connect: _c, webhooks: _w, whop: _wh, ...editable } = form
+      // No enviamos `whop`: es read-only.
+      const { whop: _wh, ...editable } = form
       const r = await fetch('/api/crm/club-settings', {
         method: 'PATCH',
         credentials: 'include',
@@ -341,9 +261,6 @@ export function ClubSettingsModal({
         registrationFieldsConfig: Array.isArray(incoming.registrationFieldsConfig)
           ? incoming.registrationFieldsConfig
           : getDefaultRegistrationFields(),
-        stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
-        connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
-        webhooks: { ...EMPTY_WEBHOOKS, ...(incoming.webhooks || {}) },
         whop: { ...EMPTY_WHOP, ...(incoming.whop || {}) },
       }
       setForm(s)
@@ -356,49 +273,6 @@ export function ClubSettingsModal({
     }
   }
 
-  async function openConnectLogin() {
-    if (openingStripeWindow) return
-    setOpeningStripeWindow(true)
-    setError(null)
-    setInfo(null)
-    try {
-      const r = await fetch('/api/crm/club-settings/connect-login', {
-        method: 'POST',
-        credentials: 'include',
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok || !j.url) {
-        setError(j.error || 'No se pudo abrir el dashboard del cliente conectado')
-        return
-      }
-      if (j.note) setInfo(String(j.note))
-      window.open(j.url, '_blank', 'noopener,noreferrer')
-    } finally {
-      setOpeningStripeWindow(false)
-    }
-  }
-
-  async function startConnectOnboarding() {
-    if (connectBusy) return
-    setConnectBusy(true)
-    setError(null)
-    setInfo(null)
-    try {
-      const r = await fetch('/api/crm/stripe-connect/start', {
-        method: 'POST',
-        credentials: 'include',
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok || !j.url) {
-        const stripeDetail = typeof j.detail === 'string' && j.detail.trim() ? `\n(${j.detail.trim()})` : ''
-        setError((j.error || 'No se pudo iniciar el onboarding de Stripe Connect') + stripeDetail)
-        return
-      }
-      window.location.href = String(j.url)
-    } finally {
-      setConnectBusy(false)
-    }
-  }
   /** Guarda la API key que el club ha pegado y valida permisos contra Whop. */
   async function connectWhop(apiKey: string) {
     if (whopBusy) return
@@ -627,83 +501,6 @@ export function ClubSettingsModal({
       setPayoutsBusy(false)
     }
   }
-
-  async function refreshConnectStatus() {
-    if (connectBusy) return
-    setConnectBusy(true)
-    setError(null)
-    setInfo(null)
-    try {
-      const r = await fetch('/api/crm/stripe-connect/status', {
-        method: 'POST',
-        credentials: 'include',
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) {
-        setError(j.error || 'No se pudo refrescar el estado de la cuenta conectada')
-        return
-      }
-      await load()
-      setInfo('Estado de la cuenta conectada actualizado.')
-      window.setTimeout(() => setInfo(null), 2400)
-    } finally {
-      setConnectBusy(false)
-    }
-  }
-  async function disconnectAccount() {
-    if (connectBusy) return
-    const ok = window.confirm(
-      '¿Desvincular la cuenta de Stripe del CRM?\n\n' +
-      'La cuenta no se elimina en Stripe, solo deja de usarse para los cobros del club.'
-    )
-    if (!ok) return
-    setConnectBusy(true)
-    setError(null)
-    setInfo(null)
-    try {
-      const r = await fetch('/api/crm/stripe-connect/disconnect', {
-        method: 'POST',
-        credentials: 'include',
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) {
-        setError(j.error || 'No se pudo desvincular la cuenta')
-        return
-      }
-      await load()
-      setInfo('Cuenta desvinculada del CRM.')
-      window.setTimeout(() => setInfo(null), 2400)
-    } finally {
-      setConnectBusy(false)
-    }
-  }
-
-  async function resyncWebhooks() {
-    if (webhookBusy) return
-    setWebhookBusy(true)
-    setError(null)
-    setInfo(null)
-    try {
-      const r = await fetch('/api/crm/club-settings/bootstrap-stripe', {
-        method: 'POST',
-        credentials: 'include',
-      })
-      const j = await r.json().catch(() => ({}))
-      const next = (j.status || null) as WebhooksStatus | null
-      if (next) {
-        setForm((prev) => ({ ...prev, webhooks: { ...EMPTY_WEBHOOKS, ...next } }))
-      }
-      if (!r.ok) {
-        setError(j.error || 'No se pudo sincronizar los webhooks con Stripe')
-      } else {
-        setInfo('Webhooks de Stripe sincronizados correctamente.')
-        window.setTimeout(() => setInfo(null), 2400)
-      }
-    } finally {
-      setWebhookBusy(false)
-    }
-  }
-
   const initials =
     initialUser?.initials ||
     (initialUser?.name || 'A')
@@ -718,7 +515,6 @@ export function ClubSettingsModal({
     { id: 'identity', label: 'Identidad', icon: '★' },
     { id: 'legal', label: 'Información legal', icon: '§' },
     { id: 'registration', label: 'Campos de registro', icon: '◆' },
-    { id: 'subscription', label: 'Pagos', icon: '◇' },
     { id: 'whop', label: 'Pasarela de cobro', icon: '◈' },
   ]
 
@@ -861,20 +657,6 @@ export function ClubSettingsModal({
                   onChange={(registrationFieldsConfig) =>
                     setForm((p) => ({ ...p, registrationFieldsConfig }))
                   }
-                />
-              )}
-              {tab === 'subscription' && (
-                <SubscriptionTab
-                  connect={form.connect}
-                  webhooks={form.webhooks}
-                  onOpenConnect={openConnectLogin}
-                  onResyncWebhooks={resyncWebhooks}
-                  onStartOnboarding={startConnectOnboarding}
-                  onRefreshConnect={refreshConnectStatus}
-                  onDisconnectAccount={disconnectAccount}
-                  connectDashboardBusy={openingStripeWindow}
-                  webhookBusy={webhookBusy}
-                  connectBusy={connectBusy}
                 />
               )}
               {tab === 'whop' && (
@@ -1204,221 +986,6 @@ function LegalTab({
             <option value="COMPACT">Compacto (más contenido por página)</option>
           </select>
         </Field>
-      </Section>
-    </div>
-  )
-}
-
-// ─── TAB: Pagos Stripe (Connect + notificaciones) ───────────────────────────
-function SubscriptionTab({
-  connect,
-  webhooks,
-  onOpenConnect,
-  onResyncWebhooks,
-  onStartOnboarding,
-  onRefreshConnect,
-  onDisconnectAccount,
-  connectDashboardBusy,
-  webhookBusy,
-  connectBusy,
-}: {
-  connect: ConnectConfig
-  webhooks: WebhooksStatus
-  onOpenConnect: () => void
-  onResyncWebhooks: () => void
-  onStartOnboarding: () => void
-  onRefreshConnect: () => void
-  onDisconnectAccount: () => void
-  connectDashboardBusy: boolean
-  webhookBusy: boolean
-  connectBusy: boolean
-}) {
-  const onboardingComplete = !!(connect.detailsSubmitted && connect.chargesEnabled)
-  const onboardingPending = connect.hasConnectedAccount && !onboardingComplete
-  const isEnvOverride = connect.source === 'env'
-  const webhookStatusOk = webhooks.configured && !webhooks.error
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-      <Section title="Cobros con Stripe (club)" subtitle="Enlaza la cuenta donde se ingresan los pagos de los socios.">
-        <div
-          style={{
-            padding: 20, borderRadius: 12,
-            background: 'var(--surface-card)',
-            border: '1px solid var(--border)',
-            display: 'flex', flexDirection: 'column', gap: 16,
-          }}
-        >
-          {/* Nota corta solo si hace falta (sin variables ni hosting) */}
-          {isEnvOverride ? (
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              La cuenta de Stripe de este club está fijada en la configuración del servidor (no puede cambiarse desde aquí).
-            </div>
-          ) : null}
-
-          {!isEnvOverride && (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <Field label={connect.hasConnectedAccount ? 'Referencia cuenta' : 'Estado cuenta'}>
-                  <ReadonlyValue
-                    value={connect.hasConnectedAccount ? connect.connectedAccountIdMasked : 'Sin enlace'}
-                    mono
-                    tone={connect.hasConnectedAccount ? 'default' : 'warning'}
-                  />
-                </Field>
-                <Field label="Comisión plataforma">
-                  <ReadonlyValue
-                    value={connect.applicationFeePercent > 0
-                      ? connect.applicationFeePercent + ' %'
-                      : 'Ninguna'}
-                  />
-                </Field>
-              </div>
-
-              {connect.hasConnectedAccount && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                  <StatusPill ok={!!connect.detailsSubmitted} label="Datos completos" />
-                  <StatusPill ok={!!connect.chargesEnabled} label="Cobros habilitados" />
-                  <StatusPill ok={!!connect.payoutsEnabled} label="Liquidaciones habilitadas" />
-                </div>
-              )}
-
-              <div
-                style={{
-                  padding: '10px 14px', borderRadius: 8,
-                  background: onboardingComplete
-                    ? 'var(--green-soft)'
-                    : connect.hasConnectedAccount
-                      ? 'var(--amber-soft)'
-                      : 'var(--surface-low)',
-                  color: onboardingComplete
-                    ? 'var(--green)'
-                    : connect.hasConnectedAccount
-                      ? 'var(--amber)'
-                      : 'var(--text-secondary)',
-                  fontSize: 12.5, fontWeight: 600, lineHeight: 1.5,
-                }}
-              >
-                {onboardingComplete
-                  ? 'La cuenta está lista para recibir pagos desde el club.'
-                  : onboardingPending
-                    ? 'Abre Stripe y termina los pasos que falten antes de poder cobrar.'
-                    : 'Sin cuenta enlazada. Conecta Stripe del club para dirigir ahí los pagos de socios.'}
-              </div>
-            </>
-          )}
-
-          {isEnvOverride && connect.hasConnectedAccount && (
-            <div
-              style={{
-                padding: '10px 14px', borderRadius: 8,
-                background: 'var(--surface-low)',
-                color: 'var(--text-secondary)',
-                fontSize: 12.5, fontWeight: 600,
-                lineHeight: 1.5,
-              }}
-            >
-              Cuenta activa ({connect.connectedAccountIdMasked}). Los cobros se dirigen ahí según tu configuración.
-            </div>
-          )}
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-end' }}>
-            {!isEnvOverride && !connect.hasConnectedAccount && (
-              <button
-                type="button"
-                onClick={onStartOnboarding}
-                disabled={connectBusy}
-                style={primaryBtnStyle(connectBusy)}
-              >
-                {connectBusy ? 'Abriendo…' : 'Conectar mi cuenta de Stripe'}
-              </button>
-            )}
-            {!isEnvOverride && onboardingPending && (
-              <button
-                type="button"
-                onClick={onStartOnboarding}
-                disabled={connectBusy}
-                style={primaryBtnStyle(connectBusy)}
-              >
-                {connectBusy ? 'Abriendo…' : 'Continuar en Stripe'}
-              </button>
-            )}
-            {connect.hasConnectedAccount && !isEnvOverride && (
-              <button
-                type="button"
-                onClick={onRefreshConnect}
-                disabled={connectBusy}
-                style={secondaryBtnStyle(connectBusy)}
-              >
-                {connectBusy ? 'Actualizando…' : 'Actualizar estado'}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onOpenConnect}
-              disabled={connectDashboardBusy || !connect.hasConnectedAccount}
-              style={primaryBtnStyle(connectDashboardBusy || !connect.hasConnectedAccount)}
-            >
-              {connectDashboardBusy ? 'Abriendo…' : 'Ver cuenta del club en Stripe'}
-            </button>
-            {connect.hasConnectedAccount && !isEnvOverride && (
-              <button
-                type="button"
-                onClick={onDisconnectAccount}
-                disabled={connectBusy}
-                style={dangerBtnStyle(connectBusy)}
-              >
-                Desvincular cuenta
-              </button>
-            )}
-          </div>
-        </div>
-      </Section>
-
-      <Section title="Notificaciones de pago" subtitle="Stripe avisa cuando un socio ha pagado. Si cambia la dirección del sitio, puede hacer falta refrescar desde aquí.">
-        <div
-          style={{
-            padding: 20, borderRadius: 12,
-            background: 'var(--surface-card)',
-            border: '1px solid var(--border)',
-            display: 'flex', flexDirection: 'column', gap: 16,
-          }}
-        >
-          <div
-            style={{
-              padding: '12px 14px', borderRadius: 8,
-              background: webhookStatusOk ? 'var(--green-soft)' : webhooks.error ? 'var(--red-soft)' : 'var(--amber-soft)',
-              color: webhookStatusOk ? 'var(--green)' : webhooks.error ? 'var(--red)' : 'var(--amber)',
-              fontSize: 13, fontWeight: 600,
-              lineHeight: 1.5,
-            }}
-          >
-            {webhooks.error
-              ? 'No se ha podido comprobar o actualizar las notificaciones automáticas de pago. Prueba más tarde o pulsa Actualizar enlaces.'
-              : webhookStatusOk
-                ? 'Todo correcto. Los avisos de pago se registran solos al pagar (configuración guardada en el sistema).'
-                : webhooks.webhookUrl
-                  ? 'Pulsa Actualizar enlaces para registrar los avisos de pago en Stripe (no hace falta configurar Railway).'
-                  : 'No se puede usar esta acción porque falta la dirección web pública del sitio. Consulta con el equipo técnico.'}
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              onClick={onResyncWebhooks}
-              disabled={webhookBusy || !webhooks.webhookUrl}
-              style={{
-                padding: '10px 18px', borderRadius: 8, border: 'none',
-                background: 'var(--accent)', color: '#fff',
-                fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-                cursor: (webhookBusy || !webhooks.webhookUrl) ? 'not-allowed' : 'pointer',
-                opacity: (webhookBusy || !webhooks.webhookUrl) ? 0.65 : 1,
-                boxShadow: '0 1px 2px rgba(0,74,198,0.2)',
-              }}
-            >
-              {webhookBusy ? 'Actualizando…' : 'Actualizar enlaces'}
-            </button>
-          </div>
-        </div>
       </Section>
     </div>
   )

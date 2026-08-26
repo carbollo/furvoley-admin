@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
-import { createInvoiceStripeLink, createInvoiceForSubscription, createSubscription } from '@/app/actions/billing'
+import { createInvoicePaymentLink, createInvoiceForSubscription, createSubscription } from '@/app/actions/billing'
 import { signupUrlFromToken } from '@/lib/signup-url'
 import {
   createWorkflowResponseLink,
@@ -47,16 +47,14 @@ export function buildInvoiceVariables(invoice: {
   currency: string
   status: string
   dueDate: Date
-  stripeCheckoutUrl: string | null
   whopCheckoutUrl?: string | null
 }) {
   const pending = Math.max(0, invoice.totalAmount - invoice.paidAmount)
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '')
-  // Enlace de la pasarela activa; el de Stripe queda como respaldo para los clubes
-  // que aún cobran con la integración anterior. Solo se usa el guardado si sigue
-  // valiendo lo que se debe: un enlace viejo cobraría el importe de antes del
-  // último pago parcial. Quien necesite uno fresco usa createInvoiceCheckoutUrl.
-  const cached = invoice.whopCheckoutUrl || invoice.stripeCheckoutUrl || ''
+  // Solo se usa el enlace guardado si sigue valiendo lo que se debe: uno viejo
+  // cobraría el importe de antes del último pago parcial. Quien necesite uno
+  // fresco usa createInvoiceCheckoutUrl.
+  const cached = invoice.whopCheckoutUrl || ''
   const stale = invoice.status === 'PARTIAL' || invoice.paidAmount > 0
   const paymentUrl = stale ? '' : cached
   return {
@@ -206,7 +204,7 @@ export async function runExtendedWorkflowAction(
       return true
     }
     try {
-      const url = await createInvoiceStripeLink(invoiceId)
+      const url = await createInvoicePaymentLink(invoiceId)
       if (url) runContext.variables.paymentUrl = url
       setStepApplied()
     } catch (e) {
@@ -225,7 +223,7 @@ export async function runExtendedWorkflowAction(
     let message = interpolate(messageTpl, member, runContext)
     if (invoiceId && !runContext.variables.paymentUrl) {
       try {
-        const url = await createInvoiceStripeLink(invoiceId)
+        const url = await createInvoicePaymentLink(invoiceId)
         if (url) {
           runContext.variables.paymentUrl = url
           message = interpolate(messageTpl, member, runContext)

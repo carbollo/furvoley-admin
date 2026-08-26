@@ -6,7 +6,6 @@ import {
   runMemberStatusChangedWorkflows,
   runMemberUpdatedWorkflows,
 } from '@/lib/workflow-engine'
-import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
 
 /**
  * Alta/edición/baja de socios SIN autorización, para llamadas server-to-server ya
@@ -76,7 +75,6 @@ export async function createMember(data: {
     }
     return created
   })
-  void ensureMemberStripeCustomer(member.id).catch(() => {})
   await runMemberCreatedWorkflows(member.id)
   revalidatePath('/')
   return member
