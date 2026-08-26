@@ -10,6 +10,7 @@ import {
 import { getClubIssuer } from '@/lib/club-settings'
 import { effectiveGroupMemberIds, getEffectiveGroupMembers } from '@/lib/groups'
 import type { WorkflowMemberPayload } from '@/lib/workflow-engine'
+import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 
 type WorkflowRunContext = {
   variables: Record<string, string>
@@ -416,7 +417,7 @@ export async function runExtendedWorkflowAction(
 
   if (step.actionType === 'CANCEL_SUBSCRIPTION') {
     const sub = await prisma.subscription.findFirst({
-      where: { memberId: member.id, status: 'ACTIVE' },
+      where: { memberId: member.id, status: { in: SUBSCRIPTION_ACTIVE_LIKE } },
     })
     if (sub) {
       await prisma.subscription.update({

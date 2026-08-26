@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 import { billingPeriodDays as whopBillingPeriodDays } from '@/lib/whop/plans'
 import { clampBillingDay } from '@/lib/billing-dates'
+import { SUBSCRIPTION_VISIBLE, SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 import {
   createMembershipPlan,
   deleteMembershipPlan,
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
   const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
-  const [plans, subscriptions] = await Promise.all([
+  const [plans, subscriptions, sinCuota] = await Promise.all([
     prisma.membershipPlan.findMany({
       orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
       include: {
@@ -33,12 +34,23 @@ export async function GET(request: Request) {
       },
     }),
     prisma.subscription.findMany({
-      where: { status: { in: ['ACTIVE', 'PAUSED'] } },
+      where: { status: { in: SUBSCRIPTION_VISIBLE } },
       include: {
         plan: true,
         member: { select: { id: true, name: true, email: true, phone: true } },
       },
       orderBy: { createdAt: 'desc' },
+    }),
+    // Socios sin cuota: ni activa ni pendiente de pago. Se excluyen los inactivos
+    // y los leads, que aún no son socios de pleno derecho.
+    prisma.member.findMany({
+      where: {
+        status: { notIn: ['INACTIVE', 'LEAD'] },
+        subscriptions: { none: { status: { in: SUBSCRIPTION_ACTIVE_LIKE } } },
+      },
+      select: { id: true, name: true, email: true, phone: true, status: true },
+      orderBy: { name: 'asc' },
+      take: 500,
     }),
   ])
 
@@ -83,6 +95,13 @@ export async function GET(request: Request) {
       planAmount: s.plan.amount,
       billingPeriod: s.plan.billingPeriod,
       billingPeriodLabel: periodLabel(s.plan.billingPeriod),
+    })),
+    membersWithoutPlan: sinCuota.map((m) => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      phone: m.phone,
+      status: m.status,
     })),
     stats: {
       activePlans: plans.filter((p) => p.isActive).length,

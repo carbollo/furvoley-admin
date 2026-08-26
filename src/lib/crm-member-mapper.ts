@@ -4,6 +4,7 @@ import {
   startOfDay,
   type InvoiceLike,
 } from '@/lib/invoice-display'
+import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 
 type MemberWithRelations = {
   id: string
@@ -206,7 +207,7 @@ export async function getDeporteFilterOptions(prisma: PrismaClient): Promise<str
 
 const memberInclude = {
   subscriptions: {
-    where: { status: 'ACTIVE' as const },
+    where: { status: { in: SUBSCRIPTION_ACTIVE_LIKE } },
     include: { plan: true },
     take: 1,
     orderBy: { createdAt: 'desc' as const },

@@ -145,6 +145,11 @@ export async function createSubscription(data: {
       autoPay: data.autoPay ?? false,
       paymentRequiredOnEnrollment: paymentRequired,
       discountCodeId: data.discountCodeId || null,
+      // Si la cuota exige pago, nace PENDIENTE: no cuenta como activa hasta que
+      // el cobro se confirme (o hasta que un admin la marque activa a mano). Los
+      // clubes que cobran a mano (sin pago obligatorio) siguen naciendo activas,
+      // o su facturación recurrente se quedaría congelada.
+      status: paymentRequired ? 'PENDING_PAYMENT' : 'ACTIVE',
     },
   })
 
@@ -179,6 +184,17 @@ async function tryActivateMemberAfterEnrollmentPayment(invoiceId: string) {
   })
   if (!invoice?.subscription?.paymentRequiredOnEnrollment) return
   if (invoice.status !== 'PAID') return
+
+  // La cuota pasa a activa al confirmarse el pago. Este es el único punto por el
+  // que pasan TODOS los cobros (pasarela, efectivo, transferencia, conciliación
+  // bancaria), así que activar aquí funciona sea cual sea la vía.
+  if (invoice.subscription.status === 'PENDING_PAYMENT') {
+    await prisma.subscription.update({
+      where: { id: invoice.subscription.id },
+      data: { status: 'ACTIVE' },
+    })
+  }
+
   if (invoice.member.status !== 'PENDING_PAYMENT') return
 
   const prev = invoice.member.status
@@ -334,6 +350,8 @@ export async function createInvoiceForSubscription(subscriptionId: string, notif
 
 export async function generateDueInvoices() {
   const today = startOfDay(new Date())
+  // Solo cuotas ACTIVAS, a propósito: una cuota pendiente de pago ya tiene emitida
+  // su factura de alta y no debe generar la del periodo hasta que se cobre.
   const dueSubscriptions = await prisma.subscription.findMany({
     where: {
       status: 'ACTIVE',

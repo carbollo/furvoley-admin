@@ -146,7 +146,7 @@ export async function reconcilePaymentSucceeded(payment: PaymentData): Promise<R
     if (!subscription) return { handled: false, detail: `membresía ${membershipId} sin cuota vinculada` }
     // La pasarela ha vuelto a cobrar: si la cuota se pausó por un impago anterior,
     // el socio está de nuevo al corriente y debe volver a facturarse.
-    if (subscription.status === 'PAUSED') {
+    if (subscription.status === 'PAUSED' || subscription.status === 'PENDING_PAYMENT') {
       await prisma.subscription.update({
         where: { id: subscription.id },
         data: { status: 'ACTIVE', autoPay: true },

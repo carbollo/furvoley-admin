@@ -104,6 +104,8 @@ async function runWorkflowsForTrigger(
 }
 
 export async function runBillingCycleWorkflows() {
+  // Solo cuotas ACTIVAS, a propósito: una cuota pendiente de pago ya tiene emitida
+  // su factura de alta y no debe generar la del periodo hasta que se cobre.
   const subs = await prisma.subscription.findMany({
     where: { status: 'ACTIVE', nextInvoiceDate: { lte: new Date() } },
     include: { member: true, plan: true },

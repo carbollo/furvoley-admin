@@ -5,6 +5,7 @@ import { sendApiWassText } from '@/lib/apiwass'
 import { getClubIssuer } from '@/lib/club-settings'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { createInvoiceStripeLink, createSubscription } from '@/app/actions/billing'
+import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 
 export const MAX_BATCH_MEMBERS = 200
 
@@ -230,7 +231,7 @@ async function assignPlanToMember(memberId: string, options: BatchOptions) {
 
   // Cancela la suscripción activa anterior (mismo comportamiento que el alta individual).
   await prisma.subscription.updateMany({
-    where: { memberId, status: 'ACTIVE' },
+    where: { memberId, status: { in: SUBSCRIPTION_ACTIVE_LIKE } },
     data: { status: 'CANCELED', endDate: new Date() },
   })
 

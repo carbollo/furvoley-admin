@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 import { createSubscription } from '@/app/actions/billing'
+import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 
 export async function POST(request: Request) {
   const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
 
   try {
     await prisma.subscription.updateMany({
-      where: { memberId, status: 'ACTIVE' },
+      where: { memberId, status: { in: SUBSCRIPTION_ACTIVE_LIKE } },
       data: { status: 'CANCELED', endDate: new Date() },
     })
 

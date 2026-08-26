@@ -9,6 +9,7 @@ import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
 import { runWorkflowTest } from '@/lib/workflow-test'
 import { withHermesAudit } from '@/lib/hermes-mcp/audit'
 import { jsonToolResult, toolError } from '@/lib/hermes-mcp/tools/helpers'
+import { SUBSCRIPTION_ACTIVE_LIKE, SUBSCRIPTION_VISIBLE } from '@/lib/subscription-statuses'
 
 function periodLabel(p: string) {
   if (p === 'QUARTERLY') return 'Trimestral'
@@ -31,7 +32,7 @@ export function registerPhaseBTools(server: McpServer) {
             include: { _count: { select: { subscriptions: true } } },
           }),
           prisma.subscription.findMany({
-            where: { status: { in: ['ACTIVE', 'PAUSED'] } },
+            where: { status: { in: SUBSCRIPTION_VISIBLE } },
             include: {
               plan: true,
               member: { select: { id: true, name: true } },
@@ -78,7 +79,7 @@ export function registerPhaseBTools(server: McpServer) {
         if (!plan || !plan.isActive) toolError('Plan no encontrado o inactivo')
 
         await prisma.subscription.updateMany({
-          where: { memberId: args.memberId, status: 'ACTIVE' },
+          where: { memberId: args.memberId, status: { in: SUBSCRIPTION_ACTIVE_LIKE } },
           data: { status: 'CANCELED', endDate: new Date() },
         })
 

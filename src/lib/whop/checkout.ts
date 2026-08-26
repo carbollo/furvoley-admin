@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { buildTenantPublicUrl } from '@/lib/public-url'
 import { currentTenant } from '@/lib/multitenant/context'
+import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 import { whopRequest, WhopError } from '@/lib/whop/client'
 import { getWhopClubConfig, getWhopClubCredential, getWhopClubWebhookSecret } from '@/lib/whop/club-config'
 import { ensureWhopPlan } from '@/lib/whop/plans'
@@ -165,8 +166,11 @@ export async function createWhopSubscriptionCheckout(subscriptionId: string): Pr
     include: { member: true, plan: true },
   })
   if (!subscription) return { ok: false, error: 'Suscripción no encontrada.' }
-  if (subscription.status !== 'ACTIVE') {
-    return { ok: false, error: 'Esa cuota no está activa: reactívala antes de cobrarla.' }
+  // Se permite generar el enlace de una cuota PENDIENTE DE PAGO: es justo la que
+  // necesita cobrarse. Exigir que estuviera activa sería un círculo cerrado (sin
+  // enlace no hay pago, y sin pago nunca se activa).
+  if (!SUBSCRIPTION_ACTIVE_LIKE.includes(subscription.status as never)) {
+    return { ok: false, error: 'Esa cuota está pausada o cancelada: reactívala antes de cobrarla.' }
   }
   if (!subscription.plan.isActive) {
     return { ok: false, error: 'La cuota asignada está desactivada.' }

@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 
 type Params = { params: Promise<{ id: string }> }
 
-const ALLOWED = ['ACTIVE', 'PAUSED', 'CANCELED'] as const
+const ALLOWED = ['ACTIVE', 'PENDING_PAYMENT', 'PAUSED', 'CANCELED'] as const
 
 /**
  * Modificar una suscripción (roadmap · 6.3): estado (pausar/cancelar/reactivar),

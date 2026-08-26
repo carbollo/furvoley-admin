@@ -4,6 +4,7 @@ import { requireRoles } from '@/lib/rbac-api'
 import { parseCuid } from '@/lib/db-input-validation'
 import { runMembersBatchAction } from '@/lib/members-batch-actions'
 import { createWhopSubscriptionCheckout } from '@/lib/whop/checkout'
+import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
   let linkError: string | null = null
   if (body.withLink !== false && result.succeeded > 0) {
     const subscription = await prisma.subscription.findFirst({
-      where: { memberId: memberIds[0], planId, status: 'ACTIVE' },
+      where: { memberId: memberIds[0], planId, status: { in: SUBSCRIPTION_ACTIVE_LIKE } },
       orderBy: { createdAt: 'desc' },
       select: { id: true },
     })

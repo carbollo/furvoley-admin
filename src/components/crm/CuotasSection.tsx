@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { PaymentReminderButton } from './PaymentReminderButton'
 import { MemberCombobox } from './MemberCombobox'
 import { track } from '@/lib/analytics/umami'
+import { subscriptionStatusLabel } from '@/lib/subscription-statuses'
 
 type Plan = {
   id: string
@@ -67,7 +68,11 @@ export function CuotasSection({
   showConfirm: (message: string) => Promise<boolean>
 }) {
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'planes' | 'asignaciones'>('planes')
+  const [tab, setTab] = useState<'planes' | 'asignaciones' | 'sin-cuota'>('planes')
+  /** Socios que aún no tienen ninguna cuota (ni activa ni pendiente de pago). */
+  const [membersWithoutPlan, setMembersWithoutPlan] = useState<
+    { id: string; name: string; email: string | null; phone: string | null; status: string }[]
+  >([])
   const [plans, setPlans] = useState<Plan[]>([])
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([])
   const [stats, setStats] = useState({ activePlans: 0, activeSubscriptions: 0 })
@@ -121,6 +126,7 @@ export function CuotasSection({
       const j = await r.json()
       setPlans(j.plans ?? [])
       setSubscriptions(j.subscriptions ?? [])
+      setMembersWithoutPlan(j.membersWithoutPlan ?? [])
       setStats(j.stats ?? { activePlans: 0, activeSubscriptions: 0 })
     } catch (e) {
       showAlert(e instanceof Error ? e.message : 'Error de carga')
@@ -550,7 +556,7 @@ export function CuotasSection({
         </div>
 
         <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
-          {(['planes', 'asignaciones'] as const).map((t) => (
+          {(['planes', 'asignaciones', 'sin-cuota'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -568,7 +574,11 @@ export function CuotasSection({
                 marginBottom: -1,
               }}
             >
-              {t === 'planes' ? 'Planes de cuota' : 'Socios con cuota'}
+              {t === 'planes'
+                ? 'Planes de cuota'
+                : t === 'asignaciones'
+                  ? 'Socios con cuota'
+                  : `Socios sin cuota${membersWithoutPlan.length ? ` (${membersWithoutPlan.length})` : ''}`}
             </button>
           ))}
         </div>
@@ -777,11 +787,69 @@ export function CuotasSection({
                             color: s.status === 'ACTIVE' ? 'var(--green)' : '#b45309',
                           }}
                         >
-                          {s.status === 'ACTIVE' ? 'Activa' : s.status === 'PAUSED' ? 'Pausada' : s.status}
+                          {subscriptionStatusLabel(s.status)}
                         </span>
                       </td>
                       <td style={{ padding: '16px 20px' }}>
-                        {s.status === 'ACTIVE' ? (
+                        {s.status === 'PENDING_PAYMENT' ? (
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              disabled={gatewayBusy}
+                              onClick={() => void enlaceCobroRecurrente(s.id)}
+                              title="Copia el enlace para que el socio pague su cuota"
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                border: '1px solid var(--border)',
+                                background: 'var(--accent-pill)',
+                                color: 'var(--accent)',
+                                cursor: gatewayBusy ? 'wait' : 'pointer',
+                                fontSize: 12,
+                                fontWeight: 700,
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Enlace de cobro
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void setSubscriptionStatus(s.id, 'ACTIVE', 'Marcar como activa')}
+                              title="Dala por activa aunque no conste el pago (p. ej. si te pagó en mano)"
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                border: '1px solid var(--border)',
+                                background: '#fff',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Marcar activa
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void setSubscriptionStatus(s.id, 'CANCELED', 'Cancelar')}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                border: '1px solid #fecaca',
+                                background: '#fff',
+                                color: '#b91c1c',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : s.status === 'ACTIVE' ? (
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                             <button
                               type="button"
@@ -880,6 +948,86 @@ export function CuotasSection({
                   ))}
                 </tbody>
               </table>
+            )}
+          </div>
+        )}
+
+        {!loading && tab === 'sin-cuota' && (
+          <div
+            style={{
+              background: 'var(--surface-card)',
+              borderRadius: 14,
+              border: '1px solid var(--border)',
+              overflow: 'hidden',
+            }}
+          >
+            {membersWithoutPlan.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+                Todos tus socios tienen una cuota asignada. 🎉
+              </div>
+            ) : (
+              <>
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Haz clic en un socio para asignarle una cuota. Al hacerlo pasará a «Socios con cuota».
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
+                      {['Socio', 'Contacto', 'Estado', ''].map((h) => (
+                        <th
+                          key={h}
+                          style={{
+                            textAlign: 'left',
+                            padding: '12px 20px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {membersWithoutPlan.map((m) => (
+                      <tr
+                        key={m.id}
+                        onClick={() => {
+                          const firstPlanId = activePlans[0]?.id || ''
+                          setAssignForm({
+                            members: [{ id: m.id, name: m.name }],
+                            memberId: '',
+                            planId: firstPlanId,
+                            startDate: new Date().toISOString().slice(0, 10),
+                            autoPay: false,
+                            paymentRequiredOnEnrollment: planPaymentRequiredDefault(firstPlanId),
+                            discountCodeId: '',
+                          })
+                          setAssignModal(true)
+                        }}
+                        title="Asignar cuota a este socio"
+                        style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                      >
+                        <td style={{ padding: '14px 20px', fontWeight: 600, fontSize: 14 }}>{m.name}</td>
+                        <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--text-secondary)' }}>
+                          {m.email || m.phone || '—'}
+                        </td>
+                        <td style={{ padding: '14px 20px', fontSize: 13 }}>
+                          {m.status === 'PENDING_PAYMENT' ? 'Alta pendiente de pago' : m.status === 'PAUSED' ? 'Pausado' : 'Activo'}
+                        </td>
+                        <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                          <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--accent)' }}>
+                            Asignar cuota →
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
             )}
           </div>
         )}
