@@ -14,6 +14,8 @@ import {
   validateRegistrationFieldsConfig,
 } from '@/lib/registration-fields'
 import { getStripeBootstrapStatus, scheduleEnsureStripeWebhooks } from '@/lib/stripe-bootstrap'
+import { getWhopClubConfig } from '@/lib/whop/club-config'
+import { whopSignupUrl, whopApiKeysUrl } from '@/lib/whop/connect'
 
 const MAX_LOGO_SIZE_BYTES = 768 * 1024 // ~768 KB para data URLs base64 (~ 1 MB en raw)
 
@@ -58,6 +60,28 @@ async function serialize(s: Awaited<ReturnType<typeof getClubSettings>>) {
       statusAt: connect.statusAt,
     },
     webhooks: bootstrap,
+    whop: await serializeWhop(),
+  }
+}
+
+/**
+ * Bloque de la pasarela para el navegador. Se enumeran los campos UNO A UNO a
+ * propósito: con un spread, cualquier campo que se añada luego a la config
+ * (identificadores crudos, tokens del banco…) acabaría publicado sin querer.
+ */
+async function serializeWhop() {
+  const w = await getWhopClubConfig()
+  return {
+    hasCompany: w.hasCompany,
+    companyIdMasked: w.companyIdMasked,
+    onboardingStatus: w.onboardingStatus,
+    chargesEnabled: w.chargesEnabled,
+    payoutsEnabled: w.payoutsEnabled,
+    hasPayoutMethod: w.hasPayoutMethod,
+    canCharge: w.canCharge,
+    statusAt: w.statusAt,
+    signupUrl: whopSignupUrl(),
+    apiKeysUrl: whopApiKeysUrl(),
   }
 }
 

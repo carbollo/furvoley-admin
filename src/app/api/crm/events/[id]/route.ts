@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { updateEvent } from '@/app/actions/events'
+import { updateEventInternal } from '@/lib/events-service'
 import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
@@ -105,6 +105,6 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ error: 'Sin datos para actualizar' }, { status: 400 })
   }
 
-  await updateEvent(parsedId, payload)
+  await updateEventInternal(parsedId, payload)
   return NextResponse.json({ ok: true })
 }

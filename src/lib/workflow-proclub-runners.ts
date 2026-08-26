@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { prisma } from '@/lib/prisma'
 import { getClubIssuer } from '@/lib/club-settings'
 import { effectiveGroupMemberIds } from '@/lib/groups'
@@ -201,13 +202,23 @@ export async function runConvocationPublishedWorkflows(eventId: string, audience
   }
 }
 
+// Guarda de re-entrada POR CONTEXTO: un workflow WAITLIST_SLOT_AVAILABLE puede tener
+// un paso TRIGGER_WAITLIST_NOTIFY que vuelve a llamar aquí → recursión infinita. Se
+// usa AsyncLocalStorage (no un flag global de proceso) para cortar SOLO la re-entrada
+// dentro de la MISMA cadena de ejecución, sin bloquear invocaciones legítimamente
+// concurrentes de otros tenants/requests.
+const waitlistDepth = new AsyncLocalStorage<boolean>()
+
 export async function runWaitlistSlotWorkflows() {
-  const lead = await prisma.lead.findFirst({
-    where: { status: 'NEW' },
-    orderBy: { createdAt: 'asc' },
+  if (waitlistDepth.getStore()) return // re-entrada en la misma cadena: no recursar
+  return waitlistDepth.run(true, async () => {
+    const lead = await prisma.lead.findFirst({
+      where: { status: 'NEW' },
+      orderBy: { createdAt: 'asc' },
+    })
+    if (!lead) return
+    await runWorkflowsForTrigger('WAITLIST_SLOT_AVAILABLE', leadAsMember(lead))
   })
-  if (!lead) return
-  await runWorkflowsForTrigger('WAITLIST_SLOT_AVAILABLE', leadAsMember(lead))
 }
 
 export async function runBulkMessageWorkflows(groupId: string, message: string) {

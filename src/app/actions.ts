@@ -2,144 +2,35 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import bcrypt from 'bcryptjs'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { normalizeRole } from '@/lib/rbac'
+import { runWithTenant } from '@/lib/multitenant/request'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getClubIssuer } from '@/lib/club-settings'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import {
-  runMemberCreatedWorkflows,
-  runMemberStatusChangedWorkflows,
-  runMemberUpdatedWorkflows,
   runPaymentCreatedWorkflows,
   runPaymentPaidWorkflows,
 } from '@/lib/workflow-engine'
 import { createInvoiceStripeLink } from '@/app/actions/billing'
-import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
 
-// MEMBERS
-export async function createMember(data: {
-  name: string
-  dni?: string
-  birthDate?: Date | null
-  email?: string
-  phone?: string
-  address?: string
-  guardianName?: string
-  guardianPhone?: string
-  sportPreference?: string
-  registrationExtra?: Record<string, string> | null
-  joinedAt?: Date
-  status?: string
-}) {
-  const { joinedAt, registrationExtra, ...rest } = data
-  const defaultPasswordRaw = process.env.MEMBER_DEFAULT_PASSWORD || '12345678'
-  const hashedDefaultPassword = await bcrypt.hash(defaultPasswordRaw, 10)
-  const member = await prisma.$transaction(async (tx) => {
-    const created = await tx.member.create({
-      data: {
-        ...rest,
-        ...(registrationExtra ? { registrationExtra } : {}),
-        ...(joinedAt !== undefined ? { joinedAt } : {}),
-      },
-    })
-
-    const email = created.email?.trim().toLowerCase()
-    if (email) {
-      const existing = await tx.user.findUnique({ where: { email } })
-      if (!existing) {
-        await tx.user.create({
-          data: {
-            name: created.name,
-            email,
-            password: hashedDefaultPassword,
-            role: 'MEMBER',
-            memberId: created.id,
-            mustChangePassword: true,
-          },
-        })
-      } else if (existing.role === 'MEMBER' && (!existing.memberId || existing.memberId === created.id)) {
-        await tx.user.update({
-          where: { id: existing.id },
-          data: {
-            role: 'MEMBER',
-            memberId: created.id,
-            password: hashedDefaultPassword,
-            mustChangePassword: true,
-          },
-        })
-      } else {
-        throw new Error('El email ya está en uso por otra cuenta. Usa otro email para el socio.')
-      }
-    }
-    return created
-  })
-  void ensureMemberStripeCustomer(member.id).catch(() => {})
-  await runMemberCreatedWorkflows(member.id)
-  revalidatePath('/')
-  return member
-}
-
-export async function updateMember(
-  id: string,
-  data: {
-    name?: string
-    dni?: string
-    birthDate?: Date | null
-    email?: string
-    phone?: string
-    address?: string
-    sportPreference?: string | null
-    status?: string
-  },
-) {
-  const before = await prisma.member.findUnique({
-    where: { id },
-    select: { status: true },
-  })
-  const member = await prisma.member.update({ where: { id }, data })
-  await runMemberUpdatedWorkflows(member.id)
-  if (before?.status != null && before.status !== member.status) {
-    await runMemberStatusChangedWorkflows(member.id, {
-      previousStatus: before.status,
-      currentStatus: member.status,
-    })
+/**
+ * Autorización de estos server actions (endpoints RPC invocables por cualquier
+ * cliente autenticado, así que la UI NO basta): contabilidad, pagos y recordatorios
+ * requieren ADMIN o TREASURER. Además todo corre en runWithTenant (activa la BD del
+ * club por host; los actions no heredan el tenant del render de la página).
+ *
+ * NOTA: el alta/edición/baja de socios se movió a @/lib/members-service (sin
+ * 'use server') para que deje de ser invocable como RPC; lo usan solo las rutas API
+ * (requireRoles), el import CSV, las acciones en lote y Hermes (Bearer).
+ */
+async function assertAccountingStaff() {
+  const session = await getServerSession(authOptions)
+  const role = normalizeRole((session?.user as { role?: string } | undefined)?.role)
+  if (!session?.user || (role !== 'ADMIN' && role !== 'TREASURER')) {
+    throw new Error('No autorizado')
   }
-  revalidatePath('/')
-  return member
-}
-
-export async function deleteMember(id: string) {
-  await prisma.$transaction(async (tx) => {
-    await tx.user.deleteMany({
-      where: {
-        memberId: id,
-        role: { in: ['MEMBER', 'PLAYER'] },
-      },
-    })
-    await tx.user.updateMany({
-      where: { memberId: id },
-      data: { memberId: null },
-    })
-
-    await tx.signupLink.updateMany({
-      where: { createdMemberId: id },
-      data: { createdMemberId: null },
-    })
-    await tx.order.updateMany({
-      where: { memberId: id },
-      data: { memberId: null },
-    })
-
-    await tx.groupMembership.deleteMany({ where: { memberId: id } })
-    await tx.attendance.deleteMany({ where: { memberId: id } })
-    await tx.payment.deleteMany({ where: { memberId: id } })
-    await tx.reminderLog.deleteMany({ where: { memberId: id } })
-    await tx.subscription.deleteMany({ where: { memberId: id } })
-    await tx.invoice.deleteMany({ where: { memberId: id } })
-
-    await tx.member.delete({ where: { id } })
-  })
-  revalidatePath('/')
 }
 
 export type PaymentReminderResult = {
@@ -151,6 +42,8 @@ export type PaymentReminderResult = {
 }
 
 export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderResult> {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const waCfg = await getWhatsAppConfig()
   const sessionId = String(waCfg.linkedSessionId || process.env.APIWASS_DEFAULT_SESSION_ID || '').trim()
   if (!sessionId) {
@@ -236,11 +129,9 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
 
     let payLine = ''
     try {
-      const url =
-        (await prisma.invoice.findUnique({
-          where: { id: member.oldestInvoiceId },
-          select: { stripeCheckoutUrl: true },
-        }))?.stripeCheckoutUrl || (await createInvoiceStripeLink(member.oldestInvoiceId))
+      // Siempre por el generador de enlaces: leer aquí un enlace guardado de una
+      // pasarela anterior mandaría al socio a pagar donde ya no se concilia.
+      const url = await createInvoiceStripeLink(member.oldestInvoiceId)
       if (url) payLine = `\nPagar aquí: ${url}`
     } catch {
       /* enlace opcional */
@@ -266,10 +157,13 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
   })
 
   return { sent, failed, skippedNoPhone, totalMembersInDebt: byMember.size }
+  })
 }
 
 // PAYMENTS
 export async function createPayment(data: { memberId: string; amount: number; month: number; year: number; status?: string }) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const payment = await prisma.payment.create({ data })
   await runPaymentCreatedWorkflows(payment.id)
   if (payment.status === 'PAID') {
@@ -277,9 +171,12 @@ export async function createPayment(data: { memberId: string; amount: number; mo
   }
   revalidatePath('/')
   return payment
+  })
 }
 
 export async function generateStripeLink(paymentId: string) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const payment = await prisma.payment.findUnique({
     where: { id: paymentId },
     include: { member: true }
@@ -339,7 +236,7 @@ export async function generateStripeLink(paymentId: string) {
     connect.hasConnectedAccount ? { stripeAccount: connect.connectedAccountId } : undefined,
   )
 
-  const updatedPayment = await prisma.payment.update({
+  await prisma.payment.update({
     where: { id: payment.id },
     data: {
       stripeUrl: session.url,
@@ -349,16 +246,19 @@ export async function generateStripeLink(paymentId: string) {
 
   revalidatePath('/')
   return session.url
+  })
 }
 
 export async function updatePaymentStatus(id: string, status: string) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const before = await prisma.payment.findUnique({
     where: { id },
     select: { status: true },
   })
   await prisma.payment.update({
     where: { id },
-    data: { 
+    data: {
       status,
       paidAt: status === 'PAID' ? new Date() : null
     }
@@ -367,6 +267,7 @@ export async function updatePaymentStatus(id: string, status: string) {
     await runPaymentPaidWorkflows(id)
   }
   revalidatePath('/')
+  })
 }
 
 // TRANSACTIONS
@@ -378,6 +279,8 @@ export async function createTransaction(data: {
   bankReference?: string | null
   source?: string
 }) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const transaction = await prisma.transaction.create({
     data: {
       type: data.type,
@@ -390,9 +293,13 @@ export async function createTransaction(data: {
   })
   revalidatePath('/accounting')
   return transaction
+  })
 }
 
 export async function deleteTransaction(id: string) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   await prisma.transaction.delete({ where: { id } })
   revalidatePath('/accounting')
+  })
 }

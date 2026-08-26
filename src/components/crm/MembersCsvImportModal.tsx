@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { track } from '@/lib/analytics/umami'
 
 type Plan = {
   id: string
@@ -93,6 +94,7 @@ export function MembersCsvImportModal({
         errors: Array.isArray(j.errors) ? j.errors : [],
         parseErrors: Array.isArray(j.parseErrors) ? j.parseErrors : [],
       })
+      track('importar-socios', { creados: Number(j.created || 0), omitidos: Number(j.skipped || 0) })
       await onDone()
     } finally {
       setBusy(false)

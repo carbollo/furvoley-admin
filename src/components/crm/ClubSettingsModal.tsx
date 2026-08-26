@@ -58,6 +58,24 @@ type Settings = {
   stripe: StripeConfig
   connect: ConnectConfig
   webhooks: WebhooksStatus
+  whop: WhopConfig
+}
+
+type WhopScope = { action: string; label: string; granted: boolean }
+
+type WhopConfig = {
+  hasCompany: boolean
+  companyIdMasked: string
+  onboardingStatus: 'NONE' | 'PENDING_KYC' | 'PENDING_BANK' | 'READY' | 'DISABLED'
+  chargesEnabled: boolean
+  payoutsEnabled: boolean
+  hasPayoutMethod: boolean
+  canCharge: boolean
+  statusAt: string | null
+  /** Alta en Whop con la atribución de partner del proveedor del CRM. */
+  signupUrl: string
+  /** Pestaña del dashboard de Whop donde se crean las API keys. */
+  apiKeysUrl: string
 }
 
 const EMPTY_STRIPE: StripeConfig = {
@@ -94,6 +112,19 @@ const EMPTY_WEBHOOKS: WebhooksStatus = {
   error: null,
 }
 
+const EMPTY_WHOP: WhopConfig = {
+  hasCompany: false,
+  companyIdMasked: '',
+  onboardingStatus: 'NONE',
+  chargesEnabled: false,
+  payoutsEnabled: false,
+  hasPayoutMethod: false,
+  canCharge: false,
+  statusAt: null,
+  signupUrl: 'https://whop.com/network/sign-up/',
+  apiKeysUrl: 'https://whop.com/dashboard/developer',
+}
+
 const EMPTY: Settings = {
   name: '',
   logoUrl: null,
@@ -113,9 +144,10 @@ const EMPTY: Settings = {
   stripe: EMPTY_STRIPE,
   connect: EMPTY_CONNECT,
   webhooks: EMPTY_WEBHOOKS,
+  whop: EMPTY_WHOP,
 }
 
-type Tab = 'identity' | 'legal' | 'registration' | 'subscription'
+type Tab = 'identity' | 'legal' | 'registration' | 'subscription' | 'whop'
 
 export function ClubSettingsModal({
   open,
@@ -131,6 +163,9 @@ export function ClubSettingsModal({
   const [busy, setBusy] = useState(false)
   const [openingStripeWindow, setOpeningStripeWindow] = useState(false)
   const [connectBusy, setConnectBusy] = useState(false)
+  // Pasarela Whop: asistente de conexión (API key + permisos concedidos).
+  const [whopBusy, setWhopBusy] = useState(false)
+  const [whopScopes, setWhopScopes] = useState<WhopScope[] | null>(null)
   const [webhookBusy, setWebhookBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -163,6 +198,7 @@ export function ClubSettingsModal({
         stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
         connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
         webhooks: { ...EMPTY_WEBHOOKS, ...(incoming.webhooks || {}) },
+        whop: { ...EMPTY_WHOP, ...(incoming.whop || {}) },
       }
       setForm(s)
       setLogoPreview(s.logoUrl)
@@ -180,7 +216,7 @@ export function ClubSettingsModal({
   }, [open, load])
 
   // Cerrar con Escape
-  const modalInteractionLocked = busy || openingStripeWindow || connectBusy || webhookBusy
+  const modalInteractionLocked = busy || openingStripeWindow || connectBusy || webhookBusy || whopBusy
 
   useEffect(() => {
     if (!open) return
@@ -231,8 +267,8 @@ export function ClubSettingsModal({
     setError(null)
     setInfo(null)
     try {
-      // No enviamos `stripe`, `connect` ni `webhooks`: son read-only.
-      const { stripe: _s, connect: _c, webhooks: _w, ...editable } = form
+      // No enviamos `stripe`, `connect`, `webhooks` ni `whop`: son read-only.
+      const { stripe: _s, connect: _c, webhooks: _w, whop: _wh, ...editable } = form
       const r = await fetch('/api/crm/club-settings', {
         method: 'PATCH',
         credentials: 'include',
@@ -258,6 +294,7 @@ export function ClubSettingsModal({
         stripe: { ...EMPTY_STRIPE, ...(incoming.stripe || {}) },
         connect: { ...EMPTY_CONNECT, ...(incoming.connect || {}) },
         webhooks: { ...EMPTY_WEBHOOKS, ...(incoming.webhooks || {}) },
+        whop: { ...EMPTY_WHOP, ...(incoming.whop || {}) },
       }
       setForm(s)
       setLogoPreview(s.logoUrl)
@@ -312,6 +349,85 @@ export function ClubSettingsModal({
       setConnectBusy(false)
     }
   }
+  /** Guarda la API key que el club ha pegado y valida permisos contra Whop. */
+  async function connectWhop(apiKey: string) {
+    if (whopBusy) return
+    setWhopBusy(true)
+    setError(null)
+    setInfo(null)
+    try {
+      const r = await fetch('/api/crm/whop-connect/connect', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setError(j.error || 'No se pudo conectar la cuenta de Whop')
+        return
+      }
+      setWhopScopes(Array.isArray(j.scopes) ? j.scopes : null)
+      await load()
+      const missing = Array.isArray(j.missingScopes) ? j.missingScopes.length : 0
+      setInfo(
+        missing > 0
+          ? `Cuenta conectada, pero faltan ${missing} permiso(s) en la key. Revisa la lista de abajo.`
+          : 'Cuenta de Whop conectada correctamente.',
+      )
+      window.setTimeout(() => setInfo(null), 4000)
+    } finally {
+      setWhopBusy(false)
+    }
+  }
+
+  /** Relee el estado de la pasarela y vuelve a comprobar los permisos de la key. */
+  async function refreshWhopStatus() {
+    if (whopBusy) return
+    setWhopBusy(true)
+    setError(null)
+    setInfo(null)
+    try {
+      const r = await fetch('/api/crm/whop-connect/status', { method: 'POST', credentials: 'include' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setError(j.error || 'No se pudo comprobar el estado de la pasarela')
+        return
+      }
+      setWhopScopes(Array.isArray(j.scopes) ? j.scopes : null)
+      if (j.keyValid === false) setError('La API key guardada ya no es válida. Vuelve a pegarla.')
+      await load()
+    } finally {
+      setWhopBusy(false)
+    }
+  }
+
+  async function disconnectWhop() {
+    if (whopBusy) return
+    const ok = window.confirm(
+      '¿Desconectar la pasarela de cobro del CRM?\n\n' +
+      'Tu cuenta, tu dinero y tu historial no se tocan: solo se deja de cobrar desde el CRM.'
+    )
+    if (!ok) return
+    setWhopBusy(true)
+    setError(null)
+    setInfo(null)
+    try {
+      const r = await fetch('/api/crm/whop-connect/disconnect', { method: 'POST', credentials: 'include' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setError(j.error || 'No se pudo desconectar la pasarela')
+        return
+      }
+      setWhopScopes(null)
+      await load()
+      setInfo('Pasarela desconectada.')
+      window.setTimeout(() => setInfo(null), 2400)
+    } finally {
+      setWhopBusy(false)
+    }
+  }
+
   async function refreshConnectStatus() {
     if (connectBusy) return
     setConnectBusy(true)
@@ -403,6 +519,7 @@ export function ClubSettingsModal({
     { id: 'legal', label: 'Información legal', icon: '§' },
     { id: 'registration', label: 'Campos de registro', icon: '◆' },
     { id: 'subscription', label: 'Pagos', icon: '◇' },
+    { id: 'whop', label: 'Pasarela de cobro', icon: '◈' },
   ]
 
   return (
@@ -558,6 +675,16 @@ export function ClubSettingsModal({
                   connectDashboardBusy={openingStripeWindow}
                   webhookBusy={webhookBusy}
                   connectBusy={connectBusy}
+                />
+              )}
+              {tab === 'whop' && (
+                <WhopTab
+                  whop={form.whop}
+                  scopes={whopScopes}
+                  busy={whopBusy}
+                  onConnect={connectWhop}
+                  onRefresh={refreshWhopStatus}
+                  onDisconnect={disconnectWhop}
                 />
               )}
             </>
@@ -1073,6 +1200,248 @@ function SubscriptionTab({
           </div>
         </div>
       </Section>
+    </div>
+  )
+}
+
+/** Numerito del paso del asistente (verde cuando el paso está hecho). */
+function StepBadge({ n, done }: { n: number; done: boolean }) {
+  return (
+    <span
+      style={{
+        width: 26,
+        height: 26,
+        flexShrink: 0,
+        borderRadius: 999,
+        display: 'grid',
+        placeItems: 'center',
+        fontSize: 12.5,
+        fontWeight: 800,
+        background: done ? 'var(--green-soft)' : 'var(--surface-low)',
+        color: done ? 'var(--green)' : 'var(--text-secondary)',
+        border: `1px solid ${done ? 'var(--green)' : 'var(--border)'}`,
+      }}
+    >
+      {done ? '✓' : n}
+    </span>
+  )
+}
+
+/**
+ * Pasarela de cobro del club (Whop). Asistente de 3 pasos:
+ *   1. Crear la cuenta (enlace con la atribución de partner del proveedor).
+ *   2. Crear la API key en el panel de la pasarela (guía + enlace directo).
+ *   3. Pegarla aquí: el CRM valida la key, resuelve la cuenta y comprueba permisos.
+ *
+ * Se evita nombrar la pasarela más de lo imprescindible: para el club esto es
+ * «la pasarela de cobro del CRM».
+ */
+function WhopTab({
+  whop,
+  scopes,
+  busy,
+  onConnect,
+  onRefresh,
+  onDisconnect,
+}: {
+  whop: WhopConfig
+  scopes: WhopScope[] | null
+  busy: boolean
+  onConnect: (apiKey: string) => void
+  onRefresh: () => void
+  onDisconnect: () => void
+}) {
+  const [apiKey, setApiKey] = useState('')
+  const connected = whop.hasCompany
+  const missing = (scopes || []).filter((s) => !s.granted)
+
+  const cardStyle: React.CSSProperties = {
+    padding: 20,
+    borderRadius: 12,
+    background: 'var(--surface-card)',
+    border: '1px solid var(--border)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  }
+  const stepRow: React.CSSProperties = { display: 'flex', gap: 12, alignItems: 'flex-start' }
+  const helpText: React.CSSProperties = { fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.55, margin: 0 }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <Section
+        title="Cobra las cuotas de tus socios"
+        subtitle="Conecta una pasarela de pago para cobrar online. El dinero va directo a tu cuenta bancaria."
+      >
+        <div style={cardStyle}>
+          {/* Banda de estado */}
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 8,
+              background: whop.canCharge
+                ? 'var(--green-soft)'
+                : connected
+                  ? 'var(--amber-soft)'
+                  : 'var(--surface-low)',
+              color: whop.canCharge
+                ? 'var(--green)'
+                : connected
+                  ? 'var(--amber)'
+                  : 'var(--text-secondary)',
+              fontSize: 12.5,
+              fontWeight: 600,
+            }}
+          >
+            {whop.canCharge
+              ? '✓ Pasarela activa: ya puedes cobrar las cuotas online.'
+              : connected
+                ? '○ Cuenta conectada. Falta terminar la verificación y añadir tu cuenta bancaria.'
+                : '○ Sin pasarela conectada: los cobros online están desactivados.'}
+          </div>
+
+          {connected ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                <StatusPill ok={connected} label="Cuenta conectada" />
+                <StatusPill ok={whop.chargesEnabled} label="Cobros activos" />
+                <StatusPill ok={whop.hasPayoutMethod} label="Banco añadido" />
+              </div>
+              <Field label="Identificador de tu cuenta">
+                <ReadonlyValue value={whop.companyIdMasked || '—'} mono />
+              </Field>
+            </>
+          ) : null}
+
+          {/* Paso 1 — crear la cuenta (con la atribución de partner) */}
+          <div style={stepRow}>
+            <StepBadge n={1} done={connected} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+                Crea tu cuenta de cobros
+              </div>
+              <p style={helpText}>
+                Se abre el registro en una pestaña nueva. Usa el email del club y completa el alta.
+                Al terminar, tu cuenta queda vinculada a ProClubCRM.
+              </p>
+              <div>
+                <a
+                  href={whop.signupUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ ...primaryBtnStyle(false), display: 'inline-block', textDecoration: 'none' }}
+                >
+                  Crear mi cuenta de cobros ↗
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Paso 2 — crear la API key */}
+          <div style={stepRow}>
+            <StepBadge n={2} done={connected} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+                Genera tu clave de conexión
+              </div>
+              <p style={helpText}>
+                Es la clave que permite al CRM emitir tus cobros. En la página que se abre:
+              </p>
+              <ol style={{ ...helpText, paddingLeft: 18, margin: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <li>Busca la sección <strong>Account API Keys</strong> y pulsa <strong>Create</strong>.</li>
+                <li>Ponle un nombre, por ejemplo <em>ProClubCRM</em>.</li>
+                <li>Elige el rol <strong>Admin</strong> (así tendrá todos los permisos necesarios).</li>
+                <li>Copia la clave que aparece: <strong>solo se muestra una vez</strong>. Empieza por <code>whop_</code>.</li>
+              </ol>
+              <div>
+                <a
+                  href={whop.apiKeysUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ ...secondaryBtnStyle(false), display: 'inline-block', textDecoration: 'none' }}
+                >
+                  Abrir la página de claves ↗
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Paso 3 — pegar la clave */}
+          <div style={stepRow}>
+            <StepBadge n={3} done={connected} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>
+                {connected ? 'Sustituir la clave' : 'Pega aquí tu clave'}
+              </div>
+              <p style={helpText}>
+                Se guarda cifrada y no vuelve a mostrarse. Si la pierdes, genera una nueva y pégala
+                aquí otra vez. Al desconectar, el CRM la borra: recuerda revocarla también en tu
+                panel de la pasarela.
+              </p>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="whop_…"
+                autoComplete="off"
+                spellCheck={false}
+                style={{ ...inputStyle, fontFamily: 'ui-monospace, monospace' }}
+              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-end' }}>
+                {connected && (
+                  <button type="button" onClick={onDisconnect} disabled={busy} style={dangerBtnStyle(busy)}>
+                    Desconectar
+                  </button>
+                )}
+                {connected && (
+                  <button type="button" onClick={onRefresh} disabled={busy} style={secondaryBtnStyle(busy)}>
+                    {busy ? 'Comprobando…' : 'Comprobar estado'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onConnect(apiKey.trim())
+                    setApiKey('')
+                  }}
+                  disabled={busy || apiKey.trim().length < 8}
+                  style={primaryBtnStyle(busy || apiKey.trim().length < 8)}
+                >
+                  {busy ? 'Conectando…' : connected ? 'Guardar clave nueva' : 'Conectar pasarela'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* Permisos concedidos por la clave */}
+      {scopes && scopes.length > 0 && (
+        <Section
+          title="Permisos de la clave"
+          subtitle={
+            missing.length > 0
+              ? 'Faltan permisos: crea una clave nueva con el rol «Admin» y pégala arriba.'
+              : 'Tu clave tiene todo lo que el CRM necesita.'
+          }
+        >
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {scopes.map((s) => (
+                <div
+                  key={s.action}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5 }}
+                >
+                  <span style={{ color: s.granted ? 'var(--green)' : 'var(--red)', fontWeight: 800 }}>
+                    {s.granted ? '✓' : '✕'}
+                  </span>
+                  <span style={{ color: 'var(--text-primary)' }}>{s.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Section>
+      )}
     </div>
   )
 }

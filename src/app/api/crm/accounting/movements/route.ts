@@ -122,6 +122,7 @@ export async function POST(request: Request) {
       },
     })
 
+    try {
     const entry = await createJournalEntry({
       concept,
       entryDate,
@@ -214,6 +215,13 @@ export async function POST(request: Request) {
       tax: { rate: taxRate, amount: taxAmount },
       withholding: { rate: withholdingRate, amount: withholdingAmount },
     })
+    } catch (innerErr) {
+      // Compensación (createJournalEntry usa el prisma global, no una tx compartida):
+      // si el asiento falla, borra la Transaction para no dejar un movimiento de
+      // tesorería huérfano sin su partida doble.
+      await prisma.transaction.delete({ where: { id: movement.id } }).catch(() => {})
+      throw innerErr
+    }
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'No se pudo registrar el movimiento' }, { status: 400 })
   }

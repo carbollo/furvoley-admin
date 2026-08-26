@@ -34,16 +34,62 @@ export async function invoiceCountForYear(year = new Date().getFullYear()) {
   })
 }
 
+/**
+ * Secuencia MÁXIMA usada este año (0 si no hay ninguna). Se deriva del máximo
+ * `invoiceNumber` existente, NO de count(): así, tras borrar una factura
+ * intermedia, el siguiente número no colisiona con uno ya usado (count() sí lo
+ * haría y rompería la facturación de forma permanente). El formato
+ * `FV-YYYY-NNNNN` con ancho fijo hace que el orden lexicográfico == numérico.
+ */
+export async function invoiceBaseSeqForYear(year = new Date().getFullYear()): Promise<number> {
+  const prefix = `FV-${year}-`
+  const last = await prisma.invoice.findFirst({
+    where: { invoiceNumber: { startsWith: prefix } },
+    orderBy: { invoiceNumber: 'desc' },
+    select: { invoiceNumber: true },
+  })
+  if (!last) return 0
+  const n = parseInt(last.invoiceNumber.slice(prefix.length), 10)
+  return Number.isFinite(n) ? n : 0
+}
+
 export async function nextInvoiceNumber() {
   const year = new Date().getFullYear()
   const prefix = `FV-${year}-`
-  const count = await invoiceCountForYear(year)
-  return `${prefix}${String(count + 1).padStart(5, '0')}`
+  return `${prefix}${String((await invoiceBaseSeqForYear(year)) + 1).padStart(5, '0')}`
 }
 
-export function invoiceNumberAtOffset(baseCount: number, offset: number, year = new Date().getFullYear()) {
+export function invoiceNumberAtOffset(baseSeq: number, offset: number, year = new Date().getFullYear()) {
   const prefix = `FV-${year}-`
-  return `${prefix}${String(baseCount + offset + 1).padStart(5, '0')}`
+  return `${prefix}${String(baseSeq + offset + 1).padStart(5, '0')}`
+}
+
+/** ¿Es una violación de restricción única de Prisma (P2002)? */
+export function isUniqueViolation(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002'
+}
+
+/**
+ * Crea una factura asignando el número correlativo de forma robusta: lo deriva de
+ * max(num)+1 y REINTENTA si dos altas concurrentes chocan en el `@unique`
+ * `invoiceNumber` (P2002). `build(invoiceNumber)` devuelve los args de create.
+ */
+export async function createInvoiceWithNumber(
+  build: (invoiceNumber: string) => Parameters<typeof prisma.invoice.create>[0],
+  retries = 5,
+) {
+  let lastErr: unknown
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const invoiceNumber = await nextInvoiceNumber()
+    try {
+      return await prisma.invoice.create(build(invoiceNumber))
+    } catch (e) {
+      lastErr = e
+      if (isUniqueViolation(e)) continue
+      throw e
+    }
+  }
+  throw lastErr
 }
 
 export async function buildInvoicePayload(input: InvoiceCreateInput): Promise<InvoicePayload> {
@@ -71,15 +117,20 @@ export async function buildInvoicePayload(input: InvoiceCreateInput): Promise<In
       : taxConfig.applyWithholdOnInvoices
   const taxRateInput = Number(input.taxRate)
   const withholdingRateInput = Number(input.withholdingRate)
-  const taxRate = Number.isFinite(taxRateInput) ? Math.max(0, taxRateInput) : taxConfig.vatRateIncome
-  const withholdingRate = Number.isFinite(withholdingRateInput)
-    ? Math.max(0, withholdingRateInput)
-    : taxConfig.withholdRateIncome
+  // Tipos acotados a [0, 100]: sin tope superior un taxRate enorme inflaba el total
+  // y una retención > 100 dejaba el total NEGATIVO (factura con total < 0 persistida).
+  const clampRate = (v: number, fallback: number) =>
+    Number.isFinite(v) ? Math.min(100, Math.max(0, v)) : fallback
+  const taxRate = clampRate(taxRateInput, taxConfig.vatRateIncome)
+  const withholdingRate = clampRate(withholdingRateInput, taxConfig.withholdRateIncome)
   const taxAmount = applyTax ? Number((amount * (taxRate / 100)).toFixed(2)) : 0
   const withholdingAmount = applyWithholding
     ? Number((amount * (withholdingRate / 100)).toFixed(2))
     : 0
   const totalAmount = Number((amount + taxAmount - withholdingAmount).toFixed(2))
+  if (totalAmount < 0) {
+    throw new Error('El total de la factura no puede ser negativo. Revisa el importe, el IVA y la retención.')
+  }
 
   return {
     concepto,
@@ -98,9 +149,9 @@ export async function buildInvoicePayload(input: InvoiceCreateInput): Promise<In
 
 export async function createMemberInvoice(memberId: string, input: InvoiceCreateInput) {
   const payload = await buildInvoicePayload(input)
-  const invoice = await prisma.invoice.create({
+  const invoice = await createInvoiceWithNumber((invoiceNumber) => ({
     data: {
-      invoiceNumber: await nextInvoiceNumber(),
+      invoiceNumber,
       kind: 'OTHER',
       issueDate: new Date(),
       dueDate: payload.dueDate,
@@ -123,7 +174,7 @@ export async function createMemberInvoice(memberId: string, input: InvoiceCreate
       },
     },
     select: { id: true },
-  })
+  }))
 
   void ensureMemberStripeCustomer(memberId).catch(() => {})
   void runInvoiceCreatedWorkflows(invoice.id).catch((e) =>
@@ -149,39 +200,54 @@ export async function createTeamInvoices(groupId: string, input: InvoiceCreateIn
   if (!memberIds.length) throw new Error('El equipo no tiene jugadores a los que facturar')
 
   const year = new Date().getFullYear()
-  const baseCount = await invoiceCountForYear(year)
   const issueDate = new Date()
 
-  const invoices = await prisma.$transaction(
-    memberIds.map((memberId, index) =>
-      prisma.invoice.create({
-        data: {
-          invoiceNumber: invoiceNumberAtOffset(baseCount, index, year),
-          kind: 'OTHER',
-          issueDate,
-          dueDate: payload.dueDate,
-          subtotal: payload.amount,
-          taxAmount: payload.taxAmount,
-          totalAmount: payload.totalAmount,
-          paidAmount: 0,
-          currency: 'EUR',
-          status: payload.status,
-          memberId,
-          items: {
-            create: [
-              {
-                description: payload.concepto,
-                quantity: 1,
-                unitAmount: payload.amount,
-                totalAmount: payload.amount,
-              },
-            ],
+  // El lote se numera desde max(num)+1 (no count()) y se reintenta completo si
+  // choca con el `@unique` por altas concurrentes.
+  const runBatch = async () => {
+    const baseSeq = await invoiceBaseSeqForYear(year)
+    return prisma.$transaction(
+      memberIds.map((memberId, index) =>
+        prisma.invoice.create({
+          data: {
+            invoiceNumber: invoiceNumberAtOffset(baseSeq, index, year),
+            kind: 'OTHER',
+            issueDate,
+            dueDate: payload.dueDate,
+            subtotal: payload.amount,
+            taxAmount: payload.taxAmount,
+            totalAmount: payload.totalAmount,
+            paidAmount: 0,
+            currency: 'EUR',
+            status: payload.status,
+            memberId,
+            items: {
+              create: [
+                {
+                  description: payload.concepto,
+                  quantity: 1,
+                  unitAmount: payload.amount,
+                  totalAmount: payload.amount,
+                },
+              ],
+            },
           },
-        },
-        select: { id: true, memberId: true },
-      }),
-    ),
-  )
+          select: { id: true, memberId: true },
+        }),
+      ),
+    )
+  }
+  let invoices: { id: string; memberId: string }[] | undefined
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      invoices = await runBatch()
+      break
+    } catch (e) {
+      if (isUniqueViolation(e) && attempt < 4) continue
+      throw e
+    }
+  }
+  if (!invoices) throw new Error('No se pudieron generar las facturas del equipo')
 
   for (const invoice of invoices) {
     void ensureMemberStripeCustomer(invoice.memberId).catch(() => {})

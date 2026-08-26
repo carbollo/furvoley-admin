@@ -10,7 +10,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const denied = assertPublicSportsApiAuth(request)
+  const denied = await assertPublicSportsApiAuth(request)
   if (denied) return denied
 
   const { id } = await context.params

@@ -1,4 +1,4 @@
-import { updateMember } from '@/app/actions'
+import { updateMember } from '@/lib/members-service'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { sendApiWassText } from '@/lib/apiwass'
@@ -150,11 +150,9 @@ async function sendPaymentReminder(memberId: string) {
 
   let payLine = ''
   try {
-    const url =
-      (await prisma.invoice.findUnique({
-        where: { id: oldestInvoiceId },
-        select: { stripeCheckoutUrl: true },
-      }))?.stripeCheckoutUrl || (await createInvoiceStripeLink(oldestInvoiceId))
+    // Siempre por el generador (la caché por pasarela la lleva él): un enlace
+    // guardado de otra pasarela cobraría donde el CRM ya no concilia.
+    const url = await createInvoiceStripeLink(oldestInvoiceId)
     if (url) payLine = `\nPagar aquí: ${url}`
   } catch {
     /* optional */

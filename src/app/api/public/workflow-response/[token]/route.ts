@@ -6,7 +6,7 @@ import {
   getWorkflowResponseToken,
   markWorkflowResponseTokenUsed,
 } from '@/lib/workflow-response-links'
-import { updateAttendance } from '@/app/actions/events'
+import { updateAttendanceInternal } from '@/lib/events-service'
 
 export async function GET(
   _request: Request,
@@ -117,7 +117,7 @@ export async function POST(
     if (row.memberId && attendance.memberId !== row.memberId) {
       return NextResponse.json({ error: 'Este enlace solo permite confirmar tu propia asistencia' }, { status: 403 })
     }
-    await updateAttendance(attendanceId, status, reason)
+    await updateAttendanceInternal(attendanceId, status, reason)
     // La checklist es multi-uso (un toque por jugador, correcciones incluidas):
     // no se consume; caduca sola a los 7 días. El motivo de ausencia sí es de un solo uso.
     if (row.type === 'ATTENDANCE_REASON') {

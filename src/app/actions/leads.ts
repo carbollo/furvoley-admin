@@ -1,5 +1,7 @@
-'use server'
-
+// Módulo de SERVIDOR (sin 'use server'): NO expone server actions RPC. Antes con
+// 'use server' createLead/updateLead quedaban invocables por RPC sin auth (no tienen
+// llamadores; superficie muerta). Si se usan en el futuro, hacerlo desde una ruta
+// con requireRoles o añadir auth propia.
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { runLeadCreatedWorkflows, runLeadUpdatedWorkflows } from '@/lib/workflow-engine'

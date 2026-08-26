@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { PaymentReminderButton } from './PaymentReminderButton'
 import { MemberCombobox } from './MemberCombobox'
+import { track } from '@/lib/analytics/umami'
 
 type Plan = {
   id: string
@@ -70,6 +71,8 @@ export function CuotasSection({
   const [stats, setStats] = useState({ activePlans: 0, activeSubscriptions: 0 })
   const [busy, setBusy] = useState(false)
   const [generateBusy, setGenerateBusy] = useState(false)
+  // Acciones contra la pasarela de cobro (preparar cuotas, enlaces de cobro).
+  const [gatewayBusy, setGatewayBusy] = useState(false)
 
   const [planModal, setPlanModal] = useState(false)
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
@@ -194,6 +197,7 @@ export function CuotasSection({
         showAlert(j.error || 'No se pudo guardar el plan')
         return
       }
+      track('guardar-plan-cuota')
       setPlanModal(false)
       await loadData()
       await reload()
@@ -254,6 +258,7 @@ export function CuotasSection({
         showAlert(j.error || 'No se pudo asignar la cuota')
         return
       }
+      track('asignar-cuota', { pagoAlAlta: paymentRequired })
       setAssignModal(false)
       setAssignForm({
         memberId: '',
@@ -277,12 +282,17 @@ export function CuotasSection({
 
   const [editSubModal, setEditSubModal] = useState<SubscriptionRow | null>(null)
   const [editSubPlanId, setEditSubPlanId] = useState('')
+  const [editSubOrigPlanId, setEditSubOrigPlanId] = useState('')
   const [editSubNextDate, setEditSubNextDate] = useState('')
 
   function abrirEditarSuscripcion(s: SubscriptionRow) {
     setEditSubModal(s)
+    // Si el plan actual está INACTIVO no aparece en activePlans: NO preseleccionar
+    // otro plan por defecto (eso reasignaría al socio en silencio y cambiaría su
+    // cuota). Vacío = mantener el plan actual (no se envía planId en el PATCH).
     const plan = activePlans.find((p) => p.name === s.planName)
-    setEditSubPlanId(plan?.id || activePlans[0]?.id || '')
+    setEditSubPlanId(plan?.id || '')
+    setEditSubOrigPlanId(plan?.id || '')
     setEditSubNextDate(s.nextInvoiceDate ? s.nextInvoiceDate.slice(0, 10) : '')
   }
 
@@ -295,7 +305,8 @@ export function CuotasSection({
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...(editSubPlanId ? { planId: editSubPlanId } : {}),
+          // Solo cambia de plan si el usuario eligió uno DISTINTO del actual.
+          ...(editSubPlanId && editSubPlanId !== editSubOrigPlanId ? { planId: editSubPlanId } : {}),
           ...(editSubNextDate ? { nextInvoiceDate: editSubNextDate } : {}),
         }),
       })
@@ -336,6 +347,57 @@ export function CuotasSection({
     }
   }
 
+  /** Prepara en la pasarela un plan por cada cuota, para poder cobrarlas online. */
+  async function prepararCobroOnline() {
+    if (gatewayBusy) return
+    setGatewayBusy(true)
+    try {
+      const r = await fetch('/api/crm/whop/sync-plans', { method: 'POST', credentials: 'include' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        showAlert(j.error || 'No se pudieron preparar las cuotas para el cobro online')
+        return
+      }
+      const errores = Array.isArray(j.errors) ? j.errors : []
+      showAlert(
+        errores.length > 0
+          ? `Preparadas ${j.synced} cuota(s). Con problemas: ${errores.map((e: { plan: string; error: string }) => `${e.plan} (${e.error})`).join('; ')}`
+          : `Listo: ${j.synced} cuota(s) preparadas para cobro online${j.created ? ` (${j.created} nueva(s))` : ''}.`,
+      )
+      track('preparar-cobro-online', { cuotas: j.synced })
+    } finally {
+      setGatewayBusy(false)
+    }
+  }
+
+  /** Enlace de alta con cobro recurrente para la cuota de un socio. */
+  async function enlaceCobroRecurrente(subscriptionId: string) {
+    if (gatewayBusy) return
+    setGatewayBusy(true)
+    try {
+      const r = await fetch('/api/crm/whop/subscription-link', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionId }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || !j.url) {
+        showAlert(j.error || 'No se pudo generar el enlace de cobro')
+        return
+      }
+      try {
+        await navigator.clipboard?.writeText(String(j.url))
+        showAlert('Enlace de cobro copiado. Envíaselo al socio: al pagarlo, su cuota se renovará automáticamente.')
+      } catch {
+        showAlert(`Enlace de cobro: ${j.url}`)
+      }
+      track('enlace-cobro-recurrente')
+    } finally {
+      setGatewayBusy(false)
+    }
+  }
+
   async function emitirCuotasPendientes() {
     const ok = await showConfirm(
       '¿Emitir facturas de todas las suscripciones con periodo vencido? Se crearán las cuotas pendientes.',
@@ -352,6 +414,7 @@ export function CuotasSection({
         showAlert(j.error || 'No se pudieron emitir las cuotas')
         return
       }
+      track('emitir-cuotas', { creadas: j.createdCount })
       await reload()
       showAlert(
         j.createdCount > 0
@@ -403,6 +466,25 @@ export function CuotasSection({
               }}
             >
               {generateBusy ? 'Emitiendo…' : 'Emitir cuotas pendientes'}
+            </button>
+            <button
+              type="button"
+              disabled={gatewayBusy}
+              onClick={() => void prepararCobroOnline()}
+              title="Crea en la pasarela un plan por cada cuota para poder cobrarlas online de forma recurrente"
+              style={{
+                padding: '10px 16px',
+                borderRadius: 10,
+                border: '1px solid var(--border)',
+                background: '#fff',
+                cursor: gatewayBusy ? 'wait' : 'pointer',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+              }}
+            >
+              {gatewayBusy ? 'Preparando…' : 'Preparar cobro online'}
             </button>
             <button
               type="button"
@@ -725,6 +807,24 @@ export function CuotasSection({
                             </button>
                             <button
                               type="button"
+                              disabled={gatewayBusy}
+                              onClick={() => void enlaceCobroRecurrente(s.id)}
+                              title="Copia un enlace de pago; al abonarlo, la cuota se renueva automáticamente cada periodo"
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                border: '1px solid var(--border)',
+                                background: '#fff',
+                                cursor: gatewayBusy ? 'wait' : 'pointer',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Enlace de cobro
+                            </button>
+                            <button
+                              type="button"
                               disabled={busy}
                               onClick={() => void setSubscriptionStatus(s.id, 'PAUSED', 'Pausar')}
                               style={{
@@ -1007,6 +1107,7 @@ export function CuotasSection({
               onChange={(e) => setEditSubPlanId(e.target.value)}
               style={{ ...inputStyle, marginBottom: 4, background: '#fff' }}
             >
+              <option value="">Mantener plan actual{editSubModal.planName ? ` («${editSubModal.planName}»)` : ''}</option>
               {activePlans.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} · {fmtMoney(p.amount)}
@@ -1034,9 +1135,9 @@ export function CuotasSection({
               </button>
               <button
                 type="button"
-                disabled={busy || !editSubPlanId}
+                disabled={busy || (!editSubPlanId && !editSubNextDate)}
                 onClick={() => void guardarEdicionSuscripcion()}
-                style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: busy || !editSubPlanId ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, opacity: busy || !editSubPlanId ? 0.6 : 1 }}
+                style={{ padding: '9px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: busy || (!editSubPlanId && !editSubNextDate) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, opacity: busy || (!editSubPlanId && !editSubNextDate) ? 0.6 : 1 }}
               >
                 {busy ? 'Guardando…' : 'Guardar cambios'}
               </button>

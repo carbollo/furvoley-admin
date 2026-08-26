@@ -147,14 +147,19 @@ async function onCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
     }
     if (invoiceId) {
       const amount = (session.amount_total ?? 0) / 100
+      const paymentIntent =
+        typeof session.payment_intent === 'string' ? session.payment_intent : undefined
+      // Idempotencia: Stripe entrega los eventos "at-least-once" (y se pueden
+      // reenviar desde el dashboard). Si ya registramos este payment_intent o esta
+      // checkout session, no dupliques el cobro (recordInvoicePayment SUMA a paidAmount).
+      if (await alreadyRecordedCheckout(paymentIntent ?? null, session.id)) return
       await recordInvoicePayment({
         invoiceId,
         amount,
         method: 'STRIPE',
         status: 'SUCCEEDED',
         stripeSessionId: session.id,
-        stripePaymentIntent:
-          typeof session.payment_intent === 'string' ? session.payment_intent : undefined,
+        stripePaymentIntent: paymentIntent,
       })
     }
     return
@@ -327,6 +332,19 @@ async function alreadyRecorded(stripePaymentIntent: string | null) {
   if (!stripePaymentIntent) return false
   const existing = await prisma.paymentAttempt.findFirst({
     where: { stripePaymentIntent, status: 'SUCCEEDED' },
+    select: { id: true },
+  })
+  return !!existing
+}
+
+/** Dedupe de checkout: ¿ya hay un cobro SUCCEEDED con este payment_intent o esta sesión? */
+async function alreadyRecordedCheckout(paymentIntent: string | null, sessionId: string | null) {
+  const or: { stripePaymentIntent?: string; stripeSessionId?: string }[] = []
+  if (paymentIntent) or.push({ stripePaymentIntent: paymentIntent })
+  if (sessionId) or.push({ stripeSessionId: sessionId })
+  if (!or.length) return false
+  const existing = await prisma.paymentAttempt.findFirst({
+    where: { status: 'SUCCEEDED', OR: or },
     select: { id: true },
   })
   return !!existing

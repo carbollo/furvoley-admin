@@ -307,6 +307,9 @@ export async function GET(request: Request) {
     titulo: e.title,
     fecha: e.date.toISOString().slice(0, 10),
     hora: `${String(e.date.getHours()).padStart(2, '0')}:${String(e.date.getMinutes()).padStart(2, '0')}`,
+    // Instante completo (UTC) para reconstruir el datetime en la ZONA DEL CLIENTE al
+    // editar, evitando el desfase de mezclar fecha-UTC con hora-del-servidor.
+    dateIso: e.date.toISOString(),
     tipo: TYPE_LABEL[e.type] ?? e.type,
     typeCode: e.type,
     groupId: e.groupId ?? '',

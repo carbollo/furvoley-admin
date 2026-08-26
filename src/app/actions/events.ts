@@ -2,23 +2,25 @@
 
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
-import { revalidatePath } from 'next/cache'
 import { authOptions } from '@/lib/auth'
 import { normalizeRole } from '@/lib/rbac'
 import { runWithTenant } from '@/lib/multitenant/request'
 import { isAttendanceReminderDays } from '@/lib/attendance-link'
-import { effectiveGroupMemberIds } from '@/lib/groups'
 import {
-  runAttendanceAbsentUnexcusedWorkflows,
-  runEventCancelledWorkflows,
-  runEventCompletedWorkflows,
-  runEventRescheduledWorkflows,
-} from '@/lib/workflow-engine'
+  createEventInternal,
+  deleteEventInternal,
+  updateAttendanceInternal,
+  type CreateEventData,
+} from '@/lib/events-service'
 
 /**
  * Autorización de los server actions de eventos. Estos actions se exponen como
  * endpoints RPC (los usan componentes 'use client'), así que NO se puede confiar
  * en el gating de la UI: hay que comprobar rol y acceso al equipo aquí.
+ *
+ * La lógica SIN auth vive en `@/lib/events-service` (módulo sin 'use server', no
+ * invocable como RPC). Aquí solo se exponen wrappers que autorizan y activan el
+ * tenant por host antes de delegar.
  */
 async function assertEventWriter(groupId: string | null | undefined) {
   const session = await getServerSession(authOptions)
@@ -38,43 +40,6 @@ async function assertEventWriter(groupId: string | null | undefined) {
   }
 }
 
-// EVENTS
-type CreateEventData = {
-  title: string
-  type: string
-  date: Date
-  location?: string
-  description?: string
-  groupId: string
-  attendanceFormEnabled?: boolean
-  attendanceReminderDays?: number | null
-}
-
-/**
- * Alta de evento SIN autorización — solo para llamadas server-to-server ya
- * autorizadas (route handler tras requireRoles, MCP tras su Bearer). No exponer
- * directamente a clientes: usa `createEvent`.
- */
-export async function createEventInternal(data: CreateEventData) {
-  const event = await prisma.event.create({ data })
-
-  // Filas de asistencia (pase de lista) para los socios EFECTIVOS del grupo
-  // (directos + los de sus subgrupos, por contención).
-  const memberIds = data.groupId ? await effectiveGroupMemberIds(data.groupId) : []
-  if (memberIds.length > 0) {
-    await prisma.attendance.createMany({
-      data: memberIds.map((memberId) => ({
-        eventId: event.id,
-        memberId,
-        status: 'PENDING',
-      })),
-    })
-  }
-
-  revalidatePath('/calendar')
-  return event
-}
-
 /**
  * Server action público (lo usa el form de EventForm). Autoriza, valida y
  * activa el tenant antes de delegar en `createEventInternal`.
@@ -89,42 +54,6 @@ export async function createEvent(data: CreateEventData) {
   })
 }
 
-export async function updateEvent(
-  id: string,
-  data: {
-    title?: string
-    type?: string
-    date?: Date
-    location?: string
-    description?: string
-    status?: string
-    groupId?: string
-  },
-) {
-  const prev = await prisma.event.findUnique({ where: { id } })
-  const event = await prisma.event.update({ where: { id }, data })
-
-  if (data.status === 'CANCELLED' && prev?.status !== 'CANCELLED') {
-    await runEventCancelledWorkflows(id)
-  }
-  if (data.date && prev && data.date.getTime() !== prev.date.getTime()) {
-    await runEventRescheduledWorkflows(id)
-  }
-  if (data.status === 'COMPLETED' && prev?.status !== 'COMPLETED') {
-    await runEventCompletedWorkflows(id)
-  }
-
-  revalidatePath('/calendar')
-  return event
-}
-
-/** Baja de evento SIN autorización (server-to-server ya autorizado). */
-export async function deleteEventInternal(id: string) {
-  await runEventCancelledWorkflows(id)
-  await prisma.event.delete({ where: { id } })
-  revalidatePath('/calendar')
-}
-
 /** Server action público (form de borrado en el calendario): autoriza + tenant. */
 export async function deleteEvent(id: string) {
   return runWithTenant(async () => {
@@ -135,15 +64,23 @@ export async function deleteEvent(id: string) {
   })
 }
 
-// ATTENDANCE
+/**
+ * Server action de asistencia (lo usa AttendanceButtons en el calendario del CRM):
+ * autoriza como staff (ADMIN/COACH del equipo del evento) + activa tenant. La ruta
+ * pública por token (/api/public/workflow-response) NO usa este action: llama a
+ * `updateAttendanceInternal` con su propia autorización por token.
+ */
 export async function updateAttendance(id: string, status: string, reason?: string) {
-  const attendance = await prisma.attendance.update({
-    where: { id },
-    data: { status, reason },
+  return runWithTenant(async () => {
+    const attendance = await prisma.attendance.findUnique({
+      where: { id },
+      select: { eventId: true },
+    })
+    if (!attendance) throw new Error('Asistencia no encontrada')
+    const event = attendance.eventId
+      ? await prisma.event.findUnique({ where: { id: attendance.eventId }, select: { groupId: true } })
+      : null
+    await assertEventWriter(event?.groupId ?? null)
+    return updateAttendanceInternal(id, status, reason)
   })
-  if (status === 'ABSENT' && !String(reason || '').trim()) {
-    await runAttendanceAbsentUnexcusedWorkflows(attendance.id)
-  }
-  revalidatePath(`/calendar/${attendance.eventId}`)
-  return attendance
 }

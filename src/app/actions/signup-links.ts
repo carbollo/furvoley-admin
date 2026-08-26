@@ -4,6 +4,10 @@ import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { normalizeRole } from '@/lib/rbac'
+import { runWithTenant } from '@/lib/multitenant/request'
 import { runMemberCreatedWorkflows } from '@/lib/workflow-engine'
 import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
 import type { RegistrationMemberData } from '@/lib/registration-fields'
@@ -25,32 +29,50 @@ async function buildSignupUrl(token: string) {
 }
 
 export async function createSignupLink(expiresInDays = 30) {
-  const token = randomBytes(24).toString('hex')
-  const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + expiresInDays)
+  return runWithTenant(async () => {
+    // Solo staff puede generar enlaces de alta de socios (es un server action RPC).
+    const session = await getServerSession(authOptions)
+    const role = normalizeRole((session?.user as { role?: string } | undefined)?.role)
+    if (!session?.user || (role !== 'ADMIN' && role !== 'COACH')) {
+      throw new Error('No autorizado')
+    }
+    const token = randomBytes(24).toString('hex')
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + expiresInDays)
 
-  const link = await prisma.signupLink.create({
-    data: {
-      token,
-      expiresAt,
-      maxUses: 1,
-    },
+    const link = await prisma.signupLink.create({
+      data: {
+        token,
+        expiresAt,
+        maxUses: 1,
+      },
+    })
+
+    revalidatePath('/')
+    return {
+      token: link.token,
+      url: await buildSignupUrl(link.token),
+      expiresAt: link.expiresAt,
+    }
   })
-
-  revalidatePath('/')
-  return {
-    token: link.token,
-    url: await buildSignupUrl(link.token),
-    expiresAt: link.expiresAt,
-  }
 }
 
 export async function submitSignupFromLink(data: RegistrationMemberData & { token: string }) {
+  // Auth por TOKEN de enlace (alta pública de socio). runWithTenant activa el club
+  // por host: seguro también si se invoca como RPC directo (join-action también lo
+  // envuelve; el anidamiento es idempotente).
+  return runWithTenant(async () => {
   if (!isHexToken(data.token)) throw new Error('Enlace no válido o desactivado')
   const link = await prisma.signupLink.findUnique({ where: { token: data.token } })
   if (!link || !link.isActive) throw new Error('Enlace no válido o desactivado')
   if (link.expiresAt && link.expiresAt < new Date()) throw new Error('El enlace ha caducado')
-  if (link.usesCount >= link.maxUses) throw new Error('El enlace ya fue utilizado')
+  // Consumo ATÓMICO: con peticiones concurrentes del mismo token, solo una gana el
+  // "uso" (evita crear varios socios con un enlace de un solo uso).
+  const claim = await prisma.signupLink.updateMany({
+    where: { id: link.id, isActive: true, usesCount: { lt: link.maxUses } },
+    data: { usesCount: { increment: 1 }, isActive: false },
+  })
+  if (claim.count === 0) throw new Error('El enlace ya fue utilizado')
 
   const member = await prisma.member.create({
     data: {
@@ -70,14 +92,12 @@ export async function submitSignupFromLink(data: RegistrationMemberData & { toke
   void ensureMemberStripeCustomer(member.id).catch(() => {})
   await runMemberCreatedWorkflows(member.id)
 
+  // El uso ya se consumió atómicamente arriba; aquí solo registramos el socio creado.
   await prisma.signupLink.update({
     where: { id: link.id },
-    data: {
-      usesCount: { increment: 1 },
-      isActive: false,
-      createdMemberId: member.id,
-    },
+    data: { createdMemberId: member.id },
   })
 
   return member.id
+  })
 }

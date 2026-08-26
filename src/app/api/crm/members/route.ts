@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createMember } from '@/app/actions'
+import { createMember } from '@/lib/members-service'
 import { createSubscription } from '@/app/actions/billing'
 import { requireRoles } from '@/lib/rbac-api'
 import { prisma } from '@/lib/prisma'

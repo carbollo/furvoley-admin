@@ -902,11 +902,16 @@ async function runMemberCreatedStepAction(
     const sessionId = await resolveWorkflowWhatsAppSessionId(readString(step.config, 'waSessionId') || undefined)
     const phoneTpl = readString(step.config, 'waPhone') || '{memberPhone}'
     const messageTpl = readString(step.config, 'waMessage') || ''
+    // ¿La plantilla apunta al SOCIO (o su tutor)? Solo entonces es seguro caer a
+    // member.phone. Si apunta a un teléfono NO-socio ({clubAdminPhone}, {coachPhone}…)
+    // y resuelve vacío, NO se redirige al socio (evitaría filtrarle un mensaje
+    // interno): se deja vacío y el control de abajo marca error y no envía.
+    const memberTargeted = /member/i.test(phoneTpl) || /guardian/i.test(phoneTpl)
     let phone = interpolateHttpTemplate(phoneTpl, member, runContext).replace(/[^\d+]/g, '')
-    if (!phone && phoneTpl.includes('guardian')) {
+    if (!phone && /guardian/i.test(phoneTpl)) {
       phone = String(member.guardianPhone || member.phone || '').replace(/[^\d+]/g, '')
     }
-    if (!phone) {
+    if (!phone && memberTargeted) {
       phone = String(member.phone || '').replace(/[^\d+]/g, '')
     }
     const message = interpolateHttpTemplate(messageTpl, member, runContext)
@@ -1064,6 +1069,14 @@ export async function runWorkflowStepsForMember(
   let i = 0
   let guard = 0
 
+  // Anti back-edge: un BRANCH_IF puede saltar hacia atrás y volver a entrar en un
+  // paso con EFECTOS (enviar WhatsApp, crear cobro, aplicar descuento…). Cada paso
+  // con efectos se ejecuta como MUCHO una vez por run; los pasos puros (BRANCH_IF,
+  // set de variables) sí pueden re-evaluarse (acotados por maxIter).
+  const sideEffectDone = new Set<number>()
+  const isSideEffectAction = (t: string) =>
+    /^(SEND_|CREATE_|APPLY_|TRIGGER_|ASSIGN_|UPDATE_|DELETE_|ENROLL_|CHARGE_|MARK_|HTTP_|GENERATE_|CANCEL_|RETRY_)/.test(t)
+
   while (i < sorted.length && guard++ < maxIter) {
     const step = sorted[i]
     const stepKey = readString(step.config, 'stepKey') || `step_${step.position}`
@@ -1095,6 +1108,23 @@ export async function runWorkflowStepsForMember(
       }
       i++
       continue
+    }
+
+    if (isSideEffectAction(step.actionType)) {
+      if (sideEffectDone.has(step.position)) {
+        // Ya se ejecutó este paso con efectos en este run: no repetir (back-edge).
+        runContext.variables.stepApplied = 'false'
+        options?.onStepComplete?.({
+          position: step.position,
+          stepKey,
+          actionType: step.actionType,
+          applied: false,
+          error: 'paso con efectos ya ejecutado en este run (se omite la repetición)',
+        })
+        i++
+        continue
+      }
+      sideEffectDone.add(step.position)
     }
 
     await runMemberCreatedStepAction(step, member, runContext, triggerType)

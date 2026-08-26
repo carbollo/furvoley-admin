@@ -37,8 +37,12 @@ export async function POST(request: Request) {
   const name = String(body.name || '').trim()
   const level = Number(body.level)
   const nature = String(body.nature || '').trim().toUpperCase()
-  if (!code || !name || !Number.isInteger(level) || level < 1 || level > 8 || !nature) {
-    return NextResponse.json({ error: 'Datos de cuenta inválidos' }, { status: 400 })
+  const VALID_NATURES = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE']
+  if (!code || !name || !Number.isInteger(level) || level < 1 || level > 8 || !VALID_NATURES.includes(nature)) {
+    return NextResponse.json(
+      { error: 'Datos de cuenta inválidos. `nature` debe ser ASSET, LIABILITY, EQUITY, INCOME o EXPENSE.' },
+      { status: 400 },
+    )
   }
   const account = await prisma.accountChart.create({
     data: {

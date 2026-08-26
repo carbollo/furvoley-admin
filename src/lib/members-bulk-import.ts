@@ -1,4 +1,4 @@
-import { createMember } from '@/app/actions'
+import { createMember } from '@/lib/members-service'
 import { createSubscription } from '@/app/actions/billing'
 import { prisma } from '@/lib/prisma'
 import type { MemberCsvRow } from '@/lib/members-csv'

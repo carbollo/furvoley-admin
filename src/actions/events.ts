@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { normalizeRole } from "@/lib/rbac";
+import { runWithTenant } from "@/lib/multitenant/request";
 
 function normalizeDni(dni: string): string {
   return dni.trim().toUpperCase().replace(/\s+/g, "");
@@ -13,11 +15,39 @@ function digitsOnly(s: string): string {
   return s.replace(/\D/g, "");
 }
 
+/**
+ * Autorización de las MUTACIONES de eventos. Estos son server actions ('use server'
+ * → endpoints RPC invocables por cualquier cliente), así que la seguridad debe estar
+ * aquí, no en la UI. Solo ADMIN o COACH (y COACH únicamente en sus equipos). Todas
+ * las acciones se ejecutan además dentro de runWithTenant (activa la BD del club por
+ * host) para no depender de que exista contexto de tenant al invocar el action.
+ */
+async function assertEventStaff(
+  groupId: string | null | undefined,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as { role?: string; memberId?: string | null } | undefined;
+  if (!user) return { ok: false, error: "No autorizado" };
+  const role = normalizeRole(user.role);
+  if (role !== "ADMIN" && role !== "COACH") return { ok: false, error: "No autorizado" };
+  if (role === "COACH" && groupId) {
+    const owns = user.memberId
+      ? await prisma.groupMembership.findFirst({
+          where: { groupId, memberId: user.memberId, role: "COACH" },
+          select: { id: true },
+        })
+      : null;
+    if (!owns) return { ok: false, error: "No tienes acceso a este equipo" };
+  }
+  return { ok: true };
+}
+
 export async function registerGuestAttendees(
   eventId: string,
   attendees: { firstName: string; lastName: string; dni: string }[],
   contactPhone: string
 ): Promise<{ success: true; count: number } | { success: false; error: string }> {
+  return runWithTenant(async () => {
   try {
     if (!attendees?.length || attendees.length > 20) {
       return { success: false, error: "Indica entre 1 y 20 entradas." };
@@ -108,6 +138,7 @@ export async function registerGuestAttendees(
     }
     return { success: false, error: "No se pudo completar la inscripción." };
   }
+  });
 }
 
 export type RegisterForEventResult =
@@ -124,6 +155,7 @@ export type RegisterForEventResult =
     };
 
 export async function registerForEvent(eventId: string): Promise<RegisterForEventResult> {
+  return runWithTenant(async () => {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return { success: false, code: "LOGIN" };
@@ -197,9 +229,14 @@ export async function registerForEvent(eventId: string): Promise<RegisterForEven
   revalidatePath("/calendar");
 
   return { success: true, code: "REGISTERED" };
+  });
 }
 
 export async function getEvents() {
+  return runWithTenant(async () => {
+  // Lectura de la lista de eventos del club (vista de gestión): solo staff.
+  const staff = await assertEventStaff(null);
+  if (!staff.ok) return { success: false, error: "No autorizado" };
   try {
     const events = await prisma.event.findMany({
       orderBy: { date: "asc" },
@@ -215,9 +252,14 @@ export async function getEvents() {
     console.error("Error fetching events:", error);
     return { success: false, error: "Error al obtener los eventos" };
   }
+  });
 }
 
 export async function getEventById(id: string) {
+  // La página /events/[id] puede servir como enlace público de un evento, así que
+  // esta lectura no exige sesión; runWithTenant la limita al club del host (evita
+  // lecturas cruzadas entre clubes al invocar el RPC directamente).
+  return runWithTenant(async () => {
   try {
     const event = await prisma.event.findUnique({
       where: { id },
@@ -236,6 +278,7 @@ export async function getEventById(id: string) {
     console.error("Error fetching event:", error);
     return { success: false, error: "Error al obtener el evento" };
   }
+  });
 }
 
 export async function createEvent(data: {
@@ -250,6 +293,9 @@ export async function createEvent(data: {
   price?: number | null;
   groupId?: string | null;
 }) {
+  return runWithTenant(async () => {
+  const auth = await assertEventStaff(data.groupId ?? null);
+  if (!auth.ok) return { success: false, error: auth.error };
   try {
     const event = await prisma.event.create({
       data,
@@ -260,6 +306,7 @@ export async function createEvent(data: {
     console.error("Error creating event:", error);
     return { success: false, error: "Error al crear el evento" };
   }
+  });
 }
 
 export async function updateEvent(
@@ -278,6 +325,16 @@ export async function updateEvent(
     groupId?: string | null;
   }
 ) {
+  return runWithTenant(async () => {
+  const current = await prisma.event.findUnique({ where: { id }, select: { groupId: true } });
+  if (!current) return { success: false, error: "Evento no encontrado" };
+  // Autoriza sobre el equipo actual y, si se reasigna, también sobre el destino.
+  const authCurrent = await assertEventStaff(current.groupId);
+  if (!authCurrent.ok) return { success: false, error: authCurrent.error };
+  if (data.groupId && data.groupId !== current.groupId) {
+    const authTarget = await assertEventStaff(data.groupId);
+    if (!authTarget.ok) return { success: false, error: authTarget.error };
+  }
   try {
     const event = await prisma.event.update({
       where: { id },
@@ -290,9 +347,15 @@ export async function updateEvent(
     console.error("Error updating event:", error);
     return { success: false, error: "Error al actualizar el evento" };
   }
+  });
 }
 
 export async function deleteEvent(id: string) {
+  return runWithTenant(async () => {
+  const current = await prisma.event.findUnique({ where: { id }, select: { groupId: true } });
+  if (!current) return { success: false, error: "Evento no encontrado" };
+  const auth = await assertEventStaff(current.groupId);
+  if (!auth.ok) return { success: false, error: auth.error };
   try {
     await prisma.event.delete({
       where: { id },
@@ -303,4 +366,5 @@ export async function deleteEvent(id: string) {
     console.error("Error deleting event:", error);
     return { success: false, error: "Error al eliminar el evento" };
   }
+  });
 }

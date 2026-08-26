@@ -1,6 +1,6 @@
 import * as z from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { createEventInternal } from '@/app/actions/events'
+import { createEventInternal } from '@/lib/events-service'
 import { prisma } from '@/lib/prisma'
 import { withHermesAudit } from '@/lib/hermes-mcp/audit'
 import { jsonToolResult, toolError } from '@/lib/hermes-mcp/tools/helpers'

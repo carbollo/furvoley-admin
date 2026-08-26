@@ -1,6 +1,6 @@
 import * as z from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { createMember } from '@/app/actions'
+import { createMember } from '@/lib/members-service'
 import { prisma } from '@/lib/prisma'
 import {
   fetchMemberById,
@@ -98,7 +98,7 @@ export function registerMemberTools(server: McpServer) {
         if (!(await isHermesDestructiveAllowed())) {
           toolError('Operación destructiva deshabilitada (HERMES_ALLOW_DESTRUCTIVE=false)')
         }
-        const { deleteMember } = await import('@/app/actions')
+        const { deleteMember } = await import('@/lib/members-service')
         await deleteMember(memberId)
         return jsonToolResult({ ok: true, deleted: memberId })
       }, memberId),

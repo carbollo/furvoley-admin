@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createEventInternal } from '@/app/actions/events'
+import { createEventInternal } from '@/lib/events-service'
 import { parseCuid } from '@/lib/db-input-validation'
 import { assertTeamAccess, requireRoles } from '@/lib/rbac-api'
 import { attendanceFormSendDate, isAttendanceReminderDays } from '@/lib/attendance-link'

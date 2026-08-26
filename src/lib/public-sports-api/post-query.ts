@@ -56,7 +56,7 @@ export async function handlePublicSportsPostQuery(request: Request) {
     return publicSportsError(400, 'El cuerpo debe ser un objeto JSON.')
   }
 
-  const headerDenied = assertPublicSportsApiAuth(request)
+  const headerDenied = await assertPublicSportsApiAuth(request)
   if (headerDenied) {
     const bodyDenied = assertApiKeyInBody(body)
     if (bodyDenied) return bodyDenied

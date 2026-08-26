@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { updateMember } from '@/app/actions'
+import { updateMember } from '@/lib/members-service'
 import { parseCuid } from '@/lib/db-input-validation'
 import { requireRoles } from '@/lib/rbac-api'
 import { prisma } from '@/lib/prisma'

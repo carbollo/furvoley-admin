@@ -8,6 +8,7 @@ import { ClubSettingsModal } from './ClubSettingsModal'
 import { HermesAgentSection } from './HermesAgentSection'
 import { PaymentReminderButton } from './PaymentReminderButton'
 import { InviteLinkButton } from './InviteLinkButton'
+import { track } from '@/lib/analytics/umami'
 import './crm-vars.css'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import React, {
@@ -2678,6 +2679,7 @@ function AsistenciaSection() {
       const r = await fetch(`/api/crm/events/${session.eventId}/attendance-link`, { method: 'POST', credentials: 'include' })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudieron enviar los enlaces'); return }
+      track('enviar-enlaces-asistencia', { enviados: j.sent, total: j.total })
       showAlert(
         `${j.group}: ${j.sent}/${j.total} enlaces de asistencia enviados` +
         `${j.toGuardians ? ` (${j.toGuardians} a familiares)` : ''}.` +
@@ -2831,6 +2833,7 @@ function ProductosSection() {
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo crear el producto'); return }
+      track('crear-producto', { tipo: form.type })
       if (form.type === 'SUBSCRIPTION') {
         showAlert('Producto de suscripción creado. Ya aparece como plan en Contabilidad → Suscripciones: asígnalo a un socio o grupo y el cobro se emitirá de forma recurrente.')
       }
@@ -3006,6 +3009,7 @@ function DescuentosSection() {
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo generar el código'); return }
+      track('crear-descuento', { tipo: form.kind })
       setForm({ label: '', kind: 'PERCENT', value: '', code: '' })
       await loadDiscounts()
       showAlert(`Código generado: ${j.code}\nAplícalo al asignar una cuota en Suscripciones.`)
@@ -3377,6 +3381,7 @@ function Socios({ contactosMode = false }) {
         }
         return;
       }
+      track('crear-socio', { conCuota: !!formInscripcionAdmin.planId })
       try {
         const j = await r.json()
         if (j?.memberAccount?.email) {
@@ -3468,6 +3473,7 @@ function Socios({ contactosMode = false }) {
         showAlert(msg);
         return;
       }
+      track('editar-socio')
       setShowEditSocioModal(false);
       showAlert(`Datos de "${name}" actualizados correctamente.`);
       await reload();
@@ -6495,14 +6501,26 @@ function Calendario({ setActive }) {
   }
 
   function openEditEventoModal(ev) {
-    const [hh = '00', mm = '00'] = String(ev.hora || '').split(':')
     setEditingEventId(ev.id)
+    // Reconstruye el datetime-local desde el INSTANTE real (dateIso) en la zona del
+    // cliente, para que al guardar (new Date(datetimeLocal), también en cliente) se
+    // conserve el mismo instante y la hora no se desplace en cada edición. Fallback
+    // al formato antiguo fecha+hora si el bundle aún no trae dateIso.
+    let datetimeLocal: string
+    const inst = ev.dateIso ? new Date(ev.dateIso) : null
+    if (inst && !Number.isNaN(inst.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, '0')
+      datetimeLocal = `${inst.getFullYear()}-${pad(inst.getMonth() + 1)}-${pad(inst.getDate())}T${pad(inst.getHours())}:${pad(inst.getMinutes())}`
+    } else {
+      const [hh = '00', mm = '00'] = String(ev.hora || '').split(':')
+      datetimeLocal = `${ev.fecha}T${hh}:${mm}`
+    }
     setFormEvento({
       groupId: ev.groupId || EQUIPOS_UI[0]?.id || '',
       teamIds: [ev.groupId || EQUIPOS_UI[0]?.id || ''],
       title: ev.titulo || '',
       type: ev.typeCode || 'OTHER',
-      datetimeLocal: `${ev.fecha}T${hh}:${mm}`,
+      datetimeLocal,
       location: ev.location || '',
       description: ev.description || '',
       scheduleAttendance: false,
@@ -6551,6 +6569,7 @@ function Calendario({ setActive }) {
         showAlert(j.error || (isEdit ? 'No se pudo actualizar el evento' : 'No se pudo crear el evento'))
         return
       }
+      track('guardar-evento', { editar: isEdit, tipo: formEvento.type })
       setShowEventoModal(false)
       setEditingEventId(null)
       // Resumen del formulario de asistencia programado (lo envía el cron).
@@ -8566,13 +8585,16 @@ function CrmInner() {
       }
     }
 
+    // La LISTA muestra TODAS las notificaciones actuales; el estado "visto"
+    // (dismissedNotificationIds) NO filtra aquí (si lo hiciera, al abrir el
+    // desplegable el efecto de "marcar como visto" las borraría al instante). El
+    // "visto" solo afecta al CONTADOR de no leídas de abajo.
     return out
-      .filter((n) => !dismissedNotificationIds.includes(n.id))
       .sort((a, b) => (a.priority === 'high' ? -1 : 1) - (b.priority === 'high' ? -1 : 1))
       .slice(0, 20)
-  }, [bundle, dismissedNotificationIds])
+  }, [bundle])
 
-  const unreadCount = notifications.length
+  const unreadCount = notifications.filter((n) => !dismissedNotificationIds.includes(n.id)).length
 
   useEffect(() => {
     if (!showNotifications || notifications.length === 0) return

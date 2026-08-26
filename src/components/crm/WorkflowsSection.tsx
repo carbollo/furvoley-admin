@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 import { Zap, Plus, Download, Upload, BookOpen, X, Play, Search } from 'lucide-react'
 import { WORKFLOW_ACTION_OPTIONS } from '@/lib/crm-workflow-actions'
 import { workflowTriggerLabel } from '@/lib/crm-workflow-triggers'
+import { track } from '@/lib/analytics/umami'
 import { parseWorkflowsFromJson } from '@/lib/workflow-import'
 import { WorkflowFlowEditor, type WorkflowEditorInitialPaso } from './WorkflowFlowEditor'
 import { MemberCombobox } from './MemberCombobox'
@@ -311,6 +312,7 @@ export function WorkflowsSection({
         alert(msg)
         return
       }
+      track('guardar-workflow', { editar: !!editingId })
       setEditorOpen(false)
       await reload()
     } finally {

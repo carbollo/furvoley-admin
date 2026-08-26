@@ -2,10 +2,27 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { normalizeRole } from "@/lib/rbac";
+import { runWithTenant } from "@/lib/multitenant/request";
+
+/**
+ * Server actions de Meta Ads (RPC). Manejan secretos (accessToken) y gasto
+ * publicitario, así que TODAS exigen ADMIN y corren en runWithTenant. Antes
+ * getMetaConfig exponía el accessToken a cualquier usuario autenticado.
+ */
+async function assertMetaAdmin() {
+  const session = await getServerSession(authOptions);
+  const role = normalizeRole((session?.user as { role?: string } | undefined)?.role);
+  if (!session?.user || role !== "ADMIN") throw new Error("No autorizado");
+}
 
 // --- META CONFIGURATION ---
 
 export async function getMetaConfig() {
+  return runWithTenant(async () => {
+  await assertMetaAdmin();
   try {
     const config = await prisma.metaConfig.findFirst({
       where: { isActive: true },
@@ -15,6 +32,7 @@ export async function getMetaConfig() {
     console.error("Error fetching Meta config:", error);
     return { success: false, error: "Error al obtener la configuración de Meta" };
   }
+  });
 }
 
 export async function saveMetaConfig(data: {
@@ -22,6 +40,8 @@ export async function saveMetaConfig(data: {
   adAccountId: string;
   pageId?: string;
 }) {
+  return runWithTenant(async () => {
+  await assertMetaAdmin();
   try {
     // Desactivar configuraciones anteriores
     await prisma.metaConfig.updateMany({
@@ -43,6 +63,7 @@ export async function saveMetaConfig(data: {
     console.error("Error saving Meta config:", error);
     return { success: false, error: "Error al guardar la configuración de Meta" };
   }
+  });
 }
 
 // --- META GRAPH API INTEGRATION ---
@@ -52,15 +73,17 @@ async function fetchFromMetaAPI(endpoint: string, accessToken: string) {
   const url = `https://graph.facebook.com/v19.0/${endpoint}&access_token=${accessToken}`;
   const response = await fetch(url);
   const data = await response.json();
-  
+
   if (data.error) {
     throw new Error(data.error.message || "Error en la API de Meta");
   }
-  
+
   return data;
 }
 
 export async function syncMetaCampaigns() {
+  return runWithTenant(async () => {
+  await assertMetaAdmin();
   try {
     const config = await prisma.metaConfig.findFirst({
       where: { isActive: true },
@@ -73,22 +96,22 @@ export async function syncMetaCampaigns() {
     // 1. Fetch Campaigns
     // Format adAccountId correctly (usually starts with 'act_')
     const accountId = config.adAccountId.startsWith('act_') ? config.adAccountId : `act_${config.adAccountId}`;
-    
+
     // Fetch campaigns with their insights (metrics) for the last 30 days
     const endpoint = `${accountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(last_30d){spend,impressions,clicks,reach}`;
-    
+
     const response = await fetchFromMetaAPI(endpoint, config.accessToken);
-    
+
     if (!response.data || !Array.isArray(response.data)) {
       return { success: false, error: "Formato de respuesta inesperado de la API de Meta" };
     }
 
     // 2. Update Database
     let syncedCount = 0;
-    
+
     for (const campaign of response.data) {
       const insights = campaign.insights?.data?.[0] || {};
-      
+
       await prisma.metaCampaign.upsert({
         where: { campaignId: campaign.id },
         update: {
@@ -121,14 +144,17 @@ export async function syncMetaCampaigns() {
 
     revalidatePath("/admin/meta");
     return { success: true, message: `${syncedCount} campañas sincronizadas correctamente.` };
-    
-  } catch (error: any) {
+
+  } catch (error: unknown) {
     console.error("Error syncing Meta campaigns:", error);
-    return { success: false, error: error.message || "Error al sincronizar con Meta Ads" };
+    return { success: false, error: error instanceof Error ? error.message : "Error al sincronizar con Meta Ads" };
   }
+  });
 }
 
 export async function getLocalMetaCampaigns() {
+  return runWithTenant(async () => {
+  await assertMetaAdmin();
   try {
     const campaigns = await prisma.metaCampaign.findMany({
       orderBy: { spend: 'desc' }, // Order by spend descending
@@ -138,4 +164,5 @@ export async function getLocalMetaCampaigns() {
     console.error("Error fetching local campaigns:", error);
     return { success: false, error: "Error al obtener las campañas guardadas" };
   }
+  });
 }

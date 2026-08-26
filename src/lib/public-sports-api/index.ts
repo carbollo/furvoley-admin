@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@/generated/prisma/client'
 import { isCuid } from '@/lib/db-input-validation'
+import { enterTenantFromRequest } from '@/lib/multitenant/request'
 
 /** Tipos de actividad expuestos sin marcar el evento como público. */
 export const PUBLIC_SPORT_EVENT_TYPES = ['TRAINING', 'MATCH', 'TOURNAMENT'] as const
@@ -64,15 +65,24 @@ export function publicSportsError(status: number, message: string, details?: Rec
 }
 
 /** Si `PUBLIC_SPORTS_API_KEY` está definida, exige Bearer o X-API-Key. */
-export function assertPublicSportsApiAuth(request: Request): Response | null {
+export async function assertPublicSportsApiAuth(request: Request): Promise<Response | null> {
   const required = process.env.PUBLIC_SPORTS_API_KEY?.trim()
-  if (!required) return null
+  // Activa la BD del club (por host) ANTES de cualquier consulta prisma. Sin esto,
+  // en multi-tenant el proxy de prisma lanzaría por "sin tenant" (o, peor, usaría la
+  // BD por defecto). Se hace aquí porque todo endpoint público llama a este guard.
+  if (!required) {
+    await enterTenantFromRequest(request)
+    return null
+  }
 
   const auth = request.headers.get('authorization') ?? ''
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
   const headerKey = request.headers.get('x-api-key')?.trim() ?? ''
 
-  if (bearer === required || headerKey === required) return null
+  if (bearer === required || headerKey === required) {
+    await enterTenantFromRequest(request)
+    return null
+  }
   return publicSportsError(
     401,
     'API key requerida. Envía Authorization: Bearer <clave> o el header X-API-Key.',

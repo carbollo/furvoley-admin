@@ -8,7 +8,7 @@ import {
 } from '@/lib/public-sports-api'
 
 export async function GET(request: Request) {
-  const denied = assertPublicSportsApiAuth(request)
+  const denied = await assertPublicSportsApiAuth(request)
   if (denied) return denied
 
   const url = new URL(request.url)

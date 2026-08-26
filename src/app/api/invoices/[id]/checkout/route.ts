@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
-import { createInvoiceCheckoutUrl } from '@/lib/stripe-checkout'
+import { createInvoiceCheckoutUrl } from '@/lib/payments/invoice-checkout'
 import { normalizeRole } from '@/lib/rbac'
 import { getSessionFromRequest } from '@/lib/session'
 

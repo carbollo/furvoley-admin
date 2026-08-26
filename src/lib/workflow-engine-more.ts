@@ -328,17 +328,36 @@ export async function runExtendedWorkflowAction(
       if (r.ruleType === 'SIBLING' && siblings > 0) percent = Math.max(percent, r.percent)
     }
     if (percent > 0) {
-      const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } })
+      const inv = await prisma.invoice.findUnique({ where: { id: invoiceId }, include: { items: true } })
       if (inv && inv.status === 'PENDING') {
-        const discount = Math.round(inv.totalAmount * (percent / 100) * 100) / 100
-        await prisma.invoice.update({
-          where: { id: invoiceId },
-          data: {
-            totalAmount: Math.max(0, inv.totalAmount - discount),
-            subtotal: Math.max(0, inv.subtotal - discount),
-          },
-        })
-        runContext.variables.discountApplied = String(discount)
+        // Idempotencia: si ya hay una línea de descuento por reglas en esta factura,
+        // NO se vuelve a aplicar (re-ejecutar el workflow —p.ej. botón "Probar" o un
+        // INVOICE_CREATED duplicado— acumulaba el descuento una y otra vez).
+        const marker = 'Descuento por reglas'
+        const alreadyApplied = inv.items.some((it) => (it.description || '').startsWith(marker))
+        if (alreadyApplied) {
+          runContext.variables.discountApplied = '0'
+        } else {
+          const discount = Math.round(inv.totalAmount * (percent / 100) * 100) / 100
+          await prisma.invoice.update({
+            where: { id: invoiceId },
+            data: {
+              totalAmount: Math.max(0, inv.totalAmount - discount),
+              subtotal: Math.max(0, inv.subtotal - discount),
+              items: {
+                create: [
+                  {
+                    description: `${marker} (${percent}%)`,
+                    quantity: 1,
+                    unitAmount: -discount,
+                    totalAmount: -discount,
+                  },
+                ],
+              },
+            },
+          })
+          runContext.variables.discountApplied = String(discount)
+        }
       }
     }
     setStepApplied()

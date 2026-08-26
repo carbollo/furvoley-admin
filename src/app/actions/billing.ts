@@ -1,5 +1,9 @@
-'use server'
-
+// Módulo de SERVIDOR (deliberadamente SIN 'use server'): estas funciones NO son
+// server actions RPC. Solo las invocan, ya autorizados, las rutas API (requireRoles),
+// el webhook de Stripe (firma), los crons (forEachTenant), los workflows y Hermes
+// (Bearer), además de otros módulos de servidor. Antes tenía 'use server', lo que
+// exponía cada función (cobros, planes, suscripciones, facturas) como endpoint RPC
+// invocable por cualquier cliente autenticado sin comprobación de rol.
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { getStripe } from '@/lib/stripe'
@@ -16,6 +20,7 @@ import {
   nextBillingDate,
 } from '@/lib/billing-dates'
 import { ensureMemberStripeCustomer } from '@/lib/stripe-member-customer'
+import { createInvoiceWithNumber, nextInvoiceNumber, isUniqueViolation } from '@/lib/crm-invoice-create'
 import {
   runInvoiceCreatedWorkflows,
   runInvoiceOverdueWorkflows,
@@ -36,15 +41,6 @@ function addPeriod(date: Date, period: string) {
   else if (period === 'QUARTERLY') d.setMonth(d.getMonth() + 3)
   else d.setFullYear(d.getFullYear() + 1)
   return d
-}
-
-async function nextInvoiceNumber() {
-  const year = new Date().getFullYear()
-  const prefix = `FV-${year}-`
-  const count = await prisma.invoice.count({
-    where: { invoiceNumber: { startsWith: prefix } },
-  })
-  return `${prefix}${String(count + 1).padStart(5, '0')}`
 }
 
 export async function createMembershipPlan(data: {
@@ -262,35 +258,54 @@ export async function createInvoiceForSubscription(subscriptionId: string) {
   const today = startOfDay(new Date())
   const invoiceStatus = startOfDay(dueDate) < today ? 'OVERDUE' : 'PENDING'
 
-  const invoice = await prisma.invoice.create({
-    data: {
-      invoiceNumber: await nextInvoiceNumber(),
-      kind: 'MEMBERSHIP',
-      issueDate: new Date(),
-      dueDate,
-      subtotal,
-      taxAmount,
-      totalAmount: total,
-      status: invoiceStatus,
-      memberId: subscription.memberId,
-      subscriptionId: subscription.id,
-      items: { create: items },
-    },
-  })
-
-  if (invoiceStatus === 'OVERDUE') {
-    await runInvoiceOverdueWorkflows(invoice.id)
-  }
-
   const nextInvoiceDate =
     enrollmentRequired && isFirstInvoice
       ? nextBillingDate(new Date(), billingDay, subscription.plan.billingPeriod)
       : advanceBillingDate(cycleDate, billingDay, subscription.plan.billingPeriod)
 
-  await prisma.subscription.update({
-    where: { id: subscription.id },
-    data: { nextInvoiceDate },
-  })
+  // Factura + avance de `nextInvoiceDate` en UNA transacción atómica: si algo falla
+  // entre medias ya no queda la factura creada con la suscripción SIN avanzar (lo
+  // que provocaría re-facturar el mismo periodo = doble cobro). El número se deriva
+  // de max(num)+1 y se reintenta ante colisión de unicidad por concurrencia.
+  let invoice: Awaited<ReturnType<typeof prisma.invoice.create>> | undefined
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const invoiceNumber = await nextInvoiceNumber()
+    try {
+      const [created] = await prisma.$transaction([
+        prisma.invoice.create({
+          data: {
+            invoiceNumber,
+            kind: 'MEMBERSHIP',
+            issueDate: new Date(),
+            dueDate,
+            subtotal,
+            taxAmount,
+            totalAmount: total,
+            status: invoiceStatus,
+            memberId: subscription.memberId,
+            subscriptionId: subscription.id,
+            items: { create: items },
+          },
+        }),
+        prisma.subscription.update({
+          where: { id: subscription.id },
+          data: { nextInvoiceDate },
+        }),
+      ])
+      invoice = created
+      break
+    } catch (e) {
+      lastErr = e
+      if (isUniqueViolation(e)) continue
+      throw e
+    }
+  }
+  if (!invoice) throw lastErr
+
+  if (invoiceStatus === 'OVERDUE') {
+    await runInvoiceOverdueWorkflows(invoice.id)
+  }
   await runInvoiceCreatedWorkflows(invoice.id)
   return invoice
 }
@@ -304,15 +319,23 @@ export async function generateDueInvoices() {
     },
   })
 
-  const created = []
+  const created: string[] = []
+  const failed: { subscriptionId: string; error: string }[] = []
   for (const subscription of dueSubscriptions) {
-    const invoice = await createInvoiceForSubscription(subscription.id)
-    created.push(invoice.id)
+    // Aísla cada suscripción: un fallo puntual (p.ej. datos de un socio) no debe
+    // impedir facturar al resto del club.
+    try {
+      const invoice = await createInvoiceForSubscription(subscription.id)
+      created.push(invoice.id)
+    } catch (e) {
+      failed.push({ subscriptionId: subscription.id, error: e instanceof Error ? e.message : String(e) })
+      console.error('[billing] generateDueInvoices: suscripción falló', subscription.id, e)
+    }
   }
 
   await updateInvoiceStatuses()
   revalidatePath('/')
-  return { createdCount: created.length }
+  return { createdCount: created.length, failedCount: failed.length }
 }
 
 export async function createManualInvoice(data: {
@@ -327,9 +350,9 @@ export async function createManualInvoice(data: {
   const taxAmount = data.taxAmount ?? 0
   const total = subtotal + taxAmount
 
-  const invoice = await prisma.invoice.create({
+  const invoice = await createInvoiceWithNumber((invoiceNumber) => ({
     data: {
-      invoiceNumber: await nextInvoiceNumber(),
+      invoiceNumber,
       kind: 'OTHER',
       issueDate: new Date(),
       dueDate: data.dueDate,
@@ -346,7 +369,7 @@ export async function createManualInvoice(data: {
         })),
       },
     },
-  })
+  }))
 
   await runInvoiceCreatedWorkflows(invoice.id)
   revalidatePath('/')
@@ -395,36 +418,67 @@ export async function recordInvoicePayment(data: {
   status?: string
   stripePaymentIntent?: string
   stripeSessionId?: string
+  /** Id del pago en la pasarela: clave de dedupe (@unique) ante reentregas. */
+  externalPaymentId?: string
   errorMessage?: string
   bankReference?: string | null
 }) {
   const invoice = await prisma.invoice.findUnique({ where: { id: data.invoiceId } })
   if (!invoice) throw new Error('Invoice not found')
 
-  await prisma.paymentAttempt.create({
-    data: {
-      invoiceId: data.invoiceId,
-      amount: data.amount,
-      method: data.method ?? 'STRIPE',
-      status: data.status ?? 'SUCCEEDED',
-      stripePaymentIntent: data.stripePaymentIntent,
-      stripeSessionId: data.stripeSessionId,
-      errorMessage: data.errorMessage,
-    },
-  })
+  const attemptData = {
+    invoiceId: data.invoiceId,
+    amount: data.amount,
+    method: data.method ?? 'STRIPE',
+    status: data.status ?? 'SUCCEEDED',
+    stripePaymentIntent: data.stripePaymentIntent,
+    stripeSessionId: data.stripeSessionId,
+    externalPaymentId: data.externalPaymentId,
+    errorMessage: data.errorMessage,
+  }
 
   if ((data.status ?? 'SUCCEEDED') === 'SUCCEEDED') {
-    const paidAmount = invoice.paidAmount + data.amount
-    const isPaid = paidAmount >= invoice.totalAmount
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        paidAmount,
-        status: isPaid ? 'PAID' : 'PARTIAL',
-        paidAt: isPaid ? new Date() : null,
-      },
-    })
+    // El registro del intento y el movimiento del dinero van en la MISMA
+    // transacción: si se separan, una caída entre ambos deja un cobro "registrado"
+    // que nunca sumó (y el dedupe posterior lo daría por bueno, perdiéndolo).
+    // El `externalPaymentId` es @unique: una reentrega choca con P2002 y aborta
+    // TODA la transacción, que es exactamente el comportamiento deseado.
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.paymentAttempt.create({ data: attemptData })
+        const inc = await tx.invoice.update({
+          where: { id: invoice.id },
+          data: { paidAmount: { increment: data.amount } },
+        })
+        const paid = inc.paidAmount >= inc.totalAmount
+        await tx.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            status: paid ? 'PAID' : 'PARTIAL',
+            paidAt: paid ? (inc.paidAt ?? new Date()) : null,
+          },
+        })
+      })
+    } catch (e) {
+      // Reentrega del mismo pago: ya estaba contabilizado, nada que hacer.
+      if (typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002') {
+        return { duplicate: true }
+      }
+      throw e
+    }
+  } else {
+    // Intentos fallidos: no mueven dinero, pero también se deduplican por id.
+    try {
+      await prisma.paymentAttempt.create({ data: attemptData })
+    } catch (e) {
+      if (typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002') {
+        return { duplicate: true }
+      }
+      throw e
+    }
+  }
 
+  if ((data.status ?? 'SUCCEEDED') === 'SUCCEEDED') {
     const method = data.method ?? 'STRIPE'
 
     // ⚠️ Política contable: los cobros recibidos por Stripe **no** generan
@@ -437,7 +491,10 @@ export async function recordInvoicePayment(data: {
     // sí creamos el asiento de inmediato, porque esos cobros nunca pasan por
     // el CSV bancario (efectivo en mano) o porque su matching con el extracto
     // se hará por importe/referencia (transferencia manual).
-    if (method !== 'STRIPE') {
+    // WHOP sigue la MISMA política que STRIPE: el dinero llega a la cuenta de la
+    // pasarela y solo entra en el banco del club cuando se transfiere, así que el
+    // asiento se crea al conciliar el extracto, no al cobrar.
+    if (method !== 'STRIPE' && method !== 'WHOP') {
       let source = 'INVOICE_PAYMENT'
       if (method === 'BANK_TRANSFER') source = 'BANK_TRANSFER'
       else if (method === 'CASH') source = 'CASH'
@@ -510,8 +567,9 @@ export async function recordManualInvoicePayment(data: {
   })
 }
 
+/** Enlace de pago de una factura con la pasarela activa del club. */
 export async function createInvoiceStripeLink(invoiceId: string) {
-  const { createInvoiceCheckoutUrl } = await import('@/lib/stripe-checkout')
+  const { createInvoiceCheckoutUrl } = await import('@/lib/payments/invoice-checkout')
   const result = await createInvoiceCheckoutUrl(invoiceId)
   if (!result.ok) throw new Error(result.error)
   revalidatePath('/my-billing')
@@ -618,8 +676,8 @@ export async function runReminderJob() {
       if (phone && sessionId) {
         let payLine = ''
         try {
-          const url =
-            invoice.stripeCheckoutUrl || (await createInvoiceStripeLink(invoice.id))
+          // Siempre por el generador: la caché por pasarela la gestiona él.
+          const url = await createInvoiceStripeLink(invoice.id)
           if (url) payLine = ` Pagar: ${url}`
         } catch {
           /* optional */

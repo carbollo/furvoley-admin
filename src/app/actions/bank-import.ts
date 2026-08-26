@@ -2,7 +2,26 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { normalizeRole } from '@/lib/rbac'
+import { runWithTenant } from '@/lib/multitenant/request'
 import { parseBankCsvContent } from '@/lib/bank-csv'
+
+/**
+ * Server actions de conciliación bancaria (los invocan componentes cliente y RSC de
+ * /accounting/bank-import, y una form action). Son endpoints RPC, así que cada uno
+ * exige rol ADMIN/TREASURER y se ejecuta en runWithTenant (activa la BD del club por
+ * host). Antes ninguno comprobaba auth: un usuario autenticado cualquiera podía
+ * importar/borrar extractos, crear/borrar asientos o conciliar líneas.
+ */
+async function assertAccountingStaff() {
+  const session = await getServerSession(authOptions)
+  const role = normalizeRole((session?.user as { role?: string } | undefined)?.role)
+  if (!session?.user || (role !== 'ADMIN' && role !== 'TREASURER')) {
+    throw new Error('No autorizado')
+  }
+}
 
 export async function importBankCsv(data: {
   content: string
@@ -10,6 +29,8 @@ export async function importBankCsv(data: {
   note?: string | null
   delimiter?: ';' | ',' | 'auto'
 }) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const parsed = parseBankCsvContent(data.content, { delimiter: data.delimiter ?? 'auto' })
   if (parsed.rows.length === 0) {
     return { success: false as const, error: parsed.warnings.join(' ') || 'Sin filas válidas' }
@@ -42,18 +63,24 @@ export async function importBankCsv(data: {
     imported: parsed.rows.length,
     warnings: parsed.warnings,
   }
+  })
 }
 
 export async function getBankImports() {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   return prisma.bankImport.findMany({
     orderBy: { importedAt: 'desc' },
     include: {
       _count: { select: { lines: true } },
     },
   })
+  })
 }
 
 export async function getBankImportDetail(id: string) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   return prisma.bankImport.findUnique({
     where: { id },
     include: {
@@ -67,6 +94,7 @@ export async function getBankImportDetail(id: string) {
       },
     },
   })
+  })
 }
 
 function amountMatch(a: number, b: number) {
@@ -74,6 +102,8 @@ function amountMatch(a: number, b: number) {
 }
 
 export async function getSuggestedTransactionsForLine(lineId: string) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
   if (!line) return []
 
@@ -106,9 +136,12 @@ export async function getSuggestedTransactionsForLine(lineId: string) {
   })
 
   return candidates
+  })
 }
 
 export async function reconcileBankLine(lineId: string, transactionId: string) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
   const tx = await prisma.transaction.findUnique({ where: { id: transactionId } })
   if (!line || !tx) throw new Error('Línea o asiento no encontrado')
@@ -139,9 +172,12 @@ export async function reconcileBankLine(lineId: string, transactionId: string) {
   revalidatePath(`/accounting/bank-import/${line.bankImportId}`)
   revalidatePath('/accounting')
   return { ok: true }
+  })
 }
 
 export async function ignoreBankLine(lineId: string) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
   if (!line) throw new Error('Línea no encontrada')
 
@@ -152,9 +188,12 @@ export async function ignoreBankLine(lineId: string) {
 
   revalidatePath(`/accounting/bank-import/${line.bankImportId}`)
   revalidatePath('/accounting/bank-import')
+  })
 }
 
 export async function unlinkBankLine(lineId: string) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
   if (!line) throw new Error('Línea no encontrada')
 
@@ -165,12 +204,18 @@ export async function unlinkBankLine(lineId: string) {
 
   revalidatePath(`/accounting/bank-import/${line.bankImportId}`)
   revalidatePath('/accounting/bank-import')
+  })
 }
 
 export async function createLedgerFromBankLine(lineId: string) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
   if (!line) throw new Error('Línea no encontrada')
   if (line.status === 'MATCHED') throw new Error('La línea ya está conciliada')
+  if (line.status === 'NEW_LEDGER' && line.matchedTransactionId) {
+    throw new Error('La línea ya generó un asiento de tesorería')
+  }
 
   const abs = Math.abs(line.signedAmount)
   const type = line.signedAmount >= 0 ? 'INCOME' : 'EXPENSE'
@@ -200,16 +245,25 @@ export async function createLedgerFromBankLine(lineId: string) {
   revalidatePath('/accounting/bank-import')
   revalidatePath('/accounting')
   return tx.id
+  })
 }
 
 export async function deleteBankImport(id: string) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   await prisma.bankImport.delete({ where: { id } })
   revalidatePath('/accounting/bank-import')
   revalidatePath('/accounting')
+  })
 }
 
 export async function deleteBankImportFromForm(formData: FormData) {
+  return runWithTenant(async () => {
+  await assertAccountingStaff()
   const id = String(formData.get('batchId') || '')
   if (!id) return
-  await deleteBankImport(id)
+  await prisma.bankImport.delete({ where: { id } })
+  revalidatePath('/accounting/bank-import')
+  revalidatePath('/accounting')
+  })
 }
