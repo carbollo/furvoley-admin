@@ -237,12 +237,19 @@ export async function createPayoutMethod(input: {
         supported_payout_method_id: input.supportedMethodId,
         fields: input.fields,
         nickname: (input.nickname || 'Cuenta del club').slice(0, 60),
-        destination_currency: (input.currency || 'eur').toLowerCase(),
+        // Sin divisa forzada: la marca el propio método según el país. Imponer
+        // «eur» a una cuenta mexicana la dejaría inservible.
+        ...(input.currency ? { destination_currency: input.currency.toLowerCase() } : {}),
         is_default: true,
       },
     })
     const id = String(created?.id || '')
     if (!id) return { ok: false, error: 'La pasarela no devolvió la cuenta guardada.' }
+
+    // Se anota la divisa que la pasarela ha asignado de verdad, no la que se
+    // pidió: es la que decide qué saldo barre la transferencia automática.
+    const saved = await listPayoutMethods()
+    const currency = saved.ok ? saved.methods.find((m) => m.id === id)?.currency || '' : ''
 
     // Si esto no se persiste, el barrido creería que el club no tiene cuenta y
     // el dinero se quedaría acumulado con la cuenta visible en pantalla. Es un
@@ -253,7 +260,7 @@ export async function createPayoutMethod(input: {
         data: {
           whopPayoutMethodId: id,
           whopPayoutsEnabled: true,
-          whopPayoutCurrency: (input.currency || 'eur').toUpperCase(),
+          ...(currency ? { whopPayoutCurrency: currency } : {}),
         },
       })
     } catch (e) {

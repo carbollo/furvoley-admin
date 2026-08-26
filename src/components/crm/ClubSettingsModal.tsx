@@ -215,6 +215,7 @@ export function ClubSettingsModal({
   const [bankMethods, setBankMethods] = useState<SupportedMethod[] | null>(null)
   const [bankFields, setBankFields] = useState<Record<string, string>>({})
   const [bankMethodId, setBankMethodId] = useState('')
+  const [bankCountry, setBankCountry] = useState('')
   const [webhookBusy, setWebhookBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -488,10 +489,43 @@ export function ClubSettingsModal({
     }
   }, [])
 
+  /**
+   * Trae los campos concretos de una forma de cobro y la deja seleccionada.
+   * Los campos solo llegan al pedir un método en particular, no en el listado.
+   */
+  async function selectBankMethod(country: string, methodId: string, known: SupportedMethod[]) {
+    const r = await fetch(
+      `/api/crm/whop/payouts/methods?country=${encodeURIComponent(country)}&methodId=${encodeURIComponent(methodId)}`,
+      { credentials: 'include' },
+    )
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok || !j.methods?.[0]) {
+      setError(j.error || 'No se pudieron consultar los datos que pide esa forma de cobro')
+      return
+    }
+    const full: SupportedMethod = j.methods[0]
+    setBankMethods(known.map((m) => (m.id === full.id ? full : m)))
+    setBankMethodId(full.id)
+    setBankFields({})
+  }
+
+  /** Cambia de forma de cobro dentro del formulario ya abierto. */
+  async function changeBankMethod(methodId: string) {
+    if (payoutsBusy || !bankMethods) return
+    setPayoutsBusy(true)
+    setError(null)
+    try {
+      await selectBankMethod(bankCountry, methodId, bankMethods)
+    } finally {
+      setPayoutsBusy(false)
+    }
+  }
+
   /** Pregunta a la pasarela qué datos bancarios pide en el país del club. */
   async function loadBankForm(country: string) {
     setPayoutsBusy(true)
     setError(null)
+    setBankCountry(country)
     try {
       const r = await fetch(`/api/crm/whop/payouts/methods?country=${encodeURIComponent(country)}`, {
         credentials: 'include',
@@ -503,20 +537,11 @@ export function ClubSettingsModal({
       }
       const methods: SupportedMethod[] = j.methods || []
       setBankMethods(methods)
-      const first = methods[0]
-      if (first) {
-        // Los campos concretos solo llegan al pedir un método en particular.
-        const r2 = await fetch(
-          `/api/crm/whop/payouts/methods?country=${encodeURIComponent(country)}&methodId=${encodeURIComponent(first.id)}`,
-          { credentials: 'include' },
-        )
-        const j2 = await r2.json().catch(() => ({}))
-        if (r2.ok && j2.methods?.[0]) {
-          setBankMethods([j2.methods[0], ...methods.slice(1)])
-          setBankMethodId(first.id)
-          setBankFields({})
-        }
-      }
+      // Se preselecciona la transferencia bancaria si la hay: es lo que quiere
+      // un club, no una tarjeta ni un envío instantáneo con más comisión.
+      const preferred =
+        methods.find((m) => /bank|sepa|transfer|ach/i.test(`${m.name} ${m.deliveryType}`)) || methods[0]
+      if (preferred) await selectBankMethod(country, preferred.id, methods)
     } finally {
       setPayoutsBusy(false)
     }
@@ -873,6 +898,7 @@ export function ClubSettingsModal({
                       onLoad={loadPayouts}
                       onStartBank={loadBankForm}
                       onCancelBank={() => { setBankMethods(null); setBankFields({}) }}
+                      onChangeMethod={changeBankMethod}
                       onFieldChange={(id, value) => setBankFields((f) => ({ ...f, [id]: value }))}
                       onSaveBank={saveBankAccount}
                       onTransferNow={transferNow}
@@ -1736,6 +1762,7 @@ function PayoutsPanel({
   onLoad,
   onStartBank,
   onCancelBank,
+  onChangeMethod,
   onFieldChange,
   onSaveBank,
   onTransferNow,
@@ -1750,6 +1777,7 @@ function PayoutsPanel({
   onLoad: () => void
   onStartBank: (country: string) => void
   onCancelBank: () => void
+  onChangeMethod: (methodId: string) => void
   onFieldChange: (id: string, value: string) => void
   onSaveBank: () => void
   onTransferNow: (currency?: string) => void
@@ -1913,6 +1941,20 @@ function PayoutsPanel({
             </>
           ) : bankMethods ? (
             <>
+              {bankMethods.length > 1 ? (
+                <Field label="Forma de cobro">
+                  <select
+                    value={bankMethodId || method?.id || ''}
+                    onChange={(e) => onChangeMethod(e.target.value)}
+                    disabled={busy}
+                    style={{ ...inputStyle, cursor: 'pointer' }}
+                  >
+                    {bankMethods.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </Field>
+              ) : null}
               {method?.requiredFields?.length ? (
                 <>
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
