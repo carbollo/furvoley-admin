@@ -33,10 +33,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return new Response('Factura no encontrada', { status: 404 })
   }
 
-  const isAdmin = role === 'ADMIN'
+  // El TREASURER es quien lleva la facturación del club: puede entrar en todas
+  // las demás rutas de facturas, así que dejarle fuera justo del PDF le impedía
+  // hacer su trabajo con un «No autorizado» seco.
+  const isStaff = role === 'ADMIN' || role === 'TREASURER'
   const isOwner = userMemberId != null && userMemberId === invoice.memberId
-  if (!isAdmin && !isOwner) {
-    return new Response('No autorizado', { status: 403 })
+  if (!isStaff && !isOwner) {
+    return new Response(
+      'No tienes permiso para ver esta factura. Solo puede verla el socio al que corresponde o alguien de administración del club.',
+      { status: 403 },
+    )
   }
 
   const club = await getClubSettings()

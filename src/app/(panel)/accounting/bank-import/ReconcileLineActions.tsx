@@ -9,6 +9,7 @@ import {
   reconcileBankLine,
   unlinkBankLine,
 } from '@/app/actions/bank-import'
+import { formatMoney } from '@/lib/format-money'
 
 type Tx = {
   id: string
@@ -122,7 +123,7 @@ export function ReconcileLineActions({ line }: Props) {
       <div className="text-sm space-y-1">
         <span className="text-emerald-700 font-medium">Vinculado</span>
         <p className="text-stone-600">
-          {line.matchedTransaction.description} — €{line.matchedTransaction.amount.toFixed(2)} (
+          {line.matchedTransaction.description} — {formatMoney(line.matchedTransaction.amount)} (
           {new Date(line.matchedTransaction.date).toLocaleDateString('es-ES')})
           {line.matchedTransaction.invoice && (
             <span className="ml-1">· {line.matchedTransaction.invoice.invoiceNumber}</span>
@@ -160,7 +161,22 @@ export function ReconcileLineActions({ line }: Props) {
   }
 
   if (line.status === 'IGNORED') {
-    return <span className="text-stone-400 text-sm">Ignorado</span>
+    // Ignorar era un callejón sin salida: la línea se quedaba fuera para siempre
+    // aunque la función de devolverla a pendiente ya existía en este componente.
+    return (
+      <div className="space-y-1 text-sm">
+        <span className="text-stone-400">Ignorado</span>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onUnlink}
+          className="block text-xs font-medium text-blue-700 underline hover:text-blue-900 disabled:opacity-60"
+        >
+          {busy ? '…' : 'Recuperar'}
+        </button>
+        {err && <p className="text-rose-600 text-xs">{err}</p>}
+      </div>
+    )
   }
 
   return (
@@ -192,7 +208,7 @@ export function ReconcileLineActions({ line }: Props) {
         </button>
       </div>
       <p className="text-xs text-stone-500">
-        {isIn ? 'Ingreso' : 'Gasto'} esperado: €{abs.toFixed(2)}
+        {isIn ? 'Ingreso' : 'Gasto'} esperado: {formatMoney(abs)}
       </p>
       {suggestions && suggestions.length > 0 && (
         <ul className="border border-stone-100 rounded-lg divide-y max-h-40 overflow-y-auto">
@@ -201,7 +217,7 @@ export function ReconcileLineActions({ line }: Props) {
               <div>
                 <p className="text-xs font-medium text-stone-800">{t.description}</p>
                 <p className="text-xs text-stone-500">
-                  {new Date(t.date).toLocaleDateString('es-ES')} · €{t.amount.toFixed(2)} ·{' '}
+                  {new Date(t.date).toLocaleDateString('es-ES')} · {formatMoney(t.amount)} ·{' '}
                   {t.type}
                   {t.invoice && ` · ${t.invoice.invoiceNumber}`}
                 </p>

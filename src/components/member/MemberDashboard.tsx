@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PayMyInvoiceButton } from '@/app/(panel)/my-billing/PayMyInvoiceButton'
+import { formatMoney } from '@/lib/format-money'
 import {
   memberInvoiceBadge,
   MEMBER_INVOICE_BADGE_STYLES,
@@ -87,13 +88,7 @@ type Props = {
   enrollmentPaymentPending?: boolean
 }
 
-function fmtMoney(n: number) {
-  return new Intl.NumberFormat('es-ES', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 2,
-  }).format(n)
-}
+const fmtMoney = (n: number) => formatMoney(n)
 
 const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 

@@ -15,8 +15,19 @@ const ACTIONS = new Set<BatchAction>([
   'add-to-group',
 ])
 
+/**
+ * Acciones que también puede hacer el TREASURER.
+ *
+ * Reclamar un impago y asignar cuotas SON su trabajo, y exigir ADMIN para todo
+ * el endpoint le dejaba fuera de las dos pantallas que más usa, con un escueto
+ * «Unauthorized». Borrar socios o resetear accesos siguen siendo de ADMIN.
+ */
+const TREASURER_ACTIONS = new Set<BatchAction>(['send-payment-reminder', 'assign-plan'])
+
 export async function POST(request: Request) {
-  const auth = await requireRoles(['ADMIN'], request)
+  // Se autoriza primero como staff y luego se afina por acción: así el rol se
+  // comprueba sabiendo ya qué se pretende hacer.
+  const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
   let body: {
@@ -40,6 +51,13 @@ export async function POST(request: Request) {
   const action = String(body.action || '').trim() as BatchAction
   if (!ACTIONS.has(action)) {
     return NextResponse.json({ error: 'Acción no soportada' }, { status: 400 })
+  }
+
+  if (auth.role !== 'ADMIN' && !TREASURER_ACTIONS.has(action)) {
+    return NextResponse.json(
+      { error: 'Esta acción solo puede hacerla un administrador del club.' },
+      { status: 403 },
+    )
   }
 
   const rawIds = Array.isArray(body.memberIds) ? body.memberIds : []

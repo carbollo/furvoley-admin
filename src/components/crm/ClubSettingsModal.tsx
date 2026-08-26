@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getDefaultRegistrationFields, type RegistrationFieldDef } from '@/lib/registration-fields'
 import { RegistrationFieldsTab } from '@/components/crm/RegistrationFieldsTab'
+import { formatMoney } from '@/lib/format-money'
 
 type Settings = {
   id?: string
@@ -1310,7 +1311,7 @@ function payoutStatusLabel(status: string): string {
 }
 
 function money(n: number, currency: string): string {
-  return `${Number(n || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || 'EUR'}`
+  return formatMoney(n, currency)
 }
 
 /**

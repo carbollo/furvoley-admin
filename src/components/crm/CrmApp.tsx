@@ -9,6 +9,7 @@ import { HermesAgentSection } from './HermesAgentSection'
 import { PaymentReminderButton } from './PaymentReminderButton'
 import { InviteLinkButton } from './InviteLinkButton'
 import { track } from '@/lib/analytics/umami'
+import { formatMoney } from '@/lib/format-money'
 import './crm-vars.css'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import React, {
@@ -36,14 +37,33 @@ import { MemberCombobox } from '@/components/crm/MemberCombobox'
 import { MembersCsvImportModal } from '@/components/crm/MembersCsvImportModal'
 import { RegistrationFieldsTab } from '@/components/crm/RegistrationFieldsTab'
 
+/**
+ * Opciones de un diálogo de confirmación.
+ *
+ * Una confirmación genérica («¿Confirmar acción?» + «Aceptar») se acepta sin
+ * leerla. Cuando lo que hay detrás mueve dinero o borra trabajo, el diálogo
+ * tiene que decir QUÉ va a pasar en el título, nombrar la acción en el botón, y
+ * pintarse en rojo si no hay marcha atrás.
+ */
+type ConfirmOptions = {
+  /** Encabezado: la pregunta concreta, no «Confirmar acción». */
+  title?: string
+  message: string
+  /** Texto del botón que ejecuta. Debe nombrar la acción: «Emitir 24 facturas». */
+  confirmLabel?: string
+  cancelLabel?: string
+  /** Acción sin marcha atrás: botón rojo y foco inicial en Cancelar. */
+  danger?: boolean
+}
+
 type CrmCtx = {
   bundle: Record<string, unknown> | null
   reload: () => Promise<unknown>
   loading: boolean
   error: string | null
   fmtMoney: (n: number) => string
-  showAlert: (message: string) => void
-  showConfirm: (message: string) => Promise<boolean>
+  showAlert: (message: string, title?: string) => void
+  showConfirm: (opts: string | ConfirmOptions) => Promise<boolean>
 }
 
 const CrmContext = createContext<CrmCtx | null>(null);
@@ -106,6 +126,10 @@ function CrmProvider({ children }: { children: ReactNode }) {
   const [popup, setPopup] = useState<{
     kind: 'alert' | 'confirm'
     message: string
+    title?: string
+    confirmLabel?: string
+    cancelLabel?: string
+    danger?: boolean
     onResolve?: (ok: boolean) => void
   } | null>(null)
   const reload = useCallback(async () => {
@@ -127,47 +151,26 @@ function CrmProvider({ children }: { children: ReactNode }) {
     window.addEventListener('club-settings-updated', onUpdated)
     return () => window.removeEventListener('club-settings-updated', onUpdated)
   }, [reload]);
-  const fmtMoney = useCallback((n: number) => {
-    const cur = String(bundle?.currency ?? 'EUR')
-    const value = Number(n)
-    if (!Number.isFinite(value)) return '—'
-    try {
-      const fmt = new Intl.NumberFormat('es-AR', {
-        style: 'currency',
-        currency: cur,
-        maximumFractionDigits: 0,
-      })
-      if (value < 0) {
-        const parts = fmt.formatToParts(Math.abs(value))
-        let minusPlaced = false
-        return parts
-          .flatMap((p) => {
-            if (p.type === 'minusSign') return []
-            if (!minusPlaced && p.type === 'integer') {
-              minusPlaced = true
-              return [{ type: 'minusSign', value: '-' }, p]
-            }
-            return [p]
-          })
-          .map((p) => p.value)
-          .join('')
-      }
-      return fmt.format(value)
-    } catch {
-      const abs = Math.abs(value).toLocaleString('es-AR')
-      return value < 0 ? `€ -${abs}` : `€${abs}`
-    }
-  }, [bundle?.currency]);
+  // Dos decimales siempre: es dinero y tiene que cuadrar con el extracto.
+  const fmtMoney = useCallback(
+    (n: number) => formatMoney(n, String(bundle?.currency ?? 'EUR')),
+    [bundle?.currency],
+  );
 
-  const showAlert = useCallback((message: string) => {
-    setPopup({ kind: 'alert', message })
+  const showAlert = useCallback((message: string, title?: string) => {
+    setPopup({ kind: 'alert', message, title })
   }, [])
 
-  const showConfirm = useCallback((message: string) => {
+  const showConfirm = useCallback((opts: string | ConfirmOptions) => {
+    const o: ConfirmOptions = typeof opts === 'string' ? { message: opts } : opts
     return new Promise<boolean>((resolve) => {
       setPopup({
         kind: 'confirm',
-        message,
+        message: o.message,
+        title: o.title,
+        confirmLabel: o.confirmLabel,
+        cancelLabel: o.cancelLabel,
+        danger: o.danger,
         onResolve: resolve,
       })
     })
@@ -181,6 +184,17 @@ function CrmProvider({ children }: { children: ReactNode }) {
       return null
     })
   }, [])
+
+  // Escape cierra sin ejecutar. Sin esto, la única salida de un diálogo abierto
+  // por error es acertarle al botón correcto con el ratón.
+  useEffect(() => {
+    if (!popup) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') { e.preventDefault(); closePopup(false) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [popup, closePopup])
 
   return (
     <CrmContext.Provider value={{ bundle, reload, loading, error, fmtMoney, showAlert, showConfirm }}>
@@ -206,10 +220,11 @@ function CrmProvider({ children }: { children: ReactNode }) {
           <div
             role="dialog"
             aria-modal="true"
+            aria-labelledby="crm-dialog-title"
             onMouseDown={(e) => e.stopPropagation()}
             style={{
               width: '100%',
-              maxWidth: 460,
+              maxWidth: 480,
               background: '#fff',
               borderRadius: 14,
               border: '1px solid rgba(0,0,0,0.08)',
@@ -217,16 +232,32 @@ function CrmProvider({ children }: { children: ReactNode }) {
               padding: 22,
             }}
           >
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#1c1917', marginBottom: 8 }}>
-              {popup.kind === 'confirm' ? 'Confirmar acción' : 'Aviso'}
+            <div
+              id="crm-dialog-title"
+              style={{ fontSize: 17, fontWeight: 800, color: '#1c1917', marginBottom: 8 }}
+            >
+              {popup.title || (popup.kind === 'confirm' ? 'Confirmar acción' : 'Aviso')}
             </div>
-            <div style={{ fontSize: 14, color: '#57534e', lineHeight: 1.5, marginBottom: 18 }}>
+            {/* pre-line: los mensajes de dos frases se escriben con salto de línea
+                y antes salían todos pegados en un párrafo corrido. */}
+            <div
+              style={{
+                fontSize: 14,
+                color: '#57534e',
+                lineHeight: 1.5,
+                marginBottom: 18,
+                whiteSpace: 'pre-line',
+              }}
+            >
               {popup.message}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               {popup.kind === 'confirm' && (
                 <button
                   type="button"
+                  // En lo irreversible el foco arranca en la salida segura: un
+                  // Intro por inercia cancela, no ejecuta.
+                  autoFocus={popup.danger === true}
                   onClick={() => closePopup(false)}
                   style={{
                     padding: '10px 14px',
@@ -239,24 +270,25 @@ function CrmProvider({ children }: { children: ReactNode }) {
                     fontWeight: 600,
                   }}
                 >
-                  Cancelar
+                  {popup.cancelLabel || 'Cancelar'}
                 </button>
               )}
               <button
                 type="button"
+                autoFocus={popup.danger !== true}
                 onClick={() => closePopup(true)}
                 style={{
                   padding: '10px 14px',
                   borderRadius: 10,
                   border: 'none',
-                  background: 'var(--accent)',
+                  background: popup.danger ? 'var(--red, #b3261e)' : 'var(--accent)',
                   color: '#fff',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   fontWeight: 700,
                 }}
               >
-                Aceptar
+                {popup.confirmLabel || 'Aceptar'}
               </button>
             </div>
           </div>
@@ -606,6 +638,7 @@ const NAV = [
       { id: 'productos', label: 'Productos' },
       { id: 'descuentos', label: 'Descuentos' },
       { id: 'informes', label: 'Informes' },
+      { id: 'contabilidad', label: 'Extracto bancario', href: '/accounting/bank-import' },
     ],
   },
   {
@@ -743,12 +776,17 @@ function Sidebar({ active, setActive, onOpenClubSettings }) {
               {isGroup && isOpen && (
                 <div style={{display:'flex',flexDirection:'column',gap:1,padding:'2px 0 6px'}}>
                   {item.children.map((child) => {
-                    const childActive = active === child.id
+                    // Un enlace externo nunca se marca como pantalla activa del
+                    // CRM: si no, se resaltarían dos entradas del mismo grupo.
+                    const childActive = !child.href && active === child.id
                     return (
                       <button
-                        key={child.id}
+                        key={child.href || child.id}
                         type="button"
-                        onClick={() => setActive(child.id)}
+                        onClick={() => {
+                          if (child.href) window.location.href = child.href
+                          else setActive(child.id)
+                        }}
                         title={child.label}
                         style={{
                           display:'flex',alignItems:'center',gap:10,
@@ -773,7 +811,7 @@ function Sidebar({ active, setActive, onOpenClubSettings }) {
                         }}
                       >
                         <span style={{flex:1}}>{child.label}</span>
-                        {child.id === 'contabilidad' && pending > 0 && (
+                        {child.id === 'contabilidad' && !child.href && pending > 0 && (
                           <span style={{
                             background:'var(--red)',color:'#fff',
                             fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:999
@@ -1686,7 +1724,13 @@ function Organigrama() {
 
   async function asignarCuota() {
     if (!planId || planTargetIds.length === 0) return
-    const ok = await showConfirm(`¿Asignar la cuota a ${planTargetIds.length} socio(s)? La cuota activa anterior de cada uno se cancela.`).catch(() => false)
+    const ok = await showConfirm({
+      title: `Asignar esta cuota a ${planTargetIds.length} socio(s)`,
+      message:
+        'A cada uno se le emitirá su primera factura y recibirá el aviso de cobro.\n\n' +
+        'Si alguno ya tenía otra cuota, se le da de baja y se le vuelve a cobrar la matrícula del plan nuevo.',
+      confirmLabel: `Asignar y facturar a ${planTargetIds.length}`,
+    }).catch(() => false)
     if (!ok) return
     setBulkBusy(true)
     try {
@@ -2143,6 +2187,7 @@ function Impagos() {
   const { bundle, reload, fmtMoney, showAlert, showConfirm } = useCrm()
   const role = normalizeRole(bundle?.user?.role)
   const [busyId, setBusyId] = useState('')
+  const [buscarImpago, setBuscarImpago] = useState('')
   const [reprogramId, setReprogramId] = useState('')
   const [reprogramDate, setReprogramDate] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -2150,10 +2195,16 @@ function Impagos() {
   if (!(role === 'ADMIN' || role === 'TREASURER')) return null
 
   const cobros = Array.isArray(bundle?.cobros) ? bundle.cobros : []
-  const impagos = cobros.filter((c) => c.estado === 'Vencido')
+  const impagosTodos = cobros.filter((c) => c.estado === 'Vencido')
+  const buscadoImpago = buscarImpago.trim().toLowerCase()
+  const impagos = buscadoImpago
+    ? impagosTodos.filter((c) =>
+        `${c.socio} ${c.concepto} ${c.numero || ''}`.toLowerCase().includes(buscadoImpago),
+      )
+    : impagosTodos
   const importeDe = (c) => c.pendingAmount ?? c.monto ?? 0
-  const totalVencido = impagos.reduce((a, c) => a + importeDe(c), 0)
-  const sociosAfectados = new Set(impagos.map((c) => c.memberId)).size
+  const totalVencido = impagosTodos.reduce((a, c) => a + importeDe(c), 0)
+  const sociosAfectados = new Set(impagosTodos.map((c) => c.memberId)).size
 
   // ── Dashboard de impagos: antigüedad de la deuda y top morosos ──
   const hoy = new Date()
@@ -2169,15 +2220,15 @@ function Impagos() {
     { label: '+90', min: 91, max: Infinity },
   ]
   const agingAmounts = AGING.map((b) =>
-    impagos
+    impagosTodos
       .filter((c) => { const d = diasVencida(c); return d >= b.min && d <= b.max })
       .reduce((a, c) => a + importeDe(c), 0),
   )
-  const antiguedadMedia = impagos.length
-    ? Math.round(impagos.reduce((a, c) => a + diasVencida(c), 0) / impagos.length)
+  const antiguedadMedia = impagosTodos.length
+    ? Math.round(impagosTodos.reduce((a, c) => a + diasVencida(c), 0) / impagosTodos.length)
     : 0
   const topMorososMap = new Map()
-  for (const c of impagos) {
+  for (const c of impagosTodos) {
     const prev = topMorososMap.get(c.memberId) || { nombre: c.socio, total: 0, facturas: 0 }
     prev.total += importeDe(c)
     prev.facturas++
@@ -2191,9 +2242,13 @@ function Impagos() {
 
   /** Reenviar el aviso de cobro a TODOS los socios con impagos. */
   async function reenviarTodos() {
-    const ids = [...new Set(impagos.map((c) => c.memberId).filter(Boolean))]
+    const ids = [...new Set(impagosTodos.map((c) => c.memberId).filter(Boolean))]
     if (ids.length === 0) return
-    const ok = await showConfirm(`¿Reenviar el aviso de cobro por WhatsApp a los ${ids.length} socios con impagos?`).catch(() => false)
+    const ok = await showConfirm({
+      title: `Avisar por WhatsApp a ${ids.length} socios`,
+      message: 'Los mensajes salen al momento y no se pueden retirar.',
+      confirmLabel: `Enviar ${ids.length} avisos`,
+    }).catch(() => false)
     if (!ok) return
     setBulkBusy(true)
     try {
@@ -2204,12 +2259,37 @@ function Impagos() {
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudieron enviar los avisos'); return }
-      showAlert(`Avisos enviados: ${j.succeeded ?? 0} correctos, ${j.failed ?? 0} fallidos.`)
+      // «3 fallidos» sin decir quiénes ni por qué obliga a repasar la lista
+      // socio a socio. Se resuelven los ids contra los nombres, igual que ya
+      // hace la pantalla de Socios.
+      const okCount = Number(j.succeeded || 0)
+      const errCount = Number(j.failed || 0)
+      if (errCount > 0 && Array.isArray(j.errors) && j.errors.length > 0) {
+        const nombre = (id: string) =>
+          impagosTodos.find((x) => x.memberId === id)?.socio || 'un socio'
+        const detalle = j.errors
+          .slice(0, 4)
+          .map((e: { id: string; message: string }) => `${nombre(e.id)}: ${e.message}`)
+          .join('\n')
+        const resto = j.errors.length > 4 ? `\n…y ${j.errors.length - 4} más.` : ''
+        showAlert(
+          `${okCount} avisos enviados. No se pudo avisar a ${errCount}:\n\n${detalle}${resto}`,
+          'Avisos enviados con incidencias',
+        )
+      } else {
+        showAlert(`Avisos enviados a ${okCount} socio${okCount === 1 ? '' : 's'}.`)
+      }
+      // La lista tiene que reflejar lo ocurrido sin obligar a recargar a mano.
+      await reload()
     } finally { setBulkBusy(false) }
   }
 
   async function reenviarAviso(c) {
-    const ok = await showConfirm(`¿Reenviar aviso de cobro por WhatsApp a ${c.socio}?`).catch(() => false)
+    const ok = await showConfirm({
+      title: `Avisar a ${c.socio}`,
+      message: `Se le enviará por WhatsApp el aviso de la factura ${c.numero || ''} (${fmtMoney(Number(c.pendingAmount ?? c.monto ?? 0))} pendientes).`,
+      confirmLabel: 'Enviar aviso',
+    }).catch(() => false)
     if (!ok) return
     setBusyId(c.id)
     try {
@@ -2248,7 +2328,7 @@ function Impagos() {
       title="Impagos"
       subtitle="Cobros vencidos pendientes: reprograma o reenvía el aviso"
       actions={
-        impagos.length > 0 ? (
+        impagosTodos.length > 0 ? (
           <button type="button" disabled={bulkBusy} onClick={reenviarTodos}
             style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:8,border:'none',background:'var(--green)',color:'#fff',cursor:bulkBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:bulkBusy?0.6:1}}>
             <Icon name="whatsapp" size={15}/>
@@ -2258,14 +2338,14 @@ function Impagos() {
       }
     >
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))',gap:20}}>
-        <KPICard label="Impagos" value={String(impagos.length)} sub="Facturas vencidas" icon="billing" color={impagos.length > 0 ? 'var(--red)' : 'var(--green)'} badge={impagos.length > 0 ? { kind:'danger', text:'Revisar' } : null}/>
+        <KPICard label="Impagos" value={String(impagosTodos.length)} sub="Facturas vencidas" icon="billing" color={impagosTodos.length > 0 ? 'var(--red)' : 'var(--green)'} badge={impagosTodos.length > 0 ? { kind:'danger', text:'Revisar' } : null}/>
         <KPICard label="Importe vencido" value={fmtMoney(totalVencido)} sub="Pendiente de cobrar" icon="billing" color="var(--amber)"/>
         <KPICard label="Socios afectados" value={String(sociosAfectados)} sub="Con al menos un impago" icon="users" color="var(--accent-soft)"/>
-        <KPICard label="Antigüedad media" value={impagos.length ? `${antiguedadMedia} días` : '—'} sub="Desde el vencimiento" icon="calendar" color={antiguedadMedia > 60 ? 'var(--red)' : 'var(--amber)'}/>
+        <KPICard label="Antigüedad media" value={impagosTodos.length ? `${antiguedadMedia} días` : '—'} sub="Desde el vencimiento" icon="calendar" color={antiguedadMedia > 60 ? 'var(--red)' : 'var(--amber)'}/>
       </div>
 
       {/* Dashboard de impagos: deuda por antigüedad + top morosos */}
-      {impagos.length > 0 && (
+      {impagosTodos.length > 0 && (
         <div style={{display:'grid',gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',gap:24,alignItems:'start'}}>
           <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
             <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Deuda por antigüedad</div>
@@ -2293,59 +2373,75 @@ function Impagos() {
         </div>
       )}
       <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
+        {impagosTodos.length > 0 && (
+          <div style={{padding:'14px 24px 0'}}>
+            <input
+              type="search"
+              value={buscarImpago}
+              onChange={(e) => setBuscarImpago(e.target.value)}
+              placeholder="Buscar socio, concepto o nº de factura…"
+              aria-label="Buscar entre los impagos"
+              style={{width:'100%',maxWidth:340,padding:'8px 14px',borderRadius:999,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'var(--text-primary)',background:'var(--surface-card)'}}
+            />
+          </div>
+        )}
         {impagos.length === 0 ? (
           <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
-            No hay cobros vencidos. Todo al día. 🎉
+            {impagosTodos.length === 0
+              ? 'No hay cobros vencidos. Todo al día. 🎉'
+              : `Ningún impago coincide con «${buscarImpago.trim()}».`}
           </div>
         ) : (
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
-            <thead>
-              <tr style={{background:'var(--surface-low)'}}>
-                {['Socio','Concepto','Pendiente','Vencimiento',''].map((h) => (
-                  <th key={h} style={{padding:'12px 24px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {impagos.map((c) => (
-                <tr key={c.id} style={{borderTop:'1px solid var(--border)'}}>
-                  <td style={{padding:'14px 24px',fontSize:14,fontWeight:600,color:'var(--text-primary)'}}>{c.socio}</td>
-                  <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{c.concepto}</td>
-                  <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--red)'}}>{fmtMoney(c.pendingAmount ?? c.monto)}</td>
-                  <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{new Date(c.vencimiento).toLocaleDateString('es-ES')}</td>
-                  <td style={{padding:'14px 24px'}}>
-                    <div style={{display:'flex',gap:8,justifyContent:'flex-end',alignItems:'center',flexWrap:'wrap'}}>
-                      {reprogramId === c.id ? (
-                        <>
-                          <input type="date" value={reprogramDate} onChange={(e) => setReprogramDate(e.target.value)}
-                            style={{padding:'7px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:12}}/>
-                          <button type="button" disabled={busyId === c.id} onClick={() => reprogramar(c)}
-                            style={{padding:'7px 12px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
-                            Guardar
-                          </button>
-                          <button type="button" onClick={() => { setReprogramId(''); setReprogramDate('') }}
-                            style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-secondary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
-                            Cancelar
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button type="button" disabled={busyId === c.id} onClick={() => setReprogramId(c.id)}
-                            style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
-                            Reprogramar
-                          </button>
-                          <button type="button" disabled={busyId === c.id} onClick={() => reenviarAviso(c)}
-                            style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--green-light)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
-                            {busyId === c.id ? 'Enviando…' : 'Reenviar aviso'}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
+          <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+            <table style={{width:'100%',minWidth:640,borderCollapse:'collapse'}}>
+              <thead>
+                <tr style={{background:'var(--surface-low)'}}>
+                  {['Socio','Concepto','Pendiente','Vencimiento',''].map((h) => (
+                    <th key={h} style={{padding:'12px 24px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {impagos.map((c) => (
+                  <tr key={c.id} style={{borderTop:'1px solid var(--border)'}}>
+                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:600,color:'var(--text-primary)'}}>{c.socio}</td>
+                    <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{c.concepto}</td>
+                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--red)'}}>{fmtMoney(c.pendingAmount ?? c.monto)}</td>
+                    <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{new Date(c.vencimiento).toLocaleDateString('es-ES')}</td>
+                    <td style={{padding:'14px 24px'}}>
+                      <div style={{display:'flex',gap:8,justifyContent:'flex-end',alignItems:'center',flexWrap:'wrap'}}>
+                        {reprogramId === c.id ? (
+                          <>
+                            <input type="date" value={reprogramDate} onChange={(e) => setReprogramDate(e.target.value)}
+                              style={{padding:'7px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:12}}/>
+                            <button type="button" disabled={busyId === c.id} onClick={() => reprogramar(c)}
+                              style={{padding:'7px 12px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                              Guardar
+                            </button>
+                            <button type="button" onClick={() => { setReprogramId(''); setReprogramDate('') }}
+                              style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-secondary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                              Cancelar
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button type="button" disabled={busyId === c.id} onClick={() => setReprogramId(c.id)}
+                              style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                              Reprogramar
+                            </button>
+                            <button type="button" disabled={busyId === c.id} onClick={() => reenviarAviso(c)}
+                              style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--green-light)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                              {busyId === c.id ? 'Enviando…' : 'Reenviar aviso'}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </SectionShell>
@@ -2786,20 +2882,33 @@ function AsistenciaSection() {
 
 // ── CONTABILIDAD · PRODUCTOS (roadmap · 6.4): cobros más allá de la cuota ────
 function ProductosSection() {
-  const { bundle, fmtMoney, showAlert } = useCrm()
+  const { bundle, fmtMoney, showAlert, showConfirm } = useCrm()
   const role = normalizeRole(bundle?.user?.role)
   const [products, setProducts] = useState([])
   const [form, setForm] = useState({ name: '', type: 'ONE_TIME', billingPeriod: 'MONTHLY', price: '', description: '' })
   const [busy, setBusy] = useState(false)
   const [rowBusyId, setRowBusyId] = useState('')
 
+  const [cargando, setCargando] = useState(true)
+  const [cargaError, setCargaError] = useState('')
+
   const loadProducts = useCallback(async () => {
+    setCargaError('')
     try {
       const r = await fetch('/api/crm/products', { credentials: 'include', cache: 'no-store' })
-      if (!r.ok) return
+      if (!r.ok) {
+        // Sin esto, un fallo de red dejaba la lista vacía y la pantalla decía
+        // "aún no hay productos": el club creía haber perdido su catálogo.
+        setCargaError('No se pudo cargar el catálogo. Comprueba tu conexión y vuelve a intentarlo.')
+        return
+      }
       const j = await r.json()
       setProducts(Array.isArray(j.products) ? j.products : [])
-    } catch { /* noop */ }
+    } catch {
+      setCargaError('No se pudo cargar el catálogo. Comprueba tu conexión y vuelve a intentarlo.')
+    } finally {
+      setCargando(false)
+    }
   }, [])
 
   useEffect(() => { void loadProducts() }, [loadProducts])
@@ -2843,6 +2952,21 @@ function ProductosSection() {
   }
 
   async function toggleActivo(p) {
+    // Desactivar un producto de suscripción NO detiene los cobros de quien ya lo
+    // tiene: solo impide asignarlo a socios nuevos. Sin decirlo, el club cree que
+    // ha dejado de cobrar y sigue facturando cada mes.
+    if (p.isActive && p.type === 'SUBSCRIPTION') {
+      const ok = await showConfirm({
+        title: `Desactivar «${p.name}»`,
+        message:
+          'Dejará de poder asignarse a socios nuevos, pero los socios que ya lo tienen ' +
+          'SEGUIRÁN recibiendo su factura cada periodo.\n\n' +
+          'Para dejar de cobrarles, da de baja su cuota en Contabilidad → Suscripciones.',
+        confirmLabel: 'Desactivar',
+        cancelLabel: 'Volver',
+      }).catch(() => false)
+      if (!ok) return
+    }
     setRowBusyId(p.id)
     try {
       const r = await fetch(`/api/crm/products/${p.id}`, {
@@ -2916,56 +3040,70 @@ function ProductosSection() {
 
       {/* Listado */}
       <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
-        {products.length === 0 ? (
+        {cargando ? (
+          <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
+            Cargando el catálogo…
+          </div>
+        ) : cargaError ? (
+          <div style={{padding:'40px 32px',textAlign:'center',fontSize:14}}>
+            <div style={{color:'var(--red)',fontWeight:600,marginBottom:10}}>{cargaError}</div>
+            <button type="button" onClick={() => { setCargando(true); void loadProducts() }}
+              style={{padding:'8px 16px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700}}>
+              Reintentar
+            </button>
+          </div>
+        ) : products.length === 0 ? (
           <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
             Aún no hay productos. Crea el primero arriba.
           </div>
         ) : (
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
-            <thead>
-              <tr style={{background:'var(--surface-low)'}}>
-                {['Producto','Tipo','Precio','Ventas','Estado',''].map((h) => (
-                  <th key={h} style={{padding:'12px 24px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((p) => {
-                const meta = TYPE_META[p.type] || TYPE_META.ONE_TIME
-                return (
-                  <tr key={p.id} style={{borderTop:'1px solid var(--border)',opacity:p.isActive ? 1 : 0.55}}>
-                    <td style={{padding:'14px 24px'}}>
-                      <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)'}}>{p.name}</div>
-                      {p.description && <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{p.description}</div>}
-                    </td>
-                    <td style={{padding:'14px 24px'}}>
-                      <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:meta.bg,color:meta.color,whiteSpace:'nowrap'}}>
-                        {meta.label}{p.type === 'SUBSCRIPTION' && p.billingPeriod ? ` · ${PERIOD_LABEL[p.billingPeriod] || ''}` : ''}
-                      </span>
-                    </td>
-                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>
-                      {fmtMoney(p.price)}
-                      {p.type === 'SUBSCRIPTION' && p.billingPeriod ? <span style={{fontSize:11,fontWeight:500,color:'var(--text-muted)'}}> /{PERIOD_LABEL[p.billingPeriod] || ''}</span> : null}
-                    </td>
-                    <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{p.sales}</td>
-                    <td style={{padding:'14px 24px'}}>
-                      <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:p.isActive ? 'var(--green-soft)' : 'var(--surface-low)',color:p.isActive ? 'var(--green)' : 'var(--text-muted)'}}>
-                        {p.isActive ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td style={{padding:'14px 24px'}}>
-                      <div style={{display:'flex',justifyContent:'flex-end'}}>
-                        <button type="button" disabled={rowBusyId === p.id} onClick={() => toggleActivo(p)}
-                          style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:p.isActive ? 'var(--red)' : 'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
-                          {rowBusyId === p.id ? '…' : p.isActive ? 'Desactivar' : 'Activar'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+            <table style={{width:'100%',minWidth:640,borderCollapse:'collapse'}}>
+              <thead>
+                <tr style={{background:'var(--surface-low)'}}>
+                  {['Producto','Tipo','Precio','Ventas','Estado',''].map((h) => (
+                    <th key={h} style={{padding:'12px 24px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((p) => {
+                  const meta = TYPE_META[p.type] || TYPE_META.ONE_TIME
+                  return (
+                    <tr key={p.id} style={{borderTop:'1px solid var(--border)',opacity:p.isActive ? 1 : 0.55}}>
+                      <td style={{padding:'14px 24px'}}>
+                        <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)'}}>{p.name}</div>
+                        {p.description && <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{p.description}</div>}
+                      </td>
+                      <td style={{padding:'14px 24px'}}>
+                        <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:meta.bg,color:meta.color,whiteSpace:'nowrap'}}>
+                          {meta.label}{p.type === 'SUBSCRIPTION' && p.billingPeriod ? ` · ${PERIOD_LABEL[p.billingPeriod] || ''}` : ''}
+                        </span>
+                      </td>
+                      <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>
+                        {fmtMoney(p.price)}
+                        {p.type === 'SUBSCRIPTION' && p.billingPeriod ? <span style={{fontSize:11,fontWeight:500,color:'var(--text-muted)'}}> /{PERIOD_LABEL[p.billingPeriod] || ''}</span> : null}
+                      </td>
+                      <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{p.sales}</td>
+                      <td style={{padding:'14px 24px'}}>
+                        <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:p.isActive ? 'var(--green-soft)' : 'var(--surface-low)',color:p.isActive ? 'var(--green)' : 'var(--text-muted)'}}>
+                          {p.isActive ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                      <td style={{padding:'14px 24px'}}>
+                        <div style={{display:'flex',justifyContent:'flex-end'}}>
+                          <button type="button" disabled={rowBusyId === p.id} onClick={() => toggleActivo(p)}
+                            style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:p.isActive ? 'var(--red)' : 'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                            {rowBusyId === p.id ? '…' : p.isActive ? 'Desactivar' : 'Activar'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </SectionShell>
@@ -2981,13 +3119,24 @@ function DescuentosSection() {
   const [busy, setBusy] = useState(false)
   const [rowBusyId, setRowBusyId] = useState('')
 
+  const [cargandoD, setCargandoD] = useState(true)
+  const [cargaErrorD, setCargaErrorD] = useState('')
+
   const loadDiscounts = useCallback(async () => {
+    setCargaErrorD('')
     try {
       const r = await fetch('/api/crm/discounts', { credentials: 'include', cache: 'no-store' })
-      if (!r.ok) return
+      if (!r.ok) {
+        setCargaErrorD('No se pudieron cargar los descuentos. Comprueba tu conexión y vuelve a intentarlo.')
+        return
+      }
       const j = await r.json()
       setDiscounts(Array.isArray(j.discounts) ? j.discounts : [])
-    } catch { /* noop */ }
+    } catch {
+      setCargaErrorD('No se pudieron cargar los descuentos. Comprueba tu conexión y vuelve a intentarlo.')
+    } finally {
+      setCargandoD(false)
+    }
   }, [])
 
   useEffect(() => { void loadDiscounts() }, [loadDiscounts])
@@ -3072,49 +3221,63 @@ function DescuentosSection() {
 
       {/* Lista de códigos */}
       <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
-        {discounts.length === 0 ? (
+        {cargandoD ? (
+          <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
+            Cargando los descuentos…
+          </div>
+        ) : cargaErrorD ? (
+          <div style={{padding:'40px 32px',textAlign:'center',fontSize:14}}>
+            <div style={{color:'var(--red)',fontWeight:600,marginBottom:10}}>{cargaErrorD}</div>
+            <button type="button" onClick={() => { setCargandoD(true); void loadDiscounts() }}
+              style={{padding:'8px 16px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700}}>
+              Reintentar
+            </button>
+          </div>
+        ) : discounts.length === 0 ? (
           <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
             Aún no hay códigos. Genera el primero arriba.
           </div>
         ) : (
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
-            <thead>
-              <tr style={{background:'var(--surface-low)'}}>
-                {['Código','Tipo de descuento','Valor','En uso','Estado',''].map((h) => (
-                  <th key={h} style={{padding:'12px 24px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {discounts.map((d) => (
-                <tr key={d.id} style={{borderTop:'1px solid var(--border)',opacity:d.isActive ? 1 : 0.55}}>
-                  <td style={{padding:'14px 24px'}}>
-                    <span style={{fontFamily:'ui-monospace, monospace',fontSize:13,fontWeight:700,padding:'4px 10px',borderRadius:8,background:'var(--surface-low)',color:'var(--text-primary)',letterSpacing:'0.04em'}}>{d.code}</span>
-                  </td>
-                  <td style={{padding:'14px 24px',fontSize:14,color:'var(--text-primary)',fontWeight:600}}>{d.label}</td>
-                  <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--green)'}}>
-                    {d.kind === 'PERCENT' ? `−${d.value}%` : `−${fmtMoney(d.value)}`}
-                  </td>
-                  <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>
-                    {d.uses} suscripción{d.uses === 1 ? '' : 'es'}
-                  </td>
-                  <td style={{padding:'14px 24px'}}>
-                    <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:d.isActive ? 'var(--green-soft)' : 'var(--surface-low)',color:d.isActive ? 'var(--green)' : 'var(--text-muted)'}}>
-                      {d.isActive ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </td>
-                  <td style={{padding:'14px 24px'}}>
-                    <div style={{display:'flex',justifyContent:'flex-end'}}>
-                      <button type="button" disabled={rowBusyId === d.id} onClick={() => toggleActivo(d)}
-                        style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:d.isActive ? 'var(--red)' : 'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
-                        {rowBusyId === d.id ? '…' : d.isActive ? 'Desactivar' : 'Activar'}
-                      </button>
-                    </div>
-                  </td>
+          <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+            <table style={{width:'100%',minWidth:640,borderCollapse:'collapse'}}>
+              <thead>
+                <tr style={{background:'var(--surface-low)'}}>
+                  {['Código','Tipo de descuento','Valor','En uso','Estado',''].map((h) => (
+                    <th key={h} style={{padding:'12px 24px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {discounts.map((d) => (
+                  <tr key={d.id} style={{borderTop:'1px solid var(--border)',opacity:d.isActive ? 1 : 0.55}}>
+                    <td style={{padding:'14px 24px'}}>
+                      <span style={{fontFamily:'ui-monospace, monospace',fontSize:13,fontWeight:700,padding:'4px 10px',borderRadius:8,background:'var(--surface-low)',color:'var(--text-primary)',letterSpacing:'0.04em'}}>{d.code}</span>
+                    </td>
+                    <td style={{padding:'14px 24px',fontSize:14,color:'var(--text-primary)',fontWeight:600}}>{d.label}</td>
+                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--green)'}}>
+                      {d.kind === 'PERCENT' ? `−${d.value}%` : `−${fmtMoney(d.value)}`}
+                    </td>
+                    <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>
+                      {d.uses} suscripción{d.uses === 1 ? '' : 'es'}
+                    </td>
+                    <td style={{padding:'14px 24px'}}>
+                      <span style={{fontSize:11,fontWeight:700,padding:'4px 11px',borderRadius:999,background:d.isActive ? 'var(--green-soft)' : 'var(--surface-low)',color:d.isActive ? 'var(--green)' : 'var(--text-muted)'}}>
+                        {d.isActive ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </td>
+                    <td style={{padding:'14px 24px'}}>
+                      <div style={{display:'flex',justifyContent:'flex-end'}}>
+                        <button type="button" disabled={rowBusyId === d.id} onClick={() => toggleActivo(d)}
+                          style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:d.isActive ? 'var(--red)' : 'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                          {rowBusyId === d.id ? '…' : d.isActive ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
       <p style={{margin:0,fontSize:12,color:'var(--text-muted)'}}>
@@ -4016,99 +4179,101 @@ function Socios({ contactosMode = false }) {
             </button>
           </div>
         ) : null}
-        <table style={{width:'100%',borderCollapse:'collapse'}}>
-          <thead>
-            <tr style={{background:'var(--surface-low)'}}>
-              <th style={{ padding:'12px 16px', width: 44 }}>
-                <input
-                  type="checkbox"
-                  checked={filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id))}
-                  onChange={() => toggleSelectAllOnPage()}
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label="Seleccionar todos en la página"
-                />
-              </th>
-              {['Socio','DNI','Deporte','Categoría','Cuota','Vencimiento','Estado',''].map(h => (
-                <th key={h} style={{
-                  padding:'12px 32px',textAlign:'left',fontSize:11,
-                  fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr><td colSpan={9} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>No hay socios que coincidan con los filtros.</td></tr>
-            )}
-            {filtered.map((s) => (
-              <tr
-                key={s.id}
-                onClick={() => toggleSelectSocio(s.id)}
-                onContextMenu={(e) => openBulkMenu(e, s.id)}
-                style={{
-                borderTop:'1px solid var(--border)',cursor:'pointer',
-                background:selectedIds.has(s.id) ? 'var(--accent-pill)' : selected?.id===s.id ? 'var(--accent-pill)' : 'transparent',
-                transition:'background 0.15s'
-              }}
-              onMouseEnter={(e) => { if (selected?.id !== s.id && !selectedIds.has(s.id)) e.currentTarget.style.background = 'var(--surface-low)' }}
-              onMouseLeave={(e) => { if (selected?.id !== s.id && !selectedIds.has(s.id)) e.currentTarget.style.background = 'transparent' }}
-              >
-                <td style={{ padding:'16px 16px' }} onClick={(e) => e.stopPropagation()}>
+        <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          <table style={{width:'100%',minWidth:640,borderCollapse:'collapse'}}>
+            <thead>
+              <tr style={{background:'var(--surface-low)'}}>
+                <th style={{ padding:'12px 16px', width: 44 }}>
                   <input
                     type="checkbox"
-                    checked={selectedIds.has(s.id)}
-                    onChange={() => toggleSelectSocio(s.id)}
-                    aria-label={`Seleccionar ${s.nombre}`}
+                    checked={filtered.length > 0 && filtered.every((s) => selectedIds.has(s.id))}
+                    onChange={() => toggleSelectAllOnPage()}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label="Seleccionar todos en la página"
                   />
-                </td>
-                <td style={{padding:'16px 32px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:12}}>
-                    <Avatar initials={s.avatar} color="var(--accent-soft)" size={36}/>
-                    <div>
-                      <div style={{fontWeight:600,fontSize:14,color:'var(--text-primary)'}}>{s.nombre}</div>
-                      <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{s.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{s.dni || '—'}</td>
-                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{s.deporte}</td>
-                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{s.categoria}</td>
-                <td style={{padding:'16px 32px',fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(s.cuota)}</td>
-                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{new Date(s.vencimiento).toLocaleDateString('es-ES')}</td>
-                <td style={{padding:'16px 32px'}}><Badge status={s.estado}/></td>
-                <td style={{padding:'16px 32px'}}>
-                  <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
-                    <button type="button" onClick={e=>{e.stopPropagation(); setSelected(s);}} style={{padding:7,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--text-muted)',transition:'all 0.15s'}} title="Ver y editar"
-                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-                    ><Icon name="edit" size={14}/></button>
-                    <button
-                      type="button"
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        await eliminarSocio(s)
-                      }}
-                      style={{padding:7,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--red)',transition:'all 0.15s'}}
-                      title="Eliminar socio"
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--red-light)'; e.currentTarget.style.borderColor = 'var(--red)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-                    >
-                      <Icon name="trash" size={14}/>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e)=>toggleSocioMenu(e, s)}
-                      data-socio-menu
-                      style={{padding:7,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--text-muted)'}}
-                    >
-                      <Icon name="dots" size={14}/>
-                    </button>
-                  </div>
-                </td>
+                </th>
+                {['Socio','DNI','Deporte','Categoría','Cuota','Vencimiento','Estado',''].map(h => (
+                  <th key={h} style={{
+                    padding:'12px 32px',textAlign:'left',fontSize:11,
+                    fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'
+                  }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr><td colSpan={9} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>No hay socios que coincidan con los filtros.</td></tr>
+              )}
+              {filtered.map((s) => (
+                <tr
+                  key={s.id}
+                  onClick={() => toggleSelectSocio(s.id)}
+                  onContextMenu={(e) => openBulkMenu(e, s.id)}
+                  style={{
+                  borderTop:'1px solid var(--border)',cursor:'pointer',
+                  background:selectedIds.has(s.id) ? 'var(--accent-pill)' : selected?.id===s.id ? 'var(--accent-pill)' : 'transparent',
+                  transition:'background 0.15s'
+                }}
+                onMouseEnter={(e) => { if (selected?.id !== s.id && !selectedIds.has(s.id)) e.currentTarget.style.background = 'var(--surface-low)' }}
+                onMouseLeave={(e) => { if (selected?.id !== s.id && !selectedIds.has(s.id)) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <td style={{ padding:'16px 16px' }} onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(s.id)}
+                      onChange={() => toggleSelectSocio(s.id)}
+                      aria-label={`Seleccionar ${s.nombre}`}
+                    />
+                  </td>
+                  <td style={{padding:'16px 32px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:12}}>
+                      <Avatar initials={s.avatar} color="var(--accent-soft)" size={36}/>
+                      <div>
+                        <div style={{fontWeight:600,fontSize:14,color:'var(--text-primary)'}}>{s.nombre}</div>
+                        <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{s.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{s.dni || '—'}</td>
+                  <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{s.deporte}</td>
+                  <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{s.categoria}</td>
+                  <td style={{padding:'16px 32px',fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(s.cuota)}</td>
+                  <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{new Date(s.vencimiento).toLocaleDateString('es-ES')}</td>
+                  <td style={{padding:'16px 32px'}}><Badge status={s.estado}/></td>
+                  <td style={{padding:'16px 32px'}}>
+                    <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                      <button type="button" onClick={e=>{e.stopPropagation(); setSelected(s);}} style={{padding:7,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--text-muted)',transition:'all 0.15s'}} title="Ver y editar"
+                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+                      ><Icon name="edit" size={14}/></button>
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          await eliminarSocio(s)
+                        }}
+                        style={{padding:7,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--red)',transition:'all 0.15s'}}
+                        title="Eliminar socio"
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--red-light)'; e.currentTarget.style.borderColor = 'var(--red)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-card)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+                      >
+                        <Icon name="trash" size={14}/>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e)=>toggleSocioMenu(e, s)}
+                        data-socio-menu
+                        style={{padding:7,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--text-muted)'}}
+                      >
+                        <Icon name="dots" size={14}/>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <div
           style={{
             display: 'flex',
@@ -4974,7 +5139,13 @@ function Contabilidad({ setActive }) {
   const [movimientoBusy, setMovimientoBusy] = useState(false);
   const [deletingMovementId, setDeletingMovementId] = useState<string | null>(null);
   const [taxBusy, setTaxBusy] = useState(false);
+  const [buscarCobro, setBuscarCobro] = useState('');
+  const [emitirBusy, setEmitirBusy] = useState(false);
   const [ledgerBusy, setLedgerBusy] = useState(false);
+  // Qué partes de la contabilidad no se pudieron cargar. Sin esto, un fallo del
+  // servidor dejaba las listas vacías y la pantalla afirmaba «Sin asientos»: el
+  // tesorero creía que se había perdido la contabilidad del club.
+  const [ledgerError, setLedgerError] = useState('');
   const [ledgerData, setLedgerData] = useState<{
     entries: any[]
     accounts: any[]
@@ -5065,7 +5236,12 @@ function Contabilidad({ setActive }) {
     if (fechaHasta && registro > fechaHasta) return false;
     return true;
   });
-  const filtered = cobrosEnRango.filter(c => tab === 'Todos' || c.estado === tab);
+  const buscado = buscarCobro.trim().toLowerCase()
+  const filtered = cobrosEnRango.filter((c) => {
+    if (tab !== 'Todos' && c.estado !== tab) return false
+    if (!buscado) return true
+    return `${c.socio} ${c.concepto} ${c.numero || ''}`.toLowerCase().includes(buscado)
+  });
   const totales = {
     total: cobrosEnRango.reduce((a,c) => a + c.monto, 0) + ingresosManuales,
     pendiente: cobrosEnRango.filter(c=>c.estado==='Pendiente').reduce((a,c)=>a+c.monto,0),
@@ -5082,6 +5258,17 @@ function Contabilidad({ setActive }) {
         fetch('/api/crm/accounting/periods', { credentials: 'include' }),
         fetch('/api/crm/accounting/reports', { credentials: 'include' }),
       ]);
+      const fallidas = [
+        entriesR.ok ? null : 'los asientos',
+        accountsR.ok ? null : 'las cuentas',
+        periodsR.ok ? null : 'los periodos',
+        reportsR.ok ? null : 'los informes',
+      ].filter(Boolean);
+      setLedgerError(
+        fallidas.length === 0
+          ? ''
+          : `No se pudieron cargar ${fallidas.join(', ')}. Lo que ves abajo está incompleto.`,
+      );
       const [entriesJ, accountsJ, periodsJ, reportsJ] = await Promise.all([
         entriesR.ok ? entriesR.json() : { entries: [] },
         accountsR.ok ? accountsR.json() : { accounts: [] },
@@ -5100,10 +5287,52 @@ function Contabilidad({ setActive }) {
   }, []);
 
   useEffect(() => {
-    loadAccounting().catch(() => {});
+    loadAccounting().catch(() =>
+      setLedgerError('No se pudo conectar con el servidor para cargar la contabilidad.'),
+    );
   }, [loadAccounting]);
 
+  async function emitirCuotasDelMes() {
+    if (emitirBusy) return
+    const ok = await showConfirm({
+      title: 'Emitir las cuotas que tocan',
+      message:
+        'Se creará una factura por cada socio cuya cuota haya cumplido periodo.\n\n' +
+        'Son facturas numeradas: una vez emitidas no se pueden editar, solo eliminar. ' +
+        'Cada socio recibirá su aviso de cobro.',
+      confirmLabel: 'Emitir cuotas',
+    }).catch(() => false)
+    if (!ok) return
+    setEmitirBusy(true)
+    try {
+      const r = await fetch('/api/crm/billing/generate-due', { method: 'POST', credentials: 'include' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudieron emitir las cuotas'); return }
+      const creadas = Number(j.createdCount ?? 0)
+      showAlert(
+        creadas > 0
+          ? `${creadas} factura${creadas === 1 ? '' : 's'} emitida${creadas === 1 ? '' : 's'}.`
+          : 'No había ninguna cuota con el periodo cumplido: no se ha emitido nada.',
+      )
+      await Promise.all([reload(), loadAccounting()])
+    } finally { setEmitirBusy(false) }
+  }
+
   async function marcarPagado(c) {
+    // Registra el pendiente completo, en efectivo y con fecha de hoy. Eso crea un
+    // asiento contable, así que se dice exactamente qué se va a registrar antes
+    // de hacerlo: si el socio pagó otra cantidad o por otra vía, hay que
+    // registrarlo desde el detalle, no aquí.
+    const pendiente = Number(c?.pendingAmount ?? c?.monto ?? 0)
+    const ok = await showConfirm({
+      title: `Registrar el cobro de ${fmtMoney(pendiente)}`,
+      message:
+        `Factura ${c?.numero || ''} · ${c?.socio || 'socio'}\n` +
+        `Se registrará como cobrado en efectivo, con fecha de hoy y por el importe pendiente completo.\n\n` +
+        `Esto crea un apunte en la contabilidad.`,
+      confirmLabel: 'Registrar cobro',
+    }).catch(() => false)
+    if (!ok) return
     const r = await fetch('/api/crm/invoices/' + c.id + '/mark-paid', { method: 'POST', credentials: 'include' });
     if (!r.ok) { showAlert('No se pudo marcar como pagado'); return; }
     await Promise.all([reload(), loadAccounting()]);
@@ -5163,7 +5392,14 @@ function Contabilidad({ setActive }) {
     const invoiceId = String(c?.id || '').trim()
     if (!invoiceId) return
     if (deletingCobroId === invoiceId) return
-    const ok = await showConfirm(`¿Eliminar el cobro "${c.concepto}" de ${c.socio}? Esta acción no se puede deshacer.`)
+    const ok = await showConfirm({
+      title: `Eliminar la factura ${c.numero || ''}`,
+      message:
+        `${c.concepto} · ${c.socio} · ${fmtMoney(Number(c.monto || 0))}\n\n` +
+        'Desaparece del histórico del socio junto con su apunte contable. No se puede deshacer.',
+      confirmLabel: 'Eliminar factura',
+      danger: true,
+    })
     if (!ok) return
 
     setDeletingCobroId(invoiceId)
@@ -5283,6 +5519,28 @@ function Contabilidad({ setActive }) {
       showAlert('Completa concepto, importe y vencimiento.')
       return
     }
+
+    // Facturar a un equipo emite N facturas numeradas y avisa a N familias. Una
+    // vez emitidas no se pueden corregir, solo borrar, así que se pregunta antes
+    // diciendo a cuántos afecta y por cuánto en total.
+    if (target === 'team') {
+      const equipo = EQUIPOS_UI.find((eq) => eq.id === groupId)
+      const jugadores = countTeamPlayers(equipo || {})
+      const neto =
+        amount * (applyTax ? 1 + (Number.isFinite(taxRate) ? taxRate : 0) / 100 : 1) -
+        amount * (applyWithholding ? (Number.isFinite(withholdingRate) ? withholdingRate : 0) / 100 : 0)
+      const ok = await showConfirm({
+        title: `Vas a emitir ${jugadores} facturas`,
+        message:
+          `Equipo: ${equipo?.name || 'sin nombre'}\n` +
+          `Concepto: ${concepto}\n` +
+          `${fmtMoney(neto)} por jugador · ${fmtMoney(neto * jugadores)} en total\n\n` +
+          `Cada familia recibirá su aviso de cobro. Una factura emitida no se puede editar después.`,
+        confirmLabel: `Emitir ${jugadores} facturas`,
+      }).catch(() => false)
+      if (!ok) return
+    }
+
     setNuevoCobroBusy(true)
     try {
       const payload = {
@@ -5389,7 +5647,14 @@ function Contabilidad({ setActive }) {
       return
     }
     if (deletingMovementId === movementId) return
-    const ok = await showConfirm(`¿Eliminar este ${entry?.source === 'MANUAL' ? 'movimiento manual' : 'movimiento'} y su asiento contable?`)
+    const ok = await showConfirm({
+      title: 'Eliminar este movimiento',
+      message:
+        `${entry?.description || ''}\n\n` +
+        'Se borra también su asiento contable, así que los informes cambiarán. No se puede deshacer.',
+      confirmLabel: 'Eliminar movimiento',
+      danger: true,
+    })
     if (!ok) return
 
     setDeletingMovementId(movementId)
@@ -5538,6 +5803,20 @@ function Contabilidad({ setActive }) {
               onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--accent)' }}
             >
               <Icon name="plus" size={15}/>Nueva factura
+            </button>
+            <button
+              type="button"
+              disabled={emitirBusy}
+              onClick={emitirCuotasDelMes}
+              title="Crea la factura de cada socio cuya cuota haya cumplido periodo"
+              style={{
+                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
+                borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',
+                cursor:emitirBusy?'wait':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,
+                color:'var(--accent)',transition:'all 0.15s'
+              }}
+            >
+              {emitirBusy ? 'Emitiendo…' : 'Emitir cuotas del mes'}
             </button>
             <button
               type="button"
@@ -5834,6 +6113,14 @@ function Contabilidad({ setActive }) {
       <div style={{background:'var(--surface-card)',borderRadius:12,padding:24,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)'}}>
         {ledgerBusy ? (
           <div style={{fontSize:13,color:'#78716c'}}>Cargando datos contables…</div>
+        ) : ledgerError ? (
+          <div style={{fontSize:13}}>
+            <div style={{color:'var(--red)',fontWeight:600,marginBottom:10}}>{ledgerError}</div>
+            <button type="button" onClick={() => { void loadAccounting() }}
+              style={{padding:'8px 16px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700}}>
+              Reintentar
+            </button>
+          </div>
         ) : contaTab === 'DIARIO' ? (
           <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
             {ledgerData.entries.map((e) => (
@@ -5959,7 +6246,15 @@ function Contabilidad({ setActive }) {
             >Limpiar</button>
           </div>
         </div>
-        <div style={{padding:'14px 32px 0',display:'flex',gap:4,background:'var(--surface-card)'}}>
+        <div style={{padding:'14px 32px 0',display:'flex',gap:4,background:'var(--surface-card)',alignItems:'center',flexWrap:'wrap'}}>
+          <input
+            type="search"
+            value={buscarCobro}
+            onChange={(e) => setBuscarCobro(e.target.value)}
+            placeholder="Buscar por socio, concepto o nº de factura…"
+            aria-label="Buscar entre las facturas"
+            style={{flex:'1 1 240px',minWidth:200,order:-1,marginRight:8,padding:'8px 14px',borderRadius:999,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'var(--text-primary)',background:'var(--surface-card)'}}
+          />
           {tabs.map(t => (
             <button key={t} type="button" onClick={()=>setTab(t)} style={{
               padding:'8px 16px',borderRadius:8,border:'none',cursor:'pointer',
@@ -5969,55 +6264,65 @@ function Contabilidad({ setActive }) {
             }}>{t}{t!=='Todos' && ` (${cobrosEnRango.filter(c=>c.estado===t).length})`}</button>
           ))}
         </div>
-        <table style={{width:'100%',borderCollapse:'collapse',marginTop:8}}>
-          <thead>
-            <tr style={{background:'var(--surface-low)'}}>
-              {['Nº','Socio','Concepto','Importe','Vencimiento','Estado',''].map(h => (
-                <th key={h} style={{padding:'12px 32px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr><td colSpan={7} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>Sin facturas en el rango seleccionado.</td></tr>
-            )}
-            {filtered.map((c, i) => (
-              <tr key={c.id} style={{borderTop:'1px solid var(--border)'}}>
-                <td style={{padding:'16px 24px',fontSize:12,fontWeight:600,color:'var(--text-muted)',whiteSpace:'nowrap',fontVariantNumeric:'tabular-nums'}}>{c.numero || '—'}</td>
-                <td style={{padding:'16px 32px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:12}}>
-                    <Avatar initials={c.socio.split(' ').map(w=>w[0]).join('').slice(0,2)} color="var(--accent-soft)" size={36}/>
-                    <span style={{fontWeight:600,fontSize:14,color:'var(--text-primary)'}}>{c.socio}</span>
-                  </div>
-                </td>
-                <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{c.concepto}</td>
-                <td style={{padding:'16px 32px'}}>
-                  <div style={{fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(c.monto)}</div>
-                  <div style={{fontSize:11,color:'var(--text-muted)',marginTop:3}}>
-                    Base {fmtMoney(Number(c.subtotal || 0))} · IVA {fmtMoney(Number(c.iva || 0))} · Ret. {fmtMoney(Number(c.retencion || 0))}
-                  </div>
-                </td>
-                <td style={{padding:'16px 32px',fontSize:13,color:c.estado==='Vencido'?'var(--red)':'var(--text-secondary)',fontWeight:c.estado==='Vencido'?600:400}}>
-                  {new Date(c.vencimiento).toLocaleDateString('es-ES')}
-                </td>
-                <td style={{padding:'16px 32px'}}><Badge status={c.estado}/></td>
-                <td style={{padding:'16px 32px'}}>
-                  <div style={{display:'flex',justifyContent:'flex-end'}} data-cobro-menu>
-                    <button
-                      type="button"
-                      onClick={(e) => toggleMenuCobro(e, c.id)}
-                      style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--text-muted)',transition:'all 0.15s'}}
-                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
-                    >
-                      <Icon name="dots" size={14}/>
-                    </button>
-                  </div>
-                </td>
+        <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          <table style={{width:'100%',minWidth:640,borderCollapse:'collapse',marginTop:8}}>
+            <thead>
+              <tr style={{background:'var(--surface-low)'}}>
+                {['Nº','Socio','Concepto','Importe','Vencimiento','Estado',''].map(h => (
+                  <th key={h} style={{padding:'12px 32px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14,lineHeight:1.5}}>
+                  {COBROS_UI.length === 0
+                    ? 'Todavía no has emitido ninguna factura. Créala con «Nueva factura», o emite las cuotas del mes desde el botón de arriba.'
+                    : cobrosEnRango.length === 0
+                      ? 'No hay ninguna factura entre esas dos fechas. Prueba a ampliar el rango o pulsa «Limpiar».'
+                      : buscado
+                        ? `Ninguna factura coincide con «${buscarCobro.trim()}»${tab !== 'Todos' ? ` dentro de «${tab}»` : ''}.`
+                        : `No hay facturas en estado «${tab}» dentro de estas fechas.`}
+                </td></tr>
+              )}
+              {filtered.map((c, i) => (
+                <tr key={c.id} style={{borderTop:'1px solid var(--border)'}}>
+                  <td style={{padding:'16px 24px',fontSize:12,fontWeight:600,color:'var(--text-muted)',whiteSpace:'nowrap',fontVariantNumeric:'tabular-nums'}}>{c.numero || '—'}</td>
+                  <td style={{padding:'16px 32px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:12}}>
+                      <Avatar initials={c.socio.split(' ').map(w=>w[0]).join('').slice(0,2)} color="var(--accent-soft)" size={36}/>
+                      <span style={{fontWeight:600,fontSize:14,color:'var(--text-primary)'}}>{c.socio}</span>
+                    </div>
+                  </td>
+                  <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{c.concepto}</td>
+                  <td style={{padding:'16px 32px'}}>
+                    <div style={{fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(c.monto)}</div>
+                    <div style={{fontSize:11,color:'var(--text-muted)',marginTop:3}}>
+                      Base {fmtMoney(Number(c.subtotal || 0))} · IVA {fmtMoney(Number(c.iva || 0))} · Ret. {fmtMoney(Number(c.retencion || 0))}
+                    </div>
+                  </td>
+                  <td style={{padding:'16px 32px',fontSize:13,color:c.estado==='Vencido'?'var(--red)':'var(--text-secondary)',fontWeight:c.estado==='Vencido'?600:400}}>
+                    {new Date(c.vencimiento).toLocaleDateString('es-ES')}
+                  </td>
+                  <td style={{padding:'16px 32px'}}><Badge status={c.estado}/></td>
+                  <td style={{padding:'16px 32px'}}>
+                    <div style={{display:'flex',justifyContent:'flex-end'}} data-cobro-menu>
+                      <button
+                        type="button"
+                        onClick={(e) => toggleMenuCobro(e, c.id)}
+                        style={{padding:6,borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',color:'var(--text-muted)',transition:'all 0.15s'}}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+                      >
+                        <Icon name="dots" size={14}/>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       )}
 

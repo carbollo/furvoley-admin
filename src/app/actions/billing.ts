@@ -18,6 +18,7 @@ import {
   nextBillingDate,
 } from '@/lib/billing-dates'
 import { createInvoiceWithNumber, nextInvoiceNumber, isUniqueViolation } from '@/lib/crm-invoice-create'
+import { formatMoney } from '@/lib/format-money'
 import {
   runInvoiceCreatedWorkflows,
   runEnrollmentPaymentDueWorkflows,
@@ -617,6 +618,8 @@ export async function runReminderJob() {
   })
 
   let sent = 0
+  let failed = 0
+  let skipped = 0
   for (const invoice of invoices) {
     const diffDays = Math.floor((startOfDay(invoice.dueDate).getTime() - today.getTime()) / 86400000)
     let reminderType: string | null = null
@@ -627,19 +630,33 @@ export async function runReminderJob() {
 
     if (!reminderType) continue
 
+    // Solo un envío CONSEGUIDO bloquea el reintento. Antes bastaba con que
+    // existiera cualquier registro, así que un aviso que nunca llegó a salir
+    // quedaba marcado y no se volvía a intentar jamás.
     const alreadySent = await prisma.reminderLog.findFirst({
-      where: { invoiceId: invoice.id, reminderType },
+      where: { invoiceId: invoice.id, reminderType, status: 'SENT' },
     })
     if (alreadySent) continue
 
-    const message = `Recordatorio de factura ${invoice.invoiceNumber}. Importe pendiente: ${(
-      invoice.totalAmount - invoice.paidAmount
-    ).toFixed(2)} ${invoice.currency}.`
+    const pendiente = invoice.totalAmount - invoice.paidAmount
+    // El teléfono del socio, y si no lo tiene, el del tutor: la mayoría de los
+    // socios son menores sin móvil propio y sus avisos no salían de aquí.
+    const ownPhone = (invoice.member.phone || '').replace(/[^\d+]/g, '')
+    const guardianPhone = (invoice.member.guardianPhone || '').replace(/[^\d+]/g, '')
+    const phone = ownPhone || guardianPhone
+    const paraTutor = !ownPhone && Boolean(guardianPhone)
 
-    let status = 'SENT'
-    let channel = 'EMAIL'
+    const message = paraTutor
+      ? `Recordatorio de la cuota de ${invoice.member.name} (factura ${invoice.invoiceNumber}). ` +
+        `Importe pendiente: ${formatMoney(pendiente, invoice.currency)}.`
+      : `Recordatorio de factura ${invoice.invoiceNumber}. ` +
+        `Importe pendiente: ${formatMoney(pendiente, invoice.currency)}.`
+
+    // SKIPPED = no había por dónde enviarlo. Es distinto de enviado y distinto
+    // de fallido, y no debe contarse como aviso hecho.
+    let status: 'SENT' | 'FAILED' | 'SKIPPED' = 'SKIPPED'
+    let channel = 'NONE'
     try {
-      const phone = (invoice.member.phone || '').replace(/[^\d+]/g, '')
       const cfg = await getWhatsAppConfig()
       const sessionId = String(cfg.linkedSessionId || '').trim()
       if (phone && sessionId) {
@@ -648,8 +665,10 @@ export async function runReminderJob() {
           // Siempre por el generador: la caché por pasarela la gestiona él.
           const url = await createInvoicePaymentLink(invoice.id)
           if (url) payLine = ` Pagar: ${url}`
-        } catch {
-          /* optional */
+        } catch (e) {
+          // Un aviso de cobro sin enlace de pago obliga al socio a llamar al
+          // club: se deja constancia en vez de mandarlo mudo y darlo por bueno.
+          console.warn(`[recordatorios] sin enlace de pago para ${invoice.invoiceNumber}`, e)
         }
         await sendApiWassText({
           sessionId,
@@ -657,6 +676,7 @@ export async function runReminderJob() {
           message: `${message}${payLine}`,
         })
         channel = 'WHATSAPP'
+        status = 'SENT'
       } else if (process.env.REMINDER_WEBHOOK_URL) {
         await fetch(process.env.REMINDER_WEBHOOK_URL, {
           method: 'POST',
@@ -667,9 +687,12 @@ export async function runReminderJob() {
             message,
           }),
         })
+        channel = 'WEBHOOK'
+        status = 'SENT'
       }
     } catch {
       status = 'FAILED'
+      channel = phone ? 'WHATSAPP' : 'WEBHOOK'
     }
 
     await prisma.reminderLog.create({
@@ -682,8 +705,10 @@ export async function runReminderJob() {
         invoiceId: invoice.id,
       },
     })
-    sent++
+    if (status === 'SENT') sent++
+    else if (status === 'FAILED') failed++
+    else skipped++
   }
-  return { sent }
+  return { sent, failed, skipped }
 }
 

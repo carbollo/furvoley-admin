@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { TransactionForm } from './TransactionForm'
 import { ArrowDownRight, ArrowUpRight, Trash2 } from 'lucide-react'
 import { deleteTransaction } from '@/app/actions'
+import { formatMoney } from '@/lib/format-money'
+import { ConfirmSubmitButton } from '@/components/ConfirmSubmitButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,16 +43,16 @@ async function AccountingPageImpl() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
           <p className="text-sm text-stone-500 font-medium mb-1">Ingresos totales</p>
-          <p className="text-2xl font-bold text-emerald-600">€{income.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-emerald-600">{formatMoney(income)}</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
           <p className="text-sm text-stone-500 font-medium mb-1">Egresos totales</p>
-          <p className="text-2xl font-bold text-rose-600">€{expense.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-rose-600">{formatMoney(expense)}</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
           <p className="text-sm text-stone-500 font-medium mb-1">Saldo</p>
           <p className={`text-2xl font-bold ${balance >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
-            €{balance.toFixed(2)}
+            {formatMoney(balance)}
           </p>
         </div>
       </div>
@@ -82,7 +84,7 @@ async function AccountingPageImpl() {
                   </span>
                 </td>
                 <td className={`p-4 font-bold ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {t.type === 'INCOME' ? '+' : '-'}€{t.amount.toFixed(2)}
+                  {t.type === 'INCOME' ? '+' : '-'}{formatMoney(t.amount)}
                 </td>
                 <td className="p-4 text-sm text-stone-600">
                   <span className="block">{t.source}</span>
@@ -104,9 +106,20 @@ async function AccountingPageImpl() {
                 </td>
                 <td className="p-4 text-right">
                   <form action={deleteTransaction.bind(null, t.id)} className="inline">
-                    <button type="submit" className="text-rose-500 hover:text-rose-700 p-2">
+                    <ConfirmSubmitButton
+                      title="Eliminar este movimiento"
+                      message={
+                        `${t.description}\n` +
+                        `${t.type === 'INCOME' ? 'Ingreso' : 'Gasto'} de ${formatMoney(t.amount)} · ` +
+                        `${new Date(t.date).toLocaleDateString('es-ES')}\n\n` +
+                        `Se borra también su apunte contable. No se puede deshacer.`
+                      }
+                      confirmLabel="Eliminar movimiento"
+                      ariaLabel={`Eliminar el movimiento ${t.description}`}
+                      className="text-rose-500 hover:text-rose-700 p-2"
+                    >
                       <Trash2 size={18} />
-                    </button>
+                    </ConfirmSubmitButton>
                   </form>
                 </td>
               </tr>

@@ -25,6 +25,9 @@ export async function POST(request: Request) {
     memberIds?: unknown
     planId?: unknown
     paymentRequiredOnEnrollment?: unknown
+    discountCodeId?: unknown
+    startDate?: unknown
+    autoPay?: unknown
     withLink?: unknown
   }
   try {
@@ -45,12 +48,41 @@ export async function POST(request: Request) {
   const planId = parseCuid(String(body.planId || ''), 'planId')
   if (planId instanceof Response) return planId
 
+  // El descuento se valida contra un código activo. Si el club eligió uno que ya
+  // no vale, se rechaza en vez de facturar el importe completo en silencio, que
+  // es lo que hacía antes de aceptar este campo.
+  let discountCodeId: string | null = null
+  const rawDiscount = String(body.discountCodeId || '').trim()
+  if (rawDiscount) {
+    const parsed = parseCuid(rawDiscount, 'discountCodeId')
+    if (parsed instanceof Response) return parsed
+    const code = await prisma.discountCode.findUnique({
+      where: { id: parsed },
+      select: { id: true, isActive: true },
+    })
+    if (!code || !code.isActive) {
+      return NextResponse.json(
+        { error: 'Ese descuento ya no está activo. Elige otro o quítalo.' },
+        { status: 400 },
+      )
+    }
+    discountCodeId = code.id
+  }
+
+  const rawStart = String(body.startDate || '').trim()
+  if (rawStart && Number.isNaN(new Date(rawStart).getTime())) {
+    return NextResponse.json({ error: 'La fecha de inicio no es válida.' }, { status: 400 })
+  }
+
   const result = await runMembersBatchAction(memberIds, 'assign-plan', {
     planId,
     paymentRequiredOnEnrollment:
       typeof body.paymentRequiredOnEnrollment === 'boolean'
         ? body.paymentRequiredOnEnrollment
         : undefined,
+    discountCodeId,
+    startDate: rawStart || undefined,
+    autoPay: typeof body.autoPay === 'boolean' ? body.autoPay : undefined,
   })
 
   // Enlace de cobro del primer socio, para poder entregarlo al momento.

@@ -6,8 +6,17 @@ const PRIMARY = '#0058be'
 
 export function MyBillingAlerts() {
   const searchParams = useSearchParams()
-  const success = searchParams.get('success') === 'true'
-  const canceled = searchParams.get('canceled') === 'true'
+  // La pasarela devuelve al socio con ?pago=ok o ?alta=ok (ver returnUrl en
+  // src/lib/whop/checkout.ts). Este aviso buscaba ?success=true, que no lo
+  // manda nadie: quien acababa de pagar volvía a una pantalla muda que además
+  // seguía mostrando su factura como pendiente.
+  const success =
+    searchParams.get('pago') === 'ok' ||
+    searchParams.get('alta') === 'ok' ||
+    searchParams.get('success') === 'true'
+  const canceled =
+    searchParams.get('pago') === 'ko' ||
+    searchParams.get('canceled') === 'true'
 
   if (!success && !canceled) return null
 
@@ -25,8 +34,8 @@ export function MyBillingAlerts() {
       }}
     >
       {success
-        ? 'Pago recibido correctamente. La factura aparecerá como pagada en unos segundos.'
-        : 'Pago cancelado. Puedes intentarlo de nuevo cuando quieras.'}
+        ? 'Pago recibido. Tu recibo tarda unos segundos en aparecer como pagado: si sigue pendiente, pulsa Actualizar.'
+        : 'No se ha completado el pago, así que no se te ha cobrado nada. Puedes intentarlo de nuevo cuando quieras.'}
       <a
         href="/my-billing"
         style={{

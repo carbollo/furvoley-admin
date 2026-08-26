@@ -65,7 +65,17 @@ export function CuotasSection({
   reload: () => Promise<unknown>
   fmtMoney: (n: number) => string
   showAlert: (message: string) => void
-  showConfirm: (message: string) => Promise<boolean>
+  showConfirm: (
+    opts:
+      | string
+      | {
+          title?: string
+          message: string
+          confirmLabel?: string
+          cancelLabel?: string
+          danger?: boolean
+        },
+  ) => Promise<boolean>
 }) {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'planes' | 'asignaciones' | 'sin-cuota'>('planes')
@@ -217,10 +227,28 @@ export function CuotasSection({
   }
 
   async function removePlan(p: Plan) {
+    // Con socios asignados el servidor NO borra: desactiva. Decirlo, porque el
+    // botón se llama «Eliminar» y luego el plan sigue ahí y sus socios siguen
+    // facturándose.
+    const enUso = p.subscriptionCount > 0
     const ok = await showConfirm(
-      p.subscriptionCount > 0
-        ? `¿Desactivar el plan «${p.name}»? Tiene ${p.subscriptionCount} suscripción(es) vinculada(s).`
-        : `¿Eliminar el plan «${p.name}»?`,
+      enUso
+        ? {
+            title: `El plan «${p.name}» no se puede borrar`,
+            message:
+              `Lo tienen asignado ${p.subscriptionCount} socio(s).\n\n` +
+              `Se marcará como inactivo: dejará de poder asignarse a socios nuevos, pero ` +
+              `los que ya lo tienen seguirán facturándose igual. Para dejar de cobrarles, ` +
+              `da de baja su cuota una a una en «Socios con cuota».`,
+            confirmLabel: 'Marcar inactivo',
+            cancelLabel: 'Volver',
+          }
+        : {
+            title: `Eliminar el plan «${p.name}»`,
+            message: 'No lo tiene asignado ningún socio, así que se borra del todo.',
+            confirmLabel: 'Eliminar plan',
+            danger: true,
+          },
     )
     if (!ok) return
     setBusy(true)
@@ -259,6 +287,12 @@ export function CuotasSection({
           memberIds: assignForm.members.map((m) => m.id),
           planId: assignForm.planId,
           paymentRequiredOnEnrollment: assignForm.paymentRequiredOnEnrollment,
+          // Estos tres los pide el formulario y antes se descartaban aquí: el
+          // club creía haber aplicado el descuento de hermanos y facturaba el
+          // importe completo, sin que nada lo delatara.
+          discountCodeId: assignForm.discountCodeId || null,
+          startDate: assignForm.startDate || undefined,
+          autoPay: assignForm.autoPay,
           // El enlace solo tiene sentido entregarlo cuando es para un socio.
           withLink: count === 1,
         }),
@@ -349,7 +383,47 @@ export function CuotasSection({
   }
 
   async function setSubscriptionStatus(id: string, status: string, label: string) {
-    const ok = await showConfirm(`¿${label} esta suscripción?`)
+    const sub = subscriptions.find((s) => s.id === id)
+    const quien = sub ? `${sub.memberName} · ${sub.planName}` : 'esta cuota'
+    // «¿Cancelar esta cuota?» con un botón «Cancelar» al lado era una trampa: el
+    // botón de salir se llamaba igual que la acción. Cada caso nombra lo suyo.
+    const textos: Record<string, { title: string; message: string; confirm: string; cancel: string; danger?: boolean }> = {
+      CANCELED: {
+        title: 'Dar de baja esta cuota',
+        message: `${quien}\n\nDejará de facturarse y desaparecerá del listado. Las facturas ya emitidas se conservan.`,
+        confirm: 'Dar de baja',
+        cancel: 'Dejarla como está',
+        danger: true,
+      },
+      PAUSED: {
+        title: 'Pausar esta cuota',
+        message: `${quien}\n\nNo se emitirán facturas mientras esté pausada. Puedes reanudarla cuando quieras.`,
+        confirm: 'Pausar',
+        cancel: 'Dejarla activa',
+      },
+      ACTIVE: {
+        title: 'Dar por activa esta cuota',
+        message:
+          `${quien}\n\nPasará a activa aunque no conste el pago. ` +
+          `Ojo: la factura de alta seguirá pendiente y el socio seguirá apareciendo en Impagos. ` +
+          `Si te pagó en mano, registra el cobro sobre su factura en vez de esto.`,
+        confirm: 'Marcarla activa',
+        cancel: 'Volver',
+      },
+    }
+    const t = textos[status] || {
+      title: `${label} esta cuota`,
+      message: quien,
+      confirm: label,
+      cancel: 'Volver',
+    }
+    const ok = await showConfirm({
+      title: t.title,
+      message: t.message,
+      confirmLabel: t.confirm,
+      cancelLabel: t.cancel,
+      danger: t.danger,
+    })
     if (!ok) return
     setBusy(true)
     try {
@@ -423,9 +497,14 @@ export function CuotasSection({
   }
 
   async function emitirCuotasPendientes() {
-    const ok = await showConfirm(
-      '¿Emitir facturas de todas las suscripciones con periodo vencido? Se crearán las cuotas pendientes.',
-    )
+    const ok = await showConfirm({
+      title: 'Emitir las cuotas que tocan',
+      message:
+        'Se creará una factura por cada socio cuya cuota haya cumplido periodo.\n\n' +
+        'Son facturas numeradas de verdad: una vez emitidas no se pueden editar, solo eliminar. ' +
+        'Cada socio recibirá su aviso de cobro.',
+      confirmLabel: 'Emitir cuotas',
+    })
     if (!ok) return
     setGenerateBusy(true)
     try {
@@ -599,122 +678,140 @@ export function CuotasSection({
                 No hay planes. Crea el primero con «Nuevo plan» (p. ej. Cuota senior, Cuota juvenil).
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
-                    {['Plan', 'Importe', 'Periodicidad', 'Día cobro', 'Matrícula', 'Pago al alta', 'Cobro online', 'Socios', 'Estado', ''].map((h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: '14px 20px',
-                          textAlign: 'left',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: 'var(--text-muted)',
-                          letterSpacing: '0.06em',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {plans.map((p) => (
-                    <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '16px 20px' }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
-                        {p.description ? (
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{p.description}</div>
-                        ) : null}
-                      </td>
-                      <td style={{ padding: '16px 20px', fontWeight: 700 }}>{fmtMoney(p.amount)}</td>
-                      <td style={{ padding: '16px 20px', fontSize: 14 }}>{p.billingPeriodLabel}</td>
-                      <td style={{ padding: '16px 20px', fontSize: 14, fontWeight: 600 }}>
-                        Día {p.billingDayOfMonth ?? 1}
-                      </td>
-                      <td style={{ padding: '16px 20px', fontSize: 14 }}>
-                        {p.enrollmentFee > 0 ? fmtMoney(p.enrollmentFee) : '—'}
-                      </td>
-                      <td style={{ padding: '16px 20px', fontSize: 13 }}>
-                        {p.paymentRequiredOnEnrollment ? (
-                          <span style={{ fontWeight: 700, color: 'var(--accent)' }}>Obligatorio</span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>Opcional</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '16px 20px', fontSize: 13 }}>
-                        {p.onlineReady ? (
-                          <span style={{ fontWeight: 700, color: 'var(--green)' }} title="Esta cuota ya se puede cobrar online">
-                            ✓ Listo
-                          </span>
-                        ) : (
-                          <span
-                            style={{ color: 'var(--text-muted)' }}
-                            title="Pulsa «Preparar cobro online» para poder cobrarla por internet"
-                          >
-                            — Sin preparar
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '16px 20px', fontSize: 14 }}>{p.subscriptionCount}</td>
-                      <td style={{ padding: '16px 20px' }}>
-                        <span
+              <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+                <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
+                      {['Plan', 'Importe', 'Periodicidad', 'Día cobro', 'Matrícula', 'Pago al alta', 'Cobro online', 'Socios', 'Estado', ''].map((h) => (
+                        <th
+                          key={h}
                           style={{
+                            padding: '14px 20px',
+                            textAlign: 'left',
                             fontSize: 11,
                             fontWeight: 700,
-                            padding: '4px 10px',
-                            borderRadius: 999,
-                            background: p.isActive ? 'var(--green-soft)' : 'var(--surface-low)',
-                            color: p.isActive ? 'var(--green)' : 'var(--text-muted)',
+                            color: 'var(--text-muted)',
+                            letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
                           }}
                         >
-                          {p.isActive ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px 20px' }}>
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            onClick={() => openEditPlan(p)}
-                            style={{
-                              padding: '6px 12px',
-                              borderRadius: 8,
-                              border: '1px solid var(--border)',
-                              background: '#fff',
-                              cursor: 'pointer',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void removePlan(p)}
-                            style={{
-                              padding: '6px 12px',
-                              borderRadius: 8,
-                              border: '1px solid #fecaca',
-                              background: '#fff',
-                              color: '#b91c1c',
-                              cursor: 'pointer',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            {p.isActive ? 'Desactivar' : 'Eliminar'}
-                          </button>
-                        </div>
-                      </td>
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {plans.map((p) => (
+                      <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '16px 20px' }}>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{p.name}</div>
+                          {p.description ? (
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{p.description}</div>
+                          ) : null}
+                        </td>
+                        <td style={{ padding: '16px 20px', fontWeight: 700 }}>{fmtMoney(p.amount)}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 14 }}>{p.billingPeriodLabel}</td>
+                        <td style={{ padding: '16px 20px', fontSize: 14, fontWeight: 600 }}>
+                          Día {p.billingDayOfMonth ?? 1}
+                        </td>
+                        <td style={{ padding: '16px 20px', fontSize: 14 }}>
+                          {p.enrollmentFee > 0 ? fmtMoney(p.enrollmentFee) : '—'}
+                        </td>
+                        <td style={{ padding: '16px 20px', fontSize: 13 }}>
+                          {p.paymentRequiredOnEnrollment ? (
+                            <span style={{ fontWeight: 700, color: 'var(--accent)' }}>Obligatorio</span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>Opcional</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '16px 20px', fontSize: 13 }}>
+                          {p.onlineReady ? (
+                            <span style={{ fontWeight: 700, color: 'var(--green)' }} title="Esta cuota ya se puede cobrar online">
+                              ✓ Listo
+                            </span>
+                          ) : (
+                            // El aviso mandaba pulsar un botón que no existía en
+                            // ninguna parte. La acción va aquí, que es donde el
+                            // tesorero se encuentra el problema.
+                            <button
+                              type="button"
+                              disabled={gatewayBusy}
+                              onClick={prepararCobroOnline}
+                              title="Crea la cuota en la pasarela para poder cobrarla por internet"
+                              style={{
+                                padding: 0,
+                                border: 'none',
+                                background: 'none',
+                                color: 'var(--accent)',
+                                cursor: gatewayBusy ? 'wait' : 'pointer',
+                                fontFamily: 'inherit',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                textDecoration: 'underline',
+                              }}
+                            >
+                              {gatewayBusy ? 'Preparando…' : 'Preparar cobro online'}
+                            </button>
+                          )}
+                        </td>
+                        <td style={{ padding: '16px 20px', fontSize: 14 }}>{p.subscriptionCount}</td>
+                        <td style={{ padding: '16px 20px' }}>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '4px 10px',
+                              borderRadius: 999,
+                              background: p.isActive ? 'var(--green-soft)' : 'var(--surface-low)',
+                              color: p.isActive ? 'var(--green)' : 'var(--text-muted)',
+                            }}
+                          >
+                            {p.isActive ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 20px' }}>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => openEditPlan(p)}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                border: '1px solid var(--border)',
+                                background: '#fff',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void removePlan(p)}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                border: '1px solid #fecaca',
+                                background: '#fff',
+                                color: '#b91c1c',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              {p.isActive ? 'Desactivar' : 'Eliminar'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         ) : tab === 'asignaciones' ? (
@@ -731,223 +828,225 @@ export function CuotasSection({
                 Ningún socio tiene cuota asignada. Usa «Asignar cuota a socio».
               </div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
-                    {['Socio', 'Plan', 'Importe', 'Pago al alta', 'Próxima factura', 'Estado', ''].map((h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: '14px 20px',
-                          textAlign: 'left',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: 'var(--text-muted)',
-                          letterSpacing: '0.06em',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {subscriptions.map((s) => (
-                    <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '16px 20px' }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{s.memberName}</div>
-                        {s.memberEmail ? (
-                          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{s.memberEmail}</div>
-                        ) : null}
-                      </td>
-                      <td style={{ padding: '16px 20px', fontSize: 14 }}>{s.planName}</td>
-                      <td style={{ padding: '16px 20px', fontWeight: 700 }}>
-                        {fmtMoney(s.planAmount)} / {s.billingPeriodLabel.toLowerCase()}
-                      </td>
-                      <td style={{ padding: '16px 20px', fontSize: 13 }}>
-                        {s.paymentRequiredOnEnrollment ? (
-                          <span style={{ fontWeight: 700, color: 'var(--accent)' }}>Obligatorio</span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>Opcional</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '16px 20px', fontSize: 14 }}>
-                        {new Date(s.nextInvoiceDate).toLocaleDateString('es-ES')}
-                      </td>
-                      <td style={{ padding: '16px 20px' }}>
-                        <span
+              <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+                <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
+                      {['Socio', 'Plan', 'Importe', 'Pago al alta', 'Próxima factura', 'Estado', ''].map((h) => (
+                        <th
+                          key={h}
                           style={{
+                            padding: '14px 20px',
+                            textAlign: 'left',
                             fontSize: 11,
                             fontWeight: 700,
-                            padding: '4px 10px',
-                            borderRadius: 999,
-                            background:
-                              s.status === 'ACTIVE' ? 'var(--green-soft)' : 'var(--amber-soft, #fef3c7)',
-                            color: s.status === 'ACTIVE' ? 'var(--green)' : '#b45309',
+                            color: 'var(--text-muted)',
+                            letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
                           }}
                         >
-                          {subscriptionStatusLabel(s.status)}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px 20px' }}>
-                        {s.status === 'PENDING_PAYMENT' ? (
-                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <button
-                              type="button"
-                              disabled={gatewayBusy}
-                              onClick={() => void enlaceCobroRecurrente(s.id)}
-                              title="Copia el enlace para que el socio pague su cuota"
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                border: '1px solid var(--border)',
-                                background: 'var(--accent-pill)',
-                                color: 'var(--accent)',
-                                cursor: gatewayBusy ? 'wait' : 'pointer',
-                                fontSize: 12,
-                                fontWeight: 700,
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              Enlace de cobro
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void setSubscriptionStatus(s.id, 'ACTIVE', 'Marcar como activa')}
-                              title="Dala por activa aunque no conste el pago (p. ej. si te pagó en mano)"
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                border: '1px solid var(--border)',
-                                background: '#fff',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              Marcar activa
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void setSubscriptionStatus(s.id, 'CANCELED', 'Cancelar')}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                border: '1px solid #fecaca',
-                                background: '#fff',
-                                color: '#b91c1c',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        ) : s.status === 'ACTIVE' ? (
-                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => abrirEditarSuscripcion(s)}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                border: '1px solid var(--border)',
-                                background: 'var(--accent-pill)',
-                                color: 'var(--accent)',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 700,
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              type="button"
-                              disabled={gatewayBusy}
-                              onClick={() => void enlaceCobroRecurrente(s.id)}
-                              title="Copia un enlace de pago; al abonarlo, la cuota se renueva automáticamente cada periodo"
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                border: '1px solid var(--border)',
-                                background: '#fff',
-                                cursor: gatewayBusy ? 'wait' : 'pointer',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              Enlace de cobro
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void setSubscriptionStatus(s.id, 'PAUSED', 'Pausar')}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                border: '1px solid var(--border)',
-                                background: '#fff',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              Pausar
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void setSubscriptionStatus(s.id, 'CANCELED', 'Cancelar')}
-                              style={{
-                                padding: '6px 12px',
-                                borderRadius: 8,
-                                border: '1px solid #fecaca',
-                                background: '#fff',
-                                color: '#b91c1c',
-                                cursor: 'pointer',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        ) : s.status === 'PAUSED' ? (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void setSubscriptionStatus(s.id, 'ACTIVE', 'Reactivar')}
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subscriptions.map((s) => (
+                      <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '16px 20px' }}>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{s.memberName}</div>
+                          {s.memberEmail ? (
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{s.memberEmail}</div>
+                          ) : null}
+                        </td>
+                        <td style={{ padding: '16px 20px', fontSize: 14 }}>{s.planName}</td>
+                        <td style={{ padding: '16px 20px', fontWeight: 700 }}>
+                          {fmtMoney(s.planAmount)} / {s.billingPeriodLabel.toLowerCase()}
+                        </td>
+                        <td style={{ padding: '16px 20px', fontSize: 13 }}>
+                          {s.paymentRequiredOnEnrollment ? (
+                            <span style={{ fontWeight: 700, color: 'var(--accent)' }}>Obligatorio</span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>Opcional</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '16px 20px', fontSize: 14 }}>
+                          {new Date(s.nextInvoiceDate).toLocaleDateString('es-ES')}
+                        </td>
+                        <td style={{ padding: '16px 20px' }}>
+                          <span
                             style={{
-                              padding: '6px 12px',
-                              borderRadius: 8,
-                              border: 'none',
-                              background: 'var(--accent)',
-                              color: '#fff',
-                              cursor: 'pointer',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              fontFamily: 'inherit',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '4px 10px',
+                              borderRadius: 999,
+                              background:
+                                s.status === 'ACTIVE' ? 'var(--green-soft)' : 'var(--amber-soft, #fef3c7)',
+                              color: s.status === 'ACTIVE' ? 'var(--green)' : '#b45309',
                             }}
                           >
-                            Reactivar
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            {subscriptionStatusLabel(s.status)}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 20px' }}>
+                          {s.status === 'PENDING_PAYMENT' ? (
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                              <button
+                                type="button"
+                                disabled={gatewayBusy}
+                                onClick={() => void enlaceCobroRecurrente(s.id)}
+                                title="Copia el enlace para que el socio pague su cuota"
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 8,
+                                  border: '1px solid var(--border)',
+                                  background: 'var(--accent-pill)',
+                                  color: 'var(--accent)',
+                                  cursor: gatewayBusy ? 'wait' : 'pointer',
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                Enlace de cobro
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void setSubscriptionStatus(s.id, 'ACTIVE', 'Marcar como activa')}
+                                title="Dala por activa aunque no conste el pago (p. ej. si te pagó en mano)"
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 8,
+                                  border: '1px solid var(--border)',
+                                  background: '#fff',
+                                  cursor: 'pointer',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                Marcar activa
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void setSubscriptionStatus(s.id, 'CANCELED', 'Cancelar')}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 8,
+                                  border: '1px solid #fecaca',
+                                  background: '#fff',
+                                  color: '#b91c1c',
+                                  cursor: 'pointer',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          ) : s.status === 'ACTIVE' ? (
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => abrirEditarSuscripcion(s)}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 8,
+                                  border: '1px solid var(--border)',
+                                  background: 'var(--accent-pill)',
+                                  color: 'var(--accent)',
+                                  cursor: 'pointer',
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={gatewayBusy}
+                                onClick={() => void enlaceCobroRecurrente(s.id)}
+                                title="Copia un enlace de pago; al abonarlo, la cuota se renueva automáticamente cada periodo"
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 8,
+                                  border: '1px solid var(--border)',
+                                  background: '#fff',
+                                  cursor: gatewayBusy ? 'wait' : 'pointer',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                Enlace de cobro
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void setSubscriptionStatus(s.id, 'PAUSED', 'Pausar')}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 8,
+                                  border: '1px solid var(--border)',
+                                  background: '#fff',
+                                  cursor: 'pointer',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                Pausar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => void setSubscriptionStatus(s.id, 'CANCELED', 'Cancelar')}
+                                style={{
+                                  padding: '6px 12px',
+                                  borderRadius: 8,
+                                  border: '1px solid #fecaca',
+                                  background: '#fff',
+                                  color: '#b91c1c',
+                                  cursor: 'pointer',
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          ) : s.status === 'PAUSED' ? (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void setSubscriptionStatus(s.id, 'ACTIVE', 'Reactivar')}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                border: 'none',
+                                background: 'var(--accent)',
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              Reactivar
+                            </button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         ) : null}
@@ -970,63 +1069,65 @@ export function CuotasSection({
                 <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-secondary)' }}>
                   Haz clic en un socio para asignarle una cuota. Al hacerlo pasará a «Socios con cuota».
                 </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
-                      {['Socio', 'Contacto', 'Estado', ''].map((h) => (
-                        <th
-                          key={h}
-                          style={{
-                            textAlign: 'left',
-                            padding: '12px 20px',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em',
-                            color: 'var(--text-muted)',
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {membersWithoutPlan.map((m) => (
-                      <tr
-                        key={m.id}
-                        onClick={() => {
-                          const firstPlanId = activePlans[0]?.id || ''
-                          setAssignForm({
-                            members: [{ id: m.id, name: m.name }],
-                            memberId: '',
-                            planId: firstPlanId,
-                            startDate: new Date().toISOString().slice(0, 10),
-                            autoPay: false,
-                            paymentRequiredOnEnrollment: planPaymentRequiredDefault(firstPlanId),
-                            discountCodeId: '',
-                          })
-                          setAssignModal(true)
-                        }}
-                        title="Asignar cuota a este socio"
-                        style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
-                      >
-                        <td style={{ padding: '14px 20px', fontWeight: 600, fontSize: 14 }}>{m.name}</td>
-                        <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--text-secondary)' }}>
-                          {m.email || m.phone || '—'}
-                        </td>
-                        <td style={{ padding: '14px 20px', fontSize: 13 }}>
-                          {m.status === 'PENDING_PAYMENT' ? 'Alta pendiente de pago' : m.status === 'PAUSED' ? 'Pausado' : 'Activo'}
-                        </td>
-                        <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                          <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--accent)' }}>
-                            Asignar cuota →
-                          </span>
-                        </td>
+                <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+                  <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
+                        {['Socio', 'Contacto', 'Estado', ''].map((h) => (
+                          <th
+                            key={h}
+                            style={{
+                              textAlign: 'left',
+                              padding: '12px 20px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              color: 'var(--text-muted)',
+                            }}
+                          >
+                            {h}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {membersWithoutPlan.map((m) => (
+                        <tr
+                          key={m.id}
+                          onClick={() => {
+                            const firstPlanId = activePlans[0]?.id || ''
+                            setAssignForm({
+                              members: [{ id: m.id, name: m.name }],
+                              memberId: '',
+                              planId: firstPlanId,
+                              startDate: new Date().toISOString().slice(0, 10),
+                              autoPay: false,
+                              paymentRequiredOnEnrollment: planPaymentRequiredDefault(firstPlanId),
+                              discountCodeId: '',
+                            })
+                            setAssignModal(true)
+                          }}
+                          title="Asignar cuota a este socio"
+                          style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                        >
+                          <td style={{ padding: '14px 20px', fontWeight: 600, fontSize: 14 }}>{m.name}</td>
+                          <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--text-secondary)' }}>
+                            {m.email || m.phone || '—'}
+                          </td>
+                          <td style={{ padding: '14px 20px', fontSize: 13 }}>
+                            {m.status === 'PENDING_PAYMENT' ? 'Alta pendiente de pago' : m.status === 'PAUSED' ? 'Pausado' : 'Activo'}
+                          </td>
+                          <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--accent)' }}>
+                              Asignar cuota →
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </>
             )}
           </div>

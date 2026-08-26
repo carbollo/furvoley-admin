@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getBankImportDetail } from '@/app/actions/bank-import'
 import { ReconcileLineActions } from '../ReconcileLineActions'
+import { formatMoney } from '@/lib/format-money'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,7 +72,7 @@ export default async function BankImportDetailPage({ params }: { params: Promise
                   }`}
                 >
                   {line.signedAmount >= 0 ? '+' : ''}
-                  {line.signedAmount.toFixed(2)} €
+                  {formatMoney(line.signedAmount)}
                 </td>
                 <td className="p-3">
                   <ReconcileLineActions

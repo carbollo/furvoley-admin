@@ -65,25 +65,41 @@ function parseAmountCell(raw: string): number | null {
   return neg ? -n : n
 }
 
+/**
+ * Fecha de una celda del extracto, siempre en orden español (día primero).
+ *
+ * El año de dos cifras es la trampa: `05/03/26` no encajaba con el patrón de
+ * cuatro dígitos y acababa en `Date.parse`, que lo lee a la americana y lo
+ * convierte en el 3 de mayo en vez del 5 de marzo. Con eso, los movimientos
+ * aterrizaban en el mes equivocado y el cuadre no salía por ninguna parte.
+ */
 function parseDateCell(raw: string): Date | null {
   const s = raw.trim().replace(/^"|"$/g, '')
   if (!s) return null
-  // yyyy-MM-dd
+
+  // yyyy-MM-dd (ISO, sin ambigüedad posible)
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
     const d = new Date(s.slice(0, 10))
     return Number.isNaN(d.getTime()) ? null : d
   }
-  // dd/MM/yyyy o dd-MM-yyyy
-  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/)
+
+  // dd/MM/yyyy, dd-MM-yyyy, dd.MM.yyyy y sus versiones de año corto.
+  const m = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2}|\d{4})/)
   if (m) {
     const day = parseInt(m[1], 10)
     const month = parseInt(m[2], 10) - 1
-    const year = parseInt(m[3], 10)
+    const rawYear = parseInt(m[3], 10)
+    // Un extracto bancario siempre es de este siglo.
+    const year = m[3].length === 2 ? 2000 + rawYear : rawYear
+    if (day < 1 || day > 31 || month < 0 || month > 11) return null
     const d = new Date(year, month, day)
+    // Rechaza fechas imposibles tipo 31/02: el Date las desborda al mes siguiente.
+    if (d.getDate() !== day || d.getMonth() !== month) return null
     return Number.isNaN(d.getTime()) ? null : d
   }
-  const t = Date.parse(s)
-  if (!Number.isNaN(t)) return new Date(t)
+
+  // Cualquier otro formato es ambiguo: mejor omitir la fila (y avisar de ello)
+  // que colar una fecha inventada en la contabilidad del club.
   return null
 }
 

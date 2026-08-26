@@ -64,10 +64,25 @@ export async function DELETE(
   if (parsedId instanceof Response) return parsedId
   const existing = await prisma.invoice.findUnique({
     where: { id: parsedId },
-    select: { id: true },
+    select: { id: true, paidAmount: true, invoiceNumber: true },
   })
   if (!existing) {
     return NextResponse.json({ error: 'Cobro no encontrado' }, { status: 404 })
+  }
+
+  // Borrar una factura arrastra su ingreso y su asiento contable. Si ya se cobró
+  // algo, eso significa hacer desaparecer dinero que entró de verdad y descuadrar
+  // la contabilidad del club sin dejar rastro. Una factura cobrada se anula, no
+  // se borra.
+  if (existing.paidAmount > 0) {
+    return NextResponse.json(
+      {
+        error:
+          `La factura ${existing.invoiceNumber} ya tiene cobros registrados y no se puede eliminar: ` +
+          `se perdería ese ingreso de la contabilidad. Si es un error, corrige primero el cobro.`,
+      },
+      { status: 409 },
+    )
   }
 
   await prisma.$transaction([

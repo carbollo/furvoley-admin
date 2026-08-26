@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getBankImports, deleteBankImportFromForm } from '@/app/actions/bank-import'
 import { BankCsvUpload } from './BankCsvUpload'
+import { ConfirmSubmitButton } from '@/components/ConfirmSubmitButton'
 import { Trash2 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -62,13 +63,20 @@ export default async function BankImportListPage() {
                     </Link>
                     <form action={deleteBankImportFromForm}>
                       <input type="hidden" name="batchId" value={b.id} />
-                      <button
-                        type="submit"
+                      <ConfirmSubmitButton
+                        title="Eliminar esta importación"
+                        message={
+                          `${b.fileName || 'Pegado manual'} · ${new Date(b.importedAt).toLocaleDateString('es-ES')}\n` +
+                          `${b._count?.lines ?? 0} líneas del extracto.\n\n` +
+                          `Se borra el extracto entero con el trabajo de conciliación que lleve dentro. ` +
+                          `Los movimientos ya creados no se borran, pero dejarán de estar enlazados.`
+                        }
+                        confirmLabel="Eliminar importación"
+                        ariaLabel={`Eliminar la importación ${b.fileName || 'manual'}`}
                         className="text-rose-500 p-1 hover:bg-rose-50 rounded"
-                        title="Eliminar importación"
                       >
                         <Trash2 size={16} />
-                      </button>
+                      </ConfirmSubmitButton>
                     </form>
                   </div>
                 </td>

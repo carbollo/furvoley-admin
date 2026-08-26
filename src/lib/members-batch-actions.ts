@@ -6,6 +6,7 @@ import { getClubIssuer } from '@/lib/club-settings'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { createInvoicePaymentLink, createSubscription } from '@/app/actions/billing'
 import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
+import { formatMoney } from '@/lib/format-money'
 
 export const MAX_BATCH_MEMBERS = 200
 
@@ -26,6 +27,8 @@ export type BatchOptions = {
   startDate?: string
   autoPay?: boolean
   paymentRequiredOnEnrollment?: boolean
+  /** Descuento aplicado a cada factura de la cuota (ya validado por quien llama). */
+  discountCodeId?: string | null
   /** send-message: texto del WhatsApp. */
   message?: string
   /** add-to-group: grupo destino y rol dentro del grupo. */
@@ -150,18 +153,28 @@ async function sendPaymentReminder(memberId: string) {
   const clubName = issuer.name || 'el club'
 
   let payLine = ''
+  let linkError = ''
   try {
     // Siempre por el generador (la caché por pasarela la lleva él): un enlace
     // guardado de otra pasarela cobraría donde el CRM ya no concilia.
     const url = await createInvoicePaymentLink(oldestInvoiceId)
     if (url) payLine = `\nPagar aquí: ${url}`
-  } catch {
-    /* optional */
+    else linkError = 'la pasarela no devolvió enlace'
+  } catch (e) {
+    linkError = e instanceof Error ? e.message : 'error al generar el enlace'
+  }
+
+  // Un aviso sin enlace obliga al socio a llamar al club para preguntar cómo
+  // paga. Antes se enviaba igual y el resultado se contaba como éxito, así que
+  // el tesorero no se enteraba nunca: ahora falla y el motivo llega a la
+  // pantalla junto al nombre del socio.
+  if (!payLine) {
+    throw new Error(`No se pudo generar el enlace de pago (${linkError}); no se envió el aviso`)
   }
 
   const message =
     `Hola ${member?.name || 'socio'}, te recordamos que tienes cuotas pendientes en ${clubName}.\n` +
-    `Importe pendiente: ${pendingTotal.toFixed(2)} EUR.\n` +
+    `Importe pendiente: ${formatMoney(pendingTotal)}.\n` +
     `Vencimiento más antiguo: ${oldestDueDate.toLocaleDateString('es-ES')}.\n` +
     `Por favor, regulariza el pago lo antes posible. Gracias.${payLine}`
 
@@ -241,6 +254,7 @@ async function assignPlanToMember(memberId: string, options: BatchOptions) {
     startDate,
     autoPay: options.autoPay === true,
     paymentRequiredOnEnrollment: options.paymentRequiredOnEnrollment,
+    discountCodeId: options.discountCodeId ?? null,
     // En lote no se avisa socio por socio: serían tantas llamadas a la pasarela y
     // tantos WhatsApps como socios, dentro de la misma petición.
     notifyEnrollment: false,

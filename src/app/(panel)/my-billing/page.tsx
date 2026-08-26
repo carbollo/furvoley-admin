@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { PayMyInvoiceButton } from './PayMyInvoiceButton'
 import { MyBillingAlerts } from './MyBillingAlerts'
+import { formatMoney } from '@/lib/format-money'
 import {
   isInvoicePastDue,
   isUnpaidInvoice,
@@ -22,13 +23,7 @@ const PRIMARY = '#0058be'
 const SHADOW = '0 4px 10px rgba(0,0,0,0.04)'
 const BORDER = '1px solid rgba(194,198,214,0.4)'
 
-function fmtMoney(n: number) {
-  return new Intl.NumberFormat('es-ES', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 2,
-  }).format(n)
-}
+const fmtMoney = (n: number) => formatMoney(n)
 
 
 export default async function MyBillingPage() {
