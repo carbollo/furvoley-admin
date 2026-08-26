@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { isPortalAdminConfigured, isPortalAdminRequest } from '@/lib/portal-central/admin-auth'
+import { isPortalAdminConfigured, isPortalAdminRequest, getPortalAdminIdentity } from '@/lib/portal-central/admin-auth'
 import { isPortalCentralHost, buildTenantSsoUrl } from '@/lib/portal-central/config'
 import { createPortalSsoToken, getPortalSsoSecret } from '@/lib/portal-sso'
 import { logPortalAudit } from '@/lib/portal-central/portal-store'
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const secret = getPortalSsoSecret()
   if (!secret) return NextResponse.json({ error: 'Falta PORTAL_SSO_SECRET.' }, { status: 503 })
 
-  let body: { tenantId?: string }
+  let body: { tenantId?: string; reason?: string }
   try {
     body = await request.json()
   } catch {
@@ -45,6 +45,12 @@ export async function POST(request: Request) {
   }
   const tenantId = String(body.tenantId || '').trim()
   if (!tenantId) return NextResponse.json({ error: 'Falta tenantId' }, { status: 400 })
+  // Motivo obligatorio: "entrar como" accede a datos del club; el porqué queda
+  // registrado en la auditoría (rendición de cuentas / RGPD).
+  const reason = String(body.reason || '').trim().slice(0, 300)
+  if (reason.length < 3) {
+    return NextResponse.json({ error: 'Indica el motivo del acceso (mínimo 3 caracteres).' }, { status: 400 })
+  }
 
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
@@ -89,12 +95,13 @@ export async function POST(request: Request) {
   }
 
   await logPortalAudit({
+    actor: (await getPortalAdminIdentity()) ?? 'super-admin',
     action: 'IMPERSONATE',
     tenantSlug: tenant.slug,
     tenantName: tenant.name,
     targetType: 'PORTAL_USER',
     targetId: admin.id,
-    detail: { adminEmail: admin.email },
+    detail: { adminEmail: admin.email, reason },
     ip: clientIpFromHeaders(request.headers),
   })
 

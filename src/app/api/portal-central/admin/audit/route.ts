@@ -19,11 +19,16 @@ async function requireAdmin() {
 }
 
 /** Registro de acciones del super-admin. Tolera que la tabla no exista aún. */
-export async function GET() {
+export async function GET(request: Request) {
   const denied = await requireAdmin()
   if (denied) return denied
+  const url = new URL(request.url)
+  const action = url.searchParams.get('action') || undefined
+  const tenantSlug = url.searchParams.get('tenantSlug') || undefined
+  const limitRaw = Number(url.searchParams.get('limit'))
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined
   try {
-    return NextResponse.json({ ok: true, audit: await listPortalAuditLogs() })
+    return NextResponse.json({ ok: true, audit: await listPortalAuditLogs({ action, tenantSlug, limit }) })
   } catch (e) {
     console.warn('[portal/audit] no se pudo leer el registro:', e instanceof Error ? e.message : e)
     return NextResponse.json({ ok: true, audit: [] })

@@ -15,19 +15,20 @@ export function provisionTenant(input: {
   adminPassword: string
 }): Promise<ProvisionResult> {
   const script = path.join(process.cwd(), 'scripts', 'provision-tenant.cjs')
-  const args = [
-    script,
-    input.slug,
-    '--admin-email',
-    input.adminEmail,
-    '--admin-password',
-    input.adminPassword,
-  ]
+  // El email y (sobre todo) la CONTRASEÑA se pasan por variables de entorno del
+  // hijo, NO por argv: los argumentos de proceso son legibles por cualquiera vía
+  // `ps aux` / /proc/<pid>/cmdline y los capturan APM/colectores de logs. El script
+  // ya lee TENANT_ADMIN_EMAIL/TENANT_ADMIN_PASSWORD del entorno.
+  const args = [script, input.slug]
 
   return new Promise((resolve) => {
     let output = ''
     const child = spawn(process.execPath, args, {
-      env: { ...process.env },
+      env: {
+        ...process.env,
+        TENANT_ADMIN_EMAIL: input.adminEmail,
+        TENANT_ADMIN_PASSWORD: input.adminPassword,
+      },
       cwd: process.cwd(),
     })
     const onData = (buf: Buffer) => {

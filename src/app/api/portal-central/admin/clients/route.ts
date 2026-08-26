@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
-import { isPortalAdminConfigured, isPortalAdminRequest } from '@/lib/portal-central/admin-auth'
+import { isPortalAdminConfigured, isPortalAdminRequest, getPortalAdminIdentity } from '@/lib/portal-central/admin-auth'
 import { isPortalCentralHost } from '@/lib/portal-central/config'
 import { sanitizeSlug } from '@/lib/multitenant/registry'
 import {
+  assignPlanToTenant,
   createPortalUser,
   createTenant,
   getTenantBySlug,
@@ -10,6 +11,7 @@ import {
   logPortalAudit,
   setTenantFeatures,
   setTenantStatus,
+  updateTenant,
 } from '@/lib/portal-central/portal-store'
 import { sanitizeFeatures } from '@/lib/crm-modules'
 import { provisionTenant } from '@/lib/portal-central/provision'
@@ -48,7 +50,18 @@ export async function PATCH(request: Request) {
   const denied = await requireAdmin()
   if (denied) return denied
 
-  let body: { id?: string; status?: string; features?: unknown }
+  let body: {
+    id?: string
+    status?: string
+    features?: unknown
+    planId?: string | null
+    name?: string
+    priceMonthly?: number | null
+    trialEndsAt?: string | null
+    memberLimit?: number | null
+    notes?: string | null
+    tags?: unknown
+  }
   try {
     body = await request.json()
   } catch {
@@ -61,37 +74,64 @@ export async function PATCH(request: Request) {
   if (!tenant) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
 
   const ip = clientIpFromHeaders(request.headers)
+  const actor = (await getPortalAdminIdentity()) ?? 'super-admin'
 
   // Cambio de módulos (feature flags).
   if (body.features !== undefined) {
     const features = sanitizeFeatures(body.features)
     await setTenantFeatures(id, features)
-    await logPortalAudit({
-      action: 'UPDATE_FEATURES',
-      tenantSlug: tenant.slug,
-      tenantName: tenant.name,
-      targetType: 'TENANT',
-      targetId: id,
-      detail: features,
-      ip,
-    })
+    await logPortalAudit({ actor, action: 'UPDATE_FEATURES', tenantSlug: tenant.slug, tenantName: tenant.name, targetType: 'TENANT', targetId: id, detail: features, ip })
     return NextResponse.json({ ok: true, features })
+  }
+
+  // Asignar / quitar plan (deriva features, precio y límite).
+  if ('planId' in body) {
+    try {
+      await assignPlanToTenant(id, body.planId ? String(body.planId) : null)
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : 'No se pudo asignar el plan.' }, { status: 400 })
+    }
+    await logPortalAudit({ actor, action: 'ASSIGN_PLAN', tenantSlug: tenant.slug, tenantName: tenant.name, targetType: 'TENANT', targetId: id, detail: { planId: body.planId ?? null }, ip })
+    return NextResponse.json({ ok: true })
+  }
+
+  // Edición de campos del club (nombre, precio, prueba, límite). Slug inmutable.
+  const hasFieldEdit =
+    typeof body.name === 'string' ||
+    'priceMonthly' in body ||
+    'trialEndsAt' in body ||
+    'memberLimit' in body ||
+    'notes' in body ||
+    'tags' in body
+  if (hasFieldEdit) {
+    let trial: Date | null | undefined
+    if ('trialEndsAt' in body) {
+      if (!body.trialEndsAt) trial = null
+      else {
+        const d = new Date(body.trialEndsAt)
+        if (Number.isNaN(d.getTime())) return NextResponse.json({ error: 'Fecha de prueba no válida.' }, { status: 400 })
+        trial = d
+      }
+    }
+    await updateTenant(id, {
+      ...(typeof body.name === 'string' ? { name: body.name } : {}),
+      ...('priceMonthly' in body ? { priceMonthly: body.priceMonthly ?? null } : {}),
+      ...('trialEndsAt' in body ? { trialEndsAt: trial } : {}),
+      ...('memberLimit' in body ? { memberLimit: body.memberLimit ?? null } : {}),
+      ...('notes' in body ? { notes: body.notes ?? null } : {}),
+      ...('tags' in body ? { tags: body.tags } : {}),
+    })
+    await logPortalAudit({ actor, action: 'UPDATE_CLIENT', tenantSlug: tenant.slug, tenantName: tenant.name, targetType: 'TENANT', targetId: id, detail: { name: body.name, priceMonthly: body.priceMonthly, trialEndsAt: body.trialEndsAt, memberLimit: body.memberLimit, ...('notes' in body ? { notes: true } : {}), ...('tags' in body ? { tags: body.tags } : {}) }, ip })
+    return NextResponse.json({ ok: true })
   }
 
   // Cambio de estado (suspender / reactivar).
   const status = String(body.status || '').toUpperCase()
   if (status !== 'ACTIVE' && status !== 'SUSPENDED') {
-    return NextResponse.json({ error: 'Indica status (ACTIVE|SUSPENDED) o features.' }, { status: 400 })
+    return NextResponse.json({ error: 'Indica status, features, planId o campos a editar.' }, { status: 400 })
   }
   await setTenantStatus(id, status)
-  await logPortalAudit({
-    action: status === 'SUSPENDED' ? 'SUSPEND' : 'REACTIVATE',
-    tenantSlug: tenant.slug,
-    tenantName: tenant.name,
-    targetType: 'TENANT',
-    targetId: id,
-    ip,
-  })
+  await logPortalAudit({ actor, action: status === 'SUSPENDED' ? 'SUSPEND' : 'REACTIVATE', tenantSlug: tenant.slug, tenantName: tenant.name, targetType: 'TENANT', targetId: id, ip })
   return NextResponse.json({ ok: true, status })
 }
 
@@ -154,6 +194,7 @@ export async function POST(request: Request) {
   await createPortalUser({ email: adminEmail, password: adminPassword, name, role: 'ADMIN', tenantId: tenant.id })
 
   await logPortalAudit({
+    actor: (await getPortalAdminIdentity()) ?? 'super-admin',
     action: 'CREATE_CLIENT',
     tenantSlug: tenant.slug,
     tenantName: tenant.name,

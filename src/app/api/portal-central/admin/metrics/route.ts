@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isPortalAdminConfigured, isPortalAdminRequest } from '@/lib/portal-central/admin-auth'
 import { isPortalCentralHost } from '@/lib/portal-central/config'
+import { computePortalBilling } from '@/lib/portal-central/portal-store'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +28,10 @@ export async function GET() {
   const denied = await requireAdmin()
   if (denied) return denied
 
+  // MRR/ARR: suma del precio mensual de los clubes ACTIVE (lectura directa de Tenant,
+  // independiente del snapshot, así siempre está disponible).
+  const billing = await computePortalBilling().catch(() => ({ mrr: 0, arr: 0, activeClubs: 0, trials: 0 }))
+
   try {
     const [latest, history] = await Promise.all([
       prisma.portalKpiSnapshot.findFirst({ orderBy: { createdAt: 'desc' } }),
@@ -45,6 +50,7 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
+      billing,
       latest: latest
         ? {
             createdAt: latest.createdAt.toISOString(),
@@ -75,6 +81,6 @@ export async function GET() {
   } catch {
     // La tabla puede no existir aún (primer deploy antes del db push del portal),
     // o no haber ningún snapshot todavía. No es un error para el dashboard.
-    return NextResponse.json({ ok: true, latest: null, history: [] })
+    return NextResponse.json({ ok: true, billing, latest: null, history: [] })
   }
 }
