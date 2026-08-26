@@ -5140,7 +5140,6 @@ function Contabilidad({ setActive }) {
   const [deletingMovementId, setDeletingMovementId] = useState<string | null>(null);
   const [taxBusy, setTaxBusy] = useState(false);
   const [buscarCobro, setBuscarCobro] = useState('');
-  const [emitirBusy, setEmitirBusy] = useState(false);
   const [ledgerBusy, setLedgerBusy] = useState(false);
   // Qué partes de la contabilidad no se pudieron cargar. Sin esto, un fallo del
   // servidor dejaba las listas vacías y la pantalla afirmaba «Sin asientos»: el
@@ -5291,32 +5290,6 @@ function Contabilidad({ setActive }) {
       setLedgerError('No se pudo conectar con el servidor para cargar la contabilidad.'),
     );
   }, [loadAccounting]);
-
-  async function emitirCuotasDelMes() {
-    if (emitirBusy) return
-    const ok = await showConfirm({
-      title: 'Emitir las cuotas que tocan',
-      message:
-        'Se creará una factura por cada socio cuya cuota haya cumplido periodo.\n\n' +
-        'Son facturas numeradas: una vez emitidas no se pueden editar, solo eliminar. ' +
-        'Cada socio recibirá su aviso de cobro.',
-      confirmLabel: 'Emitir cuotas',
-    }).catch(() => false)
-    if (!ok) return
-    setEmitirBusy(true)
-    try {
-      const r = await fetch('/api/crm/billing/generate-due', { method: 'POST', credentials: 'include' })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) { showAlert(j.error || 'No se pudieron emitir las cuotas'); return }
-      const creadas = Number(j.createdCount ?? 0)
-      showAlert(
-        creadas > 0
-          ? `${creadas} factura${creadas === 1 ? '' : 's'} emitida${creadas === 1 ? '' : 's'}.`
-          : 'No había ninguna cuota con el periodo cumplido: no se ha emitido nada.',
-      )
-      await Promise.all([reload(), loadAccounting()])
-    } finally { setEmitirBusy(false) }
-  }
 
   async function marcarPagado(c) {
     // Registra el pendiente completo, en efectivo y con fecha de hoy. Eso crea un
@@ -5806,20 +5779,6 @@ function Contabilidad({ setActive }) {
             </button>
             <button
               type="button"
-              disabled={emitirBusy}
-              onClick={emitirCuotasDelMes}
-              title="Crea la factura de cada socio cuya cuota haya cumplido periodo"
-              style={{
-                display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
-                borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',
-                cursor:emitirBusy?'wait':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,
-                color:'var(--accent)',transition:'all 0.15s'
-              }}
-            >
-              {emitirBusy ? 'Emitiendo…' : 'Emitir cuotas del mes'}
-            </button>
-            <button
-              type="button"
               onClick={() => openMovimientoModal('INCOME')}
               style={{
                 display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
@@ -6277,7 +6236,7 @@ function Contabilidad({ setActive }) {
               {filtered.length === 0 && (
                 <tr><td colSpan={7} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14,lineHeight:1.5}}>
                   {COBROS_UI.length === 0
-                    ? 'Todavía no has emitido ninguna factura. Créala con «Nueva factura», o emite las cuotas del mes desde el botón de arriba.'
+                    ? 'Todavía no has emitido ninguna factura. Créala con «Nueva factura», o emite las cuotas del periodo desde Contabilidad → Suscripciones.'
                     : cobrosEnRango.length === 0
                       ? 'No hay ninguna factura entre esas dos fechas. Prueba a ampliar el rango o pulsa «Limpiar».'
                       : buscado
