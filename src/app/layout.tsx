@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import "@/components/crm/crm-vars.css";
 import Providers from "./providers";
+import UmamiScript from "@/components/analytics/UmamiScript";
 import { getClubBranding } from "@/lib/club-settings";
 import { runWithTenant } from "@/lib/multitenant/request";
 
@@ -38,6 +39,7 @@ export default function RootLayout({
         style={{ background: "var(--surface)", color: "var(--text-primary)" }}
       >
         <Providers>{children}</Providers>
+        <UmamiScript />
       </body>
     </html>
   );
