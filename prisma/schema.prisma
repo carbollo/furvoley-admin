@@ -222,6 +222,51 @@ model MembershipPlan {
   updatedAt       DateTime @updatedAt
 
   subscriptions   Subscription[]
+  whopMapping     WhopPlanMapping?
+}
+
+/// Espejo de una cuota del CRM en la cuenta Whop del club: el plan de Whop se
+/// pre-crea por API (a diferencia de Stripe, que generaba price_data al vuelo) y
+/// aquí se guarda el vínculo. Un mapeo por cuota; al cambiar el precio se crea un
+/// plan nuevo en Whop y se actualiza este registro (los planes Whop son inmutables).
+/// Evento de cobro que llegó de la pasarela y NO se pudo conciliar con ninguna
+/// factura (metadata ausente, factura anulada, moneda distinta…). Es la red de
+/// seguridad del dinero: sin esto, un cobro sin destino se perdería en silencio
+/// y el socio seguiría recibiendo reclamaciones de algo que ya pagó.
+model WhopUnreconciledEvent {
+  id          String   @id @default(cuid())
+  eventType   String
+  /// Id del pago en la pasarela (pay_…), si venía.
+  externalId  String?
+  amount      Float?
+  currency    String?
+  reason      String
+  /// Payload completo, para poder rehacer la conciliación a mano.
+  payload     Json
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([resolvedAt])
+  @@index([externalId])
+}
+
+model WhopPlanMapping {
+  id               String   @id @default(cuid())
+  /// Cuenta de la pasarela a la que pertenecen el producto y el plan. Si el club
+  /// reconecta con OTRA cuenta, este mapeo deja de valer (cobraría en la cuenta
+  /// antigua): se compara antes de reutilizarlo y se borra al reconectar.
+  whopCompanyId    String
+  whopProductId    String
+  whopPlanId       String   @unique
+  /// Snapshot del precio/periodo/moneda con el que se creó el plan (detecta drift).
+  amount           Float
+  currency         String   @default("EUR")
+  billingPeriodDays Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  membershipPlanId String   @unique
+  membershipPlan   MembershipPlan @relation(fields: [membershipPlanId], references: [id], onDelete: Cascade)
 }
 
 model Subscription {
@@ -235,6 +280,9 @@ model Subscription {
   paymentRequiredOnEnrollment Boolean @default(false)
   stripeCustomerId      String?
   stripeSubscriptionId  String?
+  /// Membership de Whop que renueva esta suscripción (mem_…). Es el vínculo que
+  /// usa el webhook para emitir la factura del periodo cuando Whop cobra.
+  whopMembershipId      String?  @unique
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -280,6 +328,12 @@ model Invoice {
   status              String   @default("PENDING") // PENDING, OVERDUE, PARTIAL, PAID, VOID
   stripeCheckoutUrl   String?
   stripeSessionId     String?
+  /// Enlace de pago de Whop cacheado para esta factura (checkout ch_…). El importe
+  /// se guarda con él: un enlace ya emitido cobra SIEMPRE la cantidad con la que se
+  /// creó, así que si la factura cambia (pago parcial, edición) hay que rehacerlo.
+  whopCheckoutUrl     String?
+  whopCheckoutId      String?
+  whopCheckoutAmount  Float?
   paidAt              DateTime?
   pdfStoredAt         DateTime? // última generación / descarga persistida (opcional)
   createdAt           DateTime @default(now())
@@ -311,11 +365,16 @@ model InvoiceItem {
 
 model PaymentAttempt {
   id                  String   @id @default(cuid())
-  method              String   @default("STRIPE") // STRIPE, CASH, BANK_TRANSFER
+  method              String   @default("WHOP") // WHOP, CASH, BANK_TRANSFER (STRIPE: histórico)
   status              String   @default("PENDING") // PENDING, SUCCEEDED, FAILED
   amount              Float
   stripePaymentIntent String?
   stripeSessionId     String?
+  /// ID del pago en la pasarela (Whop: pay_…). Clave del dedupe del webhook:
+  /// las entregas son at-least-once y recordInvoicePayment SUMA el importe. Es
+  /// @unique para que la BD sea la garantía real (un check previo tiene carrera
+  /// entre dos entregas simultáneas): el segundo intento choca con P2002.
+  externalPaymentId   String?  @unique
   errorMessage        String?
   attemptedAt         DateTime @default(now())
   createdAt           DateTime @default(now())
@@ -956,6 +1015,28 @@ model ClubSettings {
   stripeDetailsSubmitted   Boolean? @default(false)
   stripeAccountStatusAt    DateTime?
 
+  // --- Whop (pasarela de cobro del club; sustituye a Stripe) ---
+  /// Company de Whop del club (biz_…). La crea el CRM por API al configurar la
+  /// pasarela; el club nunca entra en whop.com salvo para el KYC alojado.
+  whopCompanyId            String?
+  /// API key de esa company (creada por API desde la cuenta plataforma). Secreta:
+  /// nunca se devuelve al cliente, solo se usa en el servidor.
+  whopApiKey               String?  @db.Text
+  /// Secret del webhook registrado para este club (verificación HMAC del payload).
+  whopWebhookSecret        String?  @db.Text
+  /// Estado del onboarding: NONE | PENDING_KYC | PENDING_BANK | READY | DISABLED
+  whopOnboardingStatus     String?  @default("NONE")
+  whopChargesEnabled       Boolean? @default(false)
+  whopPayoutsEnabled       Boolean? @default(false)
+  /// Método de payout (banco del club, potk_…) al que el CRM transfiere el saldo.
+  whopPayoutMethodId       String?
+  whopAccountStatusAt      DateTime?
+  /// Auto-transferencia del saldo al banco del club: OFF | DAILY | WEEKLY | MONTHLY.
+  whopSweepFrequency       String?  @default("WEEKLY")
+  /// Importe mínimo (EUR) para lanzar la transferencia automática.
+  whopSweepMinAmount       Float?   @default(10)
+  whopLastSweepAt          DateTime?
+
   /** API key para Hermes Agent MCP (Bearer). Env HERMES_MCP_API_KEY tiene prioridad. */
   hermesMcpApiKey          String?  @db.Text
   /** Bearer interno para el API Server de Hermes (chat web CRM). Env HERMES_API_SERVER_KEY tiene prioridad. */
@@ -1037,12 +1118,36 @@ model Tenant {
   /// Módulos activados del CRM (mapa moduleId → bool). Ausente/null = todos
   /// activados. Permite vender planes distintos sin desplegar nada.
   features  Json?
+
+  // --- Plan y facturación del cliente (lo que paga al SaaS) ---
+  /// Plan comercial asignado (opcional). Al asignarlo se derivan features/precio/límite.
+  planId       String?
+  plan         Plan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
+  /// Precio efectivo mensual del cliente (del plan o ajustado a mano). Base del MRR.
+  priceMonthly Float?
+  /// Si está y es futura, el club está en PRUEBA; al caducar el cron lo suspende.
+  trialEndsAt  DateTime?
+  /// Límite de socios (del plan). null = sin límite.
+  memberLimit  Int?
+
+  /// Company de Whop del club (biz_…): permite que el webhook ÚNICO de la cuenta
+  /// plataforma resuelva a qué tenant pertenece cada evento (company → club) y
+  /// ejecute la conciliación dentro de withTenant. Se fija al configurar la pasarela.
+  whopCompanyId String? @unique
+
+  /// Notas internas de soporte (solo visibles en el panel del portal).
+  notes     String?
+  /// Etiquetas internas (VIP, moroso, migración…). La etiqueta `no-suspender`
+  /// excluye al club del cron trial-suspend.
+  tags      String[] @default([])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   users PortalUser[]
 
   @@index([status])
+  @@index([planId])
 }
 
 /// Usuario dado de alta desde el panel del portal. Es la cuenta con la que se
@@ -1139,4 +1244,54 @@ model PortalAuditLog {
   @@index([createdAt])
   @@index([tenantSlug, createdAt])
   @@index([action])
+}
+
+/// Plan comercial EDITABLE por el super-admin: agrupa módulos incluidos + precio
+/// mensual + límite de socios. Asignar un plan a un club deriva sus features
+/// (los módulos no incluidos se desactivan), su priceMonthly y su memberLimit.
+model Plan {
+  id           String   @id @default(cuid())
+  name         String
+  priceMonthly Float    @default(0)
+  /// Lista de moduleId incluidos (CrmModuleId[]). Vacío = ningún módulo opcional.
+  modules      Json     @default("[]")
+  memberLimit  Int?     // null = ilimitado
+  /// Token del webhook de alta automática desde una tienda externa. La URL
+  /// `/api/portal-central/webhooks/subscription/<token>` da de alta un club nuevo
+  /// con este plan. null = webhook no generado todavía.
+  webhookToken String?  @unique
+  /// Secreto HMAC (opcional) para firmar el cuerpo del webhook. Si está, el handler
+  /// EXIGE una firma HMAC-SHA256 válida del payload; si es null, no se exige firma.
+  webhookSecret String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenants      Tenant[]
+
+  @@index([name])
+}
+
+/// Super-admin del portal con login propio (email + contraseña). Coexiste con la
+/// contraseña maestra de entorno (PORTAL_ADMIN_PASSWORD), que nunca se elimina.
+model PortalAdmin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  status       String   @default("ACTIVE") // ACTIVE | DISABLED
+  lastLoginAt  DateTime?
+  /// Sesiones (cookies HMAC) emitidas ANTES de esta fecha se rechazan. Se pone a
+  /// `now()` al resetear la contraseña para expulsar sesiones robadas.
+  sessionsInvalidBefore DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/// Ajustes clave/valor del portal, editables desde el panel (una fila por ajuste).
+/// p. ej. `profit_split` = { selfPct, selfLabel, otherLabel } para el reparto de
+/// beneficios del dashboard. `value` es JSON libre.
+model PortalSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
 }
