@@ -139,18 +139,30 @@ export async function getSuggestedTransactionsForLine(lineId: string) {
   })
 }
 
-export async function reconcileBankLine(lineId: string, transactionId: string) {
+export type BankLineResult = { ok: true } | { ok: false; error: string }
+
+export async function reconcileBankLine(
+  lineId: string,
+  transactionId: string,
+): Promise<BankLineResult> {
   return runWithTenant(async () => {
   await assertAccountingStaff()
   const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
   const tx = await prisma.transaction.findUnique({ where: { id: transactionId } })
-  if (!line || !tx) throw new Error('Línea o asiento no encontrado')
+  if (!line || !tx) return { ok: false as const, error: 'Esa línea o ese movimiento ya no existen. Recarga la página.' }
 
   const absLine = Math.abs(line.signedAmount)
-  if (!amountMatch(absLine, tx.amount)) throw new Error('El importe no coincide con el asiento')
+  if (!amountMatch(absLine, tx.amount)) {
+    return { ok: false as const, error: 'El importe del movimiento no coincide con el de la línea del banco.' }
+  }
   const expectIncome = line.signedAmount >= 0
   if ((expectIncome && tx.type !== 'INCOME') || (!expectIncome && tx.type !== 'EXPENSE')) {
-    throw new Error('El tipo de movimiento (ingreso/gasto) no encaja')
+    return {
+      ok: false as const,
+      error: expectIncome
+        ? 'Esta línea es un ingreso y el movimiento elegido es un gasto.'
+        : 'Esta línea es un gasto y el movimiento elegido es un ingreso.',
+    }
   }
 
   await prisma.bankStatementLine.update({
@@ -171,15 +183,15 @@ export async function reconcileBankLine(lineId: string, transactionId: string) {
   revalidatePath('/accounting/bank-import')
   revalidatePath(`/accounting/bank-import/${line.bankImportId}`)
   revalidatePath('/accounting')
-  return { ok: true }
+  return { ok: true as const }
   })
 }
 
-export async function ignoreBankLine(lineId: string) {
+export async function ignoreBankLine(lineId: string): Promise<BankLineResult> {
   return runWithTenant(async () => {
   await assertAccountingStaff()
   const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
-  if (!line) throw new Error('Línea no encontrada')
+  if (!line) return { ok: false as const, error: 'Esa línea ya no existe. Recarga la página.' }
 
   await prisma.bankStatementLine.update({
     where: { id: lineId },
@@ -188,14 +200,15 @@ export async function ignoreBankLine(lineId: string) {
 
   revalidatePath(`/accounting/bank-import/${line.bankImportId}`)
   revalidatePath('/accounting/bank-import')
+  return { ok: true as const }
   })
 }
 
-export async function unlinkBankLine(lineId: string) {
+export async function unlinkBankLine(lineId: string): Promise<BankLineResult> {
   return runWithTenant(async () => {
   await assertAccountingStaff()
   const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
-  if (!line) throw new Error('Línea no encontrada')
+  if (!line) return { ok: false as const, error: 'Esa línea ya no existe. Recarga la página.' }
 
   await prisma.bankStatementLine.update({
     where: { id: lineId },
@@ -204,17 +217,20 @@ export async function unlinkBankLine(lineId: string) {
 
   revalidatePath(`/accounting/bank-import/${line.bankImportId}`)
   revalidatePath('/accounting/bank-import')
+  return { ok: true as const }
   })
 }
 
-export async function createLedgerFromBankLine(lineId: string) {
+export async function createLedgerFromBankLine(lineId: string): Promise<BankLineResult> {
   return runWithTenant(async () => {
   await assertAccountingStaff()
   const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
-  if (!line) throw new Error('Línea no encontrada')
-  if (line.status === 'MATCHED') throw new Error('La línea ya está conciliada')
+  if (!line) return { ok: false as const, error: 'Esa línea ya no existe. Recarga la página.' }
+  if (line.status === 'MATCHED') {
+    return { ok: false as const, error: 'Esta línea ya está conciliada con un movimiento.' }
+  }
   if (line.status === 'NEW_LEDGER' && line.matchedTransactionId) {
-    throw new Error('La línea ya generó un asiento de tesorería')
+    return { ok: false as const, error: 'Esta línea ya generó su movimiento. No se crea otro para no duplicar el importe.' }
   }
 
   const abs = Math.abs(line.signedAmount)
@@ -244,7 +260,7 @@ export async function createLedgerFromBankLine(lineId: string) {
   revalidatePath(`/accounting/bank-import/${line.bankImportId}`)
   revalidatePath('/accounting/bank-import')
   revalidatePath('/accounting')
-  return tx.id
+  return { ok: true as const }
   })
 }
 

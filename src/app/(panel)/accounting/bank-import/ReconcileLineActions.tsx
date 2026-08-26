@@ -58,8 +58,8 @@ export function ReconcileLineActions({ line }: Props) {
           invoice: t.invoice,
         })),
       )
-    } catch (e) {
-      setErr((e as Error).message)
+    } catch {
+      setErr('No se pudieron cargar las sugerencias. Vuelve a intentarlo.')
     } finally {
       setBusy(false)
     }
@@ -69,11 +69,12 @@ export function ReconcileLineActions({ line }: Props) {
     setBusy(true)
     setErr(null)
     try {
-      await reconcileBankLine(line.id, txId)
+      const r = await reconcileBankLine(line.id, txId)
+      if (!r.ok) { setErr(r.error); return }
       setSuggestions(null)
       router.refresh()
-    } catch (e) {
-      setErr((e as Error).message)
+    } catch {
+      setErr('No se pudo completar la operación. Comprueba tu conexión y vuelve a intentarlo.')
     } finally {
       setBusy(false)
     }
@@ -83,10 +84,11 @@ export function ReconcileLineActions({ line }: Props) {
     setBusy(true)
     setErr(null)
     try {
-      await createLedgerFromBankLine(line.id)
+      const r = await createLedgerFromBankLine(line.id)
+      if (!r.ok) { setErr(r.error); return }
       router.refresh()
-    } catch (e) {
-      setErr((e as Error).message)
+    } catch {
+      setErr('No se pudo completar la operación. Comprueba tu conexión y vuelve a intentarlo.')
     } finally {
       setBusy(false)
     }
@@ -96,10 +98,11 @@ export function ReconcileLineActions({ line }: Props) {
     setBusy(true)
     setErr(null)
     try {
-      await ignoreBankLine(line.id)
+      const r = await ignoreBankLine(line.id)
+      if (!r.ok) { setErr(r.error); return }
       router.refresh()
-    } catch (e) {
-      setErr((e as Error).message)
+    } catch {
+      setErr('No se pudo completar la operación. Comprueba tu conexión y vuelve a intentarlo.')
     } finally {
       setBusy(false)
     }
@@ -109,10 +112,11 @@ export function ReconcileLineActions({ line }: Props) {
     setBusy(true)
     setErr(null)
     try {
-      await unlinkBankLine(line.id)
+      const r = await unlinkBankLine(line.id)
+      if (!r.ok) { setErr(r.error); return }
       router.refresh()
-    } catch (e) {
-      setErr((e as Error).message)
+    } catch {
+      setErr('No se pudo completar la operación. Comprueba tu conexión y vuelve a intentarlo.')
     } finally {
       setBusy(false)
     }
