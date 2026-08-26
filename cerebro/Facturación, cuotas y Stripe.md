@@ -4,7 +4,12 @@ tags: [facturacion, stripe, cuotas, suscripciones, crm, multitenant, cron, idemp
 
 # Facturación, cuotas y Stripe
 
-Módulo de **ingresos del CRM del club** (no confundir con la facturación del portal a los clubes, que vive en [[Planes y facturación del portal]]). Facturas, planes de socio, suscripciones recurrentes, cobros Stripe y recordatorios. Todo corre **dentro de la BD del tenant activo** (proxy `@/lib/prisma`, ver [[Resolución de tenant]] y [[Arquitectura Modelo C]]).
+Módulo de **ingresos del CRM del club** (no confundir con la facturación del portal a los clubes, que vive en [[Planes y facturación del portal]]). Facturas, planes de socio, suscripciones recurrentes, cobros y recordatorios. Todo corre **dentro de la BD del tenant activo** (proxy `@/lib/prisma`, ver [[Resolución de tenant]] y [[Arquitectura Modelo C]]).
+
+> [!warning] Las secciones de Stripe están desfasadas
+> La pasarela del club es ahora **Whop**: ver [[Pasarela de cobro (Whop)]]. Stripe sigue en el repo pero en retirada, y su webhook tiene problemas conocidos (no está excluido del matcher del middleware y no activa el tenant). Lo de abajo sobre numeración, suscripciones y `recordInvoicePayment` **sí** sigue vigente.
+>
+> Cambios ya aplicados que esta nota aún no recoge: los estados de suscripción son `ACTIVE | PENDING_PAYMENT | PAUSED | CANCELED` (`src/lib/subscription-statuses.ts`) y una suscripción **no pasa a `ACTIVE` hasta que se cobra**, salvo marcado manual.
 
 Ficheros clave: `src/lib/crm-invoice-create.ts` (numeración), `src/app/actions/billing.ts` (lógica central), `src/lib/billing-dates.ts` (fechas de cobro), `src/lib/stripe-checkout.ts` (links de pago), `src/app/api/stripe/webhook/route.ts` (webhook) y los crons `src/app/api/jobs/billing*`.
 
