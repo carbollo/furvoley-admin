@@ -22,7 +22,7 @@ Si a una función **solo la llaman rutas API, crons, webhooks, workflows o Herme
 Ficheros movidos a este patrón (todos con un comentario de cabecera que **avisa de no volver a añadir `'use server'`**):
 - **`src/lib/members-service.ts`** — `createMember/updateMember/deleteMember`. Lo llaman `api/crm/members/**` (tras `requireRoles`), el import CSV (`members-bulk-import`), las acciones en lote (`members-batch-actions`) y la tool MCP de Hermes (Bearer). Ver [[Alta automática por webhook]].
 - **`src/lib/events-service.ts`** — `createEventInternal/updateEventInternal/deleteEventInternal/updateAttendanceInternal`. Lo consumen las rutas `api/crm/events/**`, la ruta pública por token `api/public/workflow-response/[token]` (con su propia auth) y los wrappers de `app/actions/events.ts`. Ver [[Eventos y asistencia]].
-- **`src/app/actions/billing.ts`** — cobros, planes, suscripciones, facturas. Llamado por rutas API, el webhook de Stripe (firma), los crons (`forEachTenant`) y los workflows. Ver [[Facturación, cuotas y Stripe]].
+- **`src/app/actions/billing.ts`** — cobros, planes, suscripciones, facturas. Llamado por rutas API, el webhook de la pasarela (firma), los crons (`forEachTenant`) y los workflows. Ver [[Facturación y cuotas]].
 - **`src/app/actions/workflows.ts`** — `setWorkflowActive`, solo desde `api/crm/workflows/[id]/toggle` (con gate de módulo). Ver [[Motor de workflows]].
 - **`src/app/actions/leads.ts`** — `createLead/updateLead`; superficie muerta sin llamadores, se neutralizó quitando la directiva.
 
@@ -60,4 +60,4 @@ Ficheros con este patrón y su gate:
 - [[RBAC y módulos]]
 - [[Resolución de tenant]]
 - [[Aislamiento entre clubes]]
-- [[Facturación, cuotas y Stripe]]
+- [[Facturación y cuotas]]

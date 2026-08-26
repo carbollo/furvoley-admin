@@ -1,17 +1,21 @@
 ---
-tags: [facturacion, stripe, cuotas, suscripciones, crm, multitenant, cron, idempotencia]
+tags: [facturacion, cuotas, suscripciones, crm, multitenant, cron, idempotencia]
 ---
 
-# Facturación, cuotas y Stripe
+# Facturación y cuotas
 
 Módulo de **ingresos del CRM del club** (no confundir con la facturación del portal a los clubes, que vive en [[Planes y facturación del portal]]). Facturas, planes de socio, suscripciones recurrentes, cobros y recordatorios. Todo corre **dentro de la BD del tenant activo** (proxy `@/lib/prisma`, ver [[Resolución de tenant]] y [[Arquitectura Modelo C]]).
 
-> [!warning] Las secciones de Stripe están desfasadas
-> La pasarela del club es ahora **Whop**: ver [[Pasarela de cobro (Whop)]]. Stripe sigue en el repo pero en retirada, y su webhook tiene problemas conocidos (no está excluido del matcher del middleware y no activa el tenant). Lo de abajo sobre numeración, suscripciones y `recordInvoicePayment` **sí** sigue vigente.
->
-> Cambios ya aplicados que esta nota aún no recoge: los estados de suscripción son `ACTIVE | PENDING_PAYMENT | PAUSED | CANCELED` (`src/lib/subscription-statuses.ts`) y una suscripción **no pasa a `ACTIVE` hasta que se cobra**, salvo marcado manual.
+La pasarela con la que se cobra vive aparte: ver [[Pasarela de cobro (Whop)]].
 
-Ficheros clave: `src/lib/crm-invoice-create.ts` (numeración), `src/app/actions/billing.ts` (lógica central), `src/lib/billing-dates.ts` (fechas de cobro), `src/lib/stripe-checkout.ts` (links de pago), `src/app/api/stripe/webhook/route.ts` (webhook) y los crons `src/app/api/jobs/billing*`.
+Ficheros clave: `src/lib/crm-invoice-create.ts` (numeración), `src/app/actions/billing.ts` (lógica central), `src/lib/billing-dates.ts` (fechas de cobro), `src/lib/payments/invoice-checkout.ts` (enlaces de pago) y los crons `src/app/api/jobs/billing*`.
+
+## Estados de una cuota
+
+`ACTIVE | PENDING_PAYMENT | PAUSED | CANCELED`, definidos en `src/lib/subscription-statuses.ts` junto con los conjuntos que usa cada pantalla. Una cuota que exige pago al alta **nace `PENDING_PAYMENT` y no pasa a `ACTIVE` hasta que el cobro se confirma** (o hasta que un admin la marca a mano). Las que no exigen pago nacen activas, o su facturación recurrente se quedaría congelada.
+
+> [!tip] Comparar siempre contra el mismo conjunto
+> «Socios con cuota» lista `SUBSCRIPTION_VISIBLE` (incluye `PAUSED`), así que «socios sin cuota» tiene que excluir **ese mismo** conjunto. Comparando contra `SUBSCRIPTION_ACTIVE_LIKE`, un socio en pausa salía en las dos listas a la vez.
 
 ## Numeración de factura: max()+1, nunca count()
 
@@ -38,7 +42,7 @@ Como max()+1 no es atómico frente a **altas concurrentes**, dos creaciones simu
 
 ## Suscripciones (`Subscription`)
 
-`nextInvoiceDate` marca cuándo toca la próxima cuota; `autoPay` indica cobro automático vía Stripe. `createSubscription`:
+`nextInvoiceDate` marca cuándo toca la próxima cuota; `autoPay` indica que la pasarela la cobra sola (`whopMembershipId` guarda la suscripción del socio allí). `createSubscription`:
 
 1. Calcula `nextInvoiceDate` inicial: **hoy** si `paymentRequiredOnEnrollment`, si no la próxima fecha alineada al `billingDayOfMonth`.
 2. Si el pago es requerido al alta, pone al socio en **`PENDING_PAYMENT`** y dispara `runMemberStatusChangedWorkflows` ([[Motor de workflows]]).
@@ -66,21 +70,19 @@ Registra siempre un `PaymentAttempt` y, si el pago es `SUCCEEDED`:
 
 - **Incremento atómico** de `paidAmount` (`{ increment: amount }`) **y** derivación de `status`/`paidAt` en la **misma `$transaction`**. El UPDATE del incremento bloquea la fila hasta el commit, así **dos cobros concurrentes se serializan** (webhook + mark-paid, o reentregas en réplicas): cada uno calcula el status sobre el valor real ya incrementado. Sin esto, un update de status suelto podía reordenarse y dejar la factura **pagada pero marcada `PARTIAL`** (sin activar al socio ni disparar workflows).
 - Al quedar `PAID`, dispara `runInvoicePaidWorkflows` y `tryActivateMemberAfterEnrollmentPayment` (socio `PENDING_PAYMENT` → `ACTIVE`).
-- **Política contable:** los cobros **por Stripe NO generan `Transaction`/`JournalEntry`** — la contabilidad oficial se llena solo desde el CSV bancario (conciliación). En cambio, `CASH` y `BANK_TRANSFER` (cobros manuales que no pasan por el extracto) **sí** crean asiento de inmediato. Ver [[Contabilidad]].
+- **Política contable:** los cobros **por la pasarela NO generan `Transaction`/`JournalEntry`** — ese dinero llega a la cuenta de la pasarela y solo entra en el banco del club al transferirse, así que la contabilidad oficial se llena desde el CSV bancario (conciliación). En cambio, `CASH` y `BANK_TRANSFER` (cobros manuales que no pasan por el extracto) **sí** crean asiento de inmediato. Ver [[Contabilidad]].
 
-## Webhook de Stripe (`/api/stripe/webhook`)
-
-Endpoint **único** para eventos de plataforma y de cuentas conectadas (Stripe Connect / Direct Charges).
-
-- **Firma:** los signing secrets salen de BD (`StripeBootstrap`, autogenerados al sincronizar webhooks) con override opcional por env (`STRIPE_WEBHOOK_SECRET`, `STRIPE_CONNECT_WEBHOOK_SECRET`). Se prueban ambos secretos con `constructEvent`; si ninguno valida → `400`.
-- **Filtro multi-deploy:** con varios clones en Railway sobre la misma cuenta plataforma, Stripe entrega cada evento Connect a todos los endpoints. El handler **ignora con 200** cualquier evento cuyo `event.account` no sea el `acct_…` de este servicio, para no mezclar clubes ni devolver 500 por factura inexistente.
-- **Idempotencia:** Stripe entrega "at-least-once" y permite reenvíos manuales. Como `recordInvoicePayment` **suma** a `paidAmount`, antes de registrar se comprueba **`alreadyRecorded(paymentIntent)`** / **`alreadyRecordedCheckout(paymentIntent, sessionId)`** (busca un `PaymentAttempt` `SUCCEEDED` con ese intent/sesión). Sin esto, un reenvío duplicaría el cobro.
-
-Eventos manejados: `checkout.session.completed` (modo `payment` → registra cobro de la factura; modo `subscription` → vincula la `Subscription` interna con la de Stripe, `autoPay=true`), `invoice.paid`/`invoice.payment_succeeded` (por metadata `invoiceId`, o cobro recurrente que genera la siguiente factura del periodo y la marca pagada), `invoice.payment_failed` y `payment_intent.payment_failed` (registran intento `FAILED` y marcan `OVERDUE`), y `customer.subscription.*` (mapean estado Stripe → `ACTIVE`/`PAUSED`/`CANCELED`).
+> [!note] `'STRIPE'` sigue excluido del asiento automático
+> La pasarela anterior está retirada y ya nadie produce ese método, pero las filas históricas existen. Si un reproceso tocara una, crearía un asiento que ya se concilió en su día.
 
 ## Links de pago y recordatorios
 
-`createInvoiceCheckoutUrl` (`stripe-checkout.ts`) crea sesiones **mode `payment`** por el importe pendiente (mínimo 50 céntimos), resolviendo `customer`/`customer_email` y aplicando `application_fee` en Connect; cachea la URL en `invoice.stripeCheckoutUrl`. `runReminderJob` envía recordatorios en D-7/D-2/D+1/D+7 por WhatsApp (ApiWass) o webhook, con `ReminderLog` para no duplicar.
+Todos los enlaces de cobro salen de **`createInvoiceCheckoutUrl`** (`src/lib/payments/invoice-checkout.ts`), el único punto que habla con la pasarela; `billing.ts` lo envuelve en `createInvoicePaymentLink`. El enlace se cachea en `invoice.whopCheckoutUrl`, pero **solo se reutiliza si sigue valiendo lo que se debe**: uno viejo cobraría el importe de antes del último pago parcial.
+
+`runReminderJob` envía recordatorios en D-7/D-2/D+1/D+7 por WhatsApp (ApiWass) o webhook, con `ReminderLog` para no duplicar.
+
+> [!warning] Retirar una pasarela es también retirar sus enlaces
+> Al quitar Stripe se dejó de leer `invoice.stripeCheckoutUrl` en todo el motor de workflows. La columna sigue ahí como histórico, pero usarla como respaldo habría mandado a los socios a un checkout muerto.
 
 ## Nota de seguridad
 

@@ -33,7 +33,7 @@ aliases: [Home, Índice, Cerebro, MOC]
 
 ## 📊 CRM (funcionalidad)
 - [[Contabilidad]] — doble partida, PGC, motor de asientos, conciliación bancaria.
-- [[Facturación, cuotas y Stripe]] — facturas, cuotas de socio, suscripciones y webhook de Stripe.
+- [[Facturación y cuotas]] — facturas, numeración, cuotas de socio y suscripciones.
 - [[Pasarela de cobro (Whop)]] — cómo cobra el club, cuenta bancaria en marca blanca y transferencias automáticas de su saldo.
 - [[Motor de workflows]] — automatizaciones: triggers, acciones, ramas e idempotencia.
 - [[Eventos y asistencia]] — calendario, pase de lista, inscripción pública por token.

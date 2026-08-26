@@ -62,7 +62,7 @@ Funciones:
 - `/api/hermes` → `hermes`
 
 Detalles críticos:
-- **Solo se gatean módulos aislados.** Se **excluyen a propósito** `/api/crm/invoices`, `/products` y `/discounts`: aunque pertenecen al módulo `contabilidad`, el **flujo CORE** de cuotas/socios los comparte (p.ej. marcar una cuota pagada vía `/api/crm/invoices/:id/mark-paid`), y no debe acoplarse al plan. Ver [[Facturación, cuotas y Stripe]] y [[Contabilidad]].
+- **Solo se gatean módulos aislados.** Se **excluyen a propósito** `/api/crm/invoices`, `/products` y `/discounts`: aunque pertenecen al módulo `contabilidad`, el **flujo CORE** de cuotas/socios los comparte (p.ej. marcar una cuota pagada vía `/api/crm/invoices/:id/mark-paid`), y no debe acoplarse al plan. Ver [[Facturación y cuotas]] y [[Contabilidad]].
 - **`requireRoles` ya lo invoca**, así que la mayoría de rutas heredan el gate gratis. Las rutas que **autentican por su cuenta** (workflows, whatsapp, hermes — que usan `getServerSession` directo en vez de `requireRoles`) deben llamar a `assertModuleForRequest(request)` **manualmente** tras validar el rol. Ejemplo en `src/app/api/crm/workflows/route.ts`. Ver [[Motor de workflows]].
 - **Fail-open**: si no se pueden leer los flags, **no se bloquea nada** (disponibilidad > restricción).
 

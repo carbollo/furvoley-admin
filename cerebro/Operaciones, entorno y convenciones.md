@@ -34,7 +34,7 @@ Como en MT el arranque **no** hace `db push`, tras editar `prisma/schema.prisma`
 
 Endpoints `/api/jobs/*`, protegidos con **`Authorization: Bearer <CRON_SECRET>`** vía `requireCronAuth` (`src/lib/cron-auth.ts`). Diseño **fail-closed**: si no hay secreto configurado responde `503` (antes el patrón `if (secret && ...)` dejaba el endpoint **público**, permitiendo disparar facturación y envío masivo); comparación de **tiempo constante** con `timingSafeEqual`. Detalle en [[Auditoría de seguridad]]. Acepta `CRON_SECRET` o `BILLING_CRON_SECRET`.
 
-- **Jobs de CRM (`crm-mt`)** — recorren todos los clubes con `forEachTenant` (activa la BD del club antes de cada consulta Prisma): `billing`, `billing-cycle` (ver [[Facturación, cuotas y Stripe]]), `attendance-forms` (ver [[Eventos y asistencia]]), `document-expiring`.
+- **Jobs de CRM (`crm-mt`)** — recorren todos los clubes con `forEachTenant` (activa la BD del club antes de cada consulta Prisma): `billing`, `billing-cycle` (ver [[Facturación y cuotas]]), `attendance-forms` (ver [[Eventos y asistencia]]), `document-expiring`.
 - **Jobs del portal (`portal`)** — operan sobre la BD del portal y están gateados por `isPortalCentralHost()`: `trial-suspend` (suspende clubes con `trialEndsAt` vencido).
 
 ## Disciplina previa al deploy
@@ -83,4 +83,4 @@ Verificación **adversarial** antes de cada push: `tsc` (typecheck) + `next buil
 - [[Alta automática por webhook]]
 - [[Auditoría de seguridad]]
 - [[Panel de administración del portal]]
-- [[Facturación, cuotas y Stripe]]
+- [[Facturación y cuotas]]

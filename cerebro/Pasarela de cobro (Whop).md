@@ -4,7 +4,7 @@ tags: [whop, pasarela, cobros, payouts, transferencias, idempotencia, marca-blan
 
 # Pasarela de cobro (Whop)
 
-Pasarela con la que **cada club cobra sus cuotas y recibe su dinero**, en marca blanca: el socio no ve la marca de la pasarela y el club solo entra en whop.com para crear su cuenta y sacar la API key. Sustituye a Stripe (que sigue en el repo pero está en retirada; ver [[Facturación, cuotas y Stripe]]).
+Pasarela con la que **cada club cobra sus cuotas y recibe su dinero**, en marca blanca: el socio no ve la marca de la pasarela y el club solo entra en whop.com para crear su cuenta y sacar la API key. Sustituye a Stripe (que sigue en el repo pero está en retirada; ver [[Facturación y cuotas]]).
 
 Ficheros: `src/lib/whop/client.ts` (HTTP + versionado), `connect.ts` (conexión y permisos), `club-config.ts` (config del club, secretos), `checkout.ts` (enlaces de cobro), `reconcile.ts` (webhook → factura), **`payouts.ts`** (cuenta bancaria y transferencias), **`sweep.ts`** (barrido automático). Rutas: `src/app/api/crm/whop/*`, `src/app/api/whop/webhook/`, `src/app/api/jobs/whop-sweep/`.
 
@@ -67,7 +67,7 @@ Bearer `CRON_SECRET`, `forEachTenant` (ver [[Aislamiento entre clubes]]). Tiene 
 
 ## Relacionado
 
-- [[Facturación, cuotas y Stripe]]
+- [[Facturación y cuotas]]
 - [[Aislamiento entre clubes]]
 - [[Server actions y seguridad]]
 - [[Operaciones, entorno y convenciones]]

@@ -21,7 +21,7 @@ Los dos únicos críticos rompían el [[Aislamiento entre clubes]] permitiendo c
 
 ## Altos: dinero y contabilidad (8)
 
-Ocho hallazgos de severidad alta, casi todos sobre integridad financiera. Contexto en [[Contabilidad]] y [[Facturación, cuotas y Stripe]].
+Ocho hallazgos de severidad alta, casi todos sobre integridad financiera. Contexto en [[Contabilidad]] y [[Facturación y cuotas]].
 
 - **Numeración por carrera:** nº de factura y de asiento pasaban de `count()+1` a **`max()+1` con reintento P2002** (`crm-invoice-create.ts`, `accounting/engine.ts`).
 - **Webhook Stripe no idempotente:** `onCheckoutSessionCompleted` ahora **deduplica** por `payment_intent`/`session.id`.
@@ -75,6 +75,6 @@ Ambos requieren coordinación operativa (migración a todas las BD de tenant); v
 - [[Aislamiento entre clubes]]
 - [[Server actions y seguridad]]
 - [[Autenticación y sesiones]]
-- [[Facturación, cuotas y Stripe]]
+- [[Facturación y cuotas]]
 - [[Alta automática por webhook]]
 - [[Arquitectura Modelo C]]

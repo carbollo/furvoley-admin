@@ -69,7 +69,7 @@ Todo derivado de `nature`, de ahí la importancia de clasificar bien cada cuenta
 - `tax-config/route.ts`: GET/PUT de la fila única `TaxConfig` (IVA 0-100, retención 0-100).
 - `backfill.ts`: genera asientos históricos desde `Transaction` preexistentes; es **idempotente** (aborta si ya hay entries `PAYMENT`/`ADJUSTMENT`).
 
-La contabilidad también se alimenta automáticamente desde facturas y cobros (`src/app/actions/billing.ts` llama a `createJournalEntry`), ver [[Facturación, cuotas y Stripe]].
+La contabilidad también se alimenta automáticamente desde facturas y cobros (`src/app/actions/billing.ts` llama a `createJournalEntry`), ver [[Facturación y cuotas]].
 
 ## Seguridad y gotchas
 
@@ -80,7 +80,7 @@ La contabilidad también se alimenta automáticamente desde facturas y cobros (`
 
 ## Relacionado
 
-- [[Facturación, cuotas y Stripe]]
+- [[Facturación y cuotas]]
 - [[Server actions y seguridad]]
 - [[RBAC y módulos]]
 - [[Resolución de tenant]]

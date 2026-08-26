@@ -39,7 +39,7 @@ Ficheros clave: `src/lib/workflow-engine.ts` (núcleo + acciones base), `src/lib
 
 ## Idempotencia de descuentos
 
-`APPLY_DISCOUNT_RULES` recalcula el descuento sobre la factura de contexto (`invoiceId`). Cuenta *hermanos* (`ruleType: 'SIBLING'`) como socios `ACTIVE` distintos que comparten `phone`/`guardianPhone` y toma el mayor `percent`. **Clave de idempotencia**: antes de aplicar, revisa los `items` de la factura buscando una línea cuya `description` empiece por el marcador `"Descuento por reglas"`; si ya existe, **no** vuelve a descontar (pone `discountApplied = '0'`). Sin esta guarda, reejecutar el flujo (botón "Probar", un `INVOICE_CREATED` duplicado) acumulaba el descuento una y otra vez. Sólo aplica si la factura está `PENDING`. Detalle de facturas y reglas en [[Facturación, cuotas y Stripe]].
+`APPLY_DISCOUNT_RULES` recalcula el descuento sobre la factura de contexto (`invoiceId`). Cuenta *hermanos* (`ruleType: 'SIBLING'`) como socios `ACTIVE` distintos que comparten `phone`/`guardianPhone` y toma el mayor `percent`. **Clave de idempotencia**: antes de aplicar, revisa los `items` de la factura buscando una línea cuya `description` empiece por el marcador `"Descuento por reglas"`; si ya existe, **no** vuelve a descontar (pone `discountApplied = '0'`). Sin esta guarda, reejecutar el flujo (botón "Probar", un `INVOICE_CREATED` duplicado) acumulaba el descuento una y otra vez. Sólo aplica si la factura está `PENDING`. Detalle de facturas y reglas en [[Facturación y cuotas]].
 
 ## Guard de re-entrada de la lista de espera
 
@@ -57,7 +57,7 @@ Estos son los enganches con [[Eventos y asistencia]], [[Contabilidad]] (vía `CR
 
 ## Relacionado
 
-- [[Facturación, cuotas y Stripe]]
+- [[Facturación y cuotas]]
 - [[Eventos y asistencia]]
 - [[Alta automática por webhook]]
 - [[Resolución de tenant]]
