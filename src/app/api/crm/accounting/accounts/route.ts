@@ -33,16 +33,48 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
-  const code = String(body.code || '').trim()
   const name = String(body.name || '').trim()
-  const level = Number(body.level)
   const nature = String(body.nature || '').trim().toUpperCase()
   const VALID_NATURES = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE']
-  if (!code || !name || !Number.isInteger(level) || level < 1 || level > 8 || !VALID_NATURES.includes(nature)) {
+  if (!name || !VALID_NATURES.includes(nature)) {
     return NextResponse.json(
-      { error: 'Datos de cuenta inválidos. `nature` debe ser ASSET, LIABILITY, EQUITY, INCOME o EXPENSE.' },
+      { error: 'Indica un nombre y si es un ingreso o un gasto.' },
       { status: 400 },
     )
+  }
+
+  // El código del Plan Contable lo pone el servidor. Un tesorero voluntario no
+  // tiene por qué saber que un gasto de arbitrajes va en el grupo 629: pedírselo
+  // era la razón de que nadie llegara a crear categorías y el club se quedara
+  // con las tres de fábrica, metiéndolo todo en «Otros servicios».
+  const PREFIJO: Record<string, string> = {
+    EXPENSE: '629',
+    INCOME: '705',
+    ASSET: '572',
+    LIABILITY: '410',
+    EQUITY: '100',
+  }
+  let code = String(body.code || '').trim()
+  if (!code) {
+    const base = PREFIJO[nature]
+    const usados = await prisma.accountChart.findMany({
+      where: { code: { startsWith: base } },
+      select: { code: true },
+    })
+    const sufijos = new Set(usados.map((a) => a.code.slice(base.length)))
+    let n = 1
+    while (sufijos.has(String(n).padStart(4, '0'))) n++
+    code = base + String(n).padStart(4, '0')
+  }
+
+  const level = Number.isInteger(Number(body.level)) ? Number(body.level) : 3
+  if (level < 1 || level > 8) {
+    return NextResponse.json({ error: 'Nivel de cuenta no válido.' }, { status: 400 })
+  }
+
+  const yaExiste = await prisma.accountChart.findFirst({ where: { code }, select: { id: true } })
+  if (yaExiste) {
+    return NextResponse.json({ error: 'Ya existe una categoría con ese código.' }, { status: 409 })
   }
   const account = await prisma.accountChart.create({
     data: {

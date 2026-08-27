@@ -10,6 +10,9 @@ import { PaymentReminderButton } from './PaymentReminderButton'
 import { InviteLinkButton } from './InviteLinkButton'
 import { track } from '@/lib/analytics/umami'
 import { formatMoney } from '@/lib/format-money'
+import {
+  ESTADO_ASIENTO, ORIGEN_ASIENTO, NATURALEZA_CUENTA, PESTANAS_CONTABLES, etiqueta,
+} from '@/lib/accounting-labels'
 import './crm-vars.css'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import React, {
@@ -5279,6 +5282,8 @@ function Contabilidad({ setActive }) {
   const [editarModal, setEditarModal] = useState(null);
   const [editarBusy, setEditarBusy] = useState(false);
   const [ledgerBusy, setLedgerBusy] = useState(false);
+  const [nuevaCategoria, setNuevaCategoria] = useState({ abierto: false, name: '', nature: 'EXPENSE' });
+  const [categoriaBusy, setCategoriaBusy] = useState(false);
   // Qué partes de la contabilidad no se pudieron cargar. Sin esto, un fallo del
   // servidor dejaba las listas vacías y la pantalla afirmaba «Sin asientos»: el
   // tesorero creía que se había perdido la contabilidad del club.
@@ -5326,7 +5331,9 @@ function Contabilidad({ setActive }) {
     applyWithholdOnExpense: false,
   })
   const tabs = ['Todos','Pendiente','Pago parcial','Vencido','Pagado'];
-  const contaTabs = ['COBROS', 'DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES'];
+  // Los identificadores siguen siendo los mismos; lo que cambia es lo que se lee.
+  const contaTabs = PESTANAS_CONTABLES.map((t) => t.id);
+  const pestanaActual = PESTANAS_CONTABLES.find((t) => t.id === contaTab);
   const cuentasTesoreria = ledgerData.accounts.filter((a) => String(a.code || '').startsWith('57') || String(a.code || '').startsWith('56'));
   const cuentasIngreso = ledgerData.accounts.filter((a) => a.nature === 'INCOME');
   const cuentasGasto = ledgerData.accounts.filter((a) => a.nature === 'EXPENSE');
@@ -5412,6 +5419,42 @@ function Contabilidad({ setActive }) {
   // Al cambiar cualquier filtro se vuelve a la primera página: si no, se
   // buscaría dentro de la página 3 del filtro anterior.
   useEffect(() => { setFacturasPage(1) }, [buscarCobro, tab, fechaDesde, fechaHasta])
+
+  /**
+   * Categorías que un club deportivo necesita de verdad.
+   *
+   * De fábrica solo hay tres cuentas de gasto («Compras», «Otros servicios»,
+   * «Sueldos»), así que el tesorero acababa metiendo arbitrajes, autobuses y
+   * equipaciones en el mismo saco y luego no podía explicar en qué se fue el
+   * dinero. El código contable lo pone el servidor.
+   */
+  const CATEGORIAS_SUGERIDAS = {
+    EXPENSE: ['Arbitrajes', 'Desplazamientos', 'Material deportivo', 'Equipaciones',
+              'Alquiler de instalaciones', 'Licencias y federación', 'Seguros', 'Mutualidad'],
+    INCOME: ['Patrocinios', 'Subvenciones', 'Rifas y sorteos', 'Bar y cantina',
+             'Inscripciones a torneos', 'Venta de material'],
+  }
+
+  async function crearCategoria(nombre, naturaleza) {
+    const name = String(nombre || '').trim()
+    if (!name || categoriaBusy) return
+    setCategoriaBusy(true)
+    try {
+      const r = await fetch('/api/crm/accounting/accounts', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, nature: naturaleza }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo crear la categoría'); return }
+      setNuevaCategoria({ abierto: false, name: '', nature: naturaleza })
+      await loadAccounting()
+      showAlert(`Categoría «${name}» creada. Ya puedes usarla al registrar un movimiento.`)
+    } finally {
+      setCategoriaBusy(false)
+    }
+  }
 
   const loadAccounting = useCallback(async () => {
     setLedgerBusy(true);
@@ -6374,17 +6417,20 @@ function Contabilidad({ setActive }) {
         </>)}
       {/* Tabs PGC + Cobros */}
       <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:999,padding:4,width:'fit-content'}}>
-        {contaTabs.map((t) => (
-          <button key={t} type="button" onClick={() => setContaTab(t)} style={{
+        {PESTANAS_CONTABLES.map((t) => (
+          <button key={t.id} type="button" onClick={() => setContaTab(t.id)} title={t.ayuda} style={{
             padding:'8px 18px',borderRadius:999,border:'none',cursor:'pointer',
-            background:contaTab===t?'var(--surface-card)':'transparent',
-            color:contaTab===t?'var(--accent)':'var(--text-muted)',
+            background:contaTab===t.id?'var(--surface-card)':'transparent',
+            color:contaTab===t.id?'var(--accent)':'var(--text-muted)',
             fontFamily:'inherit',fontSize:12,fontWeight:700,letterSpacing:'0.02em',
-            boxShadow: contaTab===t ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
+            boxShadow: contaTab===t.id ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
             transition:'all 0.15s'
-          }}>{t}</button>
+          }}>{t.label}</button>
         ))}
       </div>
+      {pestanaActual && (
+        <div style={{fontSize:13,color:'var(--text-secondary)',marginTop:-14}}>{pestanaActual.ayuda}</div>
+      )}
 
       <div style={{background:'var(--surface-card)',border:'1px solid var(--border)',borderRadius:12,padding:'16px 20px',display:'flex',gap:14,alignItems:'center',flexWrap:'wrap',boxShadow:'var(--card-shadow)'}}>
         <div style={{fontSize:12,fontWeight:700,color:'var(--text-primary)',minWidth:130,letterSpacing:'0.02em'}}>Configuración impuestos</div>
@@ -6453,7 +6499,7 @@ function Contabilidad({ setActive }) {
                   <div>
                     <div style={{fontSize:13,fontWeight:700,color:'#1c1917'}}>{e.entryNumber} · {e.concept}</div>
                     <div style={{fontSize:12,color:'#78716c'}}>
-                      {new Date(e.entryDate).toLocaleDateString('es-ES')} · {e.status} · {e.source}
+                      {new Date(e.entryDate).toLocaleDateString('es-ES')} · {etiqueta(ESTADO_ASIENTO, e.status)} · {etiqueta(ORIGEN_ASIENTO, e.source)}
                     </div>
                   </div>
                   {e.source === 'MANUAL' && e.sourceId && (
@@ -6508,36 +6554,178 @@ function Contabilidad({ setActive }) {
             {ledgerData.entries.length === 0 && <div style={{fontSize:13,color:'#78716c'}}>Sin asientos.</div>}
           </div>
         ) : contaTab === 'MAYOR' ? (
-          <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
-            {(ledgerData.reports?.trialBalance || []).map((r: any) => (
-              <div key={r.code} style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:12,padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10,fontSize:13}}>
-                <span>{r.code} · {r.name}</span>
-                <span>Debe {fmtMoney(r.debit)}</span>
-                <span>Haber {fmtMoney(r.credit)}</span>
-                <span>Saldo {fmtMoney((r.debit || 0) - (r.credit || 0))}</span>
-              </div>
-            ))}
+          <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:420,overflowY:'auto'}}>
+            {(ledgerData.reports?.trialBalance || []).length === 0 && (
+              <div style={{fontSize:13,color:'#78716c'}}>Todavía no hay movimientos contabilizados.</div>
+            )}
+            {(ledgerData.reports?.trialBalance || []).map((r: any) => {
+              // El saldo se pintaba siempre como debe − haber, así que los
+              // ingresos salían en NEGATIVO: la pantalla decía que el club había
+              // ingresado −4.200 €. Cada naturaleza tiene su signo.
+              const negativas = r.nature === 'INCOME' || r.nature === 'LIABILITY' || r.nature === 'EQUITY'
+              const saldo = negativas
+                ? (r.credit || 0) - (r.debit || 0)
+                : (r.debit || 0) - (r.credit || 0)
+              return (
+                <div key={r.code} style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) auto',gap:12,padding:'12px 14px',border:'1px solid var(--border)',borderRadius:10,fontSize:13,alignItems:'center'}}>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontWeight:600,color:'var(--text-primary)'}}>{r.name}</div>
+                    <div style={{fontSize:11.5,color:'var(--text-muted)',marginTop:2}}>
+                      {etiqueta(NATURALEZA_CUENTA, r.nature)} · {r.code}
+                    </div>
+                  </div>
+                  <div style={{textAlign:'right'}}>
+                    <div style={{fontWeight:700,fontSize:15,color: saldo < 0 ? 'var(--red)' : 'var(--text-primary)',fontVariantNumeric:'tabular-nums'}}>
+                      {fmtMoney(saldo)}
+                    </div>
+                    <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>
+                      Entradas {fmtMoney(r.debit)} · Salidas {fmtMoney(r.credit)}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         ) : contaTab === 'CUENTAS' ? (
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+              <span style={{fontSize:13,color:'var(--text-secondary)'}}>
+                Cada movimiento se clasifica en una de estas casillas. Cuantas más tengas, mejor
+                podrás explicar en qué se va el dinero.
+              </span>
+              <button type="button" onClick={() => setNuevaCategoria((v) => ({ ...v, abierto: !v.abierto }))}
+                style={{padding:'8px 16px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,whiteSpace:'nowrap'}}>
+                {nuevaCategoria.abierto ? 'Cerrar' : '+ Nueva categoría'}
+              </button>
+            </div>
+
+            {nuevaCategoria.abierto && (
+              <div style={{padding:16,border:'1px solid var(--border)',borderRadius:12,background:'var(--surface-low)',display:'flex',flexDirection:'column',gap:12}}>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  {['EXPENSE','INCOME'].map((nat) => (
+                    <button key={nat} type="button" onClick={() => setNuevaCategoria((v) => ({ ...v, nature: nat }))}
+                      style={{padding:'7px 16px',borderRadius:999,border:'1px solid var(--border)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,
+                        background: nuevaCategoria.nature === nat ? 'var(--accent)' : 'var(--surface-card)',
+                        color: nuevaCategoria.nature === nat ? '#fff' : 'var(--text-secondary)'}}>
+                      {nat === 'EXPENSE' ? 'Un gasto' : 'Un ingreso'}
+                    </button>
+                  ))}
+                </div>
+
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:'var(--text-muted)',marginBottom:8}}>
+                    Las más habituales en un club — pulsa para añadirla
+                  </div>
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                    {CATEGORIAS_SUGERIDAS[nuevaCategoria.nature]
+                      .filter((c) => !ledgerData.accounts.some((a) => a.name.toLowerCase() === c.toLowerCase()))
+                      .map((c) => (
+                        <button key={c} type="button" disabled={categoriaBusy}
+                          onClick={() => crearCategoria(c, nuevaCategoria.nature)}
+                          style={{padding:'6px 12px',borderRadius:999,border:'1px dashed var(--border-strong)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:categoriaBusy?'wait':'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                          + {c}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  <input
+                    value={nuevaCategoria.name}
+                    onChange={(e) => setNuevaCategoria((v) => ({ ...v, name: e.target.value }))}
+                    placeholder="…o escribe otra"
+                    style={{flex:'1 1 200px',minWidth:180,padding:'9px 12px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,background:'var(--surface-card)'}}
+                  />
+                  <button type="button" disabled={categoriaBusy || !nuevaCategoria.name.trim()}
+                    onClick={() => crearCategoria(nuevaCategoria.name, nuevaCategoria.nature)}
+                    style={{padding:'9px 16px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:categoriaBusy?'wait':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity: nuevaCategoria.name.trim() ? 1 : 0.5}}>
+                    Crear
+                  </button>
+                </div>
+              </div>
+            )}
+
           <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:380,overflowY:'auto'}}>
+            {ledgerData.accounts.length === 0 && (
+              <div style={{fontSize:13,color:'#78716c'}}>No hay categorías todavía.</div>
+            )}
             {ledgerData.accounts.map((a) => (
-              <div key={a.id} style={{padding:'10px 12px',border:'1px solid var(--border)',borderRadius:10,fontSize:13}}>
-                {a.code} · {a.name} · {a.nature}
+              <div key={a.id} style={{display:'flex',justifyContent:'space-between',gap:12,padding:'12px 14px',border:'1px solid var(--border)',borderRadius:10,fontSize:13,alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:600,color:'var(--text-primary)'}}>{a.name}</div>
+                  <div style={{fontSize:11.5,color:'var(--text-muted)',marginTop:2}}>{a.code}</div>
+                </div>
+                <span style={{fontSize:11.5,fontWeight:700,color:'var(--accent)',background:'var(--accent-pill)',padding:'3px 10px',borderRadius:999,whiteSpace:'nowrap'}}>
+                  {etiqueta(NATURALEZA_CUENTA, a.nature)}
+                </span>
               </div>
             ))}
           </div>
-        ) : (
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-            <div style={{padding:12,border:'1px solid var(--border)',borderRadius:10}}>
-              <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Balance comprobación</div>
-              <div style={{fontSize:12,color:'#57534e'}}>Debe {fmtMoney(ledgerData.reports?.totals?.debit || 0)} · Haber {fmtMoney(ledgerData.reports?.totals?.credit || 0)}</div>
-            </div>
-            <div style={{padding:12,border:'1px solid var(--border)',borderRadius:10}}>
-              <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>Periodos fiscales</div>
-              <div style={{fontSize:12,color:'#57534e'}}>{ledgerData.periods.length} periodos ({ledgerData.periods.filter((p) => p.isClosed).length} cerrados)</div>
-            </div>
           </div>
-        )}
+        ) : (() => {
+          const pnl = ledgerData.reports?.pnl || []
+          const ingresos = pnl.filter((r: any) => r.nature === 'INCOME')
+          const gastos = pnl.filter((r: any) => r.nature === 'EXPENSE')
+          const totalIng = ingresos.reduce((a: number, r: any) => a + Number(r.balance || 0), 0)
+          const totalGas = gastos.reduce((a: number, r: any) => a + Number(r.balance || 0), 0)
+          const resultado = totalIng - totalGas
+          const cuadra =
+            Math.abs(Number(ledgerData.reports?.totals?.debit || 0) - Number(ledgerData.reports?.totals?.credit || 0)) < 0.01
+
+          const columna = (titulo, filas, total, color) => (
+            <div style={{padding:16,border:'1px solid var(--border)',borderRadius:12,background:'var(--surface-card)'}}>
+              <div style={{fontWeight:700,fontSize:13,marginBottom:12,color:'var(--text-primary)'}}>{titulo}</div>
+              {filas.length === 0 ? (
+                <div style={{fontSize:12.5,color:'var(--text-muted)'}}>Nada registrado todavía.</div>
+              ) : (
+                <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                  {filas.map((r: any) => (
+                    <div key={r.code} style={{display:'flex',justifyContent:'space-between',gap:10,fontSize:13}}>
+                      <span style={{color:'var(--text-secondary)',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.name}</span>
+                      <span style={{fontWeight:600,fontVariantNumeric:'tabular-nums',whiteSpace:'nowrap'}}>{fmtMoney(r.balance)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{display:'flex',justifyContent:'space-between',gap:10,marginTop:12,paddingTop:10,borderTop:'1px solid var(--border)',fontSize:14,fontWeight:700}}>
+                <span>Total</span>
+                <span style={{color,fontVariantNumeric:'tabular-nums'}}>{fmtMoney(total)}</span>
+              </div>
+            </div>
+          )
+
+          return (
+            <div style={{display:'flex',flexDirection:'column',gap:16}}>
+              <div style={{padding:'18px 20px',borderRadius:12,background: resultado >= 0 ? 'var(--green-light)' : 'var(--red-light)'}}>
+                <div style={{fontSize:12,fontWeight:700,letterSpacing:'0.04em',textTransform:'uppercase',color:'var(--text-muted)'}}>
+                  Resultado de {new Date().getFullYear()}
+                </div>
+                <div style={{fontSize:30,fontWeight:700,marginTop:4,color: resultado >= 0 ? 'var(--green)' : 'var(--red)',fontVariantNumeric:'tabular-nums'}}>
+                  {fmtMoney(resultado)}
+                </div>
+                <div style={{fontSize:13,color:'var(--text-secondary)',marginTop:4}}>
+                  {fmtMoney(totalIng)} ingresado − {fmtMoney(totalGas)} gastado
+                </div>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))',gap:14}}>
+                {columna('De dónde viene el dinero', ingresos, totalIng, 'var(--green)')}
+                {columna('En qué se ha ido', gastos, totalGas, 'var(--red)')}
+              </div>
+
+              {/* El cuadre es lo que dice si la contabilidad es fiable: si no
+                  cuadra, cualquier cifra de arriba puede estar mal. */}
+              <div style={{padding:'12px 16px',borderRadius:10,border:'1px solid var(--border)',fontSize:13,display:'flex',alignItems:'center',gap:8}}>
+                <span style={{color: cuadra ? 'var(--green)' : 'var(--red)',fontWeight:800}}>{cuadra ? '✓' : '✕'}</span>
+                <span style={{color:'var(--text-secondary)'}}>
+                  {cuadra
+                    ? 'Las cuentas cuadran: cada movimiento tiene su contrapartida.'
+                    : 'Las cuentas NO cuadran. Avisa al soporte antes de dar por buenas estas cifras.'}
+                </span>
+              </div>
+            </div>
+          )
+        })()}
       </div>
       )}
 
