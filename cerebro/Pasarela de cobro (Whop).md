@@ -54,6 +54,14 @@ De ahí salen dos reglas no negociables:
 
 `syncDefaultPayoutMethod` (`payouts.ts:319`) autocura el caso «guardada en la pasarela pero no en el CRM»: sin eso, el barrido diría «sin cuenta bancaria» para siempre mientras el club ve su cuenta en pantalla.
 
+## Dónde lo ve el club: Contabilidad → Banco
+
+`src/components/crm/BancoSection.tsx` (sección `banco`, solo ADMIN y TREASURER en `rbac.ts`) reúne saldos, cuenta bancaria, programación del barrido, «Transferir ahora», historial y el acceso al extracto. El panel en sí es `PayoutsPanel.tsx`.
+
+Antes vivía **dentro del modal de Ajustes del club**, donde nadie busca su dinero; ahí queda solo conectar la pasarela y un puntero. Si tocas esto, el modal y la sección no deben volver a tener cada uno su copia del panel.
+
+`/api/crm/data` expone `club.country` (decide qué campos bancarios pide `supported_methods`) y `club.whopConectado` (sin ello la sección no puede distinguir «no conectado» de «error al cargar» y pediría saldos que nunca llegan).
+
 ## Cosas que no se hacen y por qué
 
 - **No se reenvía `e.message` de la pasarela al navegador** (`friendly`, `payouts.ts:85`): va en inglés y puede llevar dentro el dato bancario que causó el error.
