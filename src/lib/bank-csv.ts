@@ -117,9 +117,84 @@ function findCol(headers: string[], keys: string[]): number {
   return -1
 }
 
-export function parseBankCsvContent(
+export type BankCsvColumnas = {
+  date: number
+  amount: number
+  description: number
+  reference: number
+}
+
+export type BankCsvPreview = {
+  ok: boolean
+  error?: string
+  delimiter: ';' | ','
+  cabeceras: string[]
+  /** Columnas detectadas; -1 cuando no se ha reconocido ninguna. */
+  detectado: BankCsvColumnas
+  /** Se reconocieron las cabeceras, o se está adivinando por posición. */
+  reconocido: boolean
+  /** Primeras filas en crudo, para que el usuario compruebe qué es cada columna. */
+  muestra: string[][]
+  totalFilas: number
+}
+
+/**
+ * Lee el fichero sin importar nada, para poder enseñar qué ha entendido.
+ *
+ * Si el banco exporta con cabeceras que el importador no conoce, se caía a
+ * suponer Fecha=0, Concepto=1, Importe=2 y lo importaba igual. Con un banco que
+ * ponga las columnas en otro orden, eso mete importes en el concepto y fechas
+ * inventadas en la contabilidad, sin que nadie lo vea hasta mucho después.
+ */
+export function previewBankCsvContent(
   content: string,
   opts?: { delimiter?: ';' | ',' | 'auto' },
+): BankCsvPreview {
+  const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0)
+  const vacio: BankCsvPreview = {
+    ok: false,
+    delimiter: ';',
+    cabeceras: [],
+    detectado: { date: -1, amount: -1, description: -1, reference: -1 },
+    reconocido: false,
+    muestra: [],
+    totalFilas: 0,
+  }
+  if (lines.length < 1) return { ...vacio, error: 'El archivo está vacío.' }
+
+  let delimiter: ';' | ',' = ';'
+  if (opts?.delimiter && opts.delimiter !== 'auto') delimiter = opts.delimiter
+  else {
+    const first = lines[0]
+    delimiter = (first.match(/;/g) || []).length >= (first.match(/,/g) || []).length ? ';' : ','
+  }
+
+  const cabeceras = splitRow(lines[0], delimiter)
+  const detectado = {
+    date: findCol(cabeceras, DATE_KEYS),
+    amount: findCol(cabeceras, AMOUNT_KEYS),
+    description: findCol(cabeceras, DESC_KEYS),
+    reference: findCol(cabeceras, REF_KEYS),
+  }
+  const reconocido = detectado.date >= 0 && detectado.amount >= 0 && detectado.description >= 0
+  // Si no se reconocen las cabeceras, la primera fila puede ser ya un dato.
+  const desde = reconocido ? 1 : 0
+  return {
+    ok: true,
+    delimiter,
+    cabeceras,
+    detectado: reconocido
+      ? detectado
+      : { date: 0, amount: cabeceras.length >= 3 ? 2 : 1, description: 1, reference: -1 },
+    reconocido,
+    muestra: lines.slice(desde, desde + 4).map((l) => splitRow(l, delimiter)),
+    totalFilas: Math.max(0, lines.length - desde),
+  }
+}
+
+export function parseBankCsvContent(
+  content: string,
+  opts?: { delimiter?: ';' | ',' | 'auto'; columnas?: BankCsvColumnas; saltarCabecera?: boolean },
 ): BankCsvParseResult {
   const warnings: string[] = []
   const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0)
@@ -144,6 +219,19 @@ export function parseBankCsvContent(
   let refIdx = findCol(headerCells, REF_KEYS)
 
   let dataStart = 1
+
+  // Si el usuario ha dicho explícitamente qué columna es cuál en la
+  // previsualización, manda él: su banco lo sabe mejor que estas heurísticas.
+  if (opts?.columnas) {
+    dateIdx = opts.columnas.date
+    amountIdx = opts.columnas.amount
+    descIdx = opts.columnas.description
+    refIdx = opts.columnas.reference
+    dataStart = opts.saltarCabecera === false ? 0 : 1
+    const rows = leerFilas(lines, dataStart, delimiter, dateIdx, amountIdx, descIdx, refIdx, warnings)
+    if (rows.length === 0) warnings.push('No se importó ninguna fila válida.')
+    return { rows, warnings }
+  }
   if (dateIdx < 0 || amountIdx < 0 || descIdx < 0) {
     warnings.push(
       'Cabeceras no reconocidas; usando columnas Fecha=0, Concepto=1, Importe=2 si hay al menos 3 columnas.',
@@ -156,6 +244,21 @@ export function parseBankCsvContent(
     if (dataStart === 1 && lines.length < 2) return { rows: [], warnings }
   }
 
+  const rows = leerFilas(lines, dataStart, delimiter, dateIdx, amountIdx, descIdx, refIdx, warnings)
+  if (rows.length === 0) warnings.push('No se importó ninguna fila válida.')
+  return { rows, warnings }
+}
+
+function leerFilas(
+  lines: string[],
+  dataStart: number,
+  delimiter: ';' | ',',
+  dateIdx: number,
+  amountIdx: number,
+  descIdx: number,
+  refIdx: number,
+  warnings: string[],
+): BankCsvParseResult['rows'] {
   const rows: BankCsvParseResult['rows'] = []
   for (let i = dataStart; i < lines.length; i++) {
     const cells = splitRow(lines[i], delimiter)
@@ -174,7 +277,5 @@ export function parseBankCsvContent(
 
     rows.push({ date, signedAmount, description, reference, raw: cells })
   }
-
-  if (rows.length === 0) warnings.push('No se importó ninguna fila válida.')
-  return { rows, warnings }
+  return rows
 }

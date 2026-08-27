@@ -6,7 +6,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { normalizeRole } from '@/lib/rbac'
 import { runWithTenant } from '@/lib/multitenant/request'
-import { parseBankCsvContent } from '@/lib/bank-csv'
+import { parseBankCsvContent, previewBankCsvContent, type BankCsvColumnas } from '@/lib/bank-csv'
 import { recordManualInvoicePayment } from '@/app/actions/billing'
 
 /**
@@ -51,15 +51,30 @@ function huellaFila(
   return `${dia}|${importe}|${concepto}|${repeticion}`
 }
 
+/** Lee el fichero sin importar nada, para enseñar qué columna ha entendido cada cosa. */
+export async function previewBankCsv(data: { content: string; delimiter?: ';' | ',' | 'auto' }) {
+  return runWithTenant(async () => {
+    await assertAccountingStaff()
+    return previewBankCsvContent(data.content, { delimiter: data.delimiter ?? 'auto' })
+  })
+}
+
 export async function importBankCsv(data: {
   content: string
   fileName?: string | null
   note?: string | null
   delimiter?: ';' | ',' | 'auto'
+  /** Columnas confirmadas por el usuario en la previsualización. */
+  columnas?: BankCsvColumnas
+  saltarCabecera?: boolean
 }) {
   return runWithTenant(async () => {
   await assertAccountingStaff()
-  const parsed = parseBankCsvContent(data.content, { delimiter: data.delimiter ?? 'auto' })
+  const parsed = parseBankCsvContent(data.content, {
+    delimiter: data.delimiter ?? 'auto',
+    columnas: data.columnas,
+    saltarCabecera: data.saltarCabecera,
+  })
   if (parsed.rows.length === 0) {
     return { success: false as const, error: parsed.warnings.join(' ') || 'Sin filas válidas' }
   }

@@ -5435,6 +5435,29 @@ function Contabilidad({ setActive }) {
              'Inscripciones a torneos', 'Venta de material'],
   }
 
+  async function cerrarPeriodo(periodo, cerrar) {
+    const ok = await showConfirm({
+      title: cerrar ? `Cerrar ${periodo.code}` : `Reabrir ${periodo.code}`,
+      message: cerrar
+        ? 'Un periodo cerrado queda como constancia de que esas cuentas ya estan dadas por buenas.\n\nPuedes reabrirlo cuando quieras.'
+        : 'Vuelve a quedar abierto para poder corregir sus movimientos.',
+      confirmLabel: cerrar ? 'Cerrar periodo' : 'Reabrir',
+    }).catch(() => false)
+    if (!ok) return
+    const r = await fetch('/api/crm/accounting/periods/' + encodeURIComponent(periodo.id), {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isClosed: cerrar }),
+    })
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}))
+      showAlert(j.error || 'No se pudo cambiar el periodo')
+      return
+    }
+    await loadAccounting()
+  }
+
   async function crearCategoria(nombre, naturaleza) {
     const name = String(nombre || '').trim()
     if (!name || categoriaBusy) return
@@ -6712,6 +6735,30 @@ function Contabilidad({ setActive }) {
                 {columna('De dónde viene el dinero', ingresos, totalIng, 'var(--green)')}
                 {columna('En qué se ha ido', gastos, totalGas, 'var(--red)')}
               </div>
+
+              {ledgerData.periods.length > 0 && (
+                <div style={{padding:16,border:'1px solid var(--border)',borderRadius:12}}>
+                  <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>Meses cerrados</div>
+                  <div style={{fontSize:12.5,color:'var(--text-muted)',marginBottom:12}}>
+                    Cerrar un mes deja constancia de que esas cuentas ya están dadas por buenas.
+                  </div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                    {[...ledgerData.periods]
+                      .sort((a, b) => String(b.code).localeCompare(String(a.code)))
+                      .slice(0, 14)
+                      .map((per) => (
+                        <button key={per.id} type="button" onClick={() => cerrarPeriodo(per, !per.isClosed)}
+                          title={per.isClosed ? 'Pulsa para reabrirlo' : 'Pulsa para cerrarlo'}
+                          style={{padding:'6px 12px',borderRadius:999,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,
+                            border:`1px solid ${per.isClosed ? 'var(--green)' : 'var(--border)'}`,
+                            background: per.isClosed ? 'var(--green-light)' : 'var(--surface-card)',
+                            color: per.isClosed ? 'var(--green)' : 'var(--text-secondary)'}}>
+                          {per.isClosed ? '✓ ' : ''}{per.code}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
 
               {/* El cuadre es lo que dice si la contabilidad es fiable: si no
                   cuadra, cualquier cifra de arriba puede estar mal. */}
