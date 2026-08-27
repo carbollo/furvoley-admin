@@ -635,7 +635,7 @@ const NAV = [
     children: [
       { id: 'contabilidad', label: 'Sumario' },
       { id: 'facturas', label: 'Facturas' },
-      { id: 'cuotas', label: 'Suscripciones' },
+      { id: 'cuotas', label: 'Cuotas' },
       { id: 'impagos', label: 'Impagos' },
       { id: 'productos', label: 'Productos' },
       { id: 'descuentos', label: 'Descuentos' },
@@ -3113,9 +3113,13 @@ function ProductosSection() {
       title="Productos"
       subtitle="Cobros más allá de la cuota: equipaciones, eventos y pagos únicos"
       actions={
-        <a href="/admin/store" style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',fontFamily:'inherit',fontSize:13,fontWeight:600,textDecoration:'none'}}>
-          Tienda completa (stock, imágenes) →
-        </a>
+        // La tienda completa exige ADMIN y la pantalla no lo comprueba: a un
+        // tesorero le abría una página de error del servidor. Se le oculta.
+        role === 'ADMIN' ? (
+          <a href="/admin/store" style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',fontFamily:'inherit',fontSize:13,fontWeight:600,textDecoration:'none'}}>
+            Tienda completa (stock, imágenes) →
+          </a>
+        ) : null
       }
     >
       {/* Pantalla de creación (nombre, tipo, precio) */}
@@ -5676,11 +5680,11 @@ function Contabilidad({ setActive }) {
         const count = Number(result?.count || 0)
         showAlert(
           count > 0
-            ? `${count} cobros creados. Cada jugador los verá en Mis pagos con el botón Pagar.`
-            : 'Cobros creados. Cada jugador los verá en Mis pagos con el botón Pagar.',
+            ? `${count} facturas creadas. Cada jugador la verá en Mis pagos con el botón Pagar.`
+            : 'Facturas creadas. Cada jugador la verá en Mis pagos con el botón Pagar.',
         )
       } else {
-        showAlert('Cobro creado. El socio lo verá en Mis pagos con el botón Pagar.')
+        showAlert('Factura creada. El socio la verá en Mis pagos con el botón Pagar.')
       }
     } finally {
       setNuevoCobroBusy(false)
@@ -6356,7 +6360,7 @@ function Contabilidad({ setActive }) {
       <div style={{background:'var(--surface-card)',borderRadius:12,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)',overflow:'hidden'}}>
         <div style={{padding:'24px 32px',borderBottom:'1px solid var(--border)',display:'flex',justifyContent:'space-between',alignItems:'center',gap:16,flexWrap:'wrap'}}>
           <div>
-            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Facturación Reciente</div>
+            <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Últimas facturas</div>
             <div style={{fontSize:13,color:'var(--text-muted)',marginTop:4}}>Historial de pagos y cobros</div>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
@@ -6509,7 +6513,7 @@ function Contabilidad({ setActive }) {
                   onClick={async () => { setMenuCobroId(null); await eliminarCobro(cobroActivo) }}
                   style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:deletingCobroId === cobroActivo.id ? 'not-allowed' : 'pointer',fontFamily:'inherit',fontSize:13,color:'var(--red)',fontWeight:600,opacity:deletingCobroId === cobroActivo.id ? 0.65 : 1}}
                 >
-                  {deletingCobroId === cobroActivo.id ? 'Eliminando…' : 'Eliminar cobro'}
+                  {deletingCobroId === cobroActivo.id ? 'Eliminando…' : 'Eliminar factura'}
                 </button>
               </>
             )
@@ -6732,7 +6736,7 @@ function Contabilidad({ setActive }) {
             }}
           >
             <div style={{ marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#1c1917' }}>Nuevo cobro</h3>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#1c1917' }}>Nueva factura</h3>
               <p style={{ margin: '6px 0 0', fontSize: 13, color: '#8c857d' }}>
                 Crea un cobro manual sin salir de esta vista.
               </p>
@@ -6932,7 +6936,7 @@ function Contabilidad({ setActive }) {
                   ? 'Creando…'
                   : nuevoCobroForm.target === 'team'
                     ? `Crear ${countTeamPlayers(EQUIPOS_UI.find((eq) => eq.id === nuevoCobroForm.groupId) || {}) || 0} cobros`
-                    : 'Crear cobro'}
+                    : 'Crear factura'}
               </button>
             </div>
           </form>

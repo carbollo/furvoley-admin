@@ -87,6 +87,17 @@ export async function runExtendedWorkflowAction(
     runContext.variables.stepApplied = 'true'
     runContext.variables.stepError = ''
   }
+  /**
+   * El paso se ejecutó pero no había nada que hacer.
+   *
+   * Distinto de «aplicado»: marcar como aplicado algo que no ha hecho nada hace
+   * que el club dé por funcionando un automatismo que en realidad está vacío.
+   */
+  const setStepSkipped = (motivo: string) => {
+    runContext.variables.stepApplied = 'false'
+    runContext.variables.stepSkipped = String(motivo || '').trim()
+    runContext.variables.stepError = ''
+  }
 
   async function resolveWorkflowWhatsAppSessionId(explicitSessionId?: string) {
     const explicit = String(explicitSessionId || '').trim()
@@ -319,7 +330,10 @@ export async function runExtendedWorkflowAction(
     }
     const rules = await prisma.discountRule.findMany({ where: { isActive: true } })
     if (rules.length === 0) {
-      setStepApplied()
+      // «Aplicado» sobre algo que no ha hecho nada: el historial del flujo decía
+      // que el descuento se había aplicado cuando en realidad no había ninguna
+      // regla configurada, y el club daba por hecho que estaba funcionando.
+      setStepSkipped('no hay reglas de descuento configuradas')
       return true
     }
     let siblings = 0

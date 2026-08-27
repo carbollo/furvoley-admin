@@ -32,7 +32,7 @@ export async function PATCH(
     select: { id: true, status: true },
   })
   if (!existing) {
-    return NextResponse.json({ error: 'Cobro no encontrado' }, { status: 404 })
+    return NextResponse.json({ error: 'Factura no encontrada' }, { status: 404 })
   }
   if (existing.status === 'PAID' || existing.status === 'VOID') {
     return NextResponse.json({ error: 'La factura ya está cerrada' }, { status: 400 })
@@ -67,7 +67,7 @@ export async function DELETE(
     select: { id: true, paidAmount: true, invoiceNumber: true },
   })
   if (!existing) {
-    return NextResponse.json({ error: 'Cobro no encontrado' }, { status: 404 })
+    return NextResponse.json({ error: 'Factura no encontrada' }, { status: 404 })
   }
 
   // Borrar una factura arrastra su ingreso y su asiento contable. Si ya se cobró
