@@ -88,6 +88,26 @@ Todos los enlaces de cobro salen de **`createInvoiceCheckoutUrl`** (`src/lib/pay
 
 `billing.ts` **no lleva `'use server'`** deliberadamente: sus funciones NO son server actions RPC — solo las invocan, ya autorizadas, las rutas API (`requireRoles`), el webhook (firma) y los crons (Bearer). Tenerlo antes exponía cobros/planes/facturas como endpoints RPC invocables por cualquier cliente autenticado. Ver [[Server actions y seguridad]] y [[Auditoría de seguridad]].
 
+## Invariantes del dinero (auditoría de UX, ago-2026)
+
+Cosas que se arreglaron y que **romper vuelve a crear el mismo fallo**:
+
+- **Un solo formateador de importes**: `src/lib/format-money.ts`, `es-ES` y **dos decimales siempre**. Antes convivían cinco formatos y el del CRM redondeaba a euros enteros (`format(12.99)` → «EUR 13»), así que ninguna columna sumaba su propio total ni cuadraba con el banco.
+- **La matrícula se cobra una vez por SOCIO, no por suscripción** (`billing.ts`, `createInvoiceForSubscription`). Al reasignar una cuota se creaba una suscripción sin facturas previas y volvía a caer entera.
+- **«Lo que nos deben» sale de una consulta propia sobre TODAS las facturas abiertas** (`api/crm/data/route.ts`), no de la lista de facturas, que está limitada a 120. Sumario, Impagos e Informes leen de ahí: `cobrosPendientesMonto` (todo) y `deudaVencidaMonto` (solo vencido).
+- **Los avisos de cobro se redactan en `src/lib/reminder-message.ts`**, y saludan al tutor cuando el número es el suyo. Si el socio debe varios recibos, el mensaje dice que el enlace cubre solo uno.
+- **Un aviso solo bloquea el reintento si de verdad se envió** (`ReminderLog.status === 'SENT'`). Antes cualquier registro bloqueaba, así que un aviso que nunca salió no se reintentaba jamás.
+- **Una factura con cobros no se borra** (409 en `invoices/[id]` DELETE): borrarla arrastra el ingreso y su asiento.
+- **El Diario anula con contra-asiento**, no borra (`entries/[id]/reverse`).
+- **`crmInvoiceEstado` distingue «Pago parcial»**: una factura de 60 € con 30 cobrados no puede leerse igual que una intacta.
+
+## Conciliación bancaria
+
+Vive en [[Contabilidad]], pero dos reglas se deciden aquí:
+
+- **Conciliar puede SALDAR la factura** (`payInvoiceFromBankLine` en `actions/bank-import.ts`): registra el cobro de verdad y engancha la línea al `Transaction` resultante. Antes solo emparejaba con un movimiento existente, el socio seguía debiendo, y marcar la factura pagada después contaba el ingreso dos veces.
+- **Cada fila del extracto lleva `fingerprint` `@unique`** = fecha + importe + concepto normalizado + **índice de repetición**. El índice no es opcional: sin él, dos familias que pagan 30 € el mismo día con el mismo concepto perderían la segunda transferencia.
+
 ## Relacionado
 
 - [[Contabilidad]]
