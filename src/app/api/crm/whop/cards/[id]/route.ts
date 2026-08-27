@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/rbac-api'
+import { consumeRateLimit } from '@/lib/rate-limit'
 import { updateCard } from '@/lib/whop/cards'
 
 export const dynamic = 'force-dynamic'
@@ -15,6 +16,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!auth.ok) return auth.response
 
   const { id } = await params
+
+  const frenado = await consumeRateLimit({
+    clave: `cards-update:${auth.session?.user?.id || 'anon'}`,
+    max: 30,
+    ventanaMs: 10 * 60_000,
+  })
+  if (!frenado.permitido) {
+    return NextResponse.json(
+      { error: 'Demasiados cambios seguidos. Espera un momento y vuelve a intentarlo.' },
+      { status: 429, headers: { 'Retry-After': String(frenado.reintentarEnS) } },
+    )
+  }
 
   let body: {
     frozen?: unknown

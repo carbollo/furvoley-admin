@@ -31,6 +31,12 @@ export type PortalSsoPayload = {
    *  rechaza el token si el subdominio resuelto no coincide. Evita que un token
    *  minteado para el club A sea canjeable en el subdominio del club B. */
   tenant: string | null
+  /**
+   * El proveedor del CRM ha entrado con la identidad de un admin del club.
+   * Sin esta marca, dentro del CRM una impersonación es indistinguible de la
+   * sesión real de ese admin, y no se puede excluir de lo que ve el club.
+   */
+  imp?: boolean
   exp: number
   iss: 'furvoley-portal'
 }
@@ -152,6 +158,7 @@ export function createPortalSsoToken(
   user: PortalVerifiedUser,
   secret = getPortalSsoSecret(),
   tenantSlug: string | null = null,
+  opts: { impersonated?: boolean } = {},
 ) {
   if (!secret) throw new Error('PORTAL_SSO_SECRET missing')
   const payload: PortalSsoPayload = {
@@ -162,6 +169,7 @@ export function createPortalSsoToken(
     memberId: user.memberId,
     mustChangePassword: user.mustChangePassword,
     tenant: tenantSlug,
+    ...(opts.impersonated ? { imp: true } : {}),
     exp: Date.now() + SSO_TTL_MS,
     iss: SSO_ISSUER,
   }
@@ -254,6 +262,7 @@ export async function buildPortalSessionCookie(payload: PortalSsoPayload) {
       mustChangePassword: payload.mustChangePassword,
       // Liga la cookie de sesión al club (anti reuso cross-tenant en requireRoles).
       tenant: payload.tenant ?? null,
+      impersonated: payload.imp === true,
     },
     secret,
     maxAge,

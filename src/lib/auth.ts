@@ -175,12 +175,14 @@ export const authOptions: NextAuthOptions = {
           memberId?: string | null
           mustChangePassword?: boolean
           tenant?: string | null
+          impersonated?: boolean
         }
         u.role = normalizeRole(token.role)
         u.id = token.id as string
         u.memberId = (token.memberId as string | null | undefined) ?? null
         u.mustChangePassword = token.mustChangePassword === true
         u.tenant = (token.tenant as string | null | undefined) ?? null
+        u.impersonated = token.impersonated === true
         // SEGURIDAD cross-tenant: si la sesión no pertenece al club activo (p.ej. un
         // token de otro club reenviado a este host), se invalida el usuario para que
         // TODA ruta que use getServerSession la trate como no autenticada. Es el

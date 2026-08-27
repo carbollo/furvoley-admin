@@ -45,6 +45,9 @@ export async function jitTenantUserSession(payload: PortalSsoPayload): Promise<P
     memberId: user.memberId ?? null,
     mustChangePassword: user.mustChangePassword === true,
     tenant: payload.tenant ?? null,
+    // Se arrastra: si se perdiera aquí, la impersonación entraría en el CRM sin
+    // marca y quedaría registrada como si fuera el propio club.
+    ...(payload.imp ? { imp: true as const } : {}),
     exp: payload.exp,
     iss: payload.iss,
   }

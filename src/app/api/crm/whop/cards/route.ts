@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
+import { consumeRateLimit } from '@/lib/rate-limit'
 import {
   checkCardScopes,
   createCard,
@@ -9,6 +11,29 @@ import {
 } from '@/lib/whop/cards'
 
 export const dynamic = 'force-dynamic'
+/**
+ * Cuatro llamadas a la pasarela, cada una con su propio tiempo de espera. El
+ * tope explicito evita que la peticion quede colgando si la pasarela va lenta.
+ */
+export const maxDuration = 60
+
+/**
+ * Rechaza la peticion cuando se pasa del limite. Devuelve la respuesta ya hecha
+ * o `null` si puede seguir.
+ */
+async function frenar(
+  clave: string,
+  max: number,
+  ventanaMs: number,
+  mensaje: string,
+): Promise<NextResponse | null> {
+  const r = await consumeRateLimit({ clave, max, ventanaMs })
+  if (r.permitido) return null
+  return NextResponse.json(
+    { error: mensaje },
+    { status: 429, headers: { 'Retry-After': String(r.reintentarEnS) } },
+  )
+}
 
 /**
  * Todo lo que necesita la pestaña Banco para pintar las tarjetas.
@@ -20,6 +45,17 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request) {
   const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
+
+  const quien = auth.session?.user?.id || 'anon'
+  // Cada carga son cuatro llamadas a la pasarela: recargar en bucle agotaria su
+  // cuota y dejaria al club sin cobrar.
+  const frenado = await frenar(
+    `cards-list:${quien}`,
+    60,
+    5 * 60_000,
+    'Demasiadas consultas seguidas. Espera un momento y vuelve a cargar la pantalla.',
+  )
+  if (frenado) return frenado
 
   const [cards, movements, scopes] = await Promise.all([
     listCards(),
@@ -37,6 +73,30 @@ export async function GET(request: Request) {
   const puedeEmitir = esAdmin && scopes.every((s) => s.granted)
   const holders = puedeEmitir ? await listCardHolders() : null
 
+  // Quien ha visto los numeros de tarjeta. Es informacion de control interno del
+  // club, asi que solo la ve quien puede tomar medidas.
+  const ajustes = await prisma.clubSettings
+    .findUnique({
+      where: { isDefault: true },
+      select: { cardDefaultLimit: true, cardDefaultLimitPeriod: true },
+    })
+    .catch(() => null)
+
+  const vistas = esAdmin
+    ? await prisma.cardViewLog
+        .findMany({ orderBy: { createdAt: 'desc' }, take: 20 })
+        .then((rows) =>
+          rows.map((v) => ({
+            id: v.id,
+            cardId: v.cardId,
+            cardLast4: v.cardLast4,
+            userName: v.userName || v.userEmail || 'Alguien de administración',
+            createdAt: v.createdAt.toISOString(),
+          })),
+        )
+        .catch(() => [])
+    : []
+
   return NextResponse.json({
     connected: cards.ok || !/no está conectada/.test(cards.error),
     cards: cards.ok ? cards.cards : [],
@@ -46,6 +106,11 @@ export async function GET(request: Request) {
     hayMasMovimientos: movements.ok ? movements.hayMas : false,
     holders: holders?.ok ? holders.holders : [],
     scopes,
+    vistas,
+    topePorDefecto: {
+      importe: ajustes?.cardDefaultLimit ?? null,
+      periodo: ajustes?.cardDefaultLimitPeriod || 'monthly',
+    },
   })
 }
 
@@ -97,10 +162,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Petición mal formada. Recarga la página.' }, { status: 400 })
   }
 
+  // Emitir tarjetas en serie con una sesion robada es el peor escenario de esta
+  // pantalla, y no hay ninguna razon legitima para emitir muchas de golpe.
+  const frenadoEmitir = await frenar(
+    `cards-create:${auth.session?.user?.id || 'anon'}`,
+    5,
+    60 * 60_000,
+    'Has emitido varias tarjetas seguidas. Espera una hora antes de emitir otra, o revisa la lista por si ya está.',
+  )
+  if (frenadoEmitir) return frenadoEmitir
+
+  // Si no se indica tope, manda el que el club tenga puesto por defecto. Se
+  // resuelve AQUI y no en la pantalla: un cliente que no mandara el campo se
+  // llevaria una tarjeta sin limite.
+  const porDefecto = await prisma.clubSettings
+    .findUnique({
+      where: { isDefault: true },
+      select: { cardDefaultLimit: true, cardDefaultLimitPeriod: true },
+    })
+    .catch(() => null)
+
+  const limiteFinal = limite ?? porDefecto?.cardDefaultLimit ?? null
+  const frecuenciaFinal =
+    body.spendLimitFrequency === undefined && limite == null
+      ? porDefecto?.cardDefaultLimitPeriod || 'monthly'
+      : frecuencia
+
   const res = await createCard({
     name: String(body.name || ''),
-    spendLimit: limite,
-    spendLimitFrequency: frecuencia as 'daily' | 'weekly' | 'monthly' | 'one_time',
+    spendLimit: limiteFinal,
+    spendLimitFrequency: frecuenciaFinal as 'daily' | 'weekly' | 'monthly' | 'one_time',
     transactionLimit: porCompra,
     assignedUserId: holder || null,
     requestId,

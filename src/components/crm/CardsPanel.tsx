@@ -51,6 +51,10 @@ export type CardsState = {
   holders: { userId: string; name: string; role: string; pending: boolean }[]
   scopes: { action: string; label: string; granted: boolean }[]
   hayMasMovimientos?: boolean
+  /** Quién ha consultado el número completo de una tarjeta. Solo llega al ADMIN. */
+  vistas?: { id: string; cardId: string; cardLast4: string | null; userName: string; createdAt: string }[]
+  /** Tope que se aplica a una tarjeta nueva si no se indica otro. */
+  topePorDefecto?: { importe: number | null; periodo: string }
 }
 
 /** Solicitud de alta abierta por la pasarela: hay que terminarla fuera del CRM. */
@@ -130,6 +134,7 @@ export function CardsPanel({
   onCreate,
   onUpdate,
   onRevealSecrets,
+  onTopeChange,
 }: {
   data: CardsState | null
   busy: boolean
@@ -157,6 +162,8 @@ export function CardsPanel({
   onRevealSecrets: (
     cardId: string,
   ) => Promise<{ cardNumber: string; cvc: string; nameOnCard: string | null; expiration: string | null } | null>
+  /** Guarda el tope por defecto del club. Solo se le pasa al ADMIN. */
+  onTopeChange: (patch: { cardDefaultLimit: number | null; cardDefaultLimitPeriod?: string }) => Promise<boolean>
 }) {
   const [nueva, setNueva] = useState(false)
   const [nombre, setNombre] = useState('')
@@ -170,6 +177,9 @@ export function CardsPanel({
   const [nuevoLimite, setNuevoLimite] = useState('')
   const [nuevoPeriodo, setNuevoPeriodo] = useState('monthly')
   const [revelando, setRevelando] = useState<string | null>(null)
+  const [editandoTope, setEditandoTope] = useState(false)
+  const [topeImporte, setTopeImporte] = useState('')
+  const [topePeriodo, setTopePeriodo] = useState('monthly')
   const [secretos, setSecretos] = useState<
     { cardId: string; cardNumber: string; cvc: string; nameOnCard: string | null; expiration: string | null } | null
   >(null)
@@ -192,6 +202,14 @@ export function CardsPanel({
     setLimite('')
     setTitular('')
   }, [])
+
+  const etiqueta: React.CSSProperties = {
+    fontSize: 11.5,
+    textTransform: 'uppercase',
+    letterSpacing: '.05em',
+    color: 'var(--text-muted)',
+    fontWeight: 700,
+  }
 
   const cardStyle: React.CSSProperties = {
     padding: 20,
@@ -537,9 +555,18 @@ export function CardsPanel({
                   step="1"
                   value={limite}
                   onChange={(e) => setLimite(e.target.value)}
-                  placeholder="Sin límite"
+                  placeholder={
+                    data?.topePorDefecto?.importe != null
+                      ? `${usd(data.topePorDefecto.importe)} ${PERIODO[data.topePorDefecto.periodo] || ''}`
+                      : 'Sin límite'
+                  }
                   style={inputStyle}
                 />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  {data?.topePorDefecto?.importe != null
+                    ? 'Si lo dejas vacío se aplica el tope por defecto del club.'
+                    : 'El club no tiene tope por defecto: si lo dejas vacío, la tarjeta irá sin límite.'}
+                </div>
               </Field>
               <Field label="Cada">
                 <select value={periodo} onChange={(e) => setPeriodo(e.target.value)} style={inputStyle}>
@@ -613,19 +640,122 @@ export function CardsPanel({
         ) : null}
       </div>
 
+      {puedeGestionar ? (
+        <div style={cardStyle}>
+          <div style={etiqueta}>Tope por defecto de las tarjetas nuevas</div>
+          {editandoTope ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+              <input
+                type="number"
+                min={1}
+                step="1"
+                value={topeImporte}
+                onChange={(e) => setTopeImporte(e.target.value)}
+                placeholder="Sin tope"
+                aria-label="Tope por defecto en dólares"
+                style={{ ...inputStyle, width: 150 }}
+              />
+              <select
+                value={topePeriodo}
+                onChange={(e) => setTopePeriodo(e.target.value)}
+                aria-label="Cada cuánto se aplica el tope por defecto"
+                style={{ ...inputStyle, width: 170 }}
+              >
+                <option value="monthly">al mes</option>
+                <option value="weekly">a la semana</option>
+                <option value="daily">al día</option>
+                <option value="one_time">en total</option>
+              </select>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  const v = Number(topeImporte)
+                  const ok = await onTopeChange({
+                    cardDefaultLimit: v > 0 ? v : null,
+                    cardDefaultLimitPeriod: topePeriodo,
+                  })
+                  if (ok) setEditandoTope(false)
+                }}
+                style={primaryBtnStyle(busy)}
+              >
+                {Number(topeImporte) > 0 ? 'Guardar tope' : 'Dejar sin tope'}
+              </button>
+              <button type="button" onClick={() => setEditandoTope(false)} style={secondaryBtnStyle(false)}>
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 14 }}>
+                {data?.topePorDefecto?.importe != null ? (
+                  <>
+                    <strong>{usd(data.topePorDefecto.importe)}</strong>{' '}
+                    {PERIODO[data.topePorDefecto.periodo] || ''}
+                  </>
+                ) : (
+                  <strong style={{ color: 'var(--amber, #d97706)' }}>Sin tope</strong>
+                )}
+              </span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setEditandoTope(true)
+                  setTopeImporte(
+                    data?.topePorDefecto?.importe == null ? '' : String(data.topePorDefecto.importe),
+                  )
+                  setTopePeriodo(data?.topePorDefecto?.periodo || 'monthly')
+                }}
+                style={secondaryBtnStyle(busy)}
+              >
+                Cambiar
+              </button>
+            </div>
+          )}
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            Es lo que se aplica cuando emites una tarjeta sin indicar límite. Lo pone el servidor,
+            así que vale también si la tarjeta se emite desde otro sitio.
+          </div>
+        </div>
+      ) : null}
+
+      {puedeGestionar && (data?.vistas || []).length > 0 ? (
+        <div style={cardStyle}>
+          <div style={etiqueta}>Quién ha visto los números de tarjeta</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(data?.vistas || []).map((v) => (
+              <div
+                key={v.id}
+                style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}
+              >
+                <span>
+                  {v.userName}
+                  {v.cardLast4 ? (
+                    <span style={{ color: 'var(--text-muted)' }}> · tarjeta ····{v.cardLast4}</span>
+                  ) : null}
+                </span>
+                <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                  {new Date(v.createdAt).toLocaleString('es-ES', {
+                    day: '2-digit',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            Las últimas consultas. Si aparece alguien que no esperabas, congela la tarjeta desde
+            aquí mismo y cambia su contraseña.
+          </div>
+        </div>
+      ) : null}
+
       {cards.length > 0 ? (
         <div style={cardStyle}>
-          <div
-            style={{
-              fontSize: 11.5,
-              textTransform: 'uppercase',
-              letterSpacing: '.05em',
-              color: 'var(--text-muted)',
-              fontWeight: 700,
-            }}
-          >
-            En qué se ha gastado
-          </div>
+          <div style={etiqueta}>En qué se ha gastado</div>
           {data?.hayMasMovimientos ? (
             <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
               Se muestran los movimientos más recientes; hay más histórico en la pasarela.

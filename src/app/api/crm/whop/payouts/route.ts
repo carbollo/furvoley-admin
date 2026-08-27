@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/rbac-api'
+import { consumeRateLimit } from '@/lib/rate-limit'
 import { prisma } from '@/lib/prisma'
 import { getWhopClubConfig } from '@/lib/whop/club-config'
 import { getBalances, listPayoutMethods, listPayouts } from '@/lib/whop/payouts'
@@ -34,6 +35,13 @@ export async function GET(request: Request) {
       .catch(() => []),
   ])
 
+  const ajustes = await prisma.clubSettings
+    .findUnique({
+      where: { isDefault: true },
+      select: { treasurerCanTransfer: true, cardDefaultLimit: true, cardDefaultLimitPeriod: true },
+    })
+    .catch(() => null)
+
   return NextResponse.json({
     ok: true,
     connected: true,
@@ -54,6 +62,11 @@ export async function GET(request: Request) {
       hasPayoutMethod: config.hasPayoutMethod,
       currency: config.payoutCurrency,
     },
+    permisos: {
+      treasurerCanTransfer: ajustes?.treasurerCanTransfer !== false,
+      cardDefaultLimit: ajustes?.cardDefaultLimit ?? null,
+      cardDefaultLimitPeriod: ajustes?.cardDefaultLimitPeriod || 'monthly',
+    },
   })
 }
 
@@ -61,6 +74,37 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
+
+  // Mover el dinero al banco es algo que el ADMIN puede quitarle al tesorero. Se
+  // comprueba AQUI y no solo ocultando el boton: ocultarlo deja la ruta abierta
+  // a una llamada desde la consola del navegador.
+  if (auth.role === 'TREASURER') {
+    const permiso = await prisma.clubSettings
+      .findUnique({ where: { isDefault: true }, select: { treasurerCanTransfer: true } })
+      // Si no se puede comprobar el permiso, no se transfiere: es dinero, y
+      // negar de mas cuesta una espera; permitir de mas, un descubierto.
+      .catch(() => ({ treasurerCanTransfer: false }))
+    if (permiso?.treasurerCanTransfer === false) {
+      return NextResponse.json(
+        { error: 'El administrador del club ha desactivado las transferencias para el tesorero.' },
+        { status: 403 },
+      )
+    }
+  }
+
+  // Mover dinero a mano es algo puntual: un bucle aqui solo puede ser un error
+  // o alguien con la sesion de otro.
+  const limite = await consumeRateLimit({
+    clave: `payout-now:${auth.session?.user?.id || 'anon'}`,
+    max: 10,
+    ventanaMs: 60 * 60_000,
+  })
+  if (!limite.permitido) {
+    return NextResponse.json(
+      { error: 'Has pedido varias transferencias seguidas. Espera un rato y comprueba el historial.' },
+      { status: 429, headers: { 'Retry-After': String(limite.reintentarEnS) } },
+    )
+  }
 
   // Permite transferir a mano una divisa distinta a la de la cuenta bancaria
   // (el barrido automático nunca lo hace por su cuenta).

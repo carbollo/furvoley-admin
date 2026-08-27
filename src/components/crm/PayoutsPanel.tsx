@@ -35,6 +35,12 @@ export type PayoutsState = {
     hasPayoutMethod: boolean
     currency: string
   }
+  permisos?: {
+    /** El ADMIN puede quitarle al tesorero la capacidad de transferir. */
+    treasurerCanTransfer: boolean
+    cardDefaultLimit: number | null
+    cardDefaultLimitPeriod: string
+  }
 }
 
 export type SupportedMethod = {
@@ -241,7 +247,11 @@ export function PayoutsPanel({
   onFieldChange: (id: string, value: string) => void
   onSaveBank: () => void
   onTransferNow: (currency?: string) => void
-  onSweepChange: (patch: { frequency?: string; minAmount?: number }) => void
+  onSweepChange: (patch: {
+    frequency?: string
+    minAmount?: number
+    treasurerCanTransfer?: boolean
+  }) => void
 }) {
   useEffect(() => {
     onLoad()
@@ -265,6 +275,9 @@ export function PayoutsPanel({
     gap: 16,
   }
 
+  // Un tesorero al que el ADMIN le haya quitado el permiso ve el saldo pero no
+  // puede moverlo: el servidor tambien lo rechaza, esto solo evita el viaje.
+  const puedeTransferir = esAdmin || data?.permisos?.treasurerCanTransfer !== false
   const bank = data?.methods?.find((m) => m.isDefault) || data?.methods?.[0] || null
   const method = bankMethods?.find((m) => m.id === bankMethodId) || bankMethods?.[0] || null
 
@@ -335,7 +348,7 @@ export function PayoutsPanel({
                         <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Garantía de la pasarela</div>
                       </div>
                     ) : null}
-                    {bank ? (
+                    {bank && puedeTransferir ? (
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <button
                           type="button"
@@ -364,6 +377,12 @@ export function PayoutsPanel({
             </div>
           ) : null}
 
+          {bank && !puedeTransferir ? (
+            <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+              El administrador del club ha desactivado las transferencias manuales para el
+              tesorero. El envío automático sigue funcionando con normalidad.
+            </div>
+          ) : null}
           {data?.pending?.length ? (
             <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--amber-soft)', color: 'var(--amber)', fontSize: 12.5, fontWeight: 600 }}>
               ○ Hay {data.pending.length === 1 ? 'una transferencia' : `${data.pending.length} transferencias`} pendiente
@@ -544,6 +563,35 @@ export function PayoutsPanel({
                 </div>
               </Field>
             </div>
+            {esAdmin ? (
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  fontSize: 13,
+                  color: 'var(--text-secondary)',
+                  cursor: busy ? 'default' : 'pointer',
+                  lineHeight: 1.5,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={data?.permisos?.treasurerCanTransfer !== false}
+                  disabled={busy}
+                  onChange={(e) => onSweepChange({ treasurerCanTransfer: e.target.checked })}
+                  style={{ marginTop: 2, width: 16, height: 16, accentColor: 'var(--accent)' }}
+                />
+                <span>
+                  <strong style={{ color: 'var(--text-primary)' }}>
+                    El tesorero puede transferir el dinero al banco
+                  </strong>
+                  <br />
+                  Si lo desmarcas, seguirá viendo el saldo y el historial, pero solo tú podrás
+                  enviar el dinero a mano. El envío automático no se ve afectado.
+                </span>
+              </label>
+            ) : null}
             {data?.sweep?.lastSweepAt ? (
               <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
                 Última transferencia: {new Date(data.sweep.lastSweepAt).toLocaleDateString('es-ES')}

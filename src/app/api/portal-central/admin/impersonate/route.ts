@@ -85,6 +85,7 @@ export async function POST(request: Request) {
       },
       secret,
       tenant.slug, // liga el token a este club
+      { impersonated: true },
     )
     redirectUrl = buildTenantSsoUrl(tenant.slug, token)
   } catch (e) {

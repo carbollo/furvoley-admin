@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRoles } from '@/lib/rbac-api'
+import { consumeRateLimit } from '@/lib/rate-limit'
 import { listSupportedMethods, createPayoutMethod } from '@/lib/whop/payouts'
 
 export const dynamic = 'force-dynamic'

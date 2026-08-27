@@ -89,6 +89,41 @@ Estuvo así desde que se añadieron los pagos al modal y no se vio hasta que un 
 
 Para revisarlo: `react-hooks/rules-of-hooks` de ESLint los encuentra todos. `npm run build` **no** pasa el linter, así que no avisa.
 
+## Quién puede hacer qué con el dinero
+
+| Acción | ADMIN | Tesorero |
+|---|---|---|
+| Ver saldo, historial y gastos | sí | sí |
+| Transferir al banco a mano | sí | **si el ADMIN no se lo ha quitado** (`ClubSettings.treasurerCanTransfer`) |
+| Cambiar la cuenta bancaria | sí | no |
+| Programar el barrido | sí | no |
+| Emitir / congelar / cancelar tarjetas | sí | no |
+| Ver el número completo y el CVC | sí | no |
+
+El permiso del tesorero se comprueba **en el servidor** (`payouts/route.ts`, POST), no solo ocultando el botón: ocultarlo deja la ruta abierta a una llamada desde la consola.
+
+## Registro de quién ve el número de una tarjeta
+
+`CardViewLog`, en la BD del propio club, y visible para el ADMIN dentro de Banco. Guarda a la persona y los cuatro últimos dígitos; **ni un dígito más**.
+
+Las consultas hechas por el proveedor del CRM **mientras impersona no se registran ahí**, por decisión de producto: constan en la auditoría del portal central junto con el motivo que tuvo que dar para entrar. Para poder distinguirlas hubo que marcar la sesión: el token SSO lleva `imp: true` (`portal-sso.ts`), `jitTenantUserSession` lo arrastra, y acaba en `session.user.impersonated`. **Si esa marca se pierde en cualquier eslabón, la impersonación queda registrada como si fuera el club** — es lo primero que hay que comprobar si se toca el SSO.
+
+## Límites de uso
+
+`src/lib/rate-limit.ts`, contados en la **base de datos del club** y no en memoria: un contador en memoria se reinicia con cada despliegue y no cruza instancias, así que quien sepa eso lo esquiva. El incremento es **una sola sentencia** `INSERT … ON CONFLICT`, para que dos peticiones simultáneas no se cuelen las dos. Es **fail-closed**: si no se puede contar, no se pasa.
+
+Topes actuales: ver el número de una tarjeta 10/10 min, emitir 5/hora, modificar 30/10 min, listar 60/5 min, transferir 10/hora. Todos por usuario.
+
+`login-rate-limit.ts` sigue siendo en memoria **a propósito**: protege de fuerza bruta anónima, antes de que haya un club activo del que sacar la base de datos.
+
+## Tope de gasto por defecto
+
+`ClubSettings.cardDefaultLimit` + `cardDefaultLimitPeriod`, editables por el ADMIN desde Banco. Se aplican **en la ruta** cuando no se indica límite al emitir, no en la pantalla: un cliente que no mandara el campo se llevaría una tarjeta sin tope.
+
+## La pasarela no puede bloquear lo demás
+
+`getWhopClubConfig` se traga sus propios errores y devuelve una config vacía, así que una pasarela caída o sin conectar **no rompe** el CRM. Nada fuera de `/whop` depende de ella: facturas y planes solo leen campos opcionales. Del gate por plan solo pasan las tarjetas; cobros y transferencias quedan fuera a propósito, porque las cuotas se cobran aunque el módulo esté apagado y filtrarlas dejaría al club sin poder decir dónde recibe ese dinero.
+
 ## Cosas que no se hacen y por qué
 
 - **No se reenvía `e.message` de la pasarela al navegador** (`friendly`, `payouts.ts:85`): va en inglés y puede llevar dentro el dato bancario que causó el error.

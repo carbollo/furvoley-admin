@@ -219,6 +219,34 @@ export function BancoSection({
     }
   }
 
+  /** Tope por defecto de las tarjetas nuevas. Va por la misma ruta que el resto
+   * de la configuración de dinero del club. */
+  async function guardarTope(patch: {
+    cardDefaultLimit: number | null
+    cardDefaultLimitPeriod?: string
+  }): Promise<boolean> {
+    setCardsBusy(true)
+    try {
+      const r = await fetch('/api/crm/whop/payouts/config', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      if (!r.ok) {
+        showAlert((await r.json().catch(() => ({}))).error || 'No se pudo guardar el tope')
+        return false
+      }
+      await cargarTarjetas()
+      return true
+    } catch {
+      showAlert('No hay conexión con el servidor.')
+      return false
+    } finally {
+      setCardsBusy(false)
+    }
+  }
+
   /**
    * El número completo no pasa por el estado compartido ni se guarda: se pide,
    * se devuelve a quien lo pintó y ahí muere.
@@ -346,7 +374,11 @@ export function BancoSection({
     }
   }
 
-  async function guardarProgramacion(patch: { frequency?: string; minAmount?: number }) {
+  async function guardarProgramacion(patch: {
+    frequency?: string
+    minAmount?: number
+    treasurerCanTransfer?: boolean
+  }) {
     setBusy(true)
     try {
       const r = await fetch('/api/crm/whop/payouts/config', {
@@ -438,6 +470,7 @@ export function BancoSection({
           onCreate={emitirTarjeta}
           onUpdate={cambiarTarjeta}
           onRevealSecrets={verDatosTarjeta}
+          onTopeChange={guardarTope}
         />
       )}
 
