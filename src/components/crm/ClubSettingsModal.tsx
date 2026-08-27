@@ -27,48 +27,7 @@ type Settings = {
 
 type WhopScope = { action: string; label: string; granted: boolean }
 
-type PayoutsState = {
-  connected: boolean
-  balances: { currency: string; available: number; pending: number; reserve: number }[]
-  balancesError: string | null
-  methods: {
-    id: string
-    nickname: string
-    institution: string
-    reference: string
-    currency: string
-    isDefault: boolean
-    status: string
-    verification: string | null
-    unavailableReason: string | null
-  }[]
-  payouts: { id: string; amount: number; currency: string; net: number; status: string; createdAt: string }[]
-  /** Transferencias pedidas y aún sin confirmar. */
-  pending: { amount: number; currency: string; createdAt: string }[]
-  sweep: {
-    frequency: string
-    minAmount: number
-    lastSweepAt: string | null
-    hasPayoutMethod: boolean
-    currency: string
-  }
-}
 
-type SupportedMethod = {
-  id: string
-  name: string
-  deliveryType: string
-  requiredFields: {
-    id: string
-    label: string
-    inputType: string
-    placeholder: string
-    options: string[]
-    required: boolean
-    sensitive: boolean
-    validation: string | null
-  }[]
-}
 
 type WhopConfig = {
   hasCompany: boolean
@@ -135,12 +94,6 @@ export function ClubSettingsModal({
   const [whopBusy, setWhopBusy] = useState(false)
   const [whopScopes, setWhopScopes] = useState<WhopScope[] | null>(null)
   // Dinero del club: saldo, cuenta bancaria y transferencias.
-  const [payouts, setPayouts] = useState<PayoutsState | null>(null)
-  const [payoutsBusy, setPayoutsBusy] = useState(false)
-  const [bankMethods, setBankMethods] = useState<SupportedMethod[] | null>(null)
-  const [bankFields, setBankFields] = useState<Record<string, string>>({})
-  const [bankMethodId, setBankMethodId] = useState('')
-  const [bankCountry, setBankCountry] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [form, setForm] = useState<Settings>(EMPTY)
@@ -187,7 +140,7 @@ export function ClubSettingsModal({
   }, [open, load])
 
   // Cerrar con Escape
-  const modalInteractionLocked = busy || payoutsBusy || whopBusy
+  const modalInteractionLocked = busy || whopBusy
 
   useEffect(() => {
     if (!open) return
@@ -353,155 +306,6 @@ export function ClubSettingsModal({
     }
   }
 
-  /** Saldo, cuenta bancaria y transferencias del club. */
-  const loadPayouts = useCallback(async () => {
-    try {
-      const r = await fetch('/api/crm/whop/payouts', { credentials: 'include', cache: 'no-store' })
-      if (!r.ok) return
-      setPayouts(await r.json())
-    } catch {
-      /* la pestaña avisa si no hay datos */
-    }
-  }, [])
-
-  /**
-   * Trae los campos concretos de una forma de cobro y la deja seleccionada.
-   * Los campos solo llegan al pedir un método en particular, no en el listado.
-   */
-  async function selectBankMethod(country: string, methodId: string, known: SupportedMethod[]) {
-    const r = await fetch(
-      `/api/crm/whop/payouts/methods?country=${encodeURIComponent(country)}&methodId=${encodeURIComponent(methodId)}`,
-      { credentials: 'include' },
-    )
-    const j = await r.json().catch(() => ({}))
-    if (!r.ok || !j.methods?.[0]) {
-      setError(j.error || 'No se pudieron consultar los datos que pide esa forma de cobro')
-      return
-    }
-    const full: SupportedMethod = j.methods[0]
-    setBankMethods(known.map((m) => (m.id === full.id ? full : m)))
-    setBankMethodId(full.id)
-    setBankFields({})
-  }
-
-  /** Cambia de forma de cobro dentro del formulario ya abierto. */
-  async function changeBankMethod(methodId: string) {
-    if (payoutsBusy || !bankMethods) return
-    setPayoutsBusy(true)
-    setError(null)
-    try {
-      await selectBankMethod(bankCountry, methodId, bankMethods)
-    } finally {
-      setPayoutsBusy(false)
-    }
-  }
-
-  /** Pregunta a la pasarela qué datos bancarios pide en el país del club. */
-  async function loadBankForm(country: string) {
-    setPayoutsBusy(true)
-    setError(null)
-    setBankCountry(country)
-    try {
-      const r = await fetch(`/api/crm/whop/payouts/methods?country=${encodeURIComponent(country)}`, {
-        credentials: 'include',
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) {
-        setError(j.error || 'No se pudieron consultar las formas de cobro')
-        return
-      }
-      const methods: SupportedMethod[] = j.methods || []
-      setBankMethods(methods)
-      // Se preselecciona la transferencia bancaria si la hay: es lo que quiere
-      // un club, no una tarjeta ni un envío instantáneo con más comisión.
-      const preferred =
-        methods.find((m) => /bank|sepa|transfer|ach/i.test(`${m.name} ${m.deliveryType}`)) || methods[0]
-      if (preferred) await selectBankMethod(country, preferred.id, methods)
-    } finally {
-      setPayoutsBusy(false)
-    }
-  }
-
-  async function saveBankAccount() {
-    if (payoutsBusy || !bankMethodId) return
-    setPayoutsBusy(true)
-    setError(null)
-    setInfo(null)
-    try {
-      const r = await fetch('/api/crm/whop/payouts/methods', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supportedMethodId: bankMethodId, fields: bankFields }),
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) {
-        setError(j.error || 'No se pudo guardar la cuenta bancaria')
-        return
-      }
-      setBankMethods(null)
-      setBankFields({})
-      await Promise.all([loadPayouts(), load()])
-      setInfo('Cuenta bancaria guardada. A partir de ahora recibirás ahí los cobros.')
-      window.setTimeout(() => setInfo(null), 3500)
-    } finally {
-      setPayoutsBusy(false)
-    }
-  }
-
-  async function transferNow(currency?: string) {
-    if (payoutsBusy) return
-    setPayoutsBusy(true)
-    setError(null)
-    setInfo(null)
-    try {
-      const r = await fetch('/api/crm/whop/payouts', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currency }),
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) {
-        setError(j.error || 'No se pudo enviar la transferencia')
-        return
-      }
-      await loadPayouts()
-      const sent: { amount: number; currency: string }[] = j.transfers || []
-      setInfo(
-        j.skipped
-          ? `No se ha transferido nada: ${j.reason}.`
-          : sent.length === 0
-            ? 'No había saldo que transferir.'
-            : `Transferencia enviada: ${sent
-                .map((t) => `${t.amount} ${t.currency}`)
-                .join(' + ')}. Llegará a tu banco en unos días.`,
-      )
-      window.setTimeout(() => setInfo(null), 4500)
-    } finally {
-      setPayoutsBusy(false)
-    }
-  }
-
-  async function saveSweepConfig(patch: { frequency?: string; minAmount?: number }) {
-    setPayoutsBusy(true)
-    setError(null)
-    try {
-      const r = await fetch('/api/crm/whop/payouts/config', {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      })
-      if (!r.ok) {
-        setError((await r.json().catch(() => ({}))).error || 'No se pudo guardar')
-        return
-      }
-      await loadPayouts()
-    } finally {
-      setPayoutsBusy(false)
-    }
-  }
   const initials =
     initialUser?.initials ||
     (initialUser?.name || 'A')
@@ -1239,79 +1043,6 @@ function WhopTab({
  * deduce de la propia cuenta. Suponer «España» le pintaría a un club de fuera un
  * formulario de cuenta española, que es justo donde no debe ir su dinero.
  */
-function countryCodeFrom(name: string): string {
-  const n = String(name || '').trim().toLowerCase()
-  if (!n) return ''
-  if (/^[a-z]{2}$/.test(n)) return n.toUpperCase()
-  const map: Record<string, string> = {
-    españa: 'ES', espana: 'ES', spain: 'ES',
-    portugal: 'PT', francia: 'FR', france: 'FR',
-    italia: 'IT', italy: 'IT', alemania: 'DE', germany: 'DE',
-    andorra: 'AD', méxico: 'MX', mexico: 'MX', argentina: 'AR',
-    colombia: 'CO', chile: 'CL', perú: 'PE', peru: 'PE',
-    'países bajos': 'NL', 'paises bajos': 'NL', holanda: 'NL', netherlands: 'NL',
-    bélgica: 'BE', belgica: 'BE', belgium: 'BE',
-    irlanda: 'IE', ireland: 'IE', 'reino unido': 'GB', 'united kingdom': 'GB',
-    'estados unidos': 'US', 'united states': 'US', usa: 'US',
-    suiza: 'CH', switzerland: 'CH', austria: 'AT', polonia: 'PL', poland: 'PL',
-  }
-  return map[n] || ''
-}
-
-/** Motivo por el que una cuenta guardada no serviría para cobrar. */
-function bankWarning(bank: PayoutsState['methods'][number]): string | null {
-  if (bank.unavailableReason) {
-    return 'Tu banco ya no admite este tipo de ingreso. Añade otra cuenta para seguir recibiendo el dinero.'
-  }
-  if (bank.status === 'broken') {
-    return 'La última transferencia a esta cuenta falló. Revisa los datos o añade otra.'
-  }
-  if (bank.verification === 'warning' || bank.verification === 'broken') {
-    return 'El banco no ha podido confirmar que la cuenta esté a nombre del club. Comprueba el titular.'
-  }
-  if (bank.verification === 'checking') {
-    return 'El banco está comprobando la cuenta. La primera transferencia puede tardar algo más.'
-  }
-  return null
-}
-
-/** Comprueba el valor contra el formato que exige la pasarela para ese campo. */
-function fieldError(
-  f: SupportedMethod['requiredFields'][number],
-  value: string,
-): string | null {
-  const v = value.trim()
-  if (!v) return null
-  if (f.options.length > 0 && !f.options.includes(v)) return 'Elige una de las opciones.'
-  if (f.validation) {
-    try {
-      if (!new RegExp(f.validation).test(v)) return 'El formato no es correcto.'
-    } catch {
-      /* si la expresión no es válida, lo comprueba el servidor */
-    }
-  }
-  return null
-}
-
-/** Estado de la transferencia en cristiano. */
-function payoutStatusLabel(status: string): string {
-  const map: Record<string, string> = {
-    requested: 'Enviada',
-    in_review: 'En revisión',
-    processing: 'En camino',
-    completed: 'Recibida',
-    reversed: 'Devuelta',
-    canceled: 'Cancelada',
-    failed: 'Fallida',
-    denied: 'Rechazada',
-  }
-  return map[status] || status
-}
-
-function money(n: number, currency: string): string {
-  return formatMoney(n, currency)
-}
-
 /**
  * El dinero del club: cuánto ha cobrado, a qué cuenta se le manda y cuándo.
  *

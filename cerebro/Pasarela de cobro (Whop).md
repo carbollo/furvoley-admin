@@ -62,6 +62,16 @@ Antes vivía **dentro del modal de Ajustes del club**, donde nadie busca su dine
 
 `/api/crm/data` expone `club.country` (decide qué campos bancarios pide `supported_methods`) y `club.whopConectado` (sin ello la sección no puede distinguir «no conectado» de «error al cargar» y pediría saldos que nunca llegan).
 
+## Trampa: hooks después de un `return` condicional
+
+`ClubSettingsModal` tenía `if (!open) return null` y, 150 líneas más abajo, un `useCallback`. Con el modal cerrado React veía N hooks; al abrirlo veía N+1 y tumbaba **la aplicación entera** con «Rendered more hooks than during the previous render» — pantalla en blanco con «This page couldn't load», sin una sola línea en los logs del servidor porque el fallo es del navegador.
+
+Estuvo así desde que se añadieron los pagos al modal y no se vio hasta que un botón nuevo invitó a abrirlo.
+
+`CrmApp.tsx` tiene ~150 avisos del mismo tipo (`if (role !== 'ADMIN') return null` seguido de hooks). Hoy **no estallan** porque el padre decide con el mismo `role` si esa sección se monta siquiera (`safeActive = canShow(active) ? … `, `CrmApp.tsx:9743`): la guarda no puede cambiar mientras el componente vive. Es una red de seguridad indirecta, no una garantía — si alguien desacopla ese cálculo del rol, estallan todas a la vez.
+
+Para revisarlo: `react-hooks/rules-of-hooks` de ESLint los encuentra todos. `npm run build` **no** pasa el linter, así que no avisa.
+
 ## Cosas que no se hacen y por qué
 
 - **No se reenvía `e.message` de la pasarela al navegador** (`friendly`, `payouts.ts:85`): va en inglés y puede llevar dentro el dato bancario que causó el error.

@@ -190,9 +190,6 @@ export function Sidebar({ branding }: { branding?: SidebarBranding } = {}) {
   const isJoinRoute = pathname === '/join' || pathname.startsWith('/join/')
   const isPublicEventShare =
     /^\/events\/[^/]+$/.test(pathname) && pathname !== '/events/new'
-  if (pathname === '/login' || isJoinRoute) return null
-  if (isPublicEventShare && !session) return null
-
   const role: AppRole = normalizeRole(session?.user?.role)
   const isStaff = role === 'ADMIN' || role === 'COACH' || role === 'TREASURER'
   const userName = session?.user?.name || session?.user?.email || 'Usuario'
@@ -223,6 +220,9 @@ export function Sidebar({ branding }: { branding?: SidebarBranding } = {}) {
       ],
     [pathname],
   )
+
+  if (pathname === '/login' || isJoinRoute) return null
+  if (isPublicEventShare && !session) return null
 
   return (
     <div
