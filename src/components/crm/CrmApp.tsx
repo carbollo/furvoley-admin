@@ -5273,6 +5273,9 @@ function Contabilidad({ setActive }) {
   const [facturasError, setFacturasError] = useState('');
   const [cobroModal, setCobroModal] = useState(null);
   const [cobroBusy, setCobroBusy] = useState(false);
+  /** Facturas marcadas para actuar sobre varias a la vez. */
+  const [facturasSel, setFacturasSel] = useState(() => new Set());
+  const [loteBusy, setLoteBusy] = useState(false);
   const [editarModal, setEditarModal] = useState(null);
   const [editarBusy, setEditarBusy] = useState(false);
   const [ledgerBusy, setLedgerBusy] = useState(false);
@@ -5501,6 +5504,69 @@ function Contabilidad({ setActive }) {
       showAlert('Factura corregida.')
     } finally {
       setEditarBusy(false)
+    }
+  }
+
+  function alternarFactura(id) {
+    setFacturasSel((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  /**
+   * Da por cobradas varias facturas de una vez, cada una por su importe
+   * pendiente. Es lo que hace el tesorero el día que recoge los sobres.
+   */
+  async function cobrarSeleccionadas(metodo) {
+    const ids = [...facturasSel]
+    if (ids.length === 0 || loteBusy) return
+    const seleccionadas = filtered.filter((c) => facturasSel.has(c.id))
+    const total = seleccionadas.reduce((a, c) => a + Number(c.pendingAmount ?? c.monto ?? 0), 0)
+    const ok = await showConfirm({
+      title: `Registrar el cobro de ${ids.length} factura${ids.length === 1 ? '' : 's'}`,
+      message:
+        `${fmtMoney(total)} en total, ${metodo === 'CASH' ? 'en efectivo' : 'por transferencia'} y con fecha de hoy.
+
+` +
+        'De cada una se cobra su importe pendiente completo. Se crearán los apuntes contables.',
+      confirmLabel: `Cobrar ${fmtMoney(total)}`,
+    }).catch(() => false)
+    if (!ok) return
+
+    setLoteBusy(true)
+    try {
+      const fallos = []
+      // En serie a propósito: cada cobro escribe en la factura y en la
+      // contabilidad, y lanzarlos en paralelo se pisaría entre sí.
+      for (const c of seleccionadas) {
+        try {
+          const r = await fetch('/api/crm/invoices/' + c.id + '/mark-paid', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ method: metodo }),
+          })
+          if (!r.ok) {
+            const j = await r.json().catch(() => ({}))
+            fallos.push(`${c.socio}: ${j.error || 'no se pudo cobrar'}`)
+          }
+        } catch {
+          fallos.push(`${c.socio}: error de conexión`)
+        }
+      }
+      setFacturasSel(new Set())
+      await Promise.all([reload(), loadAccounting(), cargarFacturas(facturasPage, buscarCobro.trim(), tab, fechaDesde, fechaHasta)])
+      showAlert(
+        fallos.length === 0
+          ? `${ids.length} factura${ids.length === 1 ? '' : 's'} cobrada${ids.length === 1 ? '' : 's'}.`
+          : `${ids.length - fallos.length} cobradas. No se pudo con ${fallos.length}:\n\n${fallos.slice(0, 4).join('\n')}`,
+        fallos.length ? 'Cobros con incidencias' : undefined,
+      )
+    } finally {
+      setLoteBusy(false)
     }
   }
 
@@ -6523,9 +6589,46 @@ function Contabilidad({ setActive }) {
           ))}
         </div>
         <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          {facturasSel.size > 0 && (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',padding:'12px 32px',background:'var(--accent-pill)',borderTop:'1px solid var(--border)'}}>
+              <span style={{fontSize:13,fontWeight:700,color:'var(--accent)'}}>
+                {facturasSel.size} factura{facturasSel.size === 1 ? '' : 's'} · {fmtMoney(filtered.filter((c) => facturasSel.has(c.id)).reduce((a, c) => a + Number(c.pendingAmount ?? c.monto ?? 0), 0))} pendiente{facturasSel.size === 1 ? '' : 's'}
+              </span>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                <button type="button" disabled={loteBusy} onClick={() => cobrarSeleccionadas('CASH')}
+                  style={{padding:'7px 14px',borderRadius:8,border:'none',background:'var(--green)',color:'#fff',cursor:loteBusy?'wait':'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                  {loteBusy ? 'Registrando…' : 'Cobrado en efectivo'}
+                </button>
+                <button type="button" disabled={loteBusy} onClick={() => cobrarSeleccionadas('BANK_TRANSFER')}
+                  style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:loteBusy?'wait':'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
+                  Cobrado por transferencia
+                </button>
+                <button type="button" disabled={loteBusy} onClick={() => setFacturasSel(new Set())}
+                  style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-secondary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                  Quitar selección
+                </button>
+              </div>
+            </div>
+          )}
           <table style={{width:'100%',minWidth:640,borderCollapse:'collapse',marginTop:8}}>
             <thead>
               <tr style={{background:'var(--surface-low)'}}>
+                <th style={{padding:'12px 0 12px 24px',width:36}}>
+                  <input
+                    type="checkbox"
+                    aria-label="Marcar todas las facturas de esta página"
+                    checked={filtered.length > 0 && filtered.every((c) => facturasSel.has(c.id))}
+                    onChange={(e) => {
+                      const marcar = e.target.checked
+                      setFacturasSel((prev) => {
+                        const next = new Set(prev)
+                        for (const c of filtered) { if (marcar) next.add(c.id); else next.delete(c.id) }
+                        return next
+                      })
+                    }}
+                    style={{cursor:'pointer'}}
+                  />
+                </th>
                 {['Nº','Socio','Concepto','Importe','Vencimiento','Estado',''].map(h => (
                   <th key={h} style={{padding:'12px 32px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
                 ))}
@@ -6533,10 +6636,10 @@ function Contabilidad({ setActive }) {
             </thead>
             <tbody>
               {facturasLoading && filtered.length === 0 && (
-                <tr><td colSpan={7} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>Cargando facturas…</td></tr>
+                <tr><td colSpan={8} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>Cargando facturas…</td></tr>
               )}
               {facturasError && (
-                <tr><td colSpan={7} style={{padding:'32px',textAlign:'center',fontSize:14}}>
+                <tr><td colSpan={8} style={{padding:'32px',textAlign:'center',fontSize:14}}>
                   <div style={{color:'var(--red)',fontWeight:600,marginBottom:10}}>{facturasError}</div>
                   <button type="button" onClick={() => { void cargarFacturas(facturasPage, buscarCobro.trim(), tab, fechaDesde, fechaHasta) }}
                     style={{padding:'8px 16px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700}}>
@@ -6545,7 +6648,7 @@ function Contabilidad({ setActive }) {
                 </td></tr>
               )}
               {!facturasLoading && !facturasError && filtered.length === 0 && (
-                <tr><td colSpan={7} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14,lineHeight:1.5}}>
+                <tr><td colSpan={8} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14,lineHeight:1.5}}>
                   {facturasData.total === 0 && !buscado && tab === 'Todos' && !fechaDesde && !fechaHasta
                     ? 'Todavía no has emitido ninguna factura. Créala con «Nueva factura», o emite las cuotas del periodo desde Contabilidad → Suscripciones.'
                     : buscado
@@ -6556,7 +6659,16 @@ function Contabilidad({ setActive }) {
                 </td></tr>
               )}
               {filtered.map((c, i) => (
-                <tr key={c.id} style={{borderTop:'1px solid var(--border)'}}>
+                <tr key={c.id} style={{borderTop:'1px solid var(--border)',background: facturasSel.has(c.id) ? 'var(--accent-pill)' : 'transparent'}}>
+                  <td style={{padding:'16px 0 16px 24px'}}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Marcar la factura ${c.numero || ''} de ${c.socio}`}
+                      checked={facturasSel.has(c.id)}
+                      onChange={() => alternarFactura(c.id)}
+                      style={{cursor:'pointer'}}
+                    />
+                  </td>
                   <td style={{padding:'16px 24px',fontSize:12,fontWeight:600,color:'var(--text-muted)',whiteSpace:'nowrap',fontVariantNumeric:'tabular-nums'}}>{c.numero || '—'}</td>
                   <td style={{padding:'16px 32px'}}>
                     <div style={{display:'flex',alignItems:'center',gap:12}}>
