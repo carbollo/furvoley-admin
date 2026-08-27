@@ -156,6 +156,7 @@ export async function GET(request: Request) {
         date: true,
         type: true,
         source: true,
+        description: true,
         invoice: { select: { kind: true } },
       },
     }),
@@ -179,6 +180,27 @@ export async function GET(request: Request) {
     prisma.clubHoliday.findMany({ orderBy: { date: 'asc' } }),
   ])
 
+  // TODAS las facturas sin pagar del club, sin el tope de 120 de la lista. Es la
+  // única fuente de «lo que nos deben»: Sumario, Impagos e Informes leen de aquí
+  // para que las tres pantallas den la misma cifra.
+  const deudaRaw = canUseAccounting
+    ? await prisma.invoice.findMany({
+        where: { status: { notIn: ['PAID', 'VOID'] } },
+        select: { totalAmount: true, paidAmount: true, dueDate: true },
+      })
+    : []
+  const hoyCorte = new Date()
+  hoyCorte.setHours(0, 0, 0, 0)
+  const deudaAbierta = deudaRaw
+    .map((i) => ({ pendiente: Math.max(0, i.totalAmount - i.paidAmount), dueDate: i.dueDate }))
+    .filter((i) => i.pendiente > 0)
+  const deudaTotalClub = deudaAbierta.reduce((a, i) => a + i.pendiente, 0)
+  const deudaVencidaClub = deudaAbierta
+    .filter((i) => new Date(i.dueDate) < hoyCorte)
+    .reduce((a, i) => a + i.pendiente, 0)
+  const facturasAbiertasClub = deudaAbierta.length
+  const facturasVencidasClub = deudaAbierta.filter((i) => new Date(i.dueDate) < hoyCorte).length
+
   const pendingInvoicesAll = invoicesRaw.filter(
     (inv) =>
       inv.status !== 'PAID' &&
@@ -186,8 +208,6 @@ export async function GET(request: Request) {
       Math.max(0, inv.totalAmount - inv.paidAmount) > 0,
   )
 
-  const overdueInvoices = pendingInvoicesAll.filter((i) => isInvoicePastDue(i))
-  const pendingCount = pendingInvoicesAll.length
 
   const incomeTxYear = incomeTxYearRaw
   const incomeTxMonth = incomeTxMonthRaw
@@ -389,12 +409,11 @@ export async function GET(request: Request) {
       sociosActivos: memberStats.activos,
       sociosTotal: memberStats.total,
       sociosMorosos: memberStats.morosos,
-      cobrosPendientes: pendingCount,
-      cobrosPendientesMonto: pendingInvoicesAll.reduce(
-        (a, i) => a + Math.max(0, i.totalAmount - i.paidAmount),
-        0,
-      ),
-      facturasVencidas: overdueInvoices.length,
+      cobrosPendientes: facturasAbiertasClub,
+      cobrosPendientesMonto: deudaTotalClub,
+      /** Solo lo ya vencido: es la cifra que sale en Impagos. */
+      deudaVencidaMonto: deudaVencidaClub,
+      facturasVencidas: facturasVencidasClub,
       ingresosMes: ingresoMesSum,
     },
     ingresosMensual,
@@ -405,6 +424,9 @@ export async function GET(request: Request) {
       date: t.date.toISOString().slice(0, 10),
       type: t.type,
       source: t.source,
+      // Sin el concepto, el CSV de movimientos salía con fecha, importe y poco
+      // más: ilegible para llevarlo a una asamblea.
+      description: t.description,
       invoiceKind: t.invoice?.kind ?? null,
     })),
     sociosPorDeporte: teamLabels,

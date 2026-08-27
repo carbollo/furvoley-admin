@@ -2203,7 +2203,12 @@ function Impagos() {
       )
     : impagosTodos
   const importeDe = (c) => c.pendingAmount ?? c.monto ?? 0
-  const totalVencido = impagosTodos.reduce((a, c) => a + importeDe(c), 0)
+  // Cifra oficial de deuda vencida del club (todas las facturas, no solo las
+  // 120 que trae la lista). Sumario, Impagos e Informes leen de aquí.
+  const totalVencido = Number(
+    bundle?.kpis?.deudaVencidaMonto ?? impagosTodos.reduce((a, c) => a + importeDe(c), 0),
+  )
+  const vencidasClub = Number(bundle?.kpis?.facturasVencidas ?? impagosTodos.length)
   const sociosAfectados = new Set(impagosTodos.map((c) => c.memberId)).size
 
   // ── Dashboard de impagos: antigüedad de la deuda y top morosos ──
@@ -2338,7 +2343,7 @@ function Impagos() {
       }
     >
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))',gap:20}}>
-        <KPICard label="Impagos" value={String(impagosTodos.length)} sub="Facturas vencidas" icon="billing" color={impagosTodos.length > 0 ? 'var(--red)' : 'var(--green)'} badge={impagosTodos.length > 0 ? { kind:'danger', text:'Revisar' } : null}/>
+        <KPICard label="Impagos" value={String(vencidasClub)} sub={vencidasClub > impagosTodos.length ? `Se listan las ${impagosTodos.length} más recientes` : 'Facturas vencidas'} icon="billing" color={vencidasClub > 0 ? 'var(--red)' : 'var(--green)'} badge={vencidasClub > 0 ? { kind:'danger', text:'Revisar' } : null}/>
         <KPICard label="Importe vencido" value={fmtMoney(totalVencido)} sub="Pendiente de cobrar" icon="billing" color="var(--amber)"/>
         <KPICard label="Socios afectados" value={String(sociosAfectados)} sub="Con al menos un impago" icon="users" color="var(--accent-soft)"/>
         <KPICard label="Antigüedad media" value={impagosTodos.length ? `${antiguedadMedia} días` : '—'} sub="Desde el vencimiento" icon="calendar" color={antiguedadMedia > 60 ? 'var(--red)' : 'var(--amber)'}/>
@@ -2453,6 +2458,27 @@ function ContabilidadSumario({ setActive }) {
   const { bundle, fmtMoney } = useCrm()
   const role = normalizeRole(bundle?.user?.role)
   const [rango, setRango] = useState('semestre') // 'semestre' | 'anual'
+  // Saldo de caja y bancos. La cifra ya la calculaba el servidor, pero solo se
+  // veía dentro de MAYOR detrás de «5720000 · ASSET»: la pregunta más habitual
+  // del presidente («¿cómo vamos de dinero?») no tenía respuesta a la vista.
+  const [tesoreria, setTesoreria] = useState<number | null>(null)
+
+  useEffect(() => {
+    let vivo = true
+    fetch('/api/crm/accounting/reports', { credentials: 'include', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!vivo || !j) return
+        const filas = Array.isArray(j.trialBalance) ? j.trialBalance : []
+        // 57xx = caja y bancos, 56xx = depósitos y fianzas a corto plazo.
+        const saldo = filas
+          .filter((f) => /^5[67]/.test(String(f.code || '')))
+          .reduce((a, f) => a + (Number(f.debit || 0) - Number(f.credit || 0)), 0)
+        setTesoreria(saldo)
+      })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [])
 
   if (!(role === 'ADMIN' || role === 'TREASURER')) return null
 
@@ -2493,15 +2519,26 @@ function ContabilidadSumario({ setActive }) {
       if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
       return `"${s.replaceAll('"', '""')}"`
     }
+    // «concepto» exportaba el TIPO de factura (MEMBERSHIP / OTHER / vacío), no el
+    // concepto real: el CSV salía sin poder saber de qué era cada movimiento.
+    const ORIGEN = {
+      MANUAL: 'Registrado a mano',
+      CASH: 'Efectivo',
+      BANK_TRANSFER: 'Transferencia',
+      BANK_CSV_IMPORT: 'Extracto bancario',
+      INVOICE_PAYMENT: 'Cobro de factura',
+      WHOP: 'Cobro online',
+      STRIPE: 'Cobro online',
+    }
     const lines = [
-      ['fecha', 'tipo', 'origen', 'concepto', 'importe'].join(','),
+      ['Fecha', 'Tipo', 'Origen', 'Concepto', 'Importe'].join(';'),
       ...rows.map((t) => [
-        t.date,
+        t.date ? new Date(t.date).toLocaleDateString('es-ES') : '',
         t.type === 'INCOME' ? 'Ingreso' : 'Gasto',
-        t.source || '',
-        t.invoiceKind || '',
-        t.amount,
-      ].map(esc).join(',')),
+        ORIGEN[t.source] || t.source || '',
+        t.description || '',
+        String(Number(t.amount || 0).toFixed(2)).replace('.', ','),
+      ].map(esc).join(';')),
     ]
     const blob = new Blob([`﻿${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -2531,7 +2568,14 @@ function ContabilidadSumario({ setActive }) {
     >
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:20}}>
         <KPICard
-          label="Balance del año"
+          label="Dinero disponible hoy"
+          value={tesoreria === null ? '—' : fmtMoney(tesoreria)}
+          sub="Lo que hay en caja y en el banco"
+          icon="billing"
+          color="var(--green)"
+        />
+        <KPICard
+          label={`Resultado de ${new Date().getFullYear()}`}
           value={fmtMoney(balanceAno)}
           sub="Ingresos − gastos registrados"
           icon="billing"
@@ -2541,9 +2585,13 @@ function ContabilidadSumario({ setActive }) {
         <KPICard label="Ingresos (mes)" value={fmtMoney(kp?.ingresosMes ?? 0)} sub="Ingresos registrados este mes" icon="reports" color="var(--green)"/>
         <KPICard label="Gastos (mes)" value={fmtMoney(gastosMes)} sub="Gastos registrados este mes" icon="billing" color="var(--red)"/>
         <KPICard
-          label="Pendiente de cobro"
+          label="Nos deben"
           value={fmtMoney(kp?.cobrosPendientesMonto ?? 0)}
-          sub={`${kp?.facturasVencidas ?? 0} factura(s) vencida(s)`}
+          sub={
+            (kp?.facturasVencidas ?? 0) > 0
+              ? `De los cuales ${fmtMoney(kp?.deudaVencidaMonto ?? 0)} ya vencidos`
+              : 'Ninguna factura vencida'
+          }
           icon="billing"
           color="var(--amber)"
           badge={(kp?.facturasVencidas ?? 0) > 0 ? { kind:'warning', text:'Revisar en Impagos' } : null}
@@ -5613,6 +5661,48 @@ function Contabilidad({ setActive }) {
     }
   }
 
+  /**
+   * Anula un asiento con su contra-asiento, en vez de borrarlo.
+   *
+   * Un libro contable no se corrige borrando: se corrige con un apunte que
+   * deshace el anterior, y los dos quedan a la vista. Borrar dejaba un hueco en
+   * la numeración y hacía imposible explicar qué había pasado.
+   */
+  async function anularAsiento(entry: any) {
+    const entryId = String(entry?.id || '').trim()
+    if (!entryId) return
+    if (deletingMovementId === entryId) return
+    const ok = await showConfirm({
+      title: 'Anular este asiento',
+      message:
+        `${entry?.description || ''}
+
+` +
+        'Se creará un asiento inverso que lo deja a cero. Los dos quedan en el ' +
+        'Diario, que es como se corrige un libro contable.',
+      confirmLabel: 'Anular asiento',
+    })
+    if (!ok) return
+    setDeletingMovementId(entryId)
+    try {
+      const r = await fetch(`/api/crm/accounting/entries/${encodeURIComponent(entryId)}/reverse`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Anulado desde el CRM' }),
+      })
+      if (!r.ok) {
+        let msg = 'No se pudo anular el asiento'
+        try { msg = (await r.json()).error || msg } catch { /* */ }
+        showAlert(msg)
+        return
+      }
+      await Promise.all([reload(), loadAccounting()])
+    } finally {
+      setDeletingMovementId(null)
+    }
+  }
+
   async function eliminarMovimientoManual(entry: any) {
     const movementId = String(entry?.sourceId || '').trim()
     if (!movementId) {
@@ -5751,7 +5841,13 @@ function Contabilidad({ setActive }) {
           <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
             <button
               type="button"
-              onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }}
+              onClick={() => {
+                const q = new URLSearchParams()
+                if (fechaDesde) q.set('from', fechaDesde)
+                if (fechaHasta) q.set('to', fechaHasta)
+                const qs = q.toString()
+                window.location.href = '/api/billing/reports/invoices-csv' + (qs ? `?${qs}` : '')
+              }}
               style={{
                 display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
                 borderRadius:8,border:'1px solid var(--border-strong)',background:'var(--surface-card)',
@@ -6094,8 +6190,8 @@ function Contabilidad({ setActive }) {
                   {e.source === 'MANUAL' && e.sourceId && (
                     <button
                       type="button"
-                      disabled={deletingMovementId === e.sourceId}
-                      onClick={() => eliminarMovimientoManual(e)}
+                      disabled={deletingMovementId === e.id || deletingMovementId === e.sourceId}
+                      onClick={() => anularAsiento(e)}
                       style={{
                         alignSelf:'center',
                         padding:'6px 10px',
@@ -6110,7 +6206,7 @@ function Contabilidad({ setActive }) {
                         opacity: deletingMovementId === e.sourceId ? 0.6 : 1,
                       }}
                     >
-                      {deletingMovementId === e.sourceId ? 'Eliminando…' : 'Eliminar'}
+                      {deletingMovementId === e.id ? 'Anulando…' : 'Anular'}
                     </button>
                   )}
                 </div>
@@ -7547,13 +7643,21 @@ function Calendario({ setActive }) {
 }
 
 // ── INFORMES ────────────────────────────────────────────────────────────────
+/** Primer y último día del año en curso, en formato de <input type="date">. */
+function rangoAnioActual() {
+  const y = new Date().getFullYear()
+  return { desde: `${y}-01-01`, hasta: `${y}-12-31`, anio: y }
+}
+
 function Informes({ setActive }) {
   const { bundle, fmtMoney } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
   if (!(role === 'ADMIN' || role === 'TREASURER')) return null
   const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
+  // Arrancar sin rango sumaba TODOS los años en el mismo gráfico y en los KPI:
+  // enero de 2025 y enero de 2026 caían en la misma barra.
+  const [fechaDesde, setFechaDesde] = useState(() => rangoAnioActual().desde);
+  const [fechaHasta, setFechaHasta] = useState(() => rangoAnioActual().hasta);
   const [morososPage, setMorososPage] = useState(1);
   const [morososList, setMorososList] = useState<any[]>([]);
   const [morososTotal, setMorososTotal] = useState(0);
@@ -7590,9 +7694,13 @@ function Informes({ setActive }) {
   });
   const ingresos = Array(12).fill(0);
   const egresos = Array(12).fill(0);
+  // El gráfico es de doce meses de UN año. Si el rango abarca varios, se toma el
+  // del inicio: mezclar años en la misma barra daba cifras que no existen.
+  const anioGrafico = Number((fechaDesde || fechaHasta || '').slice(0, 4)) || new Date().getFullYear();
   for (const t of txFiltradas) {
     const dt = new Date(String(t.date || ''));
     if (Number.isNaN(dt.getTime())) continue;
+    if (dt.getFullYear() !== anioGrafico) continue;
     const m = dt.getMonth();
     if (m < 0 || m > 11) continue;
     if (t.type === 'INCOME') ingresos[m] += Number(t.amount || 0);
@@ -7638,7 +7746,13 @@ function Informes({ setActive }) {
             <span style={{fontSize:12,color:'var(--text-muted)'}}>—</span>
             <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} style={{padding:'8px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:13,color:'var(--text-primary)',background:'var(--surface-card)'}}/>
             <button type="button" onClick={() => { setFechaDesde(''); setFechaHasta(''); }} style={{padding:'8px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,color:'var(--text-secondary)'}}>Limpiar</button>
-            <button type="button" onClick={() => { window.location.href = '/api/billing/reports/invoices-csv'; }} style={{
+            <button type="button" onClick={() => {
+              const q = new URLSearchParams()
+              if (fechaDesde) q.set('from', fechaDesde)
+              if (fechaHasta) q.set('to', fechaHasta)
+              const qs = q.toString()
+              window.location.href = '/api/billing/reports/invoices-csv' + (qs ? `?${qs}` : '')
+            }} style={{
               display:'flex',alignItems:'center',gap:8,padding:'10px 18px',
               borderRadius:8,border:'none',cursor:'pointer',
               background:'var(--accent)',color:'#fff',
@@ -7733,7 +7847,14 @@ function Informes({ setActive }) {
                   <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{s.deporte} · Vence {new Date(s.vencimiento).toLocaleDateString('es-ES')}</div>
                 </div>
                 <div style={{textAlign:'right'}}>
-                  <div style={{fontWeight:700,fontSize:14,color:'var(--red)'}}>{fmtMoney(s.cuota)}</div>
+                  {/* Lo que DEBE, no lo que paga al mes: con tres recibos
+                      atrasados la cifra anterior mostraba un tercio. */}
+                  <div style={{fontWeight:700,fontSize:14,color:'var(--red)'}}>{fmtMoney(s.deudaTotal ?? s.cuota)}</div>
+                  {Number(s.recibosPendientes || 0) > 1 && (
+                    <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>
+                      {s.recibosPendientes} recibos
+                    </div>
+                  )}
                 </div>
                 <Badge status="Moroso"/>
                 <button type="button" onClick={() => setActive('socios')} style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,transition:'all 0.15s'}}

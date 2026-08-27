@@ -1,6 +1,8 @@
 import type { PrismaClient } from '@/generated/prisma/client'
 import {
   memberIsDelinquentForCrm,
+  isUnpaidInvoice,
+  invoicePendingAmount,
   startOfDay,
   type InvoiceLike,
 } from '@/lib/invoice-display'
@@ -48,6 +50,12 @@ export type CrmSocioRow = {
   avatar: string
   pendingInvoiceId: string | null
   pendingInvoiceAmount: number | null
+  /** Suma de TODO lo que el socio debe. La lista de morosos mostraba `cuota`,
+   *  que es lo que paga al mes, no lo que debe: con tres recibos atrasados la
+   *  cifra se quedaba en un tercio de la deuda real. */
+  deudaTotal: number
+  /** Cuántos recibos tiene sin pagar. */
+  recibosPendientes: number
   membershipPlanName: string
   // Data de los formularios (roadmap · Contactos 5.3)
   fechaNacimiento: string
@@ -105,6 +113,13 @@ export function mapMemberToSocioRow(
     avatar: memberInitials(m.name),
     pendingInvoiceId: unpaidInvoice?.id ?? null,
     pendingInvoiceAmount: unpaidInvoice?.pending ?? null,
+    deudaTotal: Number(
+      memberInvoices
+        .filter((inv) => isUnpaidInvoice(inv))
+        .reduce((a, inv) => a + invoicePendingAmount(inv), 0)
+        .toFixed(2),
+    ),
+    recibosPendientes: memberInvoices.filter((inv) => isUnpaidInvoice(inv)).length,
     membershipPlanName: sub?.plan?.name ?? '',
     fechaNacimiento: m.birthDate ? m.birthDate.toISOString().slice(0, 10) : '',
     tutorNombre: m.guardianName ?? '',
