@@ -14,10 +14,27 @@ import { buildTenantPublicUrl } from '@/lib/public-url'
  */
 const VALIDEZ_DIAS = 60
 
+/**
+ * Misma cadena de secretos que `whop/secret-box.ts`, por dos razones: en este
+ * despliegue `NEXTAUTH_SECRET` no existe (el que sí está es `PORTAL_SSO_SECRET`)
+ * y, sin secreto, la firma sale vacía y el recibo volvería a llevar al socio a
+ * «No autorizado» — el fallo que este módulo existe para arreglar.
+ */
 function secreto(): string {
   return (
     (process.env.INVOICE_PDF_LINK_SECRET || '').trim() ||
-    (process.env.NEXTAUTH_SECRET || '').trim()
+    (process.env.NEXTAUTH_SECRET || '').trim() ||
+    (process.env.PORTAL_SSO_SECRET || '').trim()
+  )
+}
+
+let avisado = false
+function avisarSinSecreto() {
+  if (avisado) return
+  avisado = true
+  console.warn(
+    '[facturas] Sin INVOICE_PDF_LINK_SECRET/NEXTAUTH_SECRET/PORTAL_SSO_SECRET: ' +
+      'los recibos enviados al socio pedirán inicio de sesión.',
   )
 }
 
@@ -28,7 +45,7 @@ function firma(payload: string, clave: string): string {
 /** Token para el PDF de `invoiceId`. Devuelve '' si no hay secreto configurado. */
 export function signInvoicePdfToken(invoiceId: string, validezDias = VALIDEZ_DIAS): string {
   const clave = secreto()
-  if (!clave) return ''
+  if (!clave) { avisarSinSecreto(); return '' }
   const caduca = Date.now() + validezDias * 24 * 60 * 60 * 1000
   const payload = `${invoiceId}.${caduca}`
   return `${Buffer.from(payload).toString('base64url')}.${firma(payload, clave)}`
