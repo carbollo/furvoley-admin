@@ -3,7 +3,14 @@ import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 
-/** Reprogramar cobro (roadmap · Impagos): mover la fecha de vencimiento. */
+/**
+ * Corregir una factura: vencimiento, concepto e importe.
+ *
+ * Una errata en el concepto obligaba a ELIMINAR la factura y volver a emitirla
+ * con otro número, dejando un hueco en la numeración de un documento contable.
+ * Mientras no se haya cobrado nada, corregirla es seguro: no hay ningún ingreso
+ * ni asiento que dependa de sus cifras.
+ */
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -15,21 +22,23 @@ export async function PATCH(
   const parsedId = parseCuid(id, 'id')
   if (parsedId instanceof Response) return parsedId
 
-  let body: { dueDate?: string }
+  let body: { dueDate?: string; concepto?: string; amount?: number }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
   }
 
-  const dueDate = new Date(String(body.dueDate || ''))
-  if (Number.isNaN(dueDate.getTime())) {
-    return NextResponse.json({ error: 'Fecha de vencimiento no válida' }, { status: 400 })
-  }
-
   const existing = await prisma.invoice.findUnique({
     where: { id: parsedId },
-    select: { id: true, status: true },
+    select: {
+      id: true,
+      status: true,
+      dueDate: true,
+      paidAmount: true,
+      invoiceNumber: true,
+      items: { orderBy: { id: 'asc' }, take: 1, select: { id: true } },
+    },
   })
   if (!existing) {
     return NextResponse.json({ error: 'Factura no encontrada' }, { status: 404 })
@@ -38,16 +47,75 @@ export async function PATCH(
     return NextResponse.json({ error: 'La factura ya está cerrada' }, { status: 400 })
   }
 
+  let dueDate = existing.dueDate
+  if (body.dueDate !== undefined) {
+    const d = new Date(String(body.dueDate || ''))
+    if (Number.isNaN(d.getTime())) {
+      return NextResponse.json({ error: 'Fecha de vencimiento no válida' }, { status: 400 })
+    }
+    dueDate = d
+  }
+
+  const cambiaConcepto = typeof body.concepto === 'string'
+  const cambiaImporte = body.amount !== undefined
+
+  // En cuanto hay un cobro registrado, cambiar el importe descuadraría lo ya
+  // contabilizado. La fecha sí se puede seguir moviendo.
+  if ((cambiaConcepto || cambiaImporte) && existing.paidAmount > 0) {
+    return NextResponse.json(
+      {
+        error: `La factura ${existing.invoiceNumber} ya tiene cobros registrados: solo puedes cambiar la fecha de vencimiento.`,
+      },
+      { status: 409 },
+    )
+  }
+
+  let nuevoImporte: number | null = null
+  if (cambiaImporte) {
+    const n = Number(body.amount)
+    if (!Number.isFinite(n) || n <= 0) {
+      return NextResponse.json({ error: 'El importe no es válido.' }, { status: 400 })
+    }
+    nuevoImporte = Number(n.toFixed(2))
+  }
+
+  const concepto = cambiaConcepto ? String(body.concepto).trim().slice(0, 300) : null
+  if (cambiaConcepto && !concepto) {
+    return NextResponse.json({ error: 'El concepto no puede quedar vacío.' }, { status: 400 })
+  }
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  await prisma.invoice.update({
-    where: { id: parsedId },
-    data: {
-      dueDate,
-      // Si se reprograma hacia el futuro, deja de estar vencida.
-      ...(existing.status === 'OVERDUE' && dueDate >= today ? { status: 'PENDING' } : {}),
-    },
-  })
+  const itemId = existing.items[0]?.id
+
+  await prisma.$transaction([
+    prisma.invoice.update({
+      where: { id: parsedId },
+      data: {
+        dueDate,
+        ...(nuevoImporte !== null ? { subtotal: nuevoImporte, totalAmount: nuevoImporte } : {}),
+        // Si se reprograma hacia el futuro, deja de estar vencida.
+        ...(existing.status === 'OVERDUE' && dueDate >= today ? { status: 'PENDING' } : {}),
+        // El enlace de pago cacheado cobraría el importe viejo.
+        ...(nuevoImporte !== null
+          ? { whopCheckoutUrl: null, whopCheckoutId: null, whopCheckoutAmount: null }
+          : {}),
+      },
+    }),
+    ...(itemId && (concepto || nuevoImporte !== null)
+      ? [
+          prisma.invoiceItem.update({
+            where: { id: itemId },
+            data: {
+              ...(concepto ? { description: concepto } : {}),
+              ...(nuevoImporte !== null
+                ? { unitAmount: nuevoImporte, totalAmount: nuevoImporte, quantity: 1 }
+                : {}),
+            },
+          }),
+        ]
+      : []),
+  ])
 
   return NextResponse.json({ ok: true })
 }

@@ -5274,6 +5274,8 @@ function Contabilidad({ setActive }) {
   const [buscarCobro, setBuscarCobro] = useState('');
   const [cobroModal, setCobroModal] = useState(null);
   const [cobroBusy, setCobroBusy] = useState(false);
+  const [editarModal, setEditarModal] = useState(null);
+  const [editarBusy, setEditarBusy] = useState(false);
   const [ledgerBusy, setLedgerBusy] = useState(false);
   // Qué partes de la contabilidad no se pudieron cargar. Sin esto, un fallo del
   // servidor dejaba las listas vacías y la pantalla afirmaba «Sin asientos»: el
@@ -5424,6 +5426,57 @@ function Contabilidad({ setActive }) {
       setLedgerError('No se pudo conectar con el servidor para cargar la contabilidad.'),
     );
   }, [loadAccounting]);
+
+  /**
+   * Corregir una factura ya emitida que todavía no se ha cobrado.
+   *
+   * Una errata en el concepto obligaba a eliminarla y volver a emitirla con otro
+   * número, dejando un hueco en la numeración de un documento contable.
+   */
+  function abrirEdicion(c) {
+    setEditarModal({
+      id: c.id,
+      numero: c.numero,
+      socio: c.socio,
+      concepto: String(c.concepto || ''),
+      importe: Number(c.monto || 0).toFixed(2),
+      vencimiento: String(c.vencimiento || '').slice(0, 10),
+      cobrado: Number(c.monto || 0) - Number(c.pendingAmount ?? c.monto ?? 0) > 0.005,
+    })
+  }
+
+  async function guardarEdicion() {
+    if (!editarModal || editarBusy) return
+    const importe = Number(String(editarModal.importe).replace(',', '.'))
+    if (!editarModal.cobrado && (!Number.isFinite(importe) || importe <= 0)) {
+      showAlert('Escribe un importe válido.')
+      return
+    }
+    if (!editarModal.concepto.trim()) {
+      showAlert('El concepto no puede quedar vacío.')
+      return
+    }
+    setEditarBusy(true)
+    try {
+      const r = await fetch('/api/crm/invoices/' + editarModal.id, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dueDate: editarModal.vencimiento,
+          // Con cobros registrados el servidor solo acepta la fecha.
+          ...(editarModal.cobrado ? {} : { concepto: editarModal.concepto.trim(), amount: importe }),
+        }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo guardar'); return }
+      setEditarModal(null)
+      await Promise.all([reload(), loadAccounting()])
+      showAlert('Factura corregida.')
+    } finally {
+      setEditarBusy(false)
+    }
+  }
 
   /** Abre el modal para registrar un cobro con importe y forma de pago. */
   function abrirCobro(c) {
@@ -6530,13 +6583,22 @@ function Contabilidad({ setActive }) {
             return (
               <>
                 {cobroActivo.estado !== 'Pagado' && (
-                  <button
-                    type="button"
-                    onClick={() => { setMenuCobroId(null); abrirCobro(cobroActivo) }}
-                    style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'var(--green)',fontWeight:600}}
-                  >
-                    Registrar cobro…
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => { setMenuCobroId(null); abrirCobro(cobroActivo) }}
+                      style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'var(--green)',fontWeight:600}}
+                    >
+                      Registrar cobro…
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setMenuCobroId(null); abrirEdicion(cobroActivo) }}
+                      style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#44403c',fontWeight:500}}
+                    >
+                      Corregir factura…
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"
@@ -6992,6 +7054,69 @@ function Contabilidad({ setActive }) {
       {/* Registrar cobro: importe, forma de pago y referencia. Antes «Marcar
           pagado» daba por cobrado TODO el pendiente, en efectivo y con fecha de
           hoy, sin preguntar nada. */}
+      {/* Corregir una factura emitida y aún no cobrada: una errata obligaba a
+          eliminarla y reemitirla con otro número, dejando un hueco en la
+          numeración de un documento contable. */}
+      {editarModal && (
+        <div
+          role="presentation"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setEditarModal(null) }}
+          style={{position:'fixed',inset:0,zIndex:1200,background:'rgba(15,23,42,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+        >
+          <div role="dialog" aria-modal="true" aria-labelledby="editar-titulo"
+            style={{width:'100%',maxWidth:460,background:'#fff',borderRadius:14,padding:24,boxShadow:'0 24px 50px rgba(15,23,42,0.24)'}}>
+            <h3 id="editar-titulo" style={{margin:'0 0 4px',fontSize:19,fontWeight:800,color:'#1c1917'}}>
+              Corregir la factura {editarModal.numero}
+            </h3>
+            <p style={{margin:'0 0 18px',fontSize:13,color:'#57534e'}}>
+              {editarModal.socio}
+              {editarModal.cobrado && ' · ya tiene cobros: solo puedes cambiar la fecha'}
+            </p>
+
+            <label style={{display:'block',fontSize:12,fontWeight:700,color:'#57534e',marginBottom:6}}>Concepto</label>
+            <input
+              value={editarModal.concepto}
+              disabled={editarModal.cobrado}
+              onChange={(e) => setEditarModal((m) => ({ ...m, concepto: e.target.value }))}
+              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,boxSizing:'border-box',marginBottom:14,background:editarModal.cobrado?'#f5f5f4':'#fff'}}
+            />
+
+            <label style={{display:'block',fontSize:12,fontWeight:700,color:'#57534e',marginBottom:6}}>Importe</label>
+            <input
+              type="number" step="0.01" min="0.01"
+              value={editarModal.importe}
+              disabled={editarModal.cobrado}
+              onChange={(e) => setEditarModal((m) => ({ ...m, importe: e.target.value }))}
+              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,boxSizing:'border-box',marginBottom:14,background:editarModal.cobrado?'#f5f5f4':'#fff'}}
+            />
+
+            <label style={{display:'block',fontSize:12,fontWeight:700,color:'#57534e',marginBottom:6}}>Vencimiento</label>
+            <input
+              type="date"
+              value={editarModal.vencimiento}
+              onChange={(e) => setEditarModal((m) => ({ ...m, vencimiento: e.target.value }))}
+              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,boxSizing:'border-box',marginBottom:14}}
+            />
+
+            <p style={{fontSize:12,color:'#78716c',lineHeight:1.5,margin:'0 0 18px'}}>
+              El número de factura no cambia. Si ya le habías pasado el enlace de pago al socio,
+              se generará uno nuevo con el importe corregido.
+            </p>
+
+            <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+              <button type="button" disabled={editarBusy} onClick={() => setEditarModal(null)}
+                style={{padding:'10px 16px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',color:'#57534e',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+                Cancelar
+              </button>
+              <button type="button" disabled={editarBusy} onClick={guardarEdicion}
+                style={{padding:'10px 16px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',cursor:editarBusy?'wait':'pointer',fontFamily:'inherit',fontWeight:700}}>
+                {editarBusy ? 'Guardando…' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {cobroModal && (
         <div
           role="presentation"
