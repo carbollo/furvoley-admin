@@ -521,6 +521,7 @@ const Badge = ({ status }) => {
     Moroso: { bg: 'var(--red-light)', color: 'var(--red)', label: 'Moroso' },
     Pagado: { bg: 'var(--green-light)', color: 'var(--green)', label: 'Pagado' },
     Pendiente: { bg: 'var(--amber-light)', color: 'var(--amber)', label: 'Pendiente' },
+    'Pago parcial': { bg: 'var(--accent-pill)', color: 'var(--accent)', label: 'Pago parcial' },
     Vencido: { bg: 'var(--red-light)', color: 'var(--red)', label: 'Vencido' },
   };
   const c = cfg[status] || cfg.Inactivo;
@@ -5271,6 +5272,8 @@ function Contabilidad({ setActive }) {
   const [deletingMovementId, setDeletingMovementId] = useState<string | null>(null);
   const [taxBusy, setTaxBusy] = useState(false);
   const [buscarCobro, setBuscarCobro] = useState('');
+  const [cobroModal, setCobroModal] = useState(null);
+  const [cobroBusy, setCobroBusy] = useState(false);
   const [ledgerBusy, setLedgerBusy] = useState(false);
   // Qué partes de la contabilidad no se pudieron cargar. Sin esto, un fallo del
   // servidor dejaba las listas vacías y la pantalla afirmaba «Sin asientos»: el
@@ -5318,7 +5321,7 @@ function Contabilidad({ setActive }) {
     applyWithholdOnIncome: false,
     applyWithholdOnExpense: false,
   })
-  const tabs = ['Todos','Pendiente','Pagado','Vencido'];
+  const tabs = ['Todos','Pendiente','Pago parcial','Vencido','Pagado'];
   const contaTabs = ['COBROS', 'DIARIO', 'MAYOR', 'CUENTAS', 'BALANCES'];
   const cuentasTesoreria = ledgerData.accounts.filter((a) => String(a.code || '').startsWith('57') || String(a.code || '').startsWith('56'));
   const cuentasIngreso = ledgerData.accounts.filter((a) => a.nature === 'INCOME');
@@ -5422,25 +5425,57 @@ function Contabilidad({ setActive }) {
     );
   }, [loadAccounting]);
 
-  async function marcarPagado(c) {
-    // Registra el pendiente completo, en efectivo y con fecha de hoy. Eso crea un
-    // asiento contable, así que se dice exactamente qué se va a registrar antes
-    // de hacerlo: si el socio pagó otra cantidad o por otra vía, hay que
-    // registrarlo desde el detalle, no aquí.
+  /** Abre el modal para registrar un cobro con importe y forma de pago. */
+  function abrirCobro(c) {
     const pendiente = Number(c?.pendingAmount ?? c?.monto ?? 0)
-    const ok = await showConfirm({
-      title: `Registrar el cobro de ${fmtMoney(pendiente)}`,
-      message:
-        `Factura ${c?.numero || ''} · ${c?.socio || 'socio'}\n` +
-        `Se registrará como cobrado en efectivo, con fecha de hoy y por el importe pendiente completo.\n\n` +
-        `Esto crea un apunte en la contabilidad.`,
-      confirmLabel: 'Registrar cobro',
-    }).catch(() => false)
-    if (!ok) return
-    const r = await fetch('/api/crm/invoices/' + c.id + '/mark-paid', { method: 'POST', credentials: 'include' });
-    if (!r.ok) { showAlert('No se pudo marcar como pagado'); return; }
-    await Promise.all([reload(), loadAccounting()]);
+    setCobroModal({
+      id: c.id,
+      numero: c.numero,
+      socio: c.socio,
+      pendiente,
+      importe: pendiente.toFixed(2),
+      metodo: 'CASH',
+      referencia: '',
+    })
   }
+
+  async function registrarCobro() {
+    if (!cobroModal || cobroBusy) return
+    const importe = Number(String(cobroModal.importe).replace(',', '.'))
+    if (!Number.isFinite(importe) || importe <= 0) {
+      showAlert('Escribe un importe válido.')
+      return
+    }
+    if (importe > cobroModal.pendiente + 0.005) {
+      showAlert(`No puedes cobrar más de lo que se debe (${fmtMoney(cobroModal.pendiente)}).`)
+      return
+    }
+    setCobroBusy(true)
+    try {
+      const r = await fetch('/api/crm/invoices/' + cobroModal.id + '/mark-paid', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: importe,
+          method: cobroModal.metodo,
+          bankReference: cobroModal.referencia || undefined,
+        }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { showAlert(j.error || 'No se pudo registrar el cobro'); return }
+      setCobroModal(null)
+      await Promise.all([reload(), loadAccounting()])
+      showAlert(
+        Number(j.pending || 0) > 0
+          ? `Cobro registrado. Quedan ${fmtMoney(Number(j.pending))} por cobrar.`
+          : 'Factura cobrada por completo.',
+      )
+    } finally {
+      setCobroBusy(false)
+    }
+  }
+
 
   useEffect(() => {
     function onDocMouseDown(e) {
@@ -5485,10 +5520,16 @@ function Contabilidad({ setActive }) {
   }
 
   async function copiarIdCobro(c) {
+    // Se copia el NÚMERO de factura, que es lo que el socio y el banco
+    // reconocen; el identificador interno no le sirve a nadie.
+    const texto = String(c.numero || c.id)
     try {
-      await navigator.clipboard.writeText(String(c.id))
+      await navigator.clipboard.writeText(texto)
+      showAlert(`Copiado: ${texto}`)
     } catch {
-      // fallback silencioso
+      // El navegador puede bloquear el portapapeles: antes no pasaba nada y el
+      // tesorero se quedaba creyendo que lo había copiado.
+      showAlert(`No se pudo copiar automáticamente. El número es: ${texto}`)
     }
   }
 
@@ -6435,6 +6476,11 @@ function Contabilidad({ setActive }) {
                   <td style={{padding:'16px 32px',fontSize:13,color:'var(--text-secondary)'}}>{c.concepto}</td>
                   <td style={{padding:'16px 32px'}}>
                     <div style={{fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{fmtMoney(c.monto)}</div>
+                  {Number(c.pendingAmount ?? c.monto) < Number(c.monto) && Number(c.pendingAmount ?? 0) > 0 && (
+                    <div style={{fontSize:11,color:'var(--accent)',marginTop:3,fontWeight:600}}>
+                      Faltan {fmtMoney(Number(c.pendingAmount))}
+                    </div>
+                  )}
                     <div style={{fontSize:11,color:'var(--text-muted)',marginTop:3}}>
                       Base {fmtMoney(Number(c.subtotal || 0))} · IVA {fmtMoney(Number(c.iva || 0))} · Ret. {fmtMoney(Number(c.retencion || 0))}
                     </div>
@@ -6486,10 +6532,10 @@ function Contabilidad({ setActive }) {
                 {cobroActivo.estado !== 'Pagado' && (
                   <button
                     type="button"
-                    onClick={async () => { setMenuCobroId(null); await marcarPagado(cobroActivo) }}
+                    onClick={() => { setMenuCobroId(null); abrirCobro(cobroActivo) }}
                     style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'var(--green)',fontWeight:600}}
                   >
-                    Marcar pagado
+                    Registrar cobro…
                   </button>
                 )}
                 <button
@@ -6498,14 +6544,14 @@ function Contabilidad({ setActive }) {
                   onClick={async () => { setMenuCobroId(null); await abrirFactura(cobroActivo) }}
                   style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:downloadingCobroId === cobroActivo.id ? 'not-allowed' : 'pointer',fontFamily:'inherit',fontSize:13,color:'#44403c',fontWeight:500,opacity:downloadingCobroId === cobroActivo.id ? 0.65 : 1}}
                 >
-                  {downloadingCobroId === cobroActivo.id ? 'Descargando…' : 'Ver factura'}
+                  {downloadingCobroId === cobroActivo.id ? 'Descargando…' : 'Descargar PDF'}
                 </button>
                 <button
                   type="button"
                   onClick={async () => { setMenuCobroId(null); await copiarIdCobro(cobroActivo) }}
                   style={{width:'100%',textAlign:'left',padding:'10px 12px',border:'none',borderTop:'1px solid var(--border)',background:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:13,color:'#44403c',fontWeight:500}}
                 >
-                  Copiar ID
+                  Copiar nº de factura
                 </button>
                 <button
                   type="button"
@@ -6942,6 +6988,79 @@ function Contabilidad({ setActive }) {
           </form>
         </div>
       )}
+
+      {/* Registrar cobro: importe, forma de pago y referencia. Antes «Marcar
+          pagado» daba por cobrado TODO el pendiente, en efectivo y con fecha de
+          hoy, sin preguntar nada. */}
+      {cobroModal && (
+        <div
+          role="presentation"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setCobroModal(null) }}
+          style={{position:'fixed',inset:0,zIndex:1200,background:'rgba(15,23,42,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+        >
+          <div role="dialog" aria-modal="true" aria-labelledby="cobro-titulo"
+            style={{width:'100%',maxWidth:440,background:'#fff',borderRadius:14,padding:24,boxShadow:'0 24px 50px rgba(15,23,42,0.24)'}}>
+            <h3 id="cobro-titulo" style={{margin:'0 0 4px',fontSize:19,fontWeight:800,color:'#1c1917'}}>
+              Registrar cobro
+            </h3>
+            <p style={{margin:'0 0 18px',fontSize:13,color:'#57534e'}}>
+              {cobroModal.numero} · {cobroModal.socio} · debe {fmtMoney(cobroModal.pendiente)}
+            </p>
+
+            <label style={{display:'block',fontSize:12,fontWeight:700,color:'#57534e',marginBottom:6}}>
+              Importe cobrado
+            </label>
+            <input
+              type="number" step="0.01" min="0.01" max={cobroModal.pendiente}
+              value={cobroModal.importe}
+              onChange={(e) => setCobroModal((m) => ({ ...m, importe: e.target.value }))}
+              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,boxSizing:'border-box',marginBottom:14}}
+            />
+
+            <label style={{display:'block',fontSize:12,fontWeight:700,color:'#57534e',marginBottom:6}}>
+              ¿Cómo ha pagado?
+            </label>
+            <select
+              value={cobroModal.metodo}
+              onChange={(e) => setCobroModal((m) => ({ ...m, metodo: e.target.value }))}
+              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,boxSizing:'border-box',marginBottom:14,cursor:'pointer'}}
+            >
+              <option value="CASH">Efectivo</option>
+              <option value="BANK_TRANSFER">Transferencia</option>
+            </select>
+
+            {cobroModal.metodo === 'BANK_TRANSFER' && (
+              <>
+                <label style={{display:'block',fontSize:12,fontWeight:700,color:'#57534e',marginBottom:6}}>
+                  Referencia del banco (opcional)
+                </label>
+                <input
+                  value={cobroModal.referencia}
+                  onChange={(e) => setCobroModal((m) => ({ ...m, referencia: e.target.value }))}
+                  placeholder="Para poder cuadrarlo con el extracto"
+                  style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,boxSizing:'border-box',marginBottom:14}}
+                />
+              </>
+            )}
+
+            <p style={{fontSize:12,color:'#78716c',lineHeight:1.5,margin:'0 0 18px'}}>
+              Se creará el apunte contable correspondiente.
+            </p>
+
+            <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+              <button type="button" disabled={cobroBusy} onClick={() => setCobroModal(null)}
+                style={{padding:'10px 16px',borderRadius:10,border:'1px solid var(--border)',background:'#fff',color:'#57534e',cursor:'pointer',fontFamily:'inherit',fontWeight:600}}>
+                Cancelar
+              </button>
+              <button type="button" disabled={cobroBusy} onClick={registrarCobro}
+                style={{padding:'10px 16px',borderRadius:10,border:'none',background:'var(--accent)',color:'#fff',cursor:cobroBusy?'wait':'pointer',fontFamily:'inherit',fontWeight:700}}>
+                {cobroBusy ? 'Registrando…' : 'Registrar cobro'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       </div>
     </div>
   );

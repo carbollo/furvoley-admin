@@ -41,9 +41,15 @@ export function memberIsDelinquentForCrm(
 }
 
 /** Estado de factura en listados del CRM (Contabilidad). */
-export function crmInvoiceEstado(inv: InvoiceLike, today = new Date()): 'Pagado' | 'Pendiente' | 'Vencido' {
+export function crmInvoiceEstado(
+  inv: InvoiceLike,
+  today = new Date(),
+): 'Pagado' | 'Pago parcial' | 'Pendiente' | 'Vencido' {
   if (inv.status === 'PAID') return 'Pagado'
   if (inv.status === 'OVERDUE' || isInvoicePastDue(inv, today)) return 'Vencido'
+  // Un cobro a medias no es lo mismo que no haber cobrado nada: sin este estado,
+  // una factura de 60 € con 30 ya cobrados se leia igual que una intacta.
+  if (inv.paidAmount > 0) return 'Pago parcial'
   return 'Pendiente'
 }
 

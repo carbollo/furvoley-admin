@@ -23,7 +23,7 @@ function initials(name: string) {
 
 function mapInvoiceEstado(
   inv: { status: string; dueDate: Date; totalAmount: number; paidAmount: number },
-): 'Pagado' | 'Pendiente' | 'Vencido' {
+) {
   return crmInvoiceEstado(inv)
 }
 
