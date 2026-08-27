@@ -53,7 +53,7 @@ export type SupportedMethod = {
   }[]
 }
 
-const inputStyle: React.CSSProperties = {
+export const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 12px',
   borderRadius: 8,
@@ -66,7 +66,7 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+export function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <section style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
@@ -78,7 +78,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   )
 }
 
-function Field({ label, required, colSpan, children }: { label: string; required?: boolean; colSpan?: number; children: React.ReactNode }) {
+export function Field({ label, required, colSpan, children }: { label: string; required?: boolean; colSpan?: number; children: React.ReactNode }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 6, gridColumn: colSpan ? `span ${colSpan}` : undefined }}>
       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
@@ -111,7 +111,7 @@ function ReadonlyValue({ value, mono, tone = 'default' }: { value: string; mono?
   )
 }
 
-function primaryBtnStyle(disabled: boolean): React.CSSProperties {
+export function primaryBtnStyle(disabled: boolean): React.CSSProperties {
   return {
     padding: '10px 18px', borderRadius: 8, border: 'none',
     background: 'var(--accent)', color: '#fff',
@@ -122,7 +122,7 @@ function primaryBtnStyle(disabled: boolean): React.CSSProperties {
   }
 }
 
-function secondaryBtnStyle(disabled: boolean): React.CSSProperties {
+export function secondaryBtnStyle(disabled: boolean): React.CSSProperties {
   return {
     padding: '10px 18px', borderRadius: 8,
     background: 'var(--surface-card)', color: 'var(--text-primary)',

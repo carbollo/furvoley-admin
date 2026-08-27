@@ -6,7 +6,7 @@ tags: [whop, pasarela, cobros, payouts, transferencias, idempotencia, marca-blan
 
 Pasarela con la que **cada club cobra sus cuotas y recibe su dinero**, en marca blanca: el socio no ve la marca de la pasarela y el club solo entra en whop.com para crear su cuenta y sacar la API key. Sustituye a Stripe (que sigue en el repo pero está en retirada; ver [[Facturación y cuotas]]).
 
-Ficheros: `src/lib/whop/client.ts` (HTTP + versionado), `connect.ts` (conexión y permisos), `club-config.ts` (config del club, secretos), `checkout.ts` (enlaces de cobro), `reconcile.ts` (webhook → factura), **`payouts.ts`** (cuenta bancaria y transferencias), **`sweep.ts`** (barrido automático). Rutas: `src/app/api/crm/whop/*`, `src/app/api/whop/webhook/`, `src/app/api/jobs/whop-sweep/`.
+Ficheros: `src/lib/whop/client.ts` (HTTP + versionado), `connect.ts` (conexión y permisos), `club-config.ts` (config del club, secretos), `checkout.ts` (enlaces de cobro), `reconcile.ts` (webhook → factura), **`payouts.ts`** (cuenta bancaria y transferencias), **`sweep.ts`** (barrido automático), **`cards.ts`** (tarjetas). Rutas: `src/app/api/crm/whop/*`, `src/app/api/whop/webhook/`, `src/app/api/jobs/whop-sweep/`.
 
 ## La API tiene dos modelos distintos en la misma URL
 
@@ -61,6 +61,23 @@ De ahí salen dos reglas no negociables:
 Antes vivía **dentro del modal de Ajustes del club**, donde nadie busca su dinero; ahí queda solo conectar la pasarela y un puntero. Si tocas esto, el modal y la sección no deben volver a tener cada uno su copia del panel.
 
 `/api/crm/data` expone `club.country` (decide qué campos bancarios pide `supported_methods`) y `club.whopConectado` (sin ello la sección no puede distinguir «no conectado» de «error al cargar» y pediría saldos que nunca llegan).
+
+## Tarjetas (`cards.ts`)
+
+El club gasta su saldo con una Visa en vez de esperar la transferencia. `src/lib/whop/cards.ts` + rutas `src/app/api/crm/whop/cards/…` + `CardsPanel.tsx` dentro de Banco.
+
+**Cuatro trampas, todas comprobadas contra el OpenAPI (`x-api-version-date: 2026-08-25-2`):**
+
+1. **`POST /cards` tiene CUATRO formas de respuesta, no tres.** Además de `card` (201), `card_provisioning` y `card_invitation`, existe **`card_application`** (202): la pasarela aún no ha aprobado al club y abre una solicitud con `hosted_url`, que es la **única** vía para completarla. Tres de las cuatro traen `id`, así que discriminar por «tiene id» confundía una solicitud (`ciac_…`) con una tarjeta emitida (`icrd_…`) y tiraba el enlace. Se discrimina **siempre por `object`**, y el aviso de la solicitud se queda fijo en pantalla, no en un `showAlert` que se esfuma.
+2. **`spent_last_month` viene en CÉNTIMOS; `limit.amount`, en DÓLARES.** `mapCard` normaliza a dólares. Comparar los dos crudos da un error de 100×.
+3. **La tarjeta liquida en USD y el club lleva EUR.** No se convierte nada: se enseña `local_amount`+`currency` (lo que cobró el comercio) y debajo `usd_amount` (lo que se descontó). Pintar un importe de tarjeta con «€» es mentirle al club.
+4. **La clave de idempotencia se deriva del `requestId` del navegador + el contenido**, no de «cuántas tarjetas hay». Con el recuento, cancelar una tarjeta y reemitirla igual —justo lo que toca si te la clonan— repetía la clave y la pasarela devolvía la tarjeta cancelada. Y como la pasarela repite también las respuestas de **error** 24 h, el navegador renueva el `requestId` tras cada fallo.
+
+**El número completo y el CVC** salen solo por `getCardSecrets` (`GET /cards/{id}`), que descarta el resto de la respuesta; ruta aparte, solo ADMIN, `no-store`, sin log (`logSafe` de este módulo solo registra el status: el cuerpo del error puede llevar el PAN), y nunca en la BD. `mapCard` es una lista blanca, así que un `secrets` en la respuesta de lista no llegaría al navegador.
+
+**Permisos:** leer usa `payout:account:read`, que ya está en `WHOP_REQUIRED_SCOPES`. Emitir/congelar pide `payout:account:update` y `company:authorized_user:read`, que van aparte en `WHOP_CARD_SCOPES` **a propósito**: meterlos en los obligatorios haría que todos los clubes ya conectados vieran «faltan permisos» por algo que no usan.
+
+**Gap conocido:** las rutas `/api/crm/whop/*` (tarjetas y también las de cobro, que ya estaban así) no pasan por `assertModuleForRequest`, así que no se gatean por plan. Requiere sesión de ADMIN/tesorero del club, pero es una incoherencia con el menú.
 
 ## Trampa: hooks después de un `return` condicional
 

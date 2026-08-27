@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { PayoutsPanel, type PayoutsState, type SupportedMethod } from './PayoutsPanel'
+import { CardsPanel, type CardApplication, type CardsState } from './CardsPanel'
 
 /**
  * Contabilidad → Banco.
@@ -18,12 +19,15 @@ export function BancoSection({
   showAlert,
   countryHint,
   whopConectado,
+  esAdmin,
   onConfigurarPasarela,
 }: {
   showAlert: (message: string, title?: string) => void
   /** País del club, para pedirle a la pasarela los campos bancarios correctos. */
   countryHint: string
   whopConectado: boolean
+  /** El tesorero mira; emitir o congelar una tarjeta es cosa del ADMIN. */
+  esAdmin: boolean
   onConfigurarPasarela?: () => void
 }) {
   const [payouts, setPayouts] = useState<PayoutsState | null>(null)
@@ -32,6 +36,10 @@ export function BancoSection({
   const [bankFields, setBankFields] = useState<Record<string, string>>({})
   const [bankMethodId, setBankMethodId] = useState('')
   const [bankCountry, setBankCountry] = useState('')
+  const [cards, setCards] = useState<CardsState | null>(null)
+  const [cardsBusy, setCardsBusy] = useState(false)
+  /** Alta de tarjetas a medias: tiene que quedarse en pantalla, no en un aviso. */
+  const [solicitud, setSolicitud] = useState<CardApplication | null>(null)
 
   const cargar = useCallback(async () => {
     try {
@@ -46,6 +54,155 @@ export function BancoSection({
   useEffect(() => {
     if (whopConectado) void cargar()
   }, [cargar, whopConectado])
+
+  const vacio = (error: string): CardsState => ({
+    cards: [],
+    cardsError: error,
+    movements: [],
+    movementsError: null,
+    holders: [],
+    scopes: [],
+  })
+
+  const cargarTarjetas = useCallback(async () => {
+    try {
+      const r = await fetch('/api/crm/whop/cards', { credentials: 'include', cache: 'no-store' })
+      if (!r.ok) {
+        // Sin esto el panel se quedaba en «Consultando tus tarjetas…» para
+        // siempre, que es la peor forma de fallar: parece que sigue cargando.
+        setCards(
+          vacio(
+            r.status === 401
+              ? 'Tu sesión ha caducado. Vuelve a entrar para ver las tarjetas.'
+              : 'No se pudieron consultar las tarjetas. Vuelve a intentarlo en un momento.',
+          ),
+        )
+        return
+      }
+      setCards(await r.json())
+    } catch {
+      setCards(vacio('No hay conexión con el servidor. Comprueba tu red y vuelve a intentarlo.'))
+    }
+  }, [])
+
+  async function emitirTarjeta(input: {
+    name: string
+    spendLimit: number | null
+    spendLimitFrequency: string
+    assignedUserId: string | null
+    requestId: string
+  }): Promise<boolean> {
+    if (cardsBusy) return false
+    setCardsBusy(true)
+    try {
+      const r = await fetch('/api/crm/whop/cards', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        // Indeterminado: la petición pudo llegar igualmente. Se refresca antes
+        // de que el club vuelva a pulsar, para que no emita dos.
+        if (j.indeterminate) {
+          await cargarTarjetas()
+          showAlert(
+            `${j.error || 'No se pudo confirmar la emisión'}. Puede que la tarjeta se haya emitido igualmente: ` +
+              'mira la lista antes de volver a intentarlo.',
+          )
+        } else {
+          showAlert(j.error || 'No se pudo emitir la tarjeta')
+        }
+        return false
+      }
+      await cargarTarjetas()
+      if (j.kind === 'application') {
+        // Esto NO es una tarjeta: es una solicitud de alta. El enlace es la
+        // única forma de terminarla, así que se queda fijo en la pantalla.
+        setSolicitud({ status: String(j.applicationStatus || 'pending'), hostedUrl: j.hostedUrl || null })
+        showAlert(
+          'Antes de darte tarjetas, la pasarela tiene que aprobar al club. Arriba te queda el enlace para terminarlo.',
+        )
+        return true
+      }
+      showAlert(
+        j.kind === 'invitation'
+          ? 'Se ha invitado al titular. La tarjeta no existirá hasta que complete su alta en la pasarela.'
+          : j.kind === 'provisioning'
+            ? 'La pasarela está emitiendo la tarjeta. Aparecerá en la lista en unos segundos.'
+            : 'Tarjeta emitida. Ya puedes usarla.',
+      )
+      return true
+    } catch {
+      // Un corte de red deja la emisión en el aire igual que un timeout.
+      await cargarTarjetas()
+      showAlert(
+        'Se perdió la conexión al emitir la tarjeta. Puede que se haya emitido igualmente: mira la lista antes de volver a intentarlo.',
+      )
+      return false
+    } finally {
+      setCardsBusy(false)
+    }
+  }
+
+  async function cambiarTarjeta(
+    cardId: string,
+    patch: {
+      frozen?: boolean
+      canceled?: boolean
+      spendLimit?: number | null
+      transactionLimit?: number | null
+      removeLimit?: boolean
+      spendLimitFrequency?: string
+    },
+  ): Promise<boolean> {
+    if (cardsBusy) return false
+    setCardsBusy(true)
+    try {
+      const r = await fetch(`/api/crm/whop/cards/${encodeURIComponent(cardId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        showAlert(j.error || 'No se pudo cambiar la tarjeta')
+        return false
+      }
+      await cargarTarjetas()
+      return true
+    } catch {
+      showAlert('No hay conexión con el servidor. Comprueba si el cambio se ha aplicado.')
+      await cargarTarjetas()
+      return false
+    } finally {
+      setCardsBusy(false)
+    }
+  }
+
+  /**
+   * El número completo no pasa por el estado compartido ni se guarda: se pide,
+   * se devuelve a quien lo pintó y ahí muere.
+   */
+  async function verDatosTarjeta(cardId: string) {
+    try {
+      const r = await fetch(`/api/crm/whop/cards/${encodeURIComponent(cardId)}/secrets`, {
+        credentials: 'include',
+        cache: 'no-store',
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        showAlert(j.error || 'No se pudieron consultar los datos de la tarjeta')
+        return null
+      }
+      return j as { cardNumber: string; cvc: string; nameOnCard: string | null; expiration: string | null }
+    } catch {
+      showAlert('No se pudieron consultar los datos de la tarjeta')
+      return null
+    }
+  }
 
   /** Los campos concretos solo llegan al pedir un método en particular. */
   async function elegirMetodo(country: string, methodId: string, conocidos: SupportedMethod[]) {
@@ -220,6 +377,19 @@ export function BancoSection({
           onSaveBank={guardarCuenta}
           onTransferNow={transferirAhora}
           onSweepChange={guardarProgramacion}
+        />
+      )}
+
+      {whopConectado && (
+        <CardsPanel
+          data={cards}
+          busy={cardsBusy}
+          esAdmin={esAdmin}
+          solicitud={solicitud}
+          onLoad={cargarTarjetas}
+          onCreate={emitirTarjeta}
+          onUpdate={cambiarTarjeta}
+          onRevealSecrets={verDatosTarjeta}
         />
       )}
 
