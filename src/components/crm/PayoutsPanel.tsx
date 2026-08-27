@@ -8,7 +8,7 @@
  * para que no haya dos copias de la misma pantalla.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { formatMoney } from '@/lib/format-money'
 
 export type PayoutsState = {
@@ -211,6 +211,7 @@ export function PayoutsPanel({
   bankMethodId,
   bankFields,
   countryHint,
+  esAdmin,
   onLoad,
   onStartBank,
   onCancelBank,
@@ -226,6 +227,13 @@ export function PayoutsPanel({
   bankMethodId: string
   bankFields: Record<string, string>
   countryHint: string
+  /**
+   * El servidor solo acepta a ADMIN en la cuenta bancaria y en la programacion
+   * (payouts/methods y payouts/config). Sin esto, al tesorero se le ofrecian
+   * botones que el servidor le rechazaba: tecleaba el IBAN entero del club para
+   * que le contestara «Unauthorized».
+   */
+  esAdmin: boolean
   onLoad: () => void
   onStartBank: (country: string) => void
   onCancelBank: () => void
@@ -238,6 +246,14 @@ export function PayoutsPanel({
   useEffect(() => {
     onLoad()
   }, [onLoad])
+
+  // El importe minimo se pinta desde el estado y se resincroniza cuando llegan
+  // datos nuevos: asi un rechazo del servidor no deja en pantalla un valor que
+  // en realidad no se guardo.
+  const [minimo, setMinimo] = useState(String(data?.sweep?.minAmount ?? 10))
+  useEffect(() => {
+    setMinimo(String(data?.sweep?.minAmount ?? 10))
+  }, [data?.sweep?.minAmount])
 
   const cardStyle: React.CSSProperties = {
     padding: 20,
@@ -385,11 +401,13 @@ export function PayoutsPanel({
                   ○ {bankWarning(bank)}
                 </div>
               ) : null}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="button" disabled={busy} onClick={() => onStartBank(countryCodeFrom(countryHint))} style={secondaryBtnStyle(busy)}>
-                  Cambiar cuenta
-                </button>
-              </div>
+              {esAdmin ? (
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="button" disabled={busy} onClick={() => onStartBank(countryCodeFrom(countryHint))} style={secondaryBtnStyle(busy)}>
+                    Cambiar cuenta
+                  </button>
+                </div>
+              ) : null}
             </>
           ) : bankMethods ? (
             <>
@@ -474,12 +492,15 @@ export function PayoutsPanel({
             <>
               <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--amber-soft)', color: 'var(--amber)', fontSize: 12.5, fontWeight: 600 }}>
                 ○ Aún no has indicado dónde quieres recibir el dinero.
+                {esAdmin ? '' : ' Tiene que hacerlo el administrador del club.'}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="button" disabled={busy} onClick={() => onStartBank(countryCodeFrom(countryHint))} style={primaryBtnStyle(busy)}>
-                  {busy ? 'Cargando…' : 'Añadir cuenta bancaria'}
-                </button>
-              </div>
+              {esAdmin ? (
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="button" disabled={busy} onClick={() => onStartBank(countryCodeFrom(countryHint))} style={primaryBtnStyle(busy)}>
+                    {busy ? 'Cargando…' : 'Añadir cuenta bancaria'}
+                  </button>
+                </div>
+              ) : null}
             </>
           )}
         </div>
@@ -493,7 +514,7 @@ export function PayoutsPanel({
                 <select
                   value={data?.sweep?.frequency || 'WEEKLY'}
                   onChange={(e) => onSweepChange({ frequency: e.target.value })}
-                  disabled={busy}
+                  disabled={busy || !esAdmin}
                   style={{ ...inputStyle, cursor: 'pointer' }}
                 >
                   <option value="DAILY">Cada día</option>
@@ -507,13 +528,19 @@ export function PayoutsPanel({
                   type="number"
                   min={1}
                   step="1"
-                  defaultValue={data?.sweep?.minAmount ?? 10}
-                  onBlur={(e) => onSweepChange({ minAmount: Number(e.target.value) })}
-                  disabled={busy}
+                  value={minimo}
+                  onChange={(e) => setMinimo(e.target.value)}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value)
+                    if (Number.isFinite(v) && v !== (data?.sweep?.minAmount ?? 10)) onSweepChange({ minAmount: v })
+                  }}
+                  disabled={busy || !esAdmin}
                   style={inputStyle}
                 />
                 <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Por debajo de esto no se envía nada: la comisión se comería el importe.
+                  {esAdmin
+                    ? 'Por debajo de esto no se envía nada: la comisión se comería el importe.'
+                    : 'Solo el administrador del club puede cambiar esto.'}
                 </div>
               </Field>
             </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { PayoutsPanel, type PayoutsState, type SupportedMethod } from './PayoutsPanel'
 import { CardsPanel, type CardApplication, type CardsState } from './CardsPanel'
 
@@ -25,7 +25,8 @@ export function BancoSection({
   showAlert: (message: string, title?: string) => void
   /** País del club, para pedirle a la pasarela los campos bancarios correctos. */
   countryHint: string
-  whopConectado: boolean
+  /** `null` cuando no se ha podido comprobar: no es lo mismo que «no conectada». */
+  whopConectado: boolean | null
   /** El tesorero mira; emitir o congelar una tarjeta es cosa del ADMIN. */
   esAdmin: boolean
   onConfigurarPasarela?: () => void
@@ -44,16 +45,41 @@ export function BancoSection({
   const cargar = useCallback(async () => {
     try {
       const r = await fetch('/api/crm/whop/payouts', { credentials: 'include', cache: 'no-store' })
-      if (!r.ok) return
+      if (!r.ok) {
+        // Antes se salia en silencio y la pantalla se quedaba en «Consultando tu
+        // saldo…» indefinidamente, que parece que sigue cargando cuando en
+        // realidad ya no va a llegar nada.
+        setPayouts({
+          connected: true,
+          balances: [],
+          balancesError:
+            r.status === 401
+              ? 'Tu sesión ha caducado. Vuelve a entrar para ver tu saldo.'
+              : 'No se pudo consultar tu saldo. Vuelve a intentarlo en un momento.',
+          methods: [],
+          payouts: [],
+          pending: [],
+          sweep: { frequency: 'OFF', minAmount: 10, lastSweepAt: null, hasPayoutMethod: false, currency: 'EUR' },
+        })
+        return
+      }
       setPayouts(await r.json())
     } catch {
-      /* la pantalla avisa si no hay datos */
+      setPayouts({
+        connected: true,
+        balances: [],
+        balancesError: 'No hay conexión con el servidor. Comprueba tu red y vuelve a intentarlo.',
+        methods: [],
+        payouts: [],
+        pending: [],
+        sweep: { frequency: 'OFF', minAmount: 10, lastSweepAt: null, hasPayoutMethod: false, currency: 'EUR' },
+      })
     }
   }, [])
 
-  useEffect(() => {
-    if (whopConectado) void cargar()
-  }, [cargar, whopConectado])
+  // El propio PayoutsPanel llama a `onLoad` al montarse, asi que aqui no se pide
+  // nada: hacerlo en los dos sitios duplicaba la carga (y con ella tres llamadas
+  // a la pasarela) cada vez que se abria Banco.
 
   const vacio = (error: string): CardsState => ({
     cards: [],
@@ -91,8 +117,8 @@ export function BancoSection({
     spendLimitFrequency: string
     assignedUserId: string | null
     requestId: string
-  }): Promise<boolean> {
-    if (cardsBusy) return false
+  }): Promise<'ok' | 'rechazado' | 'indeterminado'> {
+    if (cardsBusy) return 'rechazado'
     setCardsBusy(true)
     try {
       const r = await fetch('/api/crm/whop/cards', {
@@ -111,10 +137,10 @@ export function BancoSection({
             `${j.error || 'No se pudo confirmar la emisión'}. Puede que la tarjeta se haya emitido igualmente: ` +
               'mira la lista antes de volver a intentarlo.',
           )
-        } else {
-          showAlert(j.error || 'No se pudo emitir la tarjeta')
+          return 'indeterminado'
         }
-        return false
+        showAlert(j.error || 'No se pudo emitir la tarjeta')
+        return 'rechazado'
       }
       await cargarTarjetas()
       if (j.kind === 'application') {
@@ -124,7 +150,7 @@ export function BancoSection({
         showAlert(
           'Antes de darte tarjetas, la pasarela tiene que aprobar al club. Arriba te queda el enlace para terminarlo.',
         )
-        return true
+        return 'ok'
       }
       showAlert(
         j.kind === 'invitation'
@@ -133,14 +159,16 @@ export function BancoSection({
             ? 'La pasarela está emitiendo la tarjeta. Aparecerá en la lista en unos segundos.'
             : 'Tarjeta emitida. Ya puedes usarla.',
       )
-      return true
+      return 'ok'
     } catch {
-      // Un corte de red deja la emisión en el aire igual que un timeout.
+      // Un corte de red deja la emisión en el aire igual que un timeout: no se
+      // sabe si la tarjeta existe, así que el reintento tiene que conservar la
+      // clave de idempotencia en vez de estrenar una.
       await cargarTarjetas()
       showAlert(
         'Se perdió la conexión al emitir la tarjeta. Puede que se haya emitido igualmente: mira la lista antes de volver a intentarlo.',
       )
-      return false
+      return 'indeterminado'
     } finally {
       setCardsBusy(false)
     }
@@ -168,6 +196,15 @@ export function BancoSection({
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) {
+        // Cancelar no tiene vuelta atras: si no se sabe si se aplico, hay que
+        // decirlo y refrescar, no afirmar que no se hizo.
+        if (j.indeterminate) {
+          await cargarTarjetas()
+          showAlert(
+            `${j.error || 'No se pudo confirmar el cambio'}. Puede que se haya aplicado igualmente: comprueba el estado en la lista.`,
+          )
+          return false
+        }
         showAlert(j.error || 'No se pudo cambiar la tarjeta')
         return false
       }
@@ -338,7 +375,17 @@ export function BancoSection({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {!whopConectado ? (
+      {whopConectado === null ? (
+        <div style={tarjeta}>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
+            No se ha podido comprobar tu pasarela
+          </div>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.55 }}>
+            Vuelve a cargar la página en un momento. No toques nada de la pasarela hasta saber su
+            estado: reconectarla reinicia dónde recibes el dinero.
+          </p>
+        </div>
+      ) : !whopConectado ? (
         <div style={tarjeta}>
           <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>
             Todavía no cobras online
@@ -369,6 +416,7 @@ export function BancoSection({
           bankMethodId={bankMethodId}
           bankFields={bankFields}
           countryHint={countryHint}
+          esAdmin={esAdmin}
           onLoad={cargar}
           onStartBank={abrirFormularioBanco}
           onCancelBank={() => { setBankMethods(null); setBankFields({}) }}

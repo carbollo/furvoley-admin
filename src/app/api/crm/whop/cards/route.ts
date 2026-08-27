@@ -30,7 +30,11 @@ export async function GET(request: Request) {
   // Los titulares solo hacen falta para emitir, que es cosa del ADMIN, y su
   // consulta necesita un permiso aparte: si falla, el resto de la pantalla
   // tiene que seguir funcionando.
-  const puedeEmitir = scopes.every((s) => s.granted)
+  // Los titulares llevan nombres y correos del equipo del club en la pasarela, y
+  // solo hacen falta para emitir, que es cosa del ADMIN: al tesorero no se le
+  // manda esa lista aunque su clave pueda leerla.
+  const esAdmin = auth.role === 'ADMIN'
+  const puedeEmitir = esAdmin && scopes.every((s) => s.granted)
   const holders = puedeEmitir ? await listCardHolders() : null
 
   return NextResponse.json({
@@ -39,6 +43,7 @@ export async function GET(request: Request) {
     cardsError: cards.ok ? null : cards.error,
     movements: movements.ok ? movements.movements : [],
     movementsError: movements.ok ? null : movements.error,
+    hayMasMovimientos: movements.ok ? movements.hayMas : false,
     holders: holders?.ok ? holders.holders : [],
     scopes,
   })

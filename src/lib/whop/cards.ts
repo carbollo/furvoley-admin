@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { cache } from 'react'
 import { whopRequest, WhopError } from '@/lib/whop/client'
 import { getWhopClubConfig, getWhopClubCredential } from '@/lib/whop/club-config'
 
@@ -72,7 +73,7 @@ export type CardHolder = { userId: string; name: string; role: string; pending: 
 
 type Ctx = { companyId: string; credential: { apiKey: string } }
 
-async function ctx(): Promise<{ ok: true; ctx: Ctx } | { ok: false; error: string }> {
+const ctx = cache(async function ctx(): Promise<{ ok: true; ctx: Ctx } | { ok: false; error: string }> {
   const config = await getWhopClubConfig()
   if (!config.hasCompany) {
     return { ok: false, error: 'La pasarela de cobro no está conectada. Configúrala en Ajustes del club.' }
@@ -82,7 +83,7 @@ async function ctx(): Promise<{ ok: true; ctx: Ctx } | { ok: false; error: strin
     return { ok: false, error: 'Falta la clave de la pasarela. Vuelve a conectarla en Ajustes del club.' }
   }
   return { ok: true, ctx: { companyId: config.companyId, credential } }
-}
+})
 
 /**
  * Traduce el fallo a algo accionable, sin reenviar nunca el texto crudo de la
@@ -93,20 +94,28 @@ function friendly(e: unknown, fallback: string, op?: 'listar' | 'emitir' | 'tarj
   const raw = String(e.message || '')
 
   if (e.status === 401) return 'La clave de la pasarela ya no es válida. Vuelve a conectarla en Ajustes del club.'
+  // Cada codigo significa una cosa distinta EN CADA endpoint, y traducirlos a
+  // todos igual manda al club a arreglar algo que no esta roto: decirle que le
+  // falta el permiso de emitir cuando lo que le falta es el de leer, o que su
+  // tarjeta «no se encuentra» cuando lo que pasa es que aun no tiene cuenta.
   if (e.status === 403) {
-    return 'La clave de la pasarela no tiene permiso para gestionar tarjetas. Genera una nueva añadiendo «Emitir y gestionar tarjetas».'
-  }
-  // El mismo código significa cosas distintas según la operación, y decir la
-  // que no es manda al club a arreglar algo que no está roto.
-  if (e.status === 404) {
     return op === 'listar'
-      ? 'La pasarela todavía no tiene una cuenta de saldo para este club, así que no puede haber tarjetas.'
-      : 'La pasarela no encuentra esa tarjeta. Actualiza la lista.'
+      ? 'La clave de la pasarela no tiene permiso para ver las tarjetas. Genera una nueva con «Ver tu cuenta bancaria» marcado.'
+      : 'La clave de la pasarela no tiene permiso para gestionar tarjetas. Genera una nueva añadiendo «Emitir y gestionar tarjetas».'
+  }
+  if (e.status === 404) {
+    return op === 'tarjeta'
+      ? 'La pasarela no encuentra esa tarjeta. Actualiza la lista.'
+      : 'La pasarela todavía no tiene una cuenta de saldo para este club, así que no puede haber tarjetas.'
   }
   if (e.status === 409) {
+    // Al emitir: la solicitud de tarjetas del club no esta aprobada.
+    // Al modificar: el emisor ha rechazado a la persona a la que se invito.
     return op === 'emitir'
       ? 'La pasarela aún no ha aprobado a este club para tener tarjetas. Hasta que no termine esa revisión no se puede emitir ninguna.'
-      : 'Esa misma operación ya se está procesando. Actualiza en unos segundos.'
+      : op === 'tarjeta'
+        ? 'El emisor ha rechazado a la persona a la que se invitó esta tarjeta, así que no se puede seguir con ella.'
+        : 'Esa misma operación ya se está procesando. Actualiza en unos segundos.'
   }
 
   if (/not eligible|ineligible|not available|unsupported country|region/i.test(raw)) {
@@ -330,7 +339,7 @@ export async function createCard(input: {
   const c = await ctx()
   if (!c.ok) return { ok: false, error: c.error, indeterminate: false }
 
-  const name = input.name.trim().slice(0, 60)
+  const name = Array.from(input.name.trim()).slice(0, 60).join('')
   if (!name) return { ok: false, error: 'Ponle un nombre a la tarjeta.', indeterminate: false }
 
   const body: Record<string, unknown> = { account_id: c.ctx.companyId, name }
@@ -343,11 +352,10 @@ export async function createCard(input: {
     body.transaction_limit = Number(input.transactionLimit.toFixed(2))
   }
 
-  const canonical = Object.keys(body)
-    .sort()
-    .map((k) => `${k}=${String(body[k])}`)
-    .concat(`req=${input.requestId}`)
-    .join('&')
+  // JSON y no «clave=valor» unidos por &: un nombre de tarjeta que contuviera
+  // «&spend_limit=» podria fabricar la misma cadena canonica que otra peticion
+  // distinta, y la pasarela le devolveria una respuesta ajena.
+  const canonical = JSON.stringify([input.requestId, Object.keys(body).sort().map((k) => [k, body[k]])])
   const idempotencyKey = `crm:card:${createHash('sha256').update(canonical).digest('hex').slice(0, 32)}`
 
   try {
@@ -383,7 +391,10 @@ export async function createCard(input: {
     // Un corte o un 5xx puede haber dejado la tarjeta creada al otro lado. Solo
     // un rechazo explícito (4xx que no sea 409) garantiza que no se emitió.
     const status = e instanceof WhopError ? e.status : 0
-    const indeterminate = !(status >= 400 && status < 500) || status === 409
+    // Un 4xx es un rechazo firme: no se creo nada. El 409 de ESTE endpoint
+    // significa «la solicitud del club no esta aprobada», que tambien es firme
+    // (a diferencia del 409 de las transferencias, que si es «ya en curso»).
+    const indeterminate = !(status >= 400 && status < 500)
     return { ok: false, error: friendly(e, 'No se pudo emitir la tarjeta.', 'emitir'), indeterminate }
   }
 }
@@ -407,19 +418,27 @@ export async function updateCard(
     transactionLimit?: number | null
     removeLimit?: boolean
   },
-): Promise<{ ok: true; card: ClubCard } | { ok: false; error: string }> {
+): Promise<{ ok: true; card: ClubCard } | { ok: false; error: string; indeterminate: boolean }> {
   const c = await ctx()
-  if (!c.ok) return c
-  if (!/^icrd_[A-Za-z0-9]+$/.test(cardId)) return { ok: false, error: 'Tarjeta no válida.' }
+  if (!c.ok) return { ok: false, error: c.error, indeterminate: false }
+  if (!/^icrd_[A-Za-z0-9]+$/.test(cardId)) {
+    return { ok: false, error: 'Tarjeta no válida.', indeterminate: false }
+  }
 
   const body: Record<string, unknown> = { account_id: c.ctx.companyId }
+  // Los dos topes son excluyentes: mandarlos juntos haria que uno se perdiera en
+  // silencio y la tarjeta acabase con un limite que el club no ha pedido. Mejor
+  // rechazarlo que elegir por el.
+  if (patch.spendLimit != null && patch.transactionLimit != null) {
+    return { ok: false, error: 'Elige un solo tipo de límite: por periodo o por compra.', indeterminate: false }
+  }
   if (patch.canceled === true) {
     body.canceled = true
   } else {
     if (patch.frozen !== undefined) body.frozen = patch.frozen
     if (patch.name !== undefined) {
-      const n = patch.name.trim().slice(0, 60)
-      if (!n) return { ok: false, error: 'El nombre no puede quedarse vacío.' }
+      const n = Array.from(patch.name.trim()).slice(0, 60).join('')
+      if (!n) return { ok: false, error: 'El nombre no puede quedarse vacío.', indeterminate: false }
       body.name = n
     }
     if (patch.removeLimit) {
@@ -427,21 +446,27 @@ export async function updateCard(
     } else if (patch.transactionLimit != null) {
       // Un tope por compra no se expresa con `spend_limit_frequency`: la
       // pasarela lo declara aparte y luego lo reporta como `per_transaction`.
-      if (!(patch.transactionLimit > 0)) return { ok: false, error: 'El límite tiene que ser mayor que cero.' }
+      if (!(patch.transactionLimit > 0)) {
+        return { ok: false, error: 'El límite tiene que ser mayor que cero.', indeterminate: false }
+      }
       body.transaction_limit = Number(patch.transactionLimit.toFixed(2))
     } else if (patch.spendLimit != null) {
-      if (!(patch.spendLimit > 0)) return { ok: false, error: 'El límite tiene que ser mayor que cero.' }
+      if (!(patch.spendLimit > 0)) {
+        return { ok: false, error: 'El límite tiene que ser mayor que cero.', indeterminate: false }
+      }
       body.spend_limit = Number(patch.spendLimit.toFixed(2))
       // Sin periodo explícito no se toca el límite: cambiarlo a «al mes» por
       // defecto convertiría un tope diario en uno mensual sin decir nada.
       if (!patch.spendLimitFrequency) {
-        return { ok: false, error: 'Falta indicar cada cuánto se aplica el límite.' }
+        return { ok: false, error: 'Falta indicar cada cuánto se aplica el límite.', indeterminate: false }
       }
       body.spend_limit_frequency = patch.spendLimitFrequency
     }
   }
 
-  if (Object.keys(body).length === 1) return { ok: false, error: 'Nada que cambiar.' }
+  if (Object.keys(body).length === 1) {
+    return { ok: false, error: 'Nada que cambiar.', indeterminate: false }
+  }
 
   try {
     const res = await whopRequest<Record<string, unknown>>({
@@ -450,10 +475,23 @@ export async function updateCard(
       credential: c.ctx.credential,
       body,
     })
+    // Una respuesta sin tarjeta dentro no se da por buena, pero tampoco por
+    // fallida: el cambio puede haberse aplicado igual.
+    if (!res || typeof res !== 'object' || !res.id) {
+      return { ok: false, error: 'La pasarela no confirmó el cambio. Actualiza la lista.', indeterminate: true }
+    }
     return { ok: true, card: mapCard(res) }
   } catch (e) {
     logSafe('updateCard', e)
-    return { ok: false, error: friendly(e, 'No se pudo cambiar la tarjeta.', 'tarjeta') }
+    // Importa sobre todo al CANCELAR: si se corta la conexion, decirle al club
+    // que «no se pudo» cuando puede haberse cancelado —y no tiene vuelta atras—
+    // es peor que reconocer que no se sabe.
+    const status = e instanceof WhopError ? e.status : 0
+    return {
+      ok: false,
+      error: friendly(e, 'No se pudo cambiar la tarjeta.', 'tarjeta'),
+      indeterminate: !(status >= 400 && status < 500),
+    }
   }
 }
 
@@ -462,11 +500,11 @@ const ESTADOS_MOV = ['pending', 'completed', 'reversed', 'declined'] as const
 export async function listCardMovements(opts?: {
   cardId?: string
   limit?: number
-}): Promise<{ ok: true; movements: CardMovement[] } | { ok: false; error: string }> {
+}): Promise<{ ok: true; movements: CardMovement[]; hayMas: boolean } | { ok: false; error: string }> {
   const c = await ctx()
   if (!c.ok) return c
   try {
-    const res = await whopRequest<{ data?: Record<string, unknown>[] }>({
+    const res = await whopRequest<{ data?: Record<string, unknown>[]; page_info?: unknown }>({
       path: '/card_transactions',
       credential: c.ctx.credential,
       query: {
@@ -477,6 +515,10 @@ export async function listCardMovements(opts?: {
         first: Math.min(Math.max(opts?.limit || 25, 1), 100),
       },
     })
+    // `page_info` dice si hay mas paginas. No se recorren: la pantalla ensena los
+    // ultimos movimientos, no el historico. Se devuelve el dato para que la
+    // pantalla pueda decir que esta viendo solo un trozo.
+    const hayMas = Boolean((res?.page_info as { has_next_page?: unknown } | undefined)?.has_next_page)
     const movements = (res?.data || []).map((m): CardMovement => {
       const estado = String(m.status || '').toLowerCase()
       return {
@@ -496,7 +538,7 @@ export async function listCardMovements(opts?: {
         international: Boolean(m.international),
       }
     })
-    return { ok: true, movements: movements.filter((m) => m.id) }
+    return { ok: true, movements: movements.filter((m) => m.id), hayMas }
   } catch (e) {
     logSafe('listCardMovements', e)
     return { ok: false, error: friendly(e, 'No se pudieron consultar los gastos de la tarjeta.', 'listar') }

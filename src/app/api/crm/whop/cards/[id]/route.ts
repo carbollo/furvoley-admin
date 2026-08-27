@@ -50,20 +50,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'El límite por compra debe estar entre 1 y 1.000.000.' }, { status: 400 })
   }
 
+  if (body.frozen !== undefined && typeof body.frozen !== 'boolean') {
+    return NextResponse.json({ error: 'El valor de congelado no es válido.' }, { status: 400 })
+  }
+  if (body.name !== undefined && typeof body.name !== 'string') {
+    return NextResponse.json({ error: 'El nombre no es válido.' }, { status: 400 })
+  }
+
   // Cancelar es irreversible, así que tiene que venir solo y explícito: nunca
   // como efecto colateral de guardar un nombre o un límite.
   const cancelar = body.canceled === true
 
   const res = await updateCard(id, {
     canceled: cancelar || undefined,
-    frozen: cancelar || body.frozen === undefined ? undefined : Boolean(body.frozen),
-    name: cancelar || body.name === undefined ? undefined : String(body.name),
+    frozen: cancelar || body.frozen === undefined ? undefined : body.frozen,
+    name: cancelar || body.name === undefined ? undefined : body.name,
     spendLimit: cancelar ? undefined : limite,
     spendLimitFrequency: (frecuencia || undefined) as 'daily' | 'weekly' | 'monthly' | 'one_time' | undefined,
     transactionLimit: cancelar ? undefined : porCompra,
     removeLimit: cancelar ? undefined : body.removeLimit === true,
   })
 
-  if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 })
+  if (!res.ok) {
+    return NextResponse.json({ error: res.error, indeterminate: res.indeterminate }, { status: 400 })
+  }
   return NextResponse.json({ ok: true, card: res.card })
 }

@@ -30,6 +30,11 @@ const MODULE_ROUTE_PREFIXES: { prefix: string; module: CrmModuleId }[] = [
   { prefix: '/api/crm/whatsapp', module: 'whatsapp' },
   { prefix: '/api/crm/chat', module: 'whatsapp' },
   { prefix: '/api/crm/accounting', module: 'contabilidad' },
+  // Las tarjetas son parte de Contabilidad -> Banco. El resto de /api/crm/whop
+  // (payouts, assign-plan, subscription-link) queda FUERA a proposito: las cuotas
+  // se cobran aunque el modulo este apagado, y gatear payouts dejaria al club sin
+  // poder configurar donde recibe ese dinero.
+  { prefix: '/api/crm/whop/cards', module: 'contabilidad' },
   { prefix: '/api/hermes', module: 'hermes' },
 ]
 

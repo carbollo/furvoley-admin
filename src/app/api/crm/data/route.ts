@@ -190,8 +190,8 @@ export async function GET(request: Request) {
           country: c?.country?.trim() || 'España',
           conectado: Boolean(c?.whopCompanyId?.trim()),
         }))
-        .catch(() => ({ country: 'España', conectado: false }))
-    : { country: 'España', conectado: false }
+        .catch(() => ({ country: 'España', conectado: null as boolean | null }))
+    : { country: 'España', conectado: false as boolean | null }
 
   const deudaRaw = canUseAccounting
     ? await prisma.invoice.findMany({

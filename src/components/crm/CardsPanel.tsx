@@ -50,6 +50,7 @@ export type CardsState = {
   movementsError: string | null
   holders: { userId: string; name: string; role: string; pending: boolean }[]
   scopes: { action: string; label: string; granted: boolean }[]
+  hayMasMovimientos?: boolean
 }
 
 /** Solicitud de alta abierta por la pasarela: hay que terminarla fuera del CRM. */
@@ -141,7 +142,7 @@ export function CardsPanel({
     spendLimitFrequency: string
     assignedUserId: string | null
     requestId: string
-  }) => Promise<boolean>
+  }) => Promise<'ok' | 'rechazado' | 'indeterminado'>
   onUpdate: (
     cardId: string,
     patch: {
@@ -168,7 +169,7 @@ export function CardsPanel({
   const [editandoLimite, setEditandoLimite] = useState<string | null>(null)
   const [nuevoLimite, setNuevoLimite] = useState('')
   const [nuevoPeriodo, setNuevoPeriodo] = useState('monthly')
-  const [revelando, setRevelando] = useState(false)
+  const [revelando, setRevelando] = useState<string | null>(null)
   const [secretos, setSecretos] = useState<
     { cardId: string; cardNumber: string; cvc: string; nameOnCard: string | null; expiration: string | null } | null
   >(null)
@@ -261,7 +262,7 @@ export function CardsPanel({
 
         {!data ? (
           <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Consultando tus tarjetas…</div>
-        ) : cards.length === 0 ? (
+        ) : data.cardsError ? null : cards.length === 0 ? (
           <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
             Todavía no tienes ninguna tarjeta. Con una puedes pagar los gastos del club —material,
             desplazamientos, arbitrajes— con lo que ya has cobrado, en vez de esperar a que llegue a
@@ -442,7 +443,7 @@ export function CardsPanel({
                         }}
                         style={primaryBtnStyle(busy)}
                       >
-                        Guardar límite
+                        {Number(nuevoLimite) > 0 ? 'Guardar límite' : 'Dejarla sin límite'}
                       </button>
                       <button type="button" onClick={() => setEditandoLimite(null)} style={secondaryBtnStyle(false)}>
                         Cancelar
@@ -455,23 +456,23 @@ export function CardsPanel({
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       <button
                         type="button"
-                        disabled={busy || revelando || c.status !== 'active'}
+                        disabled={busy || revelando !== null || c.status !== 'active'}
                         onClick={async () => {
                           if (verSecretos) {
                             setSecretos(null)
                             return
                           }
-                          setRevelando(true)
+                          setRevelando(c.id)
                           try {
                             const s = await onRevealSecrets(c.id)
                             if (s) setSecretos({ cardId: c.id, ...s })
                           } finally {
-                            setRevelando(false)
+                            setRevelando(null)
                           }
                         }}
-                        style={secondaryBtnStyle(busy || revelando || c.status !== 'active')}
+                        style={secondaryBtnStyle(busy || revelando !== null || c.status !== 'active')}
                       >
-                        {verSecretos ? 'Ocultar datos' : revelando ? 'Consultando…' : 'Ver datos'}
+                        {verSecretos ? 'Ocultar datos' : revelando === c.id ? 'Consultando…' : 'Ver datos'}
                       </button>
                       <button
                         type="button"
@@ -560,6 +561,13 @@ export function CardsPanel({
                 </select>
               </Field>
             </div>
+            {(data?.holders || []).length === 0 ? (
+              <div style={{ fontSize: 12.5, color: 'var(--amber)', lineHeight: 1.5 }}>
+                No se ha podido consultar quién puede llevar la tarjeta, así que no se puede emitir
+                todavía. Vuelve a abrir la sección en un momento; si sigue igual, comprueba que la
+                clave de la pasarela tenga el permiso «Ver quién puede llevar una tarjeta».
+              </div>
+            ) : null}
             <div style={{ fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
               La tarjeta va a nombre de una persona del equipo, que es quien responde de lo que se
               gasta con ella. Si la persona todavía no ha terminado su alta en la pasarela, recibirá
@@ -571,22 +579,27 @@ export function CardsPanel({
                 disabled={busy || !nombre.trim() || !titular}
                 onClick={async () => {
                   const n = Number(limite)
-                  const ok = await onCreate({
+                  const r = await onCreate({
                     name: nombre,
                     spendLimit: n > 0 ? n : null,
                     spendLimitFrequency: periodo,
                     assignedUserId: titular || null,
                     requestId: intento,
                   })
-                  if (ok) {
+                  if (r === 'ok') {
                     cerrarFormulario()
                     setIntento(nuevoIntento())
-                  } else {
-                    // Otro identificador para el siguiente intento: la pasarela
-                    // repite también las respuestas de error durante 24 h, y sin
-                    // renovarlo el club se quedaría un día viendo el mismo fallo.
+                  } else if (r === 'rechazado') {
+                    // Rechazo FIRME: no se creó nada. Se renueva la clave porque
+                    // la pasarela repite también las respuestas de error durante
+                    // 24 h, y sin renovarla el club se quedaría un día viendo el
+                    // mismo fallo.
                     setIntento(nuevoIntento())
                   }
+                  // Indeterminado: se CONSERVA la clave. La tarjeta puede haberse
+                  // emitido igualmente, y renovarla convertiría el reintento en
+                  // una petición nueva para la pasarela — que es exactamente como
+                  // se acaba con dos tarjetas.
                 }}
                 style={primaryBtnStyle(busy || !nombre.trim() || !titular)}
               >
@@ -613,6 +626,11 @@ export function CardsPanel({
           >
             En qué se ha gastado
           </div>
+          {data?.hayMasMovimientos ? (
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+              Se muestran los movimientos más recientes; hay más histórico en la pasarela.
+            </div>
+          ) : null}
           {data?.movementsError ? (
             <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>{data.movementsError}</div>
           ) : (data?.movements || []).length === 0 ? (
@@ -640,7 +658,7 @@ export function CardsPanel({
                         {deQueTarjeta ? ` · ${deQueTarjeta}` : ''}
                         {m.category ? ` · ${m.category}` : ''}
                         {m.status !== 'completed' ? ` · ${ESTADO_MOV[m.status]}` : ''}
-                        {m.declinedReason ? ` · ${m.declinedReason}` : ''}
+                        {m.declinedReason ? ` · motivo: ${m.declinedReason.replace(/_/g, ' ')}` : ''}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>

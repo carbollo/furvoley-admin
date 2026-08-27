@@ -8637,7 +8637,11 @@ function Banco() {
       <BancoSection
         showAlert={showAlert}
         countryHint={String(bundle?.club?.country || 'España')}
-        whopConectado={Boolean(bundle?.club?.whopConectado)}
+        whopConectado={
+          bundle?.club?.whopConectado === null || bundle?.club?.whopConectado === undefined
+            ? bundle?.club?.whopConectado ?? null
+            : Boolean(bundle.club.whopConectado)
+        }
         esAdmin={role === 'ADMIN'}
         // Configurar la pasarela sigue siendo cosa del ADMIN, en Ajustes.
         onConfigurarPasarela={
