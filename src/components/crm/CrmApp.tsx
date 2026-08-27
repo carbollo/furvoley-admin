@@ -655,7 +655,7 @@ const NAV = [
   },
 ];
 
-function Sidebar({ active, setActive, onOpenClubSettings }) {
+function Sidebar({ active, setActive, onOpenClubSettings, abierto = false }) {
   const { bundle } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
   const features = bundle?.features
@@ -678,7 +678,7 @@ function Sidebar({ active, setActive, onOpenClubSettings }) {
   }, [groupOfActive])
   const pending = bundle?.kpis?.cobrosPendientes ?? 0;
   return (
-    <div className="sidebar" style={{
+    <div className={abierto ? 'sidebar crm-sidebar-abierto' : 'sidebar'} style={{
       width:280,background:'var(--sidebar-bg)',display:'flex',flexDirection:'column',
       flexShrink:0,height:'100vh',overflow:'hidden',
       borderRight:'1px solid var(--sidebar-border)',
@@ -950,7 +950,7 @@ function Dashboard({ setActive }) {
         : 'Todo al día por aquí. ¡Buen trabajo!'
   return (
     <div style={{flex:1,overflowY:'auto',background:'var(--surface)'}}>
-      <div style={{maxWidth:1280,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:28}}>
+      <div className="crm-contenido" style={{maxWidth:1280,margin:'0 auto',padding:'32px 40px 56px',display:'flex',flexDirection:'column',gap:28}}>
         {/* Cabecera cálida con resumen del día en lenguaje natural */}
         <div>
           <div style={{fontSize:13,color:'var(--text-muted)',fontWeight:600,textTransform:'capitalize'}}>{fechaLarga}</div>
@@ -4189,7 +4189,7 @@ function Socios({ contactosMode = false }) {
                 width:'100%',padding:'10px 12px 10px 38px',
                 borderRadius:8,border:'1px solid var(--border)',
                 fontFamily:'inherit',fontSize:14,background:'var(--surface-card)',
-                outline:'none',color:'var(--text-primary)'
+                outline:'revert',color:'var(--text-primary)'
               }}/>
           </div>
           <div style={{display:'flex',gap:4,background:'var(--surface-low)',borderRadius:999,padding:4}}>
@@ -9337,6 +9337,14 @@ function CrmInner() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
   const [showClubSettings, setShowClubSettings] = useState(false)
+  /** Cajón del menú en móvil. En escritorio el CSS lo ignora. */
+  const [menuAbierto, setMenuAbierto] = useState(false)
+  useEffect(() => {
+    if (!menuAbierto) return
+    function onKey(e) { if (e.key === 'Escape') setMenuAbierto(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [menuAbierto])
 
   const tabRaw = searchParams.get('tab') ?? ''
   const normalizedTab = tabRaw === 'cobros' ? 'facturas' : tabRaw
@@ -9578,7 +9586,16 @@ function CrmInner() {
   }
 
   return (
-    <div style={{display:'flex',height:'100vh',overflow:'hidden',position:'relative',background:'var(--surface)'}}>
+    <div className="crm-shell" style={{display:'flex',height:'100vh',overflow:'hidden',position:'relative',background:'var(--surface)'}}>
+      {/* Fondo oscuro del cajón: pulsarlo lo cierra, que es lo que espera
+          cualquiera que haya usado un móvil. */}
+      {menuAbierto && (
+        <div
+          className="crm-backdrop"
+          role="presentation"
+          onClick={() => setMenuAbierto(false)}
+        />
+      )}
       {loading && (
         <div style={{position:'absolute',inset:0,background:'rgba(248,249,255,0.85)',backdropFilter:'blur(4px)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:600,color:'var(--text-secondary)'}}>
           Cargando CRM…
@@ -9586,11 +9603,12 @@ function CrmInner() {
       )}
       <Sidebar
         active={safeActive}
-        setActive={setActive}
+        setActive={(id) => { setActive(id); setMenuAbierto(false) }}
+        abierto={menuAbierto}
         onOpenClubSettings={role === 'ADMIN' ? () => setShowClubSettings(true) : undefined}
       />
       <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',minWidth:0,background:'var(--surface)'}}>
-        <div style={{
+        <div className="crm-topbar" style={{
           height:72,background:'var(--surface-card)',
           borderBottom:'1px solid var(--border)',
           display:'flex',alignItems:'center',justifyContent:'space-between',
@@ -9599,13 +9617,22 @@ function CrmInner() {
         }}>
           {/* Section title + date */}
           <div style={{display:'flex',alignItems:'center',gap:16,minWidth:0}}>
+            <button
+              type="button"
+              className="crm-menu-boton"
+              aria-label={menuAbierto ? 'Cerrar el menú' : 'Abrir el menú'}
+              aria-expanded={menuAbierto}
+              onClick={() => setMenuAbierto((v) => !v)}
+            >
+              {menuAbierto ? '✕' : '☰'}
+            </button>
             <h2 style={{
               fontSize:24,fontWeight:600,letterSpacing:'-0.01em',
               color:'var(--text-primary)',margin:0,lineHeight:1.2,
               whiteSpace:'nowrap'
             }}>{SECTION_TITLES[safeActive] || 'Inicio'}</h2>
-            <span style={{width:1,height:20,background:'var(--border)'}}></span>
-            <span style={{
+            <span className="crm-topbar-sep" style={{width:1,height:20,background:'var(--border)'}}></span>
+            <span className="crm-topbar-fecha" style={{
               fontSize:13,color:'var(--text-secondary)',
               textTransform:'capitalize',whiteSpace:'nowrap',
               overflow:'hidden',textOverflow:'ellipsis'

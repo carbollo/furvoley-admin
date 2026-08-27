@@ -57,3 +57,104 @@
   --radius-lg: 20px;
   --radius-pill: 999px;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Móvil y portátiles pequeños.
+
+   El CRM se construyó con estilos en línea y medidas fijas: un menú lateral
+   de 280 px siempre visible, cabecera de 72 px con 40 px de padding y
+   contenido a 40 px. En una pantalla de 390 px eso deja unos 70 px útiles,
+   así que los botones de acción de las tablas quedaban fuera de alcance y el
+   tesorero no podía hacer nada desde el móvil.
+
+   Aquí el menú pasa a ser un cajón que se abre con el botón de la cabecera.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.crm-menu-boton { display: none; }
+
+@media (max-width: 900px) {
+  .crm-menu-boton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 120;
+    /* Fuera de la pantalla hasta que se abre; `visibility` evita que sus
+       botones sigan siendo enfocables con el teclado mientras está cerrado. */
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.22s ease, visibility 0.22s;
+    box-shadow: 0 0 40px rgba(15, 23, 42, 0.28);
+  }
+
+  .sidebar.crm-sidebar-abierto {
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  .crm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    background: rgba(15, 23, 42, 0.45);
+  }
+
+  .crm-topbar {
+    height: auto !important;
+    min-height: 60px;
+    padding: 10px 16px !important;
+    gap: 12px !important;
+    flex-wrap: wrap;
+  }
+
+  .crm-topbar h2 {
+    font-size: 18px !important;
+  }
+
+  /* La fecha larga y el separador se comen la cabecera entera. */
+  .crm-topbar .crm-topbar-fecha,
+  .crm-topbar .crm-topbar-sep {
+    display: none;
+  }
+
+  .crm-contenido {
+    padding: 20px 16px 48px !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .crm-contenido {
+    padding: 16px 12px 40px !important;
+  }
+  .crm-contenido h1 {
+    font-size: 22px !important;
+  }
+}
+
+/* Foco visible en todo el CRM: sin esto, quien navega con el teclado no sabe
+   dónde está, y varios formularios lo anulaban explícitamente. */
+.crm-shell :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  /* !important a propósito: varios campos llevan `outline: none` en su estilo
+     en línea, y un estilo en línea gana a cualquier regla de hoja. Sin esto,
+     quien navega con el teclado no ve dónde está. `:focus-visible` solo se
+     activa con teclado, así que el ratón no dibuja recuadros. */
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+  border-radius: 6px;
+}
