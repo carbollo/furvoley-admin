@@ -93,6 +93,8 @@ export function CuotasSection({
   const [gatewayBusy, setGatewayBusy] = useState(false)
   /** Incluye las cuotas dadas de baja, que por defecto no se listan. */
   const [verCanceladas, setVerCanceladas] = useState(false)
+  /** Socios sin cuota marcados para asignarles la misma de una vez. */
+  const [sinCuotaSel, setSinCuotaSel] = useState<Set<string>>(() => new Set())
 
   const [planModal, setPlanModal] = useState(false)
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
@@ -338,6 +340,7 @@ export function CuotasSection({
         return
       }
       track('asignar-cuota', { pagoAlAlta: paymentRequired, socios: count })
+      setSinCuotaSel(new Set())
       setAssignModal(false)
       setAssignForm({
         members: [],
@@ -1177,12 +1180,60 @@ Pasará a activa aunque no conste el pago. ` +
             ) : (
               <>
                 <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-secondary)' }}>
-                  Haz clic en un socio para asignarle una cuota. Al hacerlo pasará a «Socios con cuota».
+                  Marca varios y asígnales la misma cuota de una vez, o pulsa en uno para hacerlo socio a socio.
                 </div>
+                {sinCuotaSel.size > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '12px 20px', background: 'var(--accent-pill)', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>
+                      {sinCuotaSel.size} socio{sinCuotaSel.size === 1 ? '' : 's'} seleccionado{sinCuotaSel.size === 1 ? '' : 's'}
+                    </span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const firstPlanId = activePlans[0]?.id || ''
+                          setAssignForm({
+                            members: membersWithoutPlan
+                              .filter((m) => sinCuotaSel.has(m.id))
+                              .map((m) => ({ id: m.id, name: m.name })),
+                            memberId: '',
+                            planId: firstPlanId,
+                            startDate: new Date().toISOString().slice(0, 10),
+                            autoPay: false,
+                            paymentRequiredOnEnrollment: planPaymentRequiredDefault(firstPlanId),
+                            discountCodeId: '',
+                          })
+                          setAssignModal(true)
+                        }}
+                        style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700 }}
+                      >
+                        Asignar cuota a los {sinCuotaSel.size}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSinCuotaSel(new Set())}
+                        style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}
+                      >
+                        Quitar selección
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
                   <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
+                        <th style={{ padding: '12px 0 12px 20px', width: 36 }}>
+                          <input
+                            type="checkbox"
+                            aria-label="Marcar a todos los socios sin cuota"
+                            checked={membersWithoutPlan.length > 0 && membersWithoutPlan.every((m) => sinCuotaSel.has(m.id))}
+                            onChange={(e) =>
+                              setSinCuotaSel(e.target.checked ? new Set(membersWithoutPlan.map((m) => m.id)) : new Set())
+                            }
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </th>
                         {['Socio', 'Contacto', 'Estado', ''].map((h) => (
                           <th
                             key={h}
@@ -1219,8 +1270,27 @@ Pasará a activa aunque no conste el pago. ` +
                             setAssignModal(true)
                           }}
                           title="Asignar cuota a este socio"
-                          style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                          style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', background: sinCuotaSel.has(m.id) ? 'var(--accent-pill)' : 'transparent' }}
                         >
+                          <td
+                            style={{ padding: '14px 0 14px 20px' }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              aria-label={`Marcar a ${m.name}`}
+                              checked={sinCuotaSel.has(m.id)}
+                              onChange={() =>
+                                setSinCuotaSel((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(m.id)) next.delete(m.id)
+                                  else next.add(m.id)
+                                  return next
+                                })
+                              }
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </td>
                           <td style={{ padding: '14px 20px', fontWeight: 600, fontSize: 14 }}>{m.name}</td>
                           <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--text-secondary)' }}>
                             {m.email || m.phone || '—'}
