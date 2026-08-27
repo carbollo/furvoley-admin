@@ -2197,100 +2197,61 @@ function Impagos() {
 
   if (!(role === 'ADMIN' || role === 'TREASURER')) return null
 
-  const cobros = Array.isArray(bundle?.cobros) ? bundle.cobros : []
-  const impagosTodos = cobros.filter((c) => c.estado === 'Vencido')
-  const buscadoImpago = buscarImpago.trim().toLowerCase()
-  /** Agrupa los recibos vencidos por socio: el aviso ya se manda por socio. */
-  function agruparPorSocio(filas) {
-    const m = new Map()
-    for (const c of filas) {
-      const k = c.memberId || c.id
-      const prev = m.get(k)
-      const dias = Math.max(
-        0,
-        Math.floor((Date.now() - new Date(c.vencimiento).getTime()) / 86400000),
-      )
-      if (!prev) {
-        m.set(k, {
-          id: k,
-          memberId: c.memberId,
-          socio: c.socio,
-          telefono: c.telefono || '',
-          esTelefonoTutor: Boolean(c.esTelefonoTutor),
-          total: Number(c.pendingAmount ?? c.monto ?? 0),
-          recibos: 1,
-          numero: c.numero,
-          concepto: c.concepto,
-          vencimiento: c.vencimiento,
-          diasVencida: dias,
-          facturaId: c.id,
-        })
-        continue
-      }
-      prev.total += Number(c.pendingAmount ?? c.monto ?? 0)
-      prev.recibos++
-      // Se muestra el más antiguo: es el que marca la gravedad de la deuda.
-      if (new Date(c.vencimiento) < new Date(prev.vencimiento)) {
-        prev.vencimiento = c.vencimiento
-        prev.diasVencida = dias
-        prev.numero = c.numero
-        prev.concepto = c.concepto
-        prev.facturaId = c.id
-      }
-    }
-    return [...m.values()].sort((a, b) => b.diasVencida - a.diasVencida)
-  }
-  const impagos = buscadoImpago
-    ? impagosTodos.filter((c) =>
-        `${c.socio} ${c.concepto} ${c.numero || ''}`.toLowerCase().includes(buscadoImpago),
-      )
-    : impagosTodos
-  const importeDe = (c) => c.pendingAmount ?? c.monto ?? 0
-  // Cifra oficial de deuda vencida del club (todas las facturas, no solo las
-  // 120 que trae la lista). Sumario, Impagos e Informes leen de aquí.
-  const totalVencido = Number(
-    bundle?.kpis?.deudaVencidaMonto ?? impagosTodos.reduce((a, c) => a + importeDe(c), 0),
-  )
-  const vencidasClub = Number(bundle?.kpis?.facturasVencidas ?? impagosTodos.length)
-  const sociosAfectados = new Set(impagosTodos.map((c) => c.memberId)).size
+  // Los impagos vienen paginados y agrupados por socio del servidor. Antes se
+  // derivaban de las 120 facturas mas recientes de /api/crm/data: lo primero que
+  // se perdia al pasar de 120 era la deuda MAS ANTIGUA, justo la que hay que
+  // reclamar primero, y la pantalla llego a decir «Todo al dia» con deuda viva.
+  const [impagosData, setImpagosData] = useState({
+    filas: [], total: 0, totalPages: 1, totalDeuda: 0, recibosTotales: 0,
+    sociosAfectados: 0, aging: [], antiguedadMedia: 0, topMorosos: [], todosLosIds: [],
+  })
+  const [impagosPage, setImpagosPage] = useState(1)
+  const [impagosLoading, setImpagosLoading] = useState(true)
+  const [impagosError, setImpagosError] = useState('')
 
-  // ── Dashboard de impagos: antigüedad de la deuda y top morosos ──
-  const hoy = new Date()
-  const diasVencida = (c) => {
-    const d = new Date(c.vencimiento)
-    if (Number.isNaN(d.getTime())) return 0
-    return Math.max(0, Math.floor((hoy.getTime() - d.getTime()) / 86400000))
-  }
-  const AGING = [
-    { label: '0-30 días', min: 0, max: 30 },
-    { label: '31-60', min: 31, max: 60 },
-    { label: '61-90', min: 61, max: 90 },
-    { label: '+90', min: 91, max: Infinity },
-  ]
-  const agingAmounts = AGING.map((b) =>
-    impagosTodos
-      .filter((c) => { const d = diasVencida(c); return d >= b.min && d <= b.max })
-      .reduce((a, c) => a + importeDe(c), 0),
-  )
-  const antiguedadMedia = impagosTodos.length
-    ? Math.round(impagosTodos.reduce((a, c) => a + diasVencida(c), 0) / impagosTodos.length)
-    : 0
-  const topMorososMap = new Map()
-  for (const c of impagosTodos) {
-    const prev = topMorososMap.get(c.memberId) || { nombre: c.socio, total: 0, facturas: 0 }
-    prev.total += importeDe(c)
-    prev.facturas++
-    topMorososMap.set(c.memberId, prev)
-  }
-  const topMorosos = [...topMorososMap.entries()]
-    .map(([id, v]) => ({ id, ...v }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 5)
+  const cargarImpagos = useCallback(async (page, q) => {
+    setImpagosLoading(true)
+    setImpagosError('')
+    try {
+      const params = new URLSearchParams({ page: String(page) })
+      if (q) params.set('q', q)
+      const r = await fetch('/api/crm/impagos?' + params.toString(), {
+        credentials: 'include', cache: 'no-store',
+      })
+      if (!r.ok) {
+        setImpagosError('No se pudieron cargar los impagos. Comprueba tu conexion y vuelve a intentarlo.')
+        return
+      }
+      setImpagosData(await r.json())
+    } catch {
+      setImpagosError('No se pudieron cargar los impagos. Comprueba tu conexion y vuelve a intentarlo.')
+    } finally {
+      setImpagosLoading(false)
+    }
+  }, [])
+
+  // El buscador espera a que dejes de teclear antes de ir al servidor.
+  useEffect(() => {
+    const t = setTimeout(() => { void cargarImpagos(impagosPage, buscarImpago.trim()) }, 250)
+    return () => clearTimeout(t)
+  }, [cargarImpagos, impagosPage, buscarImpago])
+
+  // Al buscar se vuelve a la primera pagina: si no, se busca dentro de la 3.
+  useEffect(() => { setImpagosPage(1) }, [buscarImpago])
+
+  const impagos = impagosData.filas
+  const totalVencido = Number(impagosData.totalDeuda || 0)
+  const vencidasClub = Number(impagosData.recibosTotales || 0)
+  const sociosAfectados = Number(impagosData.sociosAfectados || 0)
+  const AGING = (impagosData.aging || []).map((a) => ({ label: a.label }))
+  const agingAmounts = (impagosData.aging || []).map((a) => Number(a.importe || 0))
+  const antiguedadMedia = Number(impagosData.antiguedadMedia || 0)
+  const topMorosos = impagosData.topMorosos || []
   const maxMorosoTotal = topMorosos[0]?.total || 1
 
   /** Reenviar el aviso de cobro a TODOS los socios con impagos. */
   async function reenviarTodos() {
-    const ids = [...new Set(impagosTodos.map((c) => c.memberId).filter(Boolean))]
+    const ids = [...new Set((impagosData.todosLosIds || []).filter(Boolean))]
     if (ids.length === 0) return
     const ok = await showConfirm({
       title: `Avisar por WhatsApp a ${ids.length} socios`,
@@ -2314,7 +2275,7 @@ function Impagos() {
       const errCount = Number(j.failed || 0)
       if (errCount > 0 && Array.isArray(j.errors) && j.errors.length > 0) {
         const nombre = (id: string) =>
-          impagosTodos.find((x) => x.memberId === id)?.socio || 'un socio'
+          impagos.find((x) => x.memberId === id)?.socio || 'un socio'
         const detalle = j.errors
           .slice(0, 4)
           .map((e: { id: string; message: string }) => `${nombre(e.id)}: ${e.message}`)
@@ -2328,7 +2289,7 @@ function Impagos() {
         showAlert(`Avisos enviados a ${okCount} socio${okCount === 1 ? '' : 's'}.`)
       }
       // La lista tiene que reflejar lo ocurrido sin obligar a recargar a mano.
-      await reload()
+      await Promise.all([reload(), cargarImpagos(impagosPage, buscarImpago.trim())])
     } finally { setBulkBusy(false) }
   }
 
@@ -2379,7 +2340,7 @@ function Impagos() {
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo reprogramar'); return }
       setReprogramId(''); setReprogramDate('')
-      await reload()
+      await Promise.all([reload(), cargarImpagos(impagosPage, buscarImpago.trim())])
     } finally { setBusyId('') }
   }
 
@@ -2388,7 +2349,7 @@ function Impagos() {
       title="Impagos"
       subtitle="Cobros vencidos pendientes: reprograma o reenvía el aviso"
       actions={
-        impagosTodos.length > 0 ? (
+        sociosAfectados > 0 ? (
           <button type="button" disabled={bulkBusy} onClick={reenviarTodos}
             style={{display:'flex',alignItems:'center',gap:8,padding:'10px 18px',borderRadius:8,border:'none',background:'var(--green)',color:'#fff',cursor:bulkBusy?'not-allowed':'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700,opacity:bulkBusy?0.6:1}}>
             <Icon name="whatsapp" size={15}/>
@@ -2398,14 +2359,14 @@ function Impagos() {
       }
     >
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))',gap:20}}>
-        <KPICard label="Impagos" value={String(vencidasClub)} sub={vencidasClub > impagosTodos.length ? `Se listan las ${impagosTodos.length} más recientes` : 'Facturas vencidas'} icon="billing" color={vencidasClub > 0 ? 'var(--red)' : 'var(--green)'} badge={vencidasClub > 0 ? { kind:'danger', text:'Revisar' } : null}/>
+        <KPICard label="Impagos" value={String(vencidasClub)} sub={`${sociosAfectados} socio${sociosAfectados === 1 ? '' : 's'} con deuda`} icon="billing" color={vencidasClub > 0 ? 'var(--red)' : 'var(--green)'} badge={vencidasClub > 0 ? { kind:'danger', text:'Revisar' } : null}/>
         <KPICard label="Importe vencido" value={fmtMoney(totalVencido)} sub="Pendiente de cobrar" icon="billing" color="var(--amber)"/>
         <KPICard label="Socios afectados" value={String(sociosAfectados)} sub="Con al menos un impago" icon="users" color="var(--accent-soft)"/>
-        <KPICard label="Antigüedad media" value={impagosTodos.length ? `${antiguedadMedia} días` : '—'} sub="Desde el vencimiento" icon="calendar" color={antiguedadMedia > 60 ? 'var(--red)' : 'var(--amber)'}/>
+        <KPICard label="Antigüedad media" value={sociosAfectados ? `${antiguedadMedia} días` : '—'} sub="Desde el vencimiento" icon="calendar" color={antiguedadMedia > 60 ? 'var(--red)' : 'var(--amber)'}/>
       </div>
 
       {/* Dashboard de impagos: deuda por antigüedad + top morosos */}
-      {impagosTodos.length > 0 && (
+      {sociosAfectados > 0 && (
         <div style={{display:'grid',gridTemplateColumns:'minmax(0, 2fr) minmax(0, 1fr)',gap:24,alignItems:'start'}}>
           <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
             <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Deuda por antigüedad</div>
@@ -2433,7 +2394,7 @@ function Impagos() {
         </div>
       )}
       <div style={{background:'var(--surface-card)',borderRadius:12,border:'1px solid var(--border)',boxShadow:'var(--card-shadow)',overflow:'hidden'}}>
-        {impagosTodos.length > 0 && (
+        {(sociosAfectados > 0 || buscarImpago) && (
           <div style={{padding:'14px 24px 0'}}>
             <input
               type="search"
@@ -2445,11 +2406,23 @@ function Impagos() {
             />
           </div>
         )}
-        {impagos.length === 0 ? (
+        {impagosLoading && impagos.length === 0 ? (
           <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
-            {impagosTodos.length === 0
-              ? 'No hay cobros vencidos. Todo al día. 🎉'
-              : `Ningún impago coincide con «${buscarImpago.trim()}».`}
+            Cargando los impagos…
+          </div>
+        ) : impagosError ? (
+          <div style={{padding:'40px 32px',textAlign:'center',fontSize:14}}>
+            <div style={{color:'var(--red)',fontWeight:600,marginBottom:10}}>{impagosError}</div>
+            <button type="button" onClick={() => { void cargarImpagos(impagosPage, buscarImpago.trim()) }}
+              style={{padding:'8px 16px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700}}>
+              Reintentar
+            </button>
+          </div>
+        ) : impagos.length === 0 ? (
+          <div style={{padding:'40px 32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>
+            {buscarImpago.trim()
+              ? `Ningún impago coincide con «${buscarImpago.trim()}».`
+              : 'No hay cobros vencidos. Todo al día. 🎉'}
           </div>
         ) : (
           <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
@@ -2462,7 +2435,7 @@ function Impagos() {
                 </tr>
               </thead>
               <tbody>
-                {agruparPorSocio(impagos).map((c) => (
+                {impagos.map((c) => (
                   <tr key={c.id} style={{borderTop:'1px solid var(--border)'}}>
                     <td style={{padding:'14px 24px',fontSize:14,fontWeight:600,color:'var(--text-primary)'}}>
                       <div>{c.socio}</div>
@@ -2526,6 +2499,25 @@ function Impagos() {
                 ))}
               </tbody>
             </table>
+            {impagosData.totalPages > 1 && (
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'14px 24px',borderTop:'1px solid var(--border)'}}>
+                <span style={{fontSize:13,color:'var(--text-muted)'}}>
+                  Página {impagosData.page} de {impagosData.totalPages} · {impagosData.total} socios con deuda
+                </span>
+                <div style={{display:'flex',gap:8}}>
+                  <button type="button" disabled={impagosPage <= 1 || impagosLoading}
+                    onClick={() => setImpagosPage((p) => Math.max(1, p - 1))}
+                    style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:impagosPage<=1?'not-allowed':'pointer',opacity:impagosPage<=1?0.5:1,fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                    Anterior
+                  </button>
+                  <button type="button" disabled={impagosPage >= impagosData.totalPages || impagosLoading}
+                    onClick={() => setImpagosPage((p) => Math.min(impagosData.totalPages, p + 1))}
+                    style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:impagosPage>=impagosData.totalPages?'not-allowed':'pointer',opacity:impagosPage>=impagosData.totalPages?0.5:1,fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -5272,6 +5264,13 @@ function Contabilidad({ setActive }) {
   const [deletingMovementId, setDeletingMovementId] = useState<string | null>(null);
   const [taxBusy, setTaxBusy] = useState(false);
   const [buscarCobro, setBuscarCobro] = useState('');
+  const [facturasData, setFacturasData] = useState({
+    cobros: [], total: 0, page: 1, totalPages: 1,
+    totales: { total: 0, pendiente: 0, pagado: 0, vencido: 0 },
+  });
+  const [facturasPage, setFacturasPage] = useState(1);
+  const [facturasLoading, setFacturasLoading] = useState(true);
+  const [facturasError, setFacturasError] = useState('');
   const [cobroModal, setCobroModal] = useState(null);
   const [cobroBusy, setCobroBusy] = useState(false);
   const [editarModal, setEditarModal] = useState(null);
@@ -5365,24 +5364,51 @@ function Contabilidad({ setActive }) {
   const ingresosManuales = movimientosEnRango
     .filter((m) => m.type === 'INCOME' && m.source === 'MANUAL')
     .reduce((a, m) => a + Number(m.amount || 0), 0)
-  const cobrosEnRango = COBROS_UI.filter((c) => {
-    const registro = String(c.registro || c.vencimiento || '');
-    if (fechaDesde && registro < fechaDesde) return false;
-    if (fechaHasta && registro > fechaHasta) return false;
-    return true;
-  });
-  const buscado = buscarCobro.trim().toLowerCase()
-  const filtered = cobrosEnRango.filter((c) => {
-    if (tab !== 'Todos' && c.estado !== tab) return false
-    if (!buscado) return true
-    return `${c.socio} ${c.concepto} ${c.numero || ''}`.toLowerCase().includes(buscado)
-  });
+  const buscado = buscarCobro.trim()
+  const filtered = facturasData.cobros
+  const cobrosEnRango = filtered
   const totales = {
-    total: cobrosEnRango.reduce((a,c) => a + c.monto, 0) + ingresosManuales,
-    pendiente: cobrosEnRango.filter(c=>c.estado==='Pendiente').reduce((a,c)=>a+c.monto,0),
-    pagado: cobrosEnRango.filter(c=>c.estado==='Pagado').reduce((a,c)=>a+c.monto,0) + ingresosManuales,
-    vencido: cobrosEnRango.filter(c=>c.estado==='Vencido').reduce((a,c)=>a+c.monto,0),
+    total: Number(facturasData.totales?.total || 0) + ingresosManuales,
+    pendiente: Number(facturasData.totales?.pendiente || 0),
+    pagado: Number(facturasData.totales?.pagado || 0) + ingresosManuales,
+    vencido: Number(facturasData.totales?.vencido || 0),
   };
+
+  /** Trae la página de facturas que toca, con los filtros aplicados en el servidor. */
+  const cargarFacturas = useCallback(async (page, q, estado, desde, hasta) => {
+    setFacturasLoading(true)
+    setFacturasError('')
+    try {
+      const params = new URLSearchParams({ page: String(page) })
+      if (q) params.set('q', q)
+      if (estado && estado !== 'Todos') params.set('estado', estado)
+      if (desde) params.set('from', desde)
+      if (hasta) params.set('to', hasta)
+      const r = await fetch('/api/crm/invoices?' + params.toString(), {
+        credentials: 'include', cache: 'no-store',
+      })
+      if (!r.ok) {
+        setFacturasError('No se pudieron cargar las facturas. Comprueba tu conexión y vuelve a intentarlo.')
+        return
+      }
+      setFacturasData(await r.json())
+    } catch {
+      setFacturasError('No se pudieron cargar las facturas. Comprueba tu conexión y vuelve a intentarlo.')
+    } finally {
+      setFacturasLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void cargarFacturas(facturasPage, buscarCobro.trim(), tab, fechaDesde, fechaHasta)
+    }, 250)
+    return () => clearTimeout(t)
+  }, [cargarFacturas, facturasPage, buscarCobro, tab, fechaDesde, fechaHasta])
+
+  // Al cambiar cualquier filtro se vuelve a la primera página: si no, se
+  // buscaría dentro de la página 3 del filtro anterior.
+  useEffect(() => { setFacturasPage(1) }, [buscarCobro, tab, fechaDesde, fechaHasta])
 
   const loadAccounting = useCallback(async () => {
     setLedgerBusy(true);
@@ -5471,7 +5497,7 @@ function Contabilidad({ setActive }) {
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo guardar'); return }
       setEditarModal(null)
-      await Promise.all([reload(), loadAccounting()])
+      await Promise.all([reload(), loadAccounting(), cargarFacturas(facturasPage, buscarCobro.trim(), tab, fechaDesde, fechaHasta)])
       showAlert('Factura corregida.')
     } finally {
       setEditarBusy(false)
@@ -5518,7 +5544,7 @@ function Contabilidad({ setActive }) {
       const j = await r.json().catch(() => ({}))
       if (!r.ok) { showAlert(j.error || 'No se pudo registrar el cobro'); return }
       setCobroModal(null)
-      await Promise.all([reload(), loadAccounting()])
+      await Promise.all([reload(), loadAccounting(), cargarFacturas(facturasPage, buscarCobro.trim(), tab, fechaDesde, fechaHasta)])
       showAlert(
         Number(j.pending || 0) > 0
           ? `Cobro registrado. Quedan ${fmtMoney(Number(j.pending))} por cobrar.`
@@ -5616,7 +5642,7 @@ function Contabilidad({ setActive }) {
         showAlert(msg)
         return
       }
-      await Promise.all([reload(), loadAccounting()])
+      await Promise.all([reload(), loadAccounting(), cargarFacturas(facturasPage, buscarCobro.trim(), tab, fechaDesde, fechaHasta)])
     } finally {
       setDeletingCobroId(null)
     }
@@ -5832,7 +5858,7 @@ function Contabilidad({ setActive }) {
         return
       }
       setShowMovimientoModal(false)
-      await Promise.all([reload(), loadAccounting()])
+      await Promise.all([reload(), loadAccounting(), cargarFacturas(facturasPage, buscarCobro.trim(), tab, fechaDesde, fechaHasta)])
     } finally {
       setMovimientoBusy(false)
     }
@@ -5874,7 +5900,7 @@ function Contabilidad({ setActive }) {
         showAlert(msg)
         return
       }
-      await Promise.all([reload(), loadAccounting()])
+      await Promise.all([reload(), loadAccounting(), cargarFacturas(facturasPage, buscarCobro.trim(), tab, fechaDesde, fechaHasta)])
     } finally {
       setDeletingMovementId(null)
     }
@@ -5913,7 +5939,7 @@ function Contabilidad({ setActive }) {
         showAlert(msg)
         return
       }
-      await Promise.all([reload(), loadAccounting()])
+      await Promise.all([reload(), loadAccounting(), cargarFacturas(facturasPage, buscarCobro.trim(), tab, fechaDesde, fechaHasta)])
     } finally {
       setDeletingMovementId(null)
     }
@@ -6493,7 +6519,7 @@ function Contabilidad({ setActive }) {
               background:tab===t?'var(--accent-pill)':'transparent',
               color:tab===t?'var(--accent)':'var(--text-muted)',
               fontFamily:'inherit',fontSize:12,fontWeight:700,letterSpacing:'0.02em'
-            }}>{t}{t!=='Todos' && ` (${cobrosEnRango.filter(c=>c.estado===t).length})`}</button>
+            }}>{t}</button>
           ))}
         </div>
         <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
@@ -6506,15 +6532,27 @@ function Contabilidad({ setActive }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 && (
+              {facturasLoading && filtered.length === 0 && (
+                <tr><td colSpan={7} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14}}>Cargando facturas…</td></tr>
+              )}
+              {facturasError && (
+                <tr><td colSpan={7} style={{padding:'32px',textAlign:'center',fontSize:14}}>
+                  <div style={{color:'var(--red)',fontWeight:600,marginBottom:10}}>{facturasError}</div>
+                  <button type="button" onClick={() => { void cargarFacturas(facturasPage, buscarCobro.trim(), tab, fechaDesde, fechaHasta) }}
+                    style={{padding:'8px 16px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--accent)',cursor:'pointer',fontFamily:'inherit',fontSize:13,fontWeight:700}}>
+                    Reintentar
+                  </button>
+                </td></tr>
+              )}
+              {!facturasLoading && !facturasError && filtered.length === 0 && (
                 <tr><td colSpan={7} style={{padding:'32px',textAlign:'center',color:'var(--text-muted)',fontSize:14,lineHeight:1.5}}>
-                  {COBROS_UI.length === 0
+                  {facturasData.total === 0 && !buscado && tab === 'Todos' && !fechaDesde && !fechaHasta
                     ? 'Todavía no has emitido ninguna factura. Créala con «Nueva factura», o emite las cuotas del periodo desde Contabilidad → Suscripciones.'
-                    : cobrosEnRango.length === 0
-                      ? 'No hay ninguna factura entre esas dos fechas. Prueba a ampliar el rango o pulsa «Limpiar».'
-                      : buscado
-                        ? `Ninguna factura coincide con «${buscarCobro.trim()}»${tab !== 'Todos' ? ` dentro de «${tab}»` : ''}.`
-                        : `No hay facturas en estado «${tab}» dentro de estas fechas.`}
+                    : buscado
+                      ? `Ninguna factura coincide con «${buscado}»${tab !== 'Todos' ? ` dentro de «${tab}»` : ''}.`
+                      : fechaDesde || fechaHasta
+                        ? 'No hay ninguna factura entre esas dos fechas. Prueba a ampliar el rango o pulsa «Limpiar».'
+                        : `No hay facturas en estado «${tab}».`}
                 </td></tr>
               )}
               {filtered.map((c, i) => (
@@ -6559,6 +6597,25 @@ function Contabilidad({ setActive }) {
               ))}
             </tbody>
           </table>
+          {facturasData.totalPages > 1 && (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'14px 32px',borderTop:'1px solid var(--border)'}}>
+              <span style={{fontSize:13,color:'var(--text-muted)'}}>
+                Página {facturasData.page} de {facturasData.totalPages} · {facturasData.total} facturas
+              </span>
+              <div style={{display:'flex',gap:8}}>
+                <button type="button" disabled={facturasPage <= 1 || facturasLoading}
+                  onClick={() => setFacturasPage((p) => Math.max(1, p - 1))}
+                  style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:facturasPage<=1?'not-allowed':'pointer',opacity:facturasPage<=1?0.5:1,fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                  Anterior
+                </button>
+                <button type="button" disabled={facturasPage >= facturasData.totalPages || facturasLoading}
+                  onClick={() => setFacturasPage((p) => Math.min(facturasData.totalPages, p + 1))}
+                  style={{padding:'7px 14px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:facturasPage>=facturasData.totalPages?'not-allowed':'pointer',opacity:facturasPage>=facturasData.totalPages?0.5:1,fontFamily:'inherit',fontSize:12,fontWeight:600}}>
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       )}
