@@ -430,15 +430,9 @@ export function Sidebar({ branding }: { branding?: SidebarBranding } = {}) {
                     }}
                   >
                     <NavLink
-                      href="/accounting"
-                      icon="accounting"
-                      label="Resumen"
-                      active={pathname === '/accounting'}
-                    />
-                    <NavLink
                       href="/?tab=contabilidad"
                       icon="receipt"
-                      label="Contabilidad CRM"
+                      label="Contabilidad"
                       active={false}
                     />
                     <NavLink

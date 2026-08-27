@@ -13,7 +13,7 @@ export default async function BankImportListPage() {
     <div className="space-y-8">
       <div className="flex justify-between items-start gap-4 flex-wrap">
         <div>
-          <Link href="/accounting" className="text-blue-600 hover:underline text-sm">
+          <Link href="/?tab=contabilidad" className="text-blue-600 hover:underline text-sm">
             ← Contabilidad
           </Link>
           <h1 className="text-3xl font-bold mt-2">Importar extracto bancario</h1>
