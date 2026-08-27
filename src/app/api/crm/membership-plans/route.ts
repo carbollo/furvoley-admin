@@ -22,6 +22,10 @@ export async function GET(request: Request) {
   const auth = await requireRoles(['ADMIN', 'TREASURER'], request)
   if (!auth.ok) return auth.response
 
+  // Con ?canceladas=1 se incluyen las bajas, para poder revisarlas.
+  const verCanceladas = new URL(request.url).searchParams.get('canceladas') === '1'
+  const estadosVisibles = verCanceladas ? [...SUBSCRIPTION_VISIBLE, 'CANCELED'] : SUBSCRIPTION_VISIBLE
+
   const [plans, subscriptions, sinCuota] = await Promise.all([
     prisma.membershipPlan.findMany({
       orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
@@ -34,7 +38,7 @@ export async function GET(request: Request) {
       },
     }),
     prisma.subscription.findMany({
-      where: { status: { in: SUBSCRIPTION_VISIBLE } },
+      where: { status: { in: estadosVisibles } },
       include: {
         plan: true,
         member: { select: { id: true, name: true, email: true, phone: true } },
@@ -84,6 +88,7 @@ export async function GET(request: Request) {
     subscriptions: subscriptions.map((s) => ({
       id: s.id,
       status: s.status,
+      endDate: s.endDate ? s.endDate.toISOString() : null,
       startDate: s.startDate.toISOString(),
       nextInvoiceDate: s.nextInvoiceDate.toISOString(),
       autoPay: s.autoPay,
@@ -109,7 +114,7 @@ export async function GET(request: Request) {
       activePlans: plans.filter((p) => p.isActive).length,
       // Debe contar lo MISMO que lista la pestaña, o el número de arriba no
       // cuadra con las filas de abajo.
-      activeSubscriptions: subscriptions.length,
+      activeSubscriptions: subscriptions.filter((s) => s.status !== 'CANCELED').length,
       cuotasActivas: subscriptions.filter((s) => s.status === 'ACTIVE').length,
     },
   })

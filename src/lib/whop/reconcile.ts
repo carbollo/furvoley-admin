@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { recordInvoicePayment, createInvoiceForSubscription } from '@/app/actions/billing'
+import { runPaymentFailedWorkflows } from '@/lib/workflow-engine'
 
 /**
  * Conciliación de los eventos de cobro de la pasarela con la facturación del CRM.
@@ -288,6 +289,13 @@ export async function reconcilePaymentFailed(payment: PaymentData): Promise<Reco
       data: { status: 'OVERDUE' },
     })
     .catch(() => null)
+
+  // Avisa a la familia y al club. Va en segundo plano y con su propio catch: si
+  // un flujo falla, el webhook igualmente tiene que responder 200 o la pasarela
+  // seguirá reintentando la entrega del mismo evento.
+  void runPaymentFailedWorkflows(targetInvoiceId).catch((e) =>
+    console.warn('[whop] flujos de pago fallido:', e),
+  )
 
   return { handled: true, detail: `factura ${targetInvoiceId} marcada vencida` }
 }

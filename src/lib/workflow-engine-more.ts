@@ -3,6 +3,7 @@ import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { createInvoicePaymentLink, createInvoiceForSubscription, createSubscription } from '@/app/actions/billing'
 import { signupUrlFromToken } from '@/lib/signup-url'
+import { buildInvoicePdfUrl } from '@/lib/invoice-pdf-link'
 import {
   createWorkflowResponseLink,
   type WorkflowLinkType,
@@ -69,7 +70,9 @@ export function buildInvoiceVariables(invoice: {
     /** Alias en español: es el que se ofrece en el editor de flujos. */
     enlace_cobro: paymentUrl,
     importe_pendiente: pending.toFixed(2),
-    invoicePdfUrl: `${appUrl}/api/invoices/${invoice.id}/pdf`,
+    // Con el dominio del club y firmado: el enlace anterior usaba la URL base
+    // (dominio equivocado en multi-tenant) y exigía sesión.
+    invoicePdfUrl: buildInvoicePdfUrl(invoice.id),
   }
 }
 

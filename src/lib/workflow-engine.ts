@@ -1416,6 +1416,32 @@ export async function runInvoiceOverdueWorkflows(invoiceId: string) {
   await runWorkflowsForMemberByTrigger(invoice.memberId, 'INVOICE_OVERDUE', { invoice })
 }
 
+/**
+ * El cobro de un recibo ha fallado (tarjeta rechazada, saldo insuficiente…).
+ *
+ * El disparador `PAYMENT_FAILED` estaba en el catálogo, en el editor de flujos y
+ * hasta con una plantilla por defecto, pero no lo invocaba nadie: a la familia
+ * no le llegaba nada y el club se enteraba semanas después, al mirar Impagos.
+ */
+export async function runPaymentFailedWorkflows(invoiceId: string) {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    select: {
+      id: true,
+      memberId: true,
+      invoiceNumber: true,
+      totalAmount: true,
+      paidAmount: true,
+      currency: true,
+      status: true,
+      dueDate: true,
+      whopCheckoutUrl: true,
+    },
+  })
+  if (!invoice) return
+  await runWorkflowsForMemberByTrigger(invoice.memberId, 'PAYMENT_FAILED', { invoice })
+}
+
 export async function runSubscriptionCreatedWorkflows(subscriptionId: string) {
   const sub = await prisma.subscription.findUnique({
     where: { id: subscriptionId },

@@ -32,6 +32,7 @@ type SubscriptionRow = {
   planAmount: number
   billingPeriodLabel: string
   nextInvoiceDate: string
+  endDate?: string | null
   autoPay: boolean
   paymentRequiredOnEnrollment: boolean
 }
@@ -90,6 +91,8 @@ export function CuotasSection({
   const [generateBusy, setGenerateBusy] = useState(false)
   // Acciones contra la pasarela de cobro (preparar cuotas, enlaces de cobro).
   const [gatewayBusy, setGatewayBusy] = useState(false)
+  /** Incluye las cuotas dadas de baja, que por defecto no se listan. */
+  const [verCanceladas, setVerCanceladas] = useState(false)
 
   const [planModal, setPlanModal] = useState(false)
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
@@ -131,7 +134,10 @@ export function CuotasSection({
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch('/api/crm/membership-plans', { credentials: 'include', cache: 'no-store' })
+      const r = await fetch(
+        '/api/crm/membership-plans' + (verCanceladas ? '?canceladas=1' : ''),
+        { credentials: 'include', cache: 'no-store' },
+      )
       if (!r.ok) throw new Error('No se pudieron cargar los planes')
       const j = await r.json()
       setPlans(j.plans ?? [])
@@ -143,7 +149,7 @@ export function CuotasSection({
     } finally {
       setLoading(false)
     }
-  }, [showAlert])
+  }, [showAlert, verCanceladas])
 
   useEffect(() => {
     void loadData()
@@ -471,12 +477,21 @@ export function CuotasSection({
         cancel: 'Dejarla activa',
       },
       ACTIVE: {
-        title: 'Dar por activa esta cuota',
+        // Al reactivar tras una pausa, el servidor mueve la próxima factura a
+        // hoy para no emitir de golpe los meses parados. Se dice, porque el
+        // club espera decidirlo él.
+        title: sub?.status === 'PAUSED' ? 'Reactivar esta cuota' : 'Dar por activa esta cuota',
         message:
-          `${quien}\n\nPasará a activa aunque no conste el pago. ` +
-          `Ojo: la factura de alta seguirá pendiente y el socio seguirá apareciendo en Impagos. ` +
-          `Si te pagó en mano, registra el cobro sobre su factura en vez de esto.`,
-        confirm: 'Marcarla activa',
+          sub?.status === 'PAUSED'
+            ? `${quien}
+
+Vuelve a facturarse a partir de hoy. No se emitirán las cuotas de los meses que ha estado pausada.`
+            : `${quien}
+
+Pasará a activa aunque no conste el pago. ` +
+              `Ojo: la factura de alta seguirá pendiente y el socio seguirá apareciendo en Impagos. ` +
+              `Si te pagó en mano, usa «Cobrado en mano» en vez de esto.`,
+        confirm: sub?.status === 'PAUSED' ? 'Reactivar' : 'Marcarla activa',
         cancel: 'Volver',
       },
     }
@@ -892,6 +907,27 @@ export function CuotasSection({
               overflow: 'hidden',
             }}
           >
+            {/* Al dar de baja, la cuota desaparecía de la pantalla sin dejar
+                rastro: no había forma de comprobar a quién se dio de baja. */}
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '12px 20px 0',
+                fontSize: 13,
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={verCanceladas}
+                onChange={(e) => setVerCanceladas(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              Ver también las cuotas dadas de baja
+            </label>
             {subscriptions.length === 0 ? (
               <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
                 Ningún socio tiene cuota asignada. Usa «Asignar cuota a socio».
@@ -958,7 +994,11 @@ export function CuotasSection({
                           </span>
                         </td>
                         <td style={{ padding: '16px 20px' }}>
-                          {s.status === 'PENDING_PAYMENT' ? (
+                          {s.status === 'CANCELED' ? (
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                              Dada de baja{s.endDate ? ` el ${new Date(s.endDate).toLocaleDateString('es-ES')}` : ''}
+                            </span>
+                          ) : s.status === 'PENDING_PAYMENT' ? (
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                               <button
                                 type="button"

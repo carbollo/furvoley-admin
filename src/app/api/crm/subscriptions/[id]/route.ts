@@ -42,6 +42,21 @@ export async function PATCH(request: Request, { params }: Params) {
     }
     data.status = status
     data.endDate = status === 'CANCELED' ? new Date() : existing.endDate
+
+    // Reactivar una cuota pausada con la fecha de cobro parada en el pasado hace
+    // que el cron emita de golpe TODOS los meses de la pausa: el socio recibe
+    // cuatro facturas por un tiempo en el que no jugó. Si quien reactiva no dice
+    // desde cuándo vuelve a pagar, se empieza a cobrar desde hoy.
+    if (
+      status === 'ACTIVE' &&
+      existing.status === 'PAUSED' &&
+      body.nextInvoiceDate === undefined &&
+      existing.nextInvoiceDate < new Date()
+    ) {
+      const hoy = new Date()
+      hoy.setHours(0, 0, 0, 0)
+      data.nextInvoiceDate = hoy
+    }
   }
 
   if (body.planId !== undefined) {
