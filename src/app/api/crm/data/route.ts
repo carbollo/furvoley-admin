@@ -313,6 +313,9 @@ export async function GET(request: Request) {
     vencimiento: inv.dueDate.toISOString().slice(0, 10),
     deporte: inv.member.sportPreference?.trim() || '—',
     pendingAmount: Math.max(0, inv.totalAmount - inv.paidAmount),
+    // Para reclamar sin salir de Impagos: a quien se llama y desde cuando debe.
+    telefono: inv.member.phone?.trim() || inv.member.guardianPhone?.trim() || '',
+    esTelefonoTutor: !inv.member.phone?.trim() && Boolean(inv.member.guardianPhone?.trim()),
   }))
 
   const eventos = eventsRaw.map((e) => ({

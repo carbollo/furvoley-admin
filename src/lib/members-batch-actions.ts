@@ -7,6 +7,7 @@ import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { createInvoicePaymentLink, createSubscription } from '@/app/actions/billing'
 import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 import { formatMoney } from '@/lib/format-money'
+import { buildReminderMessage } from '@/lib/reminder-message'
 
 export const MAX_BATCH_MEMBERS = 200
 
@@ -146,8 +147,11 @@ async function sendPaymentReminder(memberId: string) {
   }
 
   const member = openInvoices[0]?.member
-  const phone = member?.phone?.trim() || member?.guardianPhone?.trim() || ''
+  const propio = member?.phone?.trim() || ''
+  const tutor = member?.guardianPhone?.trim() || ''
+  const phone = propio || tutor
   if (!phone) throw new Error('Sin teléfono')
+  const paraTutor = !propio && Boolean(tutor)
 
   const issuer = await getClubIssuer()
   const clubName = issuer.name || 'el club'
@@ -172,13 +176,47 @@ async function sendPaymentReminder(memberId: string) {
     throw new Error(`No se pudo generar el enlace de pago (${linkError}); no se envió el aviso`)
   }
 
-  const message =
-    `Hola ${member?.name || 'socio'}, te recordamos que tienes cuotas pendientes en ${clubName}.\n` +
-    `Importe pendiente: ${formatMoney(pendingTotal)}.\n` +
-    `Vencimiento más antiguo: ${oldestDueDate.toLocaleDateString('es-ES')}.\n` +
-    `Por favor, regulariza el pago lo antes posible. Gracias.${payLine}`
+  const abiertas = openInvoices
+    .map((i) => ({
+      invoiceNumber: i.invoiceNumber,
+      pending: Math.max(0, i.totalAmount - i.paidAmount),
+      dueDate: i.dueDate,
+      currency: i.currency,
+    }))
+    .filter((i) => i.pending > 0)
+
+  const message = buildReminderMessage({
+    memberName: member?.name || 'el socio',
+    clubName,
+    toGuardian: paraTutor,
+    invoices: abiertas,
+    payUrl: payLine.replace(/^\s*Pagar aqu\u00ed:\s*/, '').trim(),
+    linkCoversInvoiceNumber:
+      openInvoices.find((i) => i.id === oldestInvoiceId)?.invoiceNumber ?? null,
+  })
 
   await sendApiWassText({ sessionId, phone, message })
+
+  // Queda registrado en el hilo del socio y en su historial de avisos: sin esto
+  // no se podia demostrar que se le habia reclamado, ni saber cuando fue la
+  // ultima vez, asi que se reclamaba dos veces o ninguna.
+  await Promise.all([
+    prisma.chatMessage
+      .create({ data: { direction: 'OUT', memberId, body: message, status: 'SENT' } })
+      .catch((e) => console.warn('[aviso] no se pudo registrar en el chat', e)),
+    prisma.reminderLog
+      .create({
+        data: {
+          reminderType: 'MANUAL',
+          channel: 'WHATSAPP',
+          status: 'SENT',
+          message,
+          memberId,
+          invoiceId: oldestInvoiceId,
+        },
+      })
+      .catch((e) => console.warn('[aviso] no se pudo registrar el recordatorio', e)),
+  ])
 }
 
 /** Mensaje de WhatsApp libre a un socio; queda registrado en su hilo del Chat. */

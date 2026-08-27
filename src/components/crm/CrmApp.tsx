@@ -324,7 +324,7 @@ function MiniLineChart({ data, color = "var(--accent)", height = 40, width = 120
   );
 }
 
-function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", secondaryColor = "#EF4444", height = 170 }) {
+function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", secondaryColor = "#EF4444", height = 170, serieLabel = 'Ingresos', secondarySerieLabel = 'Gastos' }) {
   const safeData = data && data.length ? data : [0];
   const safeSecondary = secondaryData.length === safeData.length ? secondaryData : safeData.map(() => 0);
   const safeLabels = labels && labels.length === safeData.length ? labels : safeData.map(() => '');
@@ -355,7 +355,9 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
               <rect x={x} y={y1} width="16" height={h1} rx="5" fill={color} opacity="0.9" />
               <rect x={x + 24} y={y2} width="16" height={h2} rx="5" fill={secondaryColor} opacity="0.88" />
               <rect x={groupX} y={12} width={groupW} height={baseY - 4} fill="transparent">
-                <title>{`${safeLabels[i]} · Ingresos: ${Math.round(v)} · Gastos: ${Math.round(v2)}`}</title>
+                <title>{secondaryData.length
+                  ? `${safeLabels[i]} · ${serieLabel}: ${Math.round(v)} · ${secondarySerieLabel}: ${Math.round(v2)}`
+                  : `${safeLabels[i]} · ${serieLabel}: ${Math.round(v)}`}</title>
               </rect>
             </g>
           );
@@ -2197,6 +2199,46 @@ function Impagos() {
   const cobros = Array.isArray(bundle?.cobros) ? bundle.cobros : []
   const impagosTodos = cobros.filter((c) => c.estado === 'Vencido')
   const buscadoImpago = buscarImpago.trim().toLowerCase()
+  /** Agrupa los recibos vencidos por socio: el aviso ya se manda por socio. */
+  function agruparPorSocio(filas) {
+    const m = new Map()
+    for (const c of filas) {
+      const k = c.memberId || c.id
+      const prev = m.get(k)
+      const dias = Math.max(
+        0,
+        Math.floor((Date.now() - new Date(c.vencimiento).getTime()) / 86400000),
+      )
+      if (!prev) {
+        m.set(k, {
+          id: k,
+          memberId: c.memberId,
+          socio: c.socio,
+          telefono: c.telefono || '',
+          esTelefonoTutor: Boolean(c.esTelefonoTutor),
+          total: Number(c.pendingAmount ?? c.monto ?? 0),
+          recibos: 1,
+          numero: c.numero,
+          concepto: c.concepto,
+          vencimiento: c.vencimiento,
+          diasVencida: dias,
+          facturaId: c.id,
+        })
+        continue
+      }
+      prev.total += Number(c.pendingAmount ?? c.monto ?? 0)
+      prev.recibos++
+      // Se muestra el más antiguo: es el que marca la gravedad de la deuda.
+      if (new Date(c.vencimiento) < new Date(prev.vencimiento)) {
+        prev.vencimiento = c.vencimiento
+        prev.diasVencida = dias
+        prev.numero = c.numero
+        prev.concepto = c.concepto
+        prev.facturaId = c.id
+      }
+    }
+    return [...m.values()].sort((a, b) => b.diasVencida - a.diasVencida)
+  }
   const impagos = buscadoImpago
     ? impagosTodos.filter((c) =>
         `${c.socio} ${c.concepto} ${c.numero || ''}`.toLowerCase().includes(buscadoImpago),
@@ -2314,6 +2356,18 @@ function Impagos() {
 
   async function reprogramar(c) {
     if (!reprogramDate) { showAlert('Elige la nueva fecha de vencimiento.'); return }
+    const ok = await showConfirm({
+      title: `Aplazar el recibo de ${c.socio}`,
+      message:
+        `${c.numero || ''} vence el ${new Date(c.vencimiento).toLocaleDateString('es-ES')}
+` +
+        `Nueva fecha: ${new Date(reprogramDate).toLocaleDateString('es-ES')}
+
+` +
+        'Dejará de contar como vencido hasta esa fecha. Al socio no se le avisa: díselo tú.',
+      confirmLabel: 'Aplazar',
+    }).catch(() => false)
+    if (!ok) return
     setBusyId(c.id)
     try {
       const r = await fetch(`/api/crm/invoices/${c.id}`, {
@@ -2355,7 +2409,7 @@ function Impagos() {
           <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
             <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Deuda por antigüedad</div>
             <div style={{fontSize:14,color:'var(--text-secondary)',margin:'4px 0 20px'}}>Importe vencido según los días desde el vencimiento</div>
-            <BarChart data={agingAmounts} labels={AGING.map((b) => b.label)} color="#be123c" height={190}/>
+            <BarChart data={agingAmounts} labels={AGING.map((b) => b.label)} color="#be123c" height={190} serieLabel="Importe vencido"/>
           </div>
           <div style={{background:'var(--surface-card)',borderRadius:12,padding:32,boxShadow:'var(--card-shadow)',border:'1px solid var(--border)'}}>
             <div style={{fontWeight:600,fontSize:18,color:'var(--text-primary)',letterSpacing:'-0.01em'}}>Mayores deudores</div>
@@ -2401,25 +2455,50 @@ function Impagos() {
             <table style={{width:'100%',minWidth:640,borderCollapse:'collapse'}}>
               <thead>
                 <tr style={{background:'var(--surface-low)'}}>
-                  {['Socio','Concepto','Pendiente','Vencimiento',''].map((h) => (
+                  {['Socio','Recibo más antiguo','Debe','Vencido desde',''].map((h) => (
                     <th key={h} style={{padding:'12px 24px',textAlign:'left',fontSize:11,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {impagos.map((c) => (
+                {agruparPorSocio(impagos).map((c) => (
                   <tr key={c.id} style={{borderTop:'1px solid var(--border)'}}>
-                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:600,color:'var(--text-primary)'}}>{c.socio}</td>
-                    <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{c.concepto}</td>
-                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--red)'}}>{fmtMoney(c.pendingAmount ?? c.monto)}</td>
+                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:600,color:'var(--text-primary)'}}>
+                      <div>{c.socio}</div>
+                      {c.telefono ? (
+                        <a href={`tel:${c.telefono}`} style={{fontSize:12,color:'var(--accent)',textDecoration:'none',fontWeight:500}}>
+                          {c.telefono}{c.esTelefonoTutor ? ' (tutor)' : ''}
+                        </a>
+                      ) : (
+                        <div style={{fontSize:12,color:'var(--amber)'}}>Sin teléfono: no se le puede avisar</div>
+                      )}
+                    </td>
+                    <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>
+                      <div style={{fontWeight:600,color:'var(--text-primary)'}}>{c.numero}</div>
+                      <div>{c.concepto}</div>
+                    </td>
+                    <td style={{padding:'14px 24px',fontSize:14,fontWeight:700,color:'var(--red)'}}>
+                      {fmtMoney(c.total)}
+                      {c.recibos > 1 && (
+                        <div style={{fontSize:11,fontWeight:500,color:'var(--text-muted)',marginTop:2}}>
+                          {c.recibos} recibos
+                        </div>
+                      )}
+                    </td>
+                    <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>
+                      <div style={{fontWeight:600,color: c.diasVencida > 60 ? 'var(--red)' : 'var(--text-primary)'}}>
+                        {c.diasVencida} días
+                      </div>
+                      <div style={{fontSize:12}}>{new Date(c.vencimiento).toLocaleDateString('es-ES')}</div>
+                    </td>
                     <td style={{padding:'14px 24px',fontSize:13,color:'var(--text-secondary)'}}>{new Date(c.vencimiento).toLocaleDateString('es-ES')}</td>
                     <td style={{padding:'14px 24px'}}>
                       <div style={{display:'flex',gap:8,justifyContent:'flex-end',alignItems:'center',flexWrap:'wrap'}}>
-                        {reprogramId === c.id ? (
+                        {reprogramId === c.facturaId ? (
                           <>
-                            <input type="date" value={reprogramDate} onChange={(e) => setReprogramDate(e.target.value)}
+                            <input type="date" min={new Date().toISOString().slice(0,10)} value={reprogramDate} onChange={(e) => setReprogramDate(e.target.value)}
                               style={{padding:'7px 10px',borderRadius:8,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:12}}/>
-                            <button type="button" disabled={busyId === c.id} onClick={() => reprogramar(c)}
+                            <button type="button" disabled={busyId === c.facturaId} onClick={() => reprogramar({ ...c, id: c.facturaId })}
                               style={{padding:'7px 12px',borderRadius:8,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
                               Guardar
                             </button>
@@ -2430,13 +2509,13 @@ function Impagos() {
                           </>
                         ) : (
                           <>
-                            <button type="button" disabled={busyId === c.id} onClick={() => setReprogramId(c.id)}
+                            <button type="button" disabled={busyId === c.facturaId} onClick={() => setReprogramId(c.facturaId)}
                               style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface-card)',color:'var(--text-primary)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600}}>
                               Reprogramar
                             </button>
-                            <button type="button" disabled={busyId === c.id} onClick={() => reenviarAviso(c)}
+                            <button type="button" disabled={busyId === c.facturaId || !c.telefono} onClick={() => reenviarAviso({ ...c, id: c.facturaId })}
                               style={{padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--green-light)',color:'var(--green)',cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700}}>
-                              {busyId === c.id ? 'Enviando…' : 'Reenviar aviso'}
+                              {busyId === c.facturaId ? 'Enviando…' : c.recibos > 1 ? `Avisar de los ${c.recibos}` : 'Avisar'}
                             </button>
                           </>
                         )}

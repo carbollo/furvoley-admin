@@ -19,6 +19,7 @@ import {
 } from '@/lib/billing-dates'
 import { createInvoiceWithNumber, nextInvoiceNumber, isUniqueViolation } from '@/lib/crm-invoice-create'
 import { formatMoney } from '@/lib/format-money'
+import { buildReminderMessage } from '@/lib/reminder-message'
 import {
   runInvoiceCreatedWorkflows,
   runEnrollmentPaymentDueWorkflows,
@@ -646,11 +647,32 @@ export async function runReminderJob() {
     const phone = ownPhone || guardianPhone
     const paraTutor = !ownPhone && Boolean(guardianPhone)
 
-    const message = paraTutor
-      ? `Recordatorio de la cuota de ${invoice.member.name} (factura ${invoice.invoiceNumber}). ` +
-        `Importe pendiente: ${formatMoney(pendiente, invoice.currency)}.`
-      : `Recordatorio de factura ${invoice.invoiceNumber}. ` +
-        `Importe pendiente: ${formatMoney(pendiente, invoice.currency)}.`
+    let payUrl: string | null = null
+    try {
+      // Siempre por el generador: la caché por pasarela la gestiona él.
+      payUrl = (await createInvoicePaymentLink(invoice.id)) || null
+    } catch (e) {
+      // Un aviso de cobro sin enlace obliga al socio a llamar al club: se deja
+      // constancia en vez de mandarlo mudo y darlo por bueno.
+      console.warn(`[recordatorios] sin enlace de pago para ${invoice.invoiceNumber}`, e)
+    }
+
+    // Mismo texto que el aviso manual: antes había dos redacciones distintas y
+    // ninguna se dirigía al tutor cuando el mensaje acababa en su móvil.
+    const message = buildReminderMessage({
+      payUrl,
+      memberName: invoice.member.name,
+      clubName: (await getClubIssuer()).name || 'el club',
+      toGuardian: paraTutor,
+      invoices: [
+        {
+          invoiceNumber: invoice.invoiceNumber,
+          pending: pendiente,
+          dueDate: invoice.dueDate,
+          currency: invoice.currency,
+        },
+      ],
+    })
 
     // SKIPPED = no había por dónde enviarlo. Es distinto de enviado y distinto
     // de fallido, y no debe contarse como aviso hecho.
@@ -660,21 +682,7 @@ export async function runReminderJob() {
       const cfg = await getWhatsAppConfig()
       const sessionId = String(cfg.linkedSessionId || '').trim()
       if (phone && sessionId) {
-        let payLine = ''
-        try {
-          // Siempre por el generador: la caché por pasarela la gestiona él.
-          const url = await createInvoicePaymentLink(invoice.id)
-          if (url) payLine = ` Pagar: ${url}`
-        } catch (e) {
-          // Un aviso de cobro sin enlace de pago obliga al socio a llamar al
-          // club: se deja constancia en vez de mandarlo mudo y darlo por bueno.
-          console.warn(`[recordatorios] sin enlace de pago para ${invoice.invoiceNumber}`, e)
-        }
-        await sendApiWassText({
-          sessionId,
-          phone,
-          message: `${message}${payLine}`,
-        })
+        await sendApiWassText({ sessionId, phone, message })
         channel = 'WHATSAPP'
         status = 'SENT'
       } else if (process.env.REMINDER_WEBHOOK_URL) {
