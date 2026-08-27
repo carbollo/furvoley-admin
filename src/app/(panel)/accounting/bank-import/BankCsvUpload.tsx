@@ -42,9 +42,9 @@ export function BankCsvUpload() {
       return
     }
 
-    if (res.warnings?.length) {
-      setMsg(`Importadas ${res.imported} filas. ${res.warnings.join(' ')}`)
-    }
+    // Los avisos se guardan en la propia importación y se pintan en el detalle:
+    // aquí morían en el router.push, así que el tesorero nunca llegaba a saber
+    // que se habían omitido filas o que el extracto venía repetido.
     router.push(`/accounting/bank-import/${res.id}`)
     router.refresh()
   }

@@ -224,7 +224,28 @@ export async function createTransaction(data: {
 export async function deleteTransaction(id: string) {
   return runWithTenant(async () => {
   await assertAccountingStaff()
-  await prisma.transaction.delete({ where: { id } })
+  // La línea del extracto que apuntaba a este movimiento vuelve a pendiente. Sin
+  // esto se quedaba «conciliada» contra un movimiento que ya no existe: en
+  // pantalla parecía cuadrada y ese ingreso no volvía a aparecer nunca.
+  const lineas = await prisma.bankStatementLine.findMany({
+    where: { matchedTransactionId: id },
+    select: { id: true, bankImportId: true },
+  })
+  await prisma.$transaction([
+    ...(lineas.length > 0
+      ? [
+          prisma.bankStatementLine.updateMany({
+            where: { matchedTransactionId: id },
+            data: { status: 'PENDING', matchedTransactionId: null },
+          }),
+        ]
+      : []),
+    prisma.transaction.delete({ where: { id } }),
+  ])
   revalidatePath('/accounting')
+  for (const l of new Set(lineas.map((x) => x.bankImportId))) {
+    revalidatePath(`/accounting/bank-import/${l}`)
+  }
+  revalidatePath('/accounting/bank-import')
   })
 }

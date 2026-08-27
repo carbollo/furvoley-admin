@@ -8,6 +8,8 @@ import {
   ignoreBankLine,
   reconcileBankLine,
   unlinkBankLine,
+  getInvoiceCandidatesForLine,
+  payInvoiceFromBankLine,
 } from '@/app/actions/bank-import'
 import { formatMoney } from '@/lib/format-money'
 
@@ -18,6 +20,14 @@ type Tx = {
   description: string
   date: string
   invoice: { invoiceNumber: string } | null
+}
+
+type InvoiceCandidate = {
+  id: string
+  invoiceNumber: string
+  memberName: string
+  pendingAmount: number
+  dueDate: string
 }
 
 type Props = {
@@ -38,6 +48,7 @@ export function ReconcileLineActions({ line }: Props) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<Tx[] | null>(null)
+  const [facturas, setFacturas] = useState<InvoiceCandidate[] | null>(null)
 
   const abs = Math.abs(line.signedAmount)
   const isIn = line.signedAmount >= 0
@@ -60,6 +71,33 @@ export function ReconcileLineActions({ line }: Props) {
       )
     } catch {
       setErr('No se pudieron cargar las sugerencias. Vuelve a intentarlo.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function cargarFacturas() {
+    setBusy(true)
+    setErr(null)
+    try {
+      setFacturas(await getInvoiceCandidatesForLine(line.id))
+    } catch {
+      setErr('No se pudieron cargar las facturas pendientes. Vuelve a intentarlo.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function cobrarFactura(invoiceId: string) {
+    setBusy(true)
+    setErr(null)
+    try {
+      const r = await payInvoiceFromBankLine(line.id, invoiceId)
+      if (!r.ok) { setErr(r.error); return }
+      setFacturas(null)
+      router.refresh()
+    } catch {
+      setErr('No se pudo registrar el cobro. Comprueba tu conexión y vuelve a intentarlo.')
     } finally {
       setBusy(false)
     }
@@ -186,6 +224,17 @@ export function ReconcileLineActions({ line }: Props) {
   return (
     <div className="space-y-2 text-sm">
       <div className="flex flex-wrap gap-2">
+        {isIn && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={cargarFacturas}
+            title="Registra el cobro de una factura con este ingreso"
+            className="px-2 py-1 rounded bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700"
+          >
+            {busy ? '…' : 'Cobrar una factura'}
+          </button>
+        )}
         <button
           type="button"
           disabled={busy}
@@ -240,6 +289,41 @@ export function ReconcileLineActions({ line }: Props) {
       )}
       {suggestions && suggestions.length === 0 && (
         <p className="text-xs text-stone-500">No hay asientos cercanos por importe y fecha.</p>
+      )}
+      {facturas && facturas.length > 0 && (
+        <div className="border border-emerald-100 rounded-lg">
+          <p className="px-2 pt-2 text-xs font-semibold text-stone-700">
+            ¿De quién es este ingreso? Al elegir, la factura queda cobrada.
+          </p>
+          <ul className="divide-y max-h-48 overflow-y-auto">
+            {facturas.map((f) => (
+              <li key={f.id} className="p-2 flex justify-between gap-2 items-start">
+                <div>
+                  <p className="text-xs font-medium text-stone-800">
+                    {f.memberName} · {f.invoiceNumber}
+                  </p>
+                  <p className="text-xs text-stone-500">
+                    Debe {formatMoney(f.pendingAmount)} · vence{' '}
+                    {new Date(f.dueDate).toLocaleDateString('es-ES')}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => cobrarFactura(f.id)}
+                  className="shrink-0 text-xs text-white bg-emerald-600 px-2 py-1 rounded hover:bg-emerald-700"
+                >
+                  Cobrar {formatMoney(Math.min(f.pendingAmount, abs))}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {facturas && facturas.length === 0 && (
+        <p className="text-xs text-stone-500">
+          Ningún socio tiene facturas pendientes ahora mismo.
+        </p>
       )}
       {err && <p className="text-rose-600 text-xs">{err}</p>}
     </div>

@@ -16,6 +16,19 @@ export default async function BankImportDetailPage({ params }: { params: Promise
   const newLedger = batch.lines.filter((l) => l.status === 'NEW_LEDGER').length
   const ignored = batch.lines.filter((l) => l.status === 'IGNORED').length
 
+  // Sin estos totales, el tesorero no sabía si lo que llevaba conciliado cubría
+  // el extracto o le faltaba medio mes por revisar.
+  const entradas = batch.lines.filter((l) => l.signedAmount > 0)
+  const salidas = batch.lines.filter((l) => l.signedAmount < 0)
+  const totalEntradas = entradas.reduce((a, l) => a + l.signedAmount, 0)
+  const totalSalidas = salidas.reduce((a, l) => a + Math.abs(l.signedAmount), 0)
+  const pendientePorConciliar = batch.lines
+    .filter((l) => l.status === 'PENDING')
+    .reduce((a, l) => a + Math.abs(l.signedAmount), 0)
+  const revisadas = batch.lines.length - pending
+  const progreso = batch.lines.length > 0 ? Math.round((revisadas / batch.lines.length) * 100) : 100
+  const avisos: string[] = Array.isArray(batch.warnings) ? (batch.warnings as string[]) : []
+
   return (
     <div className="space-y-6">
       <Link href="/accounting/bank-import" className="text-blue-600 hover:underline text-sm">
@@ -43,6 +56,42 @@ export default async function BankImportDetailPage({ params }: { params: Promise
           <span className="bg-stone-100 text-stone-600 px-3 py-1 rounded-full">Ignorado: {ignored}</span>
         </div>
       </div>
+
+      <div className="grid gap-4 sm:grid-cols-4">
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs font-medium text-stone-500">Entró en la cuenta</p>
+          <p className="text-lg font-bold text-emerald-700">{formatMoney(totalEntradas)}</p>
+          <p className="text-xs text-stone-500">{entradas.length} movimientos</p>
+        </div>
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs font-medium text-stone-500">Salió de la cuenta</p>
+          <p className="text-lg font-bold text-rose-700">{formatMoney(totalSalidas)}</p>
+          <p className="text-xs text-stone-500">{salidas.length} movimientos</p>
+        </div>
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs font-medium text-stone-500">Te queda por revisar</p>
+          <p className="text-lg font-bold text-amber-700">{formatMoney(pendientePorConciliar)}</p>
+          <p className="text-xs text-stone-500">{pending} movimientos</p>
+        </div>
+        <div className="bg-white border border-stone-200 rounded-xl p-4">
+          <p className="text-xs font-medium text-stone-500">Avance</p>
+          <p className="text-lg font-bold text-stone-800">{progreso}%</p>
+          <div className="mt-2 h-2 rounded-full bg-stone-100 overflow-hidden">
+            <div className="h-full bg-emerald-500" style={{ width: `${progreso}%` }} />
+          </div>
+        </div>
+      </div>
+
+      {avisos.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900">Avisos de esta importación</p>
+          <ul className="mt-2 space-y-1">
+            {avisos.map((a, i) => (
+              <li key={i} className="text-sm text-amber-900">· {a}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="bg-white border border-stone-200 rounded-xl overflow-x-auto">
         <table className="w-full text-sm">

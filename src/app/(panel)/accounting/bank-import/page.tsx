@@ -36,7 +36,7 @@ export default async function BankImportListPage() {
             <tr>
               <th className="p-3">Fecha</th>
               <th className="p-3">Archivo / nota</th>
-              <th className="p-3">Líneas</th>
+              <th className="p-3">Avance</th>
               <th className="p-3 text-right">Acciones</th>
             </tr>
           </thead>
@@ -52,7 +52,21 @@ export default async function BankImportListPage() {
                   </Link>
                   {b.note && <p className="text-xs text-stone-500 mt-0.5">{b.note}</p>}
                 </td>
-                <td className="p-3">{b._count.lines}</td>
+                <td className="p-3">
+                  <div className="flex items-center gap-2 min-w-[140px]">
+                    <div className="h-2 w-20 rounded-full bg-stone-100 overflow-hidden">
+                      <div
+                        className={b.pendientes === 0 ? 'h-full bg-emerald-500' : 'h-full bg-amber-500'}
+                        style={{ width: `${b.progreso}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-stone-600 whitespace-nowrap">
+                      {b.pendientes === 0
+                        ? `${b._count.lines} listas`
+                        : `${b.pendientes} de ${b._count.lines} por revisar`}
+                    </span>
+                  </div>
+                </td>
                 <td className="p-3 text-right">
                   <div className="flex justify-end gap-2">
                     <Link

@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { normalizeRole } from '@/lib/rbac'
 import { runWithTenant } from '@/lib/multitenant/request'
 import { parseBankCsvContent } from '@/lib/bank-csv'
+import { recordManualInvoicePayment } from '@/app/actions/billing'
 
 /**
  * Server actions de conciliación bancaria (los invocan componentes cliente y RSC de
@@ -23,6 +24,33 @@ async function assertAccountingStaff() {
   }
 }
 
+/**
+ * Huella de una fila del extracto: fecha + importe + concepto normalizado.
+ *
+ * Es lo que permite detectar que el club ha vuelto a subir el mismo extracto (o
+ * un extracto solapado, que es lo normal al pedir «los últimos 60 días» cada
+ * mes). Sin ella, cada resubida duplicaba los ingresos del club.
+ */
+function huellaFila(
+  r: { date: Date; signedAmount: number; description: string },
+  repeticion: number,
+): string {
+  const dia = r.date.toISOString().slice(0, 10)
+  const importe = r.signedAmount.toFixed(2)
+  const concepto = r.description
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+  // `repeticion` distingue dos movimientos REALES idénticos el mismo día (dos
+  // familias que pagan 30 € con el mismo concepto). Sin él, el segundo se
+  // descartaría como duplicado y el club perdería ese ingreso. Al reimportar el
+  // mismo extracto las repeticiones vuelven a numerarse igual, así que la
+  // deduplicación sigue funcionando.
+  return `${dia}|${importe}|${concepto}|${repeticion}`
+}
+
 export async function importBankCsv(data: {
   content: string
   fileName?: string | null
@@ -36,18 +64,59 @@ export async function importBankCsv(data: {
     return { success: false as const, error: parsed.warnings.join(' ') || 'Sin filas válidas' }
   }
 
+  // Se descartan de entrada las filas que ya están en algún extracto anterior.
+  // Dentro del propio fichero también puede haber repetidas, así que se filtra
+  // en los dos sentidos antes de tocar la BD.
+  const repeticiones = new Map<string, number>()
+  const conHuella = parsed.rows.map((r) => {
+    const base = huellaFila(r, 0).slice(0, -2)
+    const n = repeticiones.get(base) ?? 0
+    repeticiones.set(base, n + 1)
+    return { ...r, fingerprint: huellaFila(r, n) }
+  })
+  const yaEnBd = new Set(
+    (
+      await prisma.bankStatementLine.findMany({
+        where: { fingerprint: { in: conHuella.map((r) => r.fingerprint) } },
+        select: { fingerprint: true },
+      })
+    ).map((l) => l.fingerprint as string),
+  )
+  const nuevas = conHuella.filter((r) => !yaEnBd.has(r.fingerprint))
+  const duplicadas = conHuella.length - nuevas.length
+
+  const avisos = [...parsed.warnings]
+  if (duplicadas > 0) {
+    avisos.push(
+      duplicadas === conHuella.length
+        ? 'Todas las filas de este extracto ya estaban importadas: no se ha añadido ninguna.'
+        : `${duplicadas} fila(s) ya estaban en un extracto anterior y no se han vuelto a importar.`,
+    )
+  }
+
+  if (nuevas.length === 0) {
+    return {
+      success: false as const,
+      error:
+        'Este extracto ya estaba importado entero. No se ha añadido nada para no duplicar los ingresos.',
+    }
+  }
+
   const batch = await prisma.bankImport.create({
     data: {
       fileName: data.fileName ?? null,
       note: data.note ?? null,
-      rowCount: parsed.rows.length,
+      rowCount: nuevas.length,
+      warnings: avisos,
+      duplicateCount: duplicadas,
       lines: {
-        create: parsed.rows.map((r, idx) => ({
+        create: nuevas.map((r, idx) => ({
           rowIndex: idx,
           date: r.date,
           signedAmount: r.signedAmount,
           description: r.description,
           reference: r.reference,
+          fingerprint: r.fingerprint,
           status: 'PENDING',
         })),
       },
@@ -60,8 +129,9 @@ export async function importBankCsv(data: {
   return {
     success: true as const,
     id: batch.id,
-    imported: parsed.rows.length,
-    warnings: parsed.warnings,
+    imported: nuevas.length,
+    duplicates: duplicadas,
+    warnings: avisos,
   }
   })
 }
@@ -69,11 +139,25 @@ export async function importBankCsv(data: {
 export async function getBankImports() {
   return runWithTenant(async () => {
   await assertAccountingStaff()
-  return prisma.bankImport.findMany({
+  const batches = await prisma.bankImport.findMany({
     orderBy: { importedAt: 'desc' },
     include: {
       _count: { select: { lines: true } },
+      // Solo el estado de cada línea: basta para el avance y evita traerse el
+      // extracto entero a la lista.
+      lines: { select: { status: true } },
     },
+  })
+  return batches.map((b) => {
+    const total = b.lines.length
+    const pendientes = b.lines.filter((l) => l.status === 'PENDING').length
+    return {
+      ...b,
+      lines: undefined,
+      pendientes,
+      revisadas: total - pendientes,
+      progreso: total > 0 ? Math.round(((total - pendientes) / total) * 100) : 100,
+    }
   })
   })
 }
@@ -281,5 +365,106 @@ export async function deleteBankImportFromForm(formData: FormData) {
   await prisma.bankImport.delete({ where: { id } })
   revalidatePath('/accounting/bank-import')
   revalidatePath('/accounting')
+  })
+}
+
+/**
+ * Facturas abiertas que encajan con una línea de ingreso del extracto.
+ *
+ * Se ordenan por cercanía de importe: lo que el tesorero busca casi siempre es
+ * «esta transferencia de 45 € es la cuota de alguien».
+ */
+export async function getInvoiceCandidatesForLine(lineId: string) {
+  return runWithTenant(async () => {
+    await assertAccountingStaff()
+    const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
+    if (!line || line.signedAmount <= 0) return []
+
+    const abs = Math.abs(line.signedAmount)
+    const abiertas = await prisma.invoice.findMany({
+      where: { status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
+      include: { member: { select: { name: true } } },
+      orderBy: { dueDate: 'asc' },
+      take: 200,
+    })
+
+    return abiertas
+      .map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        memberName: inv.member.name,
+        pendingAmount: Math.max(0, inv.totalAmount - inv.paidAmount),
+        dueDate: inv.dueDate.toISOString(),
+      }))
+      .filter((inv) => inv.pendingAmount > 0)
+      .sort((a, b) => Math.abs(a.pendingAmount - abs) - Math.abs(b.pendingAmount - abs))
+      .slice(0, 12)
+  })
+}
+
+/**
+ * Salda una factura con el dinero de una línea del extracto.
+ *
+ * Es la acción por la que existe esta pantalla y era justo la que faltaba:
+ * «conciliar» solo emparejaba la línea con un movimiento ya existente, así que
+ * el socio seguía debiendo y en Impagos. Aquí el cobro se registra de verdad
+ * (lo que activa al socio y dispara sus flujos) y la línea queda enganchada al
+ * `Transaction` que ese cobro genera, de modo que no se pueda volver a cobrar.
+ */
+export async function payInvoiceFromBankLine(
+  lineId: string,
+  invoiceId: string,
+): Promise<BankLineResult> {
+  return runWithTenant(async () => {
+    await assertAccountingStaff()
+    const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
+    if (!line) return { ok: false as const, error: 'Esa línea ya no existe. Recarga la página.' }
+    if (line.status !== 'PENDING') {
+      return { ok: false as const, error: 'Esta línea ya está conciliada. Desvincúlala primero si quieres rehacerla.' }
+    }
+    if (line.signedAmount <= 0) {
+      return { ok: false as const, error: 'Esta línea es un cargo, no un ingreso: no puede pagar una factura.' }
+    }
+
+    const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } })
+    if (!invoice) return { ok: false as const, error: 'Esa factura ya no existe.' }
+
+    const pendiente = Math.max(0, invoice.totalAmount - invoice.paidAmount)
+    if (pendiente <= 0) {
+      return { ok: false as const, error: `La factura ${invoice.invoiceNumber} ya está pagada.` }
+    }
+
+    // Nunca se cobra más de lo que se debe ni más de lo que entró por banco: si
+    // la transferencia es mayor, el resto se queda sin conciliar a la vista.
+    const importe = Math.min(pendiente, line.signedAmount)
+
+    await recordManualInvoicePayment({
+      invoiceId,
+      amount: importe,
+      method: 'BANK_TRANSFER',
+      bankReference: line.reference || line.description.slice(0, 120),
+    })
+
+    // El cobro crea su propio Transaction con invoiceId; se engancha la línea a
+    // él para que quede conciliada y no se pueda cobrar dos veces.
+    const tx = await prisma.transaction.findFirst({
+      where: { invoiceId, type: 'INCOME' },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    })
+
+    await prisma.bankStatementLine.update({
+      where: { id: lineId },
+      data: {
+        status: 'MATCHED',
+        matchedTransactionId: tx?.id ?? null,
+      },
+    })
+
+    revalidatePath(`/accounting/bank-import/${line.bankImportId}`)
+    revalidatePath('/accounting/bank-import')
+    revalidatePath('/accounting')
+    revalidatePath('/')
+    return { ok: true as const }
   })
 }
