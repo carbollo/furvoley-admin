@@ -20,7 +20,14 @@ export function PayMyInvoiceButton({ invoiceId }: { invoiceId: string }) {
               })
               const j = await r.json().catch(() => ({}))
               if (!r.ok) {
-                setError(typeof j.error === 'string' ? j.error : 'No se pudo iniciar el pago.')
+                // Los mensajes del servidor están escritos para el tesorero
+                // («configúrala en Ajustes del club», «genera una clave nueva
+                // con rol Admin»): al socio no le dicen nada y le asustan.
+                setError(
+                  r.status === 400
+                    ? 'Ahora mismo no se puede pagar online. Avisa a tu club para que lo revise.'
+                    : 'No se pudo iniciar el pago. Inténtalo de nuevo en un momento.',
+                )
                 return
               }
               if (typeof j.url === 'string' && j.url.startsWith('https://')) {

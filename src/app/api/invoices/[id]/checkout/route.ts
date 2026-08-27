@@ -40,5 +40,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: result.error }, { status: 400 })
   }
 
+  // Se marca que el socio ha ido a pagar. El cobro tarda en llegar por webhook y,
+  // mientras tanto, la factura sigue viéndose como pendiente: sin esta marca el
+  // socio volvía a pulsar y pagaba dos veces la misma cuota.
+  if (isOwner) {
+    await prisma.invoice
+      .update({ where: { id: parsedId }, data: { whopCheckoutStartedAt: new Date() } })
+      .catch((e) => console.warn('[checkout] no se pudo marcar el intento de pago', e))
+  }
+
   return NextResponse.json({ url: result.url })
 }

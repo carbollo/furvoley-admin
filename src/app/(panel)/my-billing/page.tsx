@@ -7,6 +7,7 @@ import { Suspense } from 'react'
 import { PayMyInvoiceButton } from './PayMyInvoiceButton'
 import { MyBillingAlerts } from './MyBillingAlerts'
 import { formatMoney } from '@/lib/format-money'
+import { pagoEnCurso, PAGO_EN_CURSO_MIN } from '@/lib/payment-in-progress'
 import {
   isInvoicePastDue,
   isUnpaidInvoice,
@@ -39,6 +40,9 @@ async function MyBillingPageImpl() {
     ? await prisma.invoice.findMany({
         where: { memberId },
         orderBy: { issueDate: 'desc' },
+        // Sin las líneas, la tabla solo enseñaba «FV-2026-00042» y un importe:
+        // el padre no sabía qué le estaban cobrando.
+        include: { items: { take: 1, select: { description: true } } },
       })
     : []
 
@@ -46,8 +50,10 @@ async function MyBillingPageImpl() {
     .filter((i) => i.status !== 'PAID' && i.status !== 'VOID')
     .reduce((acc, i) => acc + (i.totalAmount - i.paidAmount), 0)
 
-  const unpaidPastDueCount = invoices.filter((i) => isInvoicePastDue(i)).length
-  const paidCount = invoices.filter((i) => i.status === 'PAID').length
+  const abiertas = invoices.filter((i) => isUnpaidInvoice(i))
+  const vencidas = invoices.filter((i) => isInvoicePastDue(i))
+  const proximoVencimiento = [...abiertas]
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0]
 
   return (
     <div style={{ maxWidth: 1320, margin: '0 auto' }}>
@@ -78,26 +84,22 @@ async function MyBillingPageImpl() {
         style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
       >
         <StatCard
-          label="Deuda actual"
+          label="Lo que debes"
           value={fmtMoney(debt)}
-          sub={debt > 0 ? 'Por pagar' : 'Estás al día'}
+          sub={
+            debt <= 0
+              ? 'Estás al día'
+              : proximoVencimiento
+                ? `${abiertas.length} recibo${abiertas.length === 1 ? '' : 's'} · el próximo vence el ${new Date(proximoVencimiento.dueDate).toLocaleDateString('es-ES')}`
+                : `${abiertas.length} recibo${abiertas.length === 1 ? '' : 's'} pendiente${abiertas.length === 1 ? '' : 's'}`
+          }
           accent={debt > 0 ? '#ba1a1a' : '#047857'}
         />
         <StatCard
-          label="Cuotas sin pagar"
-          value={String(unpaidPastDueCount)}
-          sub={unpaidPastDueCount > 0 ? 'Pendientes tras el día de cobro' : 'Todo en orden'}
-          accent={unpaidPastDueCount > 0 ? '#ba1a1a' : '#047857'}
-        />
-        <StatCard
-          label="Facturas pagadas"
-          value={String(paidCount)}
-          sub={`De ${invoices.length} totales`}
-        />
-        <StatCard
-          label="Total facturas"
-          value={String(invoices.length)}
-          sub="Registradas en el sistema"
+          label="Fuera de plazo"
+          value={String(vencidas.length)}
+          sub={vencidas.length > 0 ? 'Deberían estar pagados ya' : 'Ninguno atrasado'}
+          accent={vencidas.length > 0 ? '#ba1a1a' : '#047857'}
         />
       </section>
 
@@ -119,6 +121,7 @@ async function MyBillingPageImpl() {
             <thead>
               <tr style={{ background: 'rgba(242,243,253,0.6)' }}>
                 <Th>Factura</Th>
+                <Th>Concepto</Th>
                 <Th>Emisión</Th>
                 <Th>Vencimiento</Th>
                 <Th>Total</Th>
@@ -131,7 +134,7 @@ async function MyBillingPageImpl() {
               {invoices.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     style={{
                       padding: '40px 16px',
                       textAlign: 'center',
@@ -150,7 +153,8 @@ async function MyBillingPageImpl() {
                 const badge = memberInvoiceBadge(invoice)
                 const styles = MEMBER_INVOICE_BADGE_STYLES[badge.tone]
                 const pending = Math.max(0, invoice.totalAmount - invoice.paidAmount)
-                const canPay = isUnpaidInvoice(invoice)
+                const enCurso = pagoEnCurso(invoice)
+                const canPay = isUnpaidInvoice(invoice) && !enCurso
                 return (
                   <tr
                     key={invoice.id}
@@ -159,6 +163,7 @@ async function MyBillingPageImpl() {
                     <Td style={{ fontWeight: 600, color: ON_SURFACE }}>
                       {invoice.invoiceNumber}
                     </Td>
+                    <Td>{invoice.items[0]?.description || 'Cuota de socio'}</Td>
                     <Td>
                       {new Date(invoice.issueDate).toLocaleDateString('es-ES', {
                         day: '2-digit',
@@ -196,6 +201,22 @@ async function MyBillingPageImpl() {
                     <Td>
                       <div className="flex items-center gap-2">
                         {canPay && <PayMyInvoiceButton invoiceId={invoice.id} />}
+                        {enCurso && isUnpaidInvoice(invoice) && (
+                          <span
+                            title={`Si ya has pagado, tu recibo se actualizará en unos minutos. Si no llegaste a pagar, podrás volver a intentarlo en ${PAGO_EN_CURSO_MIN} minutos.`}
+                            style={{
+                              padding: '6px 12px',
+                              borderRadius: 8,
+                              background: 'rgba(245,158,11,0.12)',
+                              color: '#b45309',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Pago en curso
+                          </span>
+                        )}
                         <a
                           href={`/api/invoices/${invoice.id}/pdf`}
                           target="_blank"

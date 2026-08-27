@@ -365,6 +365,13 @@ model Invoice {
   whopCheckoutUrl     String?
   whopCheckoutId      String?
   whopCheckoutAmount  Float?
+  /// Cuándo se abrió por última vez el enlace de pago de esta factura.
+  ///
+  /// El enlace se puede volver a abrir mientras el cobro no llega por webhook, y
+  /// un socio impaciente pagaba dos veces la misma cuota. Con esta marca, la
+  /// pantalla del socio le dice «pago en curso» durante unos minutos en vez de
+  /// volver a ofrecerle el botón.
+  whopCheckoutStartedAt DateTime?
   paidAt              DateTime?
   pdfStoredAt         DateTime? // última generación / descarga persistida (opcional)
   createdAt           DateTime @default(now())
