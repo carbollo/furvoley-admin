@@ -43,7 +43,7 @@ export const CRM_MODULES: { id: CrmModuleId; label: string; sections: CrmSection
   {
     id: 'contabilidad',
     label: 'Contabilidad',
-    sections: ['contabilidad', 'facturas', 'cuotas', 'impagos', 'productos', 'descuentos', 'informes'],
+    sections: ['contabilidad', 'facturas', 'banco', 'cuotas', 'impagos', 'productos', 'descuentos', 'informes'],
   },
   { id: 'workflows', label: 'Flujos (workflows)', sections: ['workflows'] },
   { id: 'hermes', label: 'Bot (Hermes)', sections: ['hermes'] },

@@ -3,6 +3,7 @@
 
 import { WorkflowsSection } from './WorkflowsSection'
 import { CuotasSection } from './CuotasSection'
+import { BancoSection } from './BancoSection'
 import { EntrenamientoSection } from './EntrenamientoSection'
 import { ClubSettingsModal } from './ClubSettingsModal'
 import { HermesAgentSection } from './HermesAgentSection'
@@ -639,12 +640,12 @@ const NAV = [
     children: [
       { id: 'contabilidad', label: 'Sumario' },
       { id: 'facturas', label: 'Facturas' },
+      { id: 'banco', label: 'Banco' },
       { id: 'cuotas', label: 'Cuotas' },
       { id: 'impagos', label: 'Impagos' },
       { id: 'productos', label: 'Productos' },
       { id: 'descuentos', label: 'Descuentos' },
       { id: 'informes', label: 'Informes' },
-      { id: 'contabilidad', label: 'Extracto bancario', href: '/accounting/bank-import' },
     ],
   },
   {
@@ -8624,6 +8625,30 @@ function Cuotas() {
   )
 }
 
+function Banco() {
+  const { bundle, showAlert } = useCrm()
+  const role = normalizeRole(bundle?.user?.role)
+  if (!(role === 'ADMIN' || role === 'TREASURER')) return null
+  return (
+    <SectionShell
+      title="Banco"
+      subtitle="Tu dinero: lo cobrado, a qué cuenta llega y cuándo te lo transferimos"
+    >
+      <BancoSection
+        showAlert={showAlert}
+        countryHint={String(bundle?.club?.country || 'España')}
+        whopConectado={Boolean(bundle?.club?.whopConectado)}
+        // Configurar la pasarela sigue siendo cosa del ADMIN, en Ajustes.
+        onConfigurarPasarela={
+          role === 'ADMIN'
+            ? () => window.dispatchEvent(new CustomEvent('crm-abrir-ajustes-club'))
+            : undefined
+        }
+      />
+    </SectionShell>
+  )
+}
+
 function Workflows() {
   const { bundle, reload } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
@@ -9648,7 +9673,7 @@ const CRM_SECTION_IDS = [
   'entrenamiento',
   // Roadmap: Admin · Contabilidad · Configuración
   'admin-sumario','organigrama','contactos','asistencia',
-  'facturas','impagos','productos','descuentos',
+  'facturas','banco','impagos','productos','descuentos',
   'forms','api',
 ] as const;
 type SectionId = (typeof CRM_SECTION_IDS)[number]
@@ -9658,6 +9683,7 @@ const SECTION_TITLES: Record<SectionId, string> = {
   socios: 'Socios',
   cuotas: 'Gestión de cuotas',
   contabilidad: 'Contabilidad',
+  banco: 'Banco',
   calendario: 'Calendario',
   informes: 'Informes',
   workflows: 'Flujos',
@@ -9686,6 +9712,15 @@ function CrmInner() {
   const [showClubSettings, setShowClubSettings] = useState(false)
   /** Cajón del menú en móvil. En escritorio el CSS lo ignora. */
   const [menuAbierto, setMenuAbierto] = useState(false)
+
+  // Banco puede pedir abrir los Ajustes del club (para conectar la pasarela).
+  // Va por evento porque el modal lo controla la raíz y la sección está varios
+  // niveles por debajo.
+  useEffect(() => {
+    function abrir() { setShowClubSettings(true) }
+    window.addEventListener('crm-abrir-ajustes-club', abrir)
+    return () => window.removeEventListener('crm-abrir-ajustes-club', abrir)
+  }, [])
   useEffect(() => {
     if (!menuAbierto) return
     function onKey(e) { if (e.key === 'Escape') setMenuAbierto(false) }
@@ -9898,6 +9933,7 @@ function CrmInner() {
     // (antigua pantalla Contabilidad) vive en el submódulo Facturas.
     contabilidad: ContabilidadSumario,
     facturas: Contabilidad,
+    banco: Banco,
     calendario: Calendario,
     informes: Informes,
     workflows: Workflows,

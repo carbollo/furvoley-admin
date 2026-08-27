@@ -28,6 +28,7 @@ export type CrmSectionId =
   | 'contactos'
   | 'asistencia'
   // Roadmap: Contabilidad (Facturas · Impagos · Productos · Descuentos)
+  | 'banco'
   | 'facturas'
   | 'impagos'
   | 'productos'
@@ -41,10 +42,10 @@ const CRM_SECTIONS_BY_ROLE: Record<AppRole, CrmSectionId[]> = {
     'dashboard', 'socios', 'cuotas', 'contabilidad', 'calendario', 'informes',
     'workflows', 'whatsapp', 'hermes', 'personal', 'entrenamiento',
     'admin-sumario', 'organigrama', 'contactos', 'asistencia',
-    'facturas', 'impagos', 'productos', 'descuentos', 'forms', 'api',
+    'facturas', 'banco', 'impagos', 'productos', 'descuentos', 'forms', 'api',
   ],
   COACH: ['calendario', 'asistencia', 'entrenamiento'],
-  TREASURER: ['cuotas', 'contabilidad', 'facturas', 'informes', 'impagos', 'productos', 'descuentos'],
+  TREASURER: ['cuotas', 'contabilidad', 'facturas', 'banco', 'informes', 'impagos', 'productos', 'descuentos'],
   MEMBER: [],
 }
 

@@ -183,6 +183,16 @@ export async function GET(request: Request) {
   // TODAS las facturas sin pagar del club, sin el tope de 120 de la lista. Es la
   // única fuente de «lo que nos deben»: Sumario, Impagos e Informes leen de aquí
   // para que las tres pantallas den la misma cifra.
+  const clubPaisYPasarela = canUseAccounting
+    ? await prisma.clubSettings
+        .findUnique({ where: { isDefault: true }, select: { country: true, whopCompanyId: true } })
+        .then((c) => ({
+          country: c?.country?.trim() || 'España',
+          conectado: Boolean(c?.whopCompanyId?.trim()),
+        }))
+        .catch(() => ({ country: 'España', conectado: false }))
+    : { country: 'España', conectado: false }
+
   const deudaRaw = canUseAccounting
     ? await prisma.invoice.findMany({
         where: { status: { notIn: ['PAID', 'VOID'] } },
@@ -406,6 +416,10 @@ export async function GET(request: Request) {
       website: clubBranding.website,
       subtitle: clubBranding.subtitle,
       registrationFields: registrationFieldsConfig,
+      // Para la pantalla de Banco: el país decide qué datos bancarios pide la
+      // pasarela, y sin cuenta conectada no hay nada que enseñar.
+      country: clubPaisYPasarela.country,
+      whopConectado: clubPaisYPasarela.conectado,
     },
     currency,
     kpis: {
