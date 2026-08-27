@@ -151,6 +151,35 @@ export function CuotasSection({
 
   const activePlans = plans.filter((p) => p.isActive)
 
+  /**
+   * Lo que se va a facturar AHORA con lo elegido en el modal.
+   *
+   * El botón decía «Asignar y facturar» sin decir cuánto, y la primera factura
+   * puede llevar matrícula además de la cuota: con 30 € de cuota y 50 € de
+   * matrícula, el club emitía 80 € creyendo emitir 30.
+   */
+  const resumenAsignacion = (() => {
+    const plan = activePlans.find((p) => p.id === assignForm.planId)
+    if (!plan || assignForm.members.length === 0) return null
+    const desc = discountOptions.find((d) => d.id === assignForm.discountCodeId)
+    const descuento = !desc
+      ? 0
+      : desc.kind === 'PERCENT'
+        ? Math.min(plan.amount, (plan.amount * Number(desc.value || 0)) / 100)
+        : Math.min(plan.amount, Number(desc.value || 0))
+    const cuota = Math.max(0, plan.amount - descuento)
+    const matricula = plan.enrollmentFee || 0
+    const porSocio = cuota + matricula
+    return {
+      socios: assignForm.members.length,
+      cuota,
+      matricula,
+      descuento,
+      porSocio,
+      total: porSocio * assignForm.members.length,
+    }
+  })()
+
   function planPaymentRequiredDefault(planId: string) {
     return activePlans.find((p) => p.id === planId)?.paymentRequiredOnEnrollment ?? false
   }
@@ -377,6 +406,46 @@ export function CuotasSection({
       await loadData()
       await reload()
       showAlert('Suscripción modificada. El nuevo plan aplica desde la siguiente factura.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * Registra el cobro en efectivo de la cuota de alta y activa al socio.
+   *
+   * Sustituye al antiguo «Marcar activa», que solo cambiaba el estado de la
+   * cuota: la factura seguia pendiente, el socio seguia apareciendo en Impagos y
+   * le seguian llegando avisos reclamandole un dinero que ya habia pagado.
+   * Registrando el cobro de verdad, la propia logica de facturacion activa la
+   * cuota, activa al socio y crea el apunte contable.
+   */
+  async function cobradoEnMano(s: SubscriptionRow) {
+    const ok = await showConfirm({
+      title: `Registrar el cobro de ${s.memberName}`,
+      message:
+        `${s.planName} · ${fmtMoney(s.planAmount)}
+
+` +
+        'Se dara por cobrada su primera factura, en efectivo y con fecha de hoy. ' +
+        'Con eso su cuota pasa a activa, deja de salir en Impagos y se crea el apunte contable.',
+      confirmLabel: 'Registrar cobro',
+    }).catch(() => false)
+    if (!ok) return
+    setBusy(true)
+    try {
+      const r = await fetch('/api/crm/subscriptions/' + encodeURIComponent(s.id) + '/mark-paid', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        showAlert(j.error || 'No se pudo registrar el cobro')
+        return
+      }
+      await loadData()
+      await reload()
+      showAlert(`Cobro registrado. ${s.memberName} ya figura como activo.`)
     } finally {
       setBusy(false)
     }
@@ -913,20 +982,21 @@ export function CuotasSection({
                               <button
                                 type="button"
                                 disabled={busy}
-                                onClick={() => void setSubscriptionStatus(s.id, 'ACTIVE', 'Marcar como activa')}
-                                title="Dala por activa aunque no conste el pago (p. ej. si te pagó en mano)"
+                                onClick={() => void cobradoEnMano(s)}
+                                title="Registra el cobro de su primera cuota y lo activa"
                                 style={{
                                   padding: '6px 12px',
                                   borderRadius: 8,
                                   border: '1px solid var(--border)',
-                                  background: '#fff',
+                                  background: 'var(--green-light)',
+                                  color: 'var(--green)',
                                   cursor: 'pointer',
                                   fontSize: 12,
-                                  fontWeight: 600,
+                                  fontWeight: 700,
                                   fontFamily: 'inherit',
                                 }}
                               >
-                                Marcar activa
+                                Cobrado en mano
                               </button>
                               <button
                                 type="button"
@@ -1422,11 +1492,35 @@ export function CuotasSection({
             onMouseDown={(e) => e.stopPropagation()}
           >
             <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700 }}>Asignar cuota a socios</h2>
+            {resumenAsignacion && (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: '12px 14px',
+                  borderRadius: 10,
+                  background: 'var(--accent-pill)',
+                  color: 'var(--text-primary)',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>{fmtMoney(resumenAsignacion.total)}</strong> en total:{' '}
+                {resumenAsignacion.socios} socio{resumenAsignacion.socios === 1 ? '' : 's'} ×{' '}
+                {fmtMoney(resumenAsignacion.porSocio)}
+                {resumenAsignacion.matricula > 0 && (
+                  <> (cuota {fmtMoney(resumenAsignacion.cuota)} + matrícula {fmtMoney(resumenAsignacion.matricula)})</>
+                )}
+                {resumenAsignacion.descuento > 0 && (
+                  <> · descuento aplicado: −{fmtMoney(resumenAsignacion.descuento)} por socio</>
+                )}
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <MemberCombobox
                   label="Socios *"
                   value=""
+                  excludeIds={subscriptions.map((s) => s.memberId)}
                   onChange={(memberId, member) => {
                     if (!memberId) return
                     setAssignForm((f) =>
@@ -1606,7 +1700,7 @@ export function CuotasSection({
                   fontWeight: 600,
                 }}
               >
-                {busy ? 'Asignando…' : 'Asignar y facturar'}
+                {busy ? 'Asignando…' : resumenAsignacion ? `Facturar ${fmtMoney(resumenAsignacion.total)}` : 'Asignar y facturar'}
               </button>
             </div>
           </form>

@@ -107,7 +107,10 @@ export async function GET(request: Request) {
     })),
     stats: {
       activePlans: plans.filter((p) => p.isActive).length,
-      activeSubscriptions: subscriptions.filter((s) => s.status === 'ACTIVE').length,
+      // Debe contar lo MISMO que lista la pestaña, o el número de arriba no
+      // cuadra con las filas de abajo.
+      activeSubscriptions: subscriptions.length,
+      cuotasActivas: subscriptions.filter((s) => s.status === 'ACTIVE').length,
     },
   })
 }

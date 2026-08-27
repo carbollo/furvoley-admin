@@ -236,8 +236,23 @@ export async function createInvoiceForSubscription(subscriptionId: string, notif
   }
 
   const periodAmount = subscription.plan.amount
+
+  // La matrícula se cobra UNA vez por socio, no una vez por suscripción. Al
+  // reasignarle una cuota se le creaba una suscripción nueva, sin facturas
+  // previas, y volvía a caerle la matrícula íntegra aunque ya la hubiera pagado.
+  const yaPagoMatricula =
+    subscription.plan.enrollmentFee > 0 &&
+    (await prisma.invoiceItem.count({
+      where: {
+        description: { contains: 'atrícula' },
+        invoice: { memberId: subscription.memberId, status: { not: 'VOID' } },
+      },
+    })) > 0
+
   const enrollmentAmount =
-    isFirstInvoice && subscription.plan.enrollmentFee > 0 ? subscription.plan.enrollmentFee : 0
+    isFirstInvoice && subscription.plan.enrollmentFee > 0 && !yaPagoMatricula
+      ? subscription.plan.enrollmentFee
+      : 0
 
   // Descuento de la suscripción (roadmap · 6.5): % o importe fijo sobre la
   // cuota del periodo (no sobre la matrícula), sin dejarla en negativo.
