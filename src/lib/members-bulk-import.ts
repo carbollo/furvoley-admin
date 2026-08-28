@@ -7,6 +7,14 @@ export type BulkImportOptions = {
   planId?: string
   skipExisting?: boolean
   paymentRequiredOnEnrollment?: boolean
+  /**
+   * Cobrar la matrícula del plan a los socios importados.
+   *
+   * Por defecto NO: quien importa un CSV está trayéndose el club de otro
+   * sistema, y esa gente ya pagó su matrícula en su día. Cobrársela otra vez a
+   * 300 socios de golpe son miles de euros reclamados sin motivo.
+   */
+  chargeEnrollmentFee?: boolean
 }
 
 export type BulkImportRowError = { row: number; message: string }
@@ -97,6 +105,9 @@ export async function importMembersFromCsvRows(
             // Importar un CSV no debe disparar un WhatsApp por cada fila (hasta
             // 500) ni una llamada a la pasarela por socio dentro de la petición.
             notifyEnrollment: false,
+            // Ni cobrarle la matrícula a gente que lleva años en el club: son
+            // socios que se traen de otro sistema, no altas nuevas.
+            skipEnrollmentFee: options.chargeEnrollmentFee !== true,
           })
         } catch (e) {
           errors.push({

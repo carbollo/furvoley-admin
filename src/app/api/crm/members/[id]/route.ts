@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { motivoParaNoBorrarSocio } from '@/lib/member-delete-guard'
 import { updateMember } from '@/lib/members-service'
 import { parseCuid } from '@/lib/db-input-validation'
 import { requireRoles } from '@/lib/rbac-api'
@@ -70,6 +71,13 @@ export async function DELETE(
   const { id } = await context.params
   const parsedId = parseCuid(id, 'id')
   if (parsedId instanceof Response) return parsedId
+
+  // Un socio con cobros registrados no se borra: se llevaría por delante las
+  // facturas que respaldan ese ingreso. Mismo 409 que el borrado de una factura,
+  // para que el mensaje llegue tal cual a la pantalla.
+  const motivo = await motivoParaNoBorrarSocio(parsedId)
+  if (motivo) return NextResponse.json({ error: motivo }, { status: 409 })
+
   try {
     const result = await prisma.$transaction(async (tx) => {
       const member = await tx.member.findUnique({

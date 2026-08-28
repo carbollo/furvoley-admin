@@ -264,6 +264,33 @@ export async function reconcileBankLine(
     }
   }
 
+  // La línea tiene que estar libre. Sin esto, conciliar sobre una línea que ya
+  // había generado su propio movimiento le pisaba el enlace y dejaba huérfano en
+  // el libro el movimiento anterior.
+  if (line.status !== 'PENDING') {
+    return {
+      ok: false as const,
+      error: 'Esta línea ya está resuelta. Desvincúlala primero si quieres cambiarla.',
+    }
+  }
+
+  // Y el movimiento también. La lista de sugerencias ya excluye los usados, pero
+  // se queda vieja en cuanto otra pestaña concilia: sin comprobarlo aquí, dos
+  // líneas del extracto acababan apuntando al mismo movimiento y el cuadre
+  // contaba ese dinero dos veces.
+  const ocupado = await prisma.bankStatementLine.findFirst({
+    where: { matchedTransactionId: transactionId, NOT: { id: lineId } },
+    select: { rowIndex: true, description: true },
+  })
+  if (ocupado) {
+    return {
+      ok: false as const,
+      error:
+        `Ese movimiento ya está conciliado con la línea ${ocupado.rowIndex} del extracto ` +
+        `(«${ocupado.description.slice(0, 60)}»). Desvincula esa primero.`,
+    }
+  }
+
   await prisma.bankStatementLine.update({
     where: { id: lineId },
     data: {
@@ -372,6 +399,36 @@ export async function createLedgerFromBankLine(lineId: string): Promise<BankLine
   const type = line.signedAmount >= 0 ? 'INCOME' : 'EXPENSE'
   const desc =
     line.description.length > 200 ? line.description.slice(0, 197) + '…' : line.description
+
+  // ¿Ya existe este mismo movimiento creado desde un extracto? La comprobación va
+  // sobre el CONTENIDO y no sobre el estado de la línea, porque el estado se
+  // pierde: borrar la importación se lleva las líneas y sus huellas, pero deja
+  // vivos los movimientos, así que volver a subir el mismo CSV y pulsar «Crear
+  // asiento» contaba los ingresos por segunda vez.
+  const yaExiste = await prisma.transaction.findFirst({
+    where: {
+      source: 'BANK_CSV_IMPORT',
+      type,
+      date: line.date,
+      description: `Banco: ${desc}`,
+      amount: { gte: abs - 0.02, lte: abs + 0.02 },
+    },
+    select: { id: true },
+  })
+  if (yaExiste) {
+    await prisma.bankStatementLine.update({
+      where: { id: lineId },
+      data: { status: 'NEW_LEDGER', matchedTransactionId: yaExiste.id },
+    })
+    revalidatePath(`/accounting/bank-import/${line.bankImportId}`)
+    revalidatePath('/accounting/bank-import')
+    return {
+      ok: false as const,
+      error:
+        'Ya había un movimiento idéntico creado desde un extracto, así que se ha enlazado a ese ' +
+        'en vez de crear otro. Si de verdad son dos cobros distintos, créalo a mano en Movimientos.',
+    }
+  }
 
   const tx = await prisma.transaction.create({
     data: {

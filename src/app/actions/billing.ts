@@ -120,6 +120,14 @@ export async function createSubscription(data: {
   discountCodeId?: string | null
   /** false en altas masivas: evita mandar un aviso de cobro por cada socio. */
   notifyEnrollment?: boolean
+  /**
+   * true al importar socios que ya venían del club: no se les cobra matrícula.
+   *
+   * La comprobación normal («¿ya la pagó?») mira sus facturas anteriores, y un
+   * socio recién importado no tiene ninguna, así que a los 300 de un club que
+   * estrena el CRM se les cobraba la matrícula entera de golpe.
+   */
+  skipEnrollmentFee?: boolean
 }) {
   const plan = await prisma.membershipPlan.findUnique({ where: { id: data.planId } })
   if (!plan) throw new Error('Plan not found')
@@ -129,9 +137,16 @@ export async function createSubscription(data: {
 
   const startDate = data.startDate ?? new Date()
   const billingDay = clampBillingDay(plan.billingDayOfMonth)
+  // `startDate` se guarda tal cual —es cuándo entró el socio en el club— pero el
+  // primer cobro se calcula desde HOY si esa fecha ya pasó. Antes no: dar de alta
+  // la temporada en agosto poniendo «inicio 1 de septiembre del año pasado» le
+  // encajaba al socio una factura por cada mes transcurrido, a razón de una tanda
+  // por noche, y once de cada doce nacían vencidas.
+  const hoy = startOfDay(new Date())
+  const arranque = startOfDay(startDate) > hoy ? startDate : hoy
   const initialNextInvoiceDate = paymentRequired
-    ? startOfDay(new Date())
-    : nextBillingDate(startDate, billingDay, plan.billingPeriod)
+    ? hoy
+    : nextBillingDate(arranque, billingDay, plan.billingPeriod)
 
   const subscription = await prisma.subscription.create({
     data: {
@@ -168,7 +183,11 @@ export async function createSubscription(data: {
   }
 
   // first invoice
-  await createInvoiceForSubscription(subscription.id, data.notifyEnrollment !== false)
+  await createInvoiceForSubscription(
+    subscription.id,
+    data.notifyEnrollment !== false,
+    data.skipEnrollmentFee === true,
+  )
   await runSubscriptionCreatedWorkflows(subscription.id)
   revalidatePath('/')
   return subscription
@@ -211,7 +230,12 @@ async function tryActivateMemberAfterEnrollmentPayment(invoiceId: string) {
  *   a cada uno significaría 500 llamadas a la pasarela y 500 WhatsApps dentro de
  *   la misma petición.
  */
-export async function createInvoiceForSubscription(subscriptionId: string, notifyEnrollment = true) {
+export async function createInvoiceForSubscription(
+  subscriptionId: string,
+  notifyEnrollment = true,
+  /** Salta la matrícula aunque toque: para socios importados de otro sistema. */
+  skipEnrollmentFee = false,
+) {
   const subscription = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
     include: { plan: true, member: true, discountCode: true },
@@ -233,6 +257,13 @@ export async function createInvoiceForSubscription(subscriptionId: string, notif
     dueDate = nextBillingDate(new Date(), billingDay, subscription.plan.billingPeriod)
   } else {
     dueDate = billingDueDate(cycleDate, billingDay)
+    // El vencimiento no puede quedar ANTES del ciclo que se está facturando. Al
+    // reactivar una cuota pausada el 12 de octubre con día de cobro 1, esto
+    // devolvía el 1 de octubre: la factura nacía vencida y el aviso de impago
+    // salía el mismo día que se emitió. (El caso legítimo —el cron que se retrasa
+    // y factura el ciclo del día 1 el día 5— conserva su vencimiento y sigue
+    // naciendo vencida, que es lo correcto.)
+    if (dueDate < cycleDate) dueDate = cycleDate
   }
 
   const periodAmount = subscription.plan.amount
@@ -258,7 +289,7 @@ export async function createInvoiceForSubscription(subscriptionId: string, notif
     })) > 0
 
   const enrollmentAmount =
-    isFirstInvoice && subscription.plan.enrollmentFee > 0 && !yaPagoMatricula
+    isFirstInvoice && subscription.plan.enrollmentFee > 0 && !yaPagoMatricula && !skipEnrollmentFee
       ? subscription.plan.enrollmentFee
       : 0
 
@@ -492,6 +523,9 @@ export async function updateInvoiceStatuses() {
   revalidatePath('/')
 }
 
+/** Marca interna: el importe ya no cabe en la factura, así que no se cobra. */
+class PagoYaRegistrado extends Error {}
+
 export async function recordInvoicePayment(data: {
   invoiceId: string
   amount: number
@@ -543,10 +577,19 @@ export async function recordInvoicePayment(data: {
     try {
       await prisma.$transaction(async (tx) => {
         await tx.paymentAttempt.create({ data: attemptData })
-        const inc = await tx.invoice.update({
-          where: { id: invoice.id },
+        // Solo se cobra si el importe CABE en lo que queda pendiente. Medio
+        // céntimo de margen, por el redondeo de los floats.
+        const cabe = await tx.invoice.updateMany({
+          where: {
+            id: invoice.id,
+            paidAmount: { lte: invoice.totalAmount - data.amount + 0.005 },
+          },
           data: { paidAmount: { increment: data.amount } },
         })
+        if (cabe.count !== 1) {
+          throw new PagoYaRegistrado()
+        }
+        const inc = await tx.invoice.findUniqueOrThrow({ where: { id: invoice.id } })
         // Con un margen de medio céntimo: los importes son floats y una
         // factura cobrada del todo puede quedarse en 39,999999 y no llegar
         // nunca a 40. Se quedaba en PARCIAL para siempre, reclamando una
@@ -563,6 +606,10 @@ export async function recordInvoicePayment(data: {
     } catch (e) {
       // Reentrega del mismo pago: ya estaba contabilizado, nada que hacer.
       if (typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002') {
+        return { duplicate: true }
+      }
+      // Otro cobro se adelantó y ya no cabe: el segundo clic no suma.
+      if (e instanceof PagoYaRegistrado) {
         return { duplicate: true }
       }
       throw e

@@ -48,6 +48,9 @@ async function assertEventStaff(
   return { ok: true };
 }
 
+/** Marca interna: uno de los DNI ya estaba inscrito. */
+class DniRepetido extends Error {}
+
 export async function registerGuestAttendees(
   eventId: string,
   attendees: { firstName: string; lastName: string; dni: string }[],
@@ -104,34 +107,35 @@ export async function registerGuestAttendees(
       return { success: false, error: "Este evento no admite inscripciones de invitados." };
     }
 
-    const memberSlots = await prisma.attendance.count({
-      where: { eventId, status: { in: ["PENDING", "PRESENT"] } },
+    const sinPlazas = await prisma.$transaction(async (tx) => {
+      const memberSlots = await tx.attendance.count({
+        where: { eventId, status: { in: ["PENDING", "PRESENT"] } },
+      });
+      const guestSlots = await tx.eventGuestAttendee.count({ where: { eventId } });
+      const taken = memberSlots + guestSlots;
+      if (event.maxAttendees != null && taken + normalized.length > event.maxAttendees) {
+        return true;
+      }
+
+      const conflict = await tx.eventGuestAttendee.findFirst({
+        where: { eventId, dni: { in: dnis } },
+      });
+      if (conflict) throw new DniRepetido();
+
+      await tx.eventGuestAttendee.createMany({
+        data: normalized.map((a, i) => ({
+          eventId,
+          firstName: a.firstName,
+          lastName: a.lastName,
+          dni: a.dni,
+          phone: i === 0 ? phoneDigits : null,
+        })),
+      });
+      return false;
     });
-    const guestSlots = await prisma.eventGuestAttendee.count({ where: { eventId } });
-    const taken = memberSlots + guestSlots;
-    if (event.maxAttendees != null && taken + normalized.length > event.maxAttendees) {
+    if (sinPlazas) {
       return { success: false, error: "No hay plazas suficientes para todas las entradas." };
     }
-
-    const conflict = await prisma.eventGuestAttendee.findFirst({
-      where: {
-        eventId,
-        dni: { in: dnis },
-      },
-    });
-    if (conflict) {
-      return { success: false, error: "Algún DNI ya está inscrito en este evento." };
-    }
-
-    await prisma.eventGuestAttendee.createMany({
-      data: normalized.map((a, i) => ({
-        eventId,
-        firstName: a.firstName,
-        lastName: a.lastName,
-        dni: a.dni,
-        phone: i === 0 ? phoneDigits : null,
-      })),
-    });
 
     revalidatePath(`/events/${eventId}`);
     revalidatePath("/events");
@@ -140,6 +144,9 @@ export async function registerGuestAttendees(
 
     return { success: true, count: normalized.length };
   } catch (e: unknown) {
+    if (e instanceof DniRepetido) {
+      return { success: false, error: "Algún DNI ya está inscrito en este evento." };
+    }
     console.error("registerGuestAttendees", e);
     if (
       e &&

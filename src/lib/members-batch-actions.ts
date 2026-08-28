@@ -1,4 +1,5 @@
 import { updateMember } from '@/lib/members-service'
+import { motivoParaNoBorrarSocio } from '@/lib/member-delete-guard'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { sendApiWassText } from '@/lib/apiwass'
@@ -47,6 +48,11 @@ export type BatchMemberResult = {
 }
 
 async function deleteMemberRecord(memberId: string) {
+  // El lote acumula el error de cada socio y sigue con el resto, así que un
+  // socio con cobros se salta y los demás se borran igual.
+  const motivo = await motivoParaNoBorrarSocio(memberId)
+  if (motivo) throw new Error(motivo)
+
   return prisma.$transaction(async (tx) => {
     const member = await tx.member.findUnique({
       where: { id: memberId },

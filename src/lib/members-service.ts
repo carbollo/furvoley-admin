@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { motivoParaNoBorrarSocio } from '@/lib/member-delete-guard'
 import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 import { revalidatePath } from 'next/cache'
 import bcrypt from 'bcryptjs'
@@ -122,6 +123,9 @@ export async function updateMember(
 }
 
 export async function deleteMember(id: string) {
+  const motivo = await motivoParaNoBorrarSocio(id)
+  if (motivo) throw new Error(motivo)
+
   await prisma.$transaction(async (tx) => {
     await tx.user.deleteMany({
       where: {

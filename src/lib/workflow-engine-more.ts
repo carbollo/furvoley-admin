@@ -268,6 +268,24 @@ export async function runExtendedWorkflowAction(
       setStepError('planId vacío')
       return true
     }
+    // Si el socio YA tiene esa misma cuota, no se le crea otra. Sin esta guarda,
+    // pulsar «Probar» en un flujo de asignación automática le creaba al primer
+    // socio de la lista una segunda suscripción del mismo plan, y a partir de ahí
+    // el cron le emitía DOS cuotas cada mes indefinidamente. Cada pulsación
+    // añadía una más.
+    //
+    // El filtro es por (socio, plan): cambiar de plan sigue creando la nueva,
+    // que es el patrón de la casa.
+    const yaTiene = await prisma.subscription.findFirst({
+      where: { memberId: member.id, planId, status: { in: SUBSCRIPTION_ACTIVE_LIKE } },
+      select: { id: true },
+    })
+    if (yaTiene) {
+      runContext.variables.subscriptionId = yaTiene.id
+      setStepSkipped('el socio ya tiene esa cuota activa')
+      return true
+    }
+
     try {
       const rawRequired = readString(step.config, 'paymentRequiredOnEnrollment')
       const paymentRequiredOnEnrollment =
