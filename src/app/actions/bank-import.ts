@@ -303,11 +303,47 @@ export async function ignoreBankLine(lineId: string): Promise<BankLineResult> {
   })
 }
 
+/**
+ * Suelta una línea del extracto y la devuelve a pendiente.
+ *
+ * OJO con lo que esto NO hace: no anula cobros. Soltar la línea solo borra el
+ * enlace; si esa línea llegó a pagar una factura, el cobro sigue registrado, con
+ * su movimiento y su asiento.
+ *
+ * Por eso aquí se NIEGA a soltar una línea que pagó una factura. Antes no lo
+ * hacía, y el camino era este: el tesorero cobra con la línea equivocada, se da
+ * cuenta, pulsa «Desvincular» —lo único que la pantalla ofrece para rectificar—
+ * y vuelve a cobrar con el socio correcto. Resultado: una transferencia de 45 €
+ * convertida en 90 € de ingresos, y la factura del primer socio dada por pagada
+ * sin que haya pagado, fuera de Impagos y sin recibir avisos.
+ *
+ * Deshacer un cobro de verdad es otra operación (revertir importe y estado de la
+ * factura, borrar el intento de pago, el movimiento y su asiento, y comprobar
+ * que el periodo contable no esté cerrado). Mientras no exista, mejor no dejar
+ * hacer a medias algo que toca dinero.
+ */
 export async function unlinkBankLine(lineId: string): Promise<BankLineResult> {
   return runWithTenant(async () => {
   await assertAccountingStaff()
   const line = await prisma.bankStatementLine.findUnique({ where: { id: lineId } })
   if (!line) return { ok: false as const, error: 'Esa línea ya no existe. Recarga la página.' }
+
+  if (line.matchedTransactionId) {
+    const mov = await prisma.transaction.findUnique({
+      where: { id: line.matchedTransactionId },
+      select: { invoiceId: true, invoice: { select: { invoiceNumber: true } } },
+    })
+    if (mov?.invoiceId) {
+      return {
+        ok: false as const,
+        error:
+          `Esta línea pagó la factura ${mov.invoice?.invoiceNumber ?? ''}`.trim() +
+          '. Desvincularla dejaría el cobro registrado y la factura dada por pagada, ' +
+          'y al volver a usar la línea contarías el mismo ingreso dos veces. ' +
+          'Anula el cobro desde la factura y vuelve aquí.',
+      }
+    }
+  }
 
   await prisma.bankStatementLine.update({
     where: { id: lineId },

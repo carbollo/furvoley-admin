@@ -103,18 +103,44 @@ async function runWorkflowsForTrigger(
   }
 }
 
+/**
+ * Dispara el flujo BILLING_CYCLE_DUE de las cuotas que TOCAN este periodo.
+ *
+ * Antes emitía las facturas él mismo, con la misma consulta y la misma llamada
+ * que `generateDueInvoices`. Con los dos crons desplegados eso era una carrera:
+ * si coincidían, los dos leían la misma `nextInvoiceDate` y el socio recibía DOS
+ * facturas del mismo mes (y si tenía pago automático, pagaba las dos); y si no
+ * coincidían, el que llegaba primero emitía y este no encontraba nada, así que
+ * el disparador BILLING_CYCLE_DUE no se ejecutaba nunca y los flujos que el club
+ * había montado sobre él no salían jamás.
+ *
+ * Ahora solo NOTIFICA: recorre las facturas de cuota emitidas hoy y dispara el
+ * flujo sobre ellas. Emitir es cosa de `generateDueInvoices`, y de nadie más.
+ */
 export async function runBillingCycleWorkflows() {
-  // Solo cuotas ACTIVAS, a propósito: una cuota pendiente de pago ya tiene emitida
-  // su factura de alta y no debe generar la del periodo hasta que se cobre.
-  const subs = await prisma.subscription.findMany({
-    where: { status: 'ACTIVE', nextInvoiceDate: { lte: new Date() } },
-    include: { member: true, plan: true },
+  const desdeHoy = new Date()
+  desdeHoy.setHours(0, 0, 0, 0)
+  const facturas = await prisma.invoice.findMany({
+    where: {
+      createdAt: { gte: desdeHoy },
+      subscriptionId: { not: null },
+      status: { not: 'VOID' },
+    },
+    select: {
+      id: true,
+      memberId: true,
+      invoiceNumber: true,
+      totalAmount: true,
+      paidAmount: true,
+      currency: true,
+      status: true,
+      dueDate: true,
+    },
   })
-  for (const sub of subs) {
-    const member = await loadMemberPayload(sub.memberId)
+  for (const invoice of facturas) {
+    const member = await loadMemberPayload(invoice.memberId)
     if (!member) continue
     try {
-      const invoice = await createInvoiceForSubscription(sub.id)
       await runWorkflowsForMemberByTrigger(member.id, 'BILLING_CYCLE_DUE', {
         invoice: {
           id: invoice.id,
@@ -127,7 +153,7 @@ export async function runBillingCycleWorkflows() {
         },
       })
     } catch (e) {
-      console.warn('[billing-cycle]', sub.id, e)
+      console.warn('[billing-cycle]', invoice.id, e)
     }
   }
 }

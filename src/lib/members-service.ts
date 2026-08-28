@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { SUBSCRIPTION_ACTIVE_LIKE } from '@/lib/subscription-statuses'
 import { revalidatePath } from 'next/cache'
 import bcrypt from 'bcryptjs'
 import {
@@ -98,6 +99,17 @@ export async function updateMember(
     select: { status: true },
   })
   const member = await prisma.member.update({ where: { id }, data })
+
+  // Dar de baja a un socio tiene que PARARLE la cuota. Sin esto, su suscripción
+  // seguía ACTIVA: el cron le emitía factura cada mes, los avisos de impago le
+  // seguían llegando al tutor, y su deuda seguía sumando en el panel del club.
+  if (before?.status != null && before.status !== member.status && member.status !== 'ACTIVE') {
+    await prisma.subscription.updateMany({
+      where: { memberId: id, status: { in: SUBSCRIPTION_ACTIVE_LIKE } },
+      data: { status: 'CANCELED' },
+    })
+  }
+
   await runMemberUpdatedWorkflows(member.id)
   if (before?.status != null && before.status !== member.status) {
     await runMemberStatusChangedWorkflows(member.id, {

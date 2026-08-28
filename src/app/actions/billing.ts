@@ -547,7 +547,11 @@ export async function recordInvoicePayment(data: {
           where: { id: invoice.id },
           data: { paidAmount: { increment: data.amount } },
         })
-        const paid = inc.paidAmount >= inc.totalAmount
+        // Con un margen de medio céntimo: los importes son floats y una
+        // factura cobrada del todo puede quedarse en 39,999999 y no llegar
+        // nunca a 40. Se quedaba en PARCIAL para siempre, reclamando una
+        // fracción de céntimo al socio.
+        const paid = inc.paidAmount >= inc.totalAmount - 0.005
         await tx.invoice.update({
           where: { id: invoice.id },
           data: {

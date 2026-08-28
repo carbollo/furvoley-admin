@@ -1202,7 +1202,19 @@ export async function runWorkflowsForMemberByTrigger(
     ) {
       continue
     }
-    await runWorkflowStepsForMember(workflow.steps, member, triggerType, triggerContext)
+    // Un flujo que peta NO puede tumbar a los demás ni, sobre todo, la operación
+    // del CRM que lo disparó. Sin este try, un paso con un dato mal puesto —una
+    // plantilla rota, un WhatsApp que no sale— hacía fallar el alta del socio o
+    // la emisión de la factura que había disparado el flujo, y el administrativo
+    // veía un error sin relación aparente con lo que estaba haciendo.
+    try {
+      await runWorkflowStepsForMember(workflow.steps, member, triggerType, triggerContext)
+    } catch (e) {
+      console.error(
+        `[workflows] ${triggerType} · flujo ${workflow.id} falló`,
+        e instanceof Error ? e.message : e,
+      )
+    }
   }
 }
 
