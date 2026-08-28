@@ -6,7 +6,7 @@
 // invocable por cualquier cliente autenticado sin comprobación de rol.
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { createJournalEntry } from '@/lib/accounting/engine'
+import { createJournalEntry, ensureFiscalPeriod } from '@/lib/accounting/engine'
 import { ensureBasePgcAccounts } from '@/lib/accounting/pgc'
 import { getClubIssuer } from '@/lib/club-settings'
 import { sendApiWassText } from '@/lib/apiwass'
@@ -245,7 +245,15 @@ export async function createInvoiceForSubscription(subscriptionId: string, notif
     (await prisma.invoiceItem.count({
       where: {
         description: { contains: 'atrícula' },
-        invoice: { memberId: subscription.memberId, status: { not: 'VOID' } },
+        invoice: {
+          memberId: subscription.memberId,
+          status: { not: 'VOID' },
+          // Solo cuentan las facturas EMITIDAS POR UNA CUOTA. Sin esto bastaba
+          // con que alguien escribiera la palabra «matrícula» en el concepto de
+          // un cobro manual —una camiseta, una excursión— para que el socio no
+          // volviera a pagarla nunca.
+          subscriptionId: { not: null },
+        },
       },
     })) > 0
 
@@ -295,10 +303,31 @@ export async function createInvoiceForSubscription(subscriptionId: string, notif
   const today = startOfDay(new Date())
   const invoiceStatus = startOfDay(dueDate) < today ? 'OVERDUE' : 'PENDING'
 
-  const nextInvoiceDate =
-    enrollmentRequired && isFirstInvoice
-      ? nextBillingDate(new Date(), billingDay, subscription.plan.billingPeriod)
-      : advanceBillingDate(cycleDate, billingDay, subscription.plan.billingPeriod)
+  // Cuando el alta ya cobra un periodo COMPLETO por adelantado, la siguiente
+  // cuota tiene que caer un periodo después, no en el próximo día de cobro.
+  //
+  // Sin esta guarda, una familia que da de alta al niño el 31 de agosto con día
+  // de cobro 1 pagaba la cuota entera ese día y otra entera al día siguiente:
+  // `nextBillingDate` devolvía el 1 de septiembre porque es «el próximo día de
+  // cobro», sin mirar cuánto había pasado desde que se cobró el alta. Cuanto
+  // más cerca del día de cobro se daba de alta, peor.
+  const periodo = subscription.plan.billingPeriod
+  let nextInvoiceDate: Date
+  if (enrollmentRequired && isFirstInvoice) {
+    const alta = startOfDay(new Date())
+    let candidato = nextBillingDate(alta, billingDay, periodo)
+    const mesesDelPeriodo = periodo === 'YEARLY' ? 12 : periodo === 'QUARTERLY' ? 3 : 1
+    // Media vida del periodo: si la siguiente cuota cae antes de eso, el socio
+    // estaría pagando dos periodos casi seguidos por el mismo servicio.
+    const minimoDias = (mesesDelPeriodo * 30) / 2
+    const diasHasta = (candidato.getTime() - alta.getTime()) / 86_400_000
+    if (diasHasta < minimoDias) {
+      candidato = advanceBillingDate(candidato, billingDay, periodo)
+    }
+    nextInvoiceDate = candidato
+  } else {
+    nextInvoiceDate = advanceBillingDate(cycleDate, billingDay, periodo)
+  }
 
   // Factura + avance de `nextInvoiceDate` en UNA transacción atómica: si algo falla
   // entre medias ya no queda la factura creada con la suscripción SIN avanzar (lo
@@ -476,6 +505,26 @@ export async function recordInvoicePayment(data: {
   const invoice = await prisma.invoice.findUnique({ where: { id: data.invoiceId } })
   if (!invoice) throw new Error('Invoice not found')
 
+  // El asiento se crea DESPUES de dar la factura por cobrada y fuera de su
+  // transaccion. Si el periodo esta cerrado, `createJournalEntry` lanza y lo que
+  // queda es lo peor de los dos mundos: la factura pagada, el ingreso
+  // registrado, ningun asiento, y un error crudo en la cara del tesorero. Se
+  // comprueba ANTES de tocar nada y se explica que hacer.
+  const metodoPrevio = data.method ?? 'WHOP'
+  const generaraAsiento =
+    (data.status ?? 'SUCCEEDED') === 'SUCCEEDED' &&
+    metodoPrevio !== 'STRIPE' &&
+    metodoPrevio !== 'WHOP'
+  if (generaraAsiento) {
+    const periodo = await ensureFiscalPeriod(new Date())
+    if (periodo.isClosed) {
+      throw new Error(
+        'El periodo contable de hoy está cerrado, así que este cobro no se puede contabilizar. ' +
+          'Reábrelo en Contabilidad → Periodos y vuelve a registrarlo.',
+      )
+    }
+  }
+
   const attemptData = {
     invoiceId: data.invoiceId,
     amount: data.amount,
@@ -646,11 +695,30 @@ export async function runReminderJob() {
 
     if (!reminderType) continue
 
+    // Una factura sin nada que cobrar no se reclama. Una beca o un descuento del
+    // 100 % deja recibos de 0,00 € en estado PENDIENTE para siempre, y a esa
+    // familia le llegaba un WhatsApp reclamándole cero euros cuatro veces por
+    // cada recibo, indefinidamente.
+    if (invoice.totalAmount - invoice.paidAmount <= 0.005) continue
+
     // Solo un envío CONSEGUIDO bloquea el reintento. Antes bastaba con que
     // existiera cualquier registro, así que un aviso que nunca llegó a salir
     // quedaba marcado y no se volvía a intentar jamás.
+    // Basta con no repetirlo HOY.
+    //
+    // Cada hito (7 días antes, 2 antes, 1 después, 7 después) cae en UN solo día
+    // natural para un vencimiento dado, así que «ya enviado hoy» impide el
+    // duplicado si el cron corre dos veces, y a la vez deja que el aviso vuelva
+    // a salir si el vencimiento se aplaza —que es justo lo que hay que hacer—.
+    // Antes bastaba con que existiera el registro de aquel envío para que la
+    // factura se quedara sin avisos para siempre tras un aplazamiento.
     const alreadySent = await prisma.reminderLog.findFirst({
-      where: { invoiceId: invoice.id, reminderType, status: 'SENT' },
+      where: {
+        invoiceId: invoice.id,
+        reminderType,
+        status: 'SENT',
+        createdAt: { gte: today },
+      },
     })
     if (alreadySent) continue
 

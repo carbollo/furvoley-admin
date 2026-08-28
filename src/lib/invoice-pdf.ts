@@ -238,6 +238,20 @@ function totalsBlock(
     })
     yy -= 13
   }
+  // La retención no se guarda como campo: es lo que falta para que la base más
+  // el impuesto den el total. Sin imprimirla, el PDF enseñaba «Base 100 + IVA 21
+  // = TOTAL 106» y no había forma de cuadrarlo leyéndolo.
+  const retencion = Number((data.subtotal + data.taxAmount - data.totalAmount).toFixed(2))
+  if (retencion > 0.005) {
+    page.drawText(`Retención    -${fmtEuro(retencion)} ${data.currency}`, {
+      x: left,
+      y: yy,
+      size: 10,
+      font,
+      color: gray,
+    })
+    yy -= 13
+  }
   page.drawText(`TOTAL   ${fmtEuro(data.totalAmount)} ${data.currency}`, {
     x: left,
     y: yy,

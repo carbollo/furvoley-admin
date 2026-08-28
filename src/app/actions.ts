@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { buildReminderMessage } from '@/lib/reminder-message'
 import { revalidatePath } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -74,9 +75,13 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
       memberId: string
       memberName: string
       phone: string | null
+      /** El teléfono es del tutor: el mensaje no puede tutear al menor. */
+      paraTutor: boolean
       pendingTotal: number
       oldestDueDate: Date
       oldestInvoiceId: string
+      oldestInvoiceNumber: string
+      recibos: { invoiceNumber: string; pending: number; dueDate: Date; currency: string }[]
     }
   >()
 
@@ -87,29 +92,44 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
     // en coherencia con el texto del botón "facturas vencidas o pendientes de cobro".
 
     const existing = byMember.get(invoice.memberId)
-    const phone =
-      invoice.member.phone?.trim() ||
-      invoice.member.guardianPhone?.trim() ||
-      null
+    const propio = invoice.member.phone?.trim() || ''
+    const phone = propio || invoice.member.guardianPhone?.trim() || null
+    // Si el número es el del tutor, el mensaje NO puede tutear al menor: acaba
+    // en el móvil de su madre o su padre.
+    const paraTutor = !propio && Boolean(invoice.member.guardianPhone?.trim())
+    const recibo = {
+      invoiceNumber: invoice.invoiceNumber,
+      pending,
+      dueDate: invoice.dueDate,
+      currency: invoice.currency,
+    }
 
     if (!existing) {
       byMember.set(invoice.memberId, {
         memberId: invoice.memberId,
         memberName: invoice.member.name,
         phone,
+        paraTutor,
         pendingTotal: pending,
         oldestDueDate: invoice.dueDate,
         oldestInvoiceId: invoice.id,
+        oldestInvoiceNumber: invoice.invoiceNumber,
+        recibos: [recibo],
       })
       continue
     }
 
     existing.pendingTotal += pending
+    existing.recibos.push(recibo)
     if (invoice.dueDate < existing.oldestDueDate) {
       existing.oldestDueDate = invoice.dueDate
       existing.oldestInvoiceId = invoice.id
+      existing.oldestInvoiceNumber = invoice.invoiceNumber
     }
-    if (!existing.phone && phone) existing.phone = phone
+    if (!existing.phone && phone) {
+      existing.phone = phone
+      existing.paraTutor = paraTutor
+    }
   }
 
   let sent = 0
@@ -127,21 +147,27 @@ export async function sendWhatsAppPaymentReminders(): Promise<PaymentReminderRes
       return
     }
 
-    let payLine = ''
+    let payUrl: string | null = null
     try {
       // Siempre por el generador de enlaces: leer aquí un enlace guardado de una
       // pasarela anterior mandaría al socio a pagar donde ya no se concilia.
-      const url = await createInvoicePaymentLink(member.oldestInvoiceId)
-      if (url) payLine = `\nPagar aquí: ${url}`
+      payUrl = (await createInvoicePaymentLink(member.oldestInvoiceId)) || null
     } catch {
       /* enlace opcional */
     }
 
-    const message =
-      `Hola ${member.memberName}, te recordamos que tienes cuotas pendientes en ${clubName}.\n` +
-      `Importe pendiente: ${member.pendingTotal.toFixed(2)} EUR.\n` +
-      `Vencimiento más antiguo: ${member.oldestDueDate.toLocaleDateString('es-ES')}.\n` +
-      `Por favor, regulariza el pago lo antes posible. Gracias.${payLine}`
+    // El MISMO texto que los otros dos caminos de aviso. Este se había quedado
+    // con una redacción propia que tuteaba al menor en el móvil del tutor y
+    // anunciaba la deuda total junto a un enlace que solo pagaba un recibo: la
+    // familia pagaba, creía haber terminado y el socio seguía en Impagos.
+    const message = buildReminderMessage({
+      payUrl,
+      memberName: member.memberName,
+      clubName,
+      toGuardian: member.paraTutor,
+      invoices: member.recibos,
+      linkCoversInvoiceNumber: member.oldestInvoiceNumber,
+    })
 
     try {
       await sendApiWassText({

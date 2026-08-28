@@ -102,14 +102,15 @@ export async function GET(request: Request) {
   // Primero la deuda más vieja: es el orden en que hay que reclamar.
   filas.sort((a, b) => b.diasVencida - a.diasVencida)
 
-  const total = filas.length
-  const totalDeuda = filas.reduce((a, f) => a + f.total, 0)
-  const recibosTotales = filas.reduce((a, f) => a + f.recibos, 0)
-
-  // El gráfico de antigüedad y los mayores deudores se calculaban también sobre
-  // las 120 facturas de la lista, así que dibujaban una deuda incompleta. Se
-  // calculan aquí, sobre TODAS, y sin que el buscador los altere.
   const todas = [...porSocio.values()]
+
+  const total = filas.length
+  // La deuda del club es la deuda del club: NO puede encogerse porque alguien
+  // escriba en el buscador. `filas` está filtrada; estas dos cifras salen de
+  // `todas`, igual que el gráfico de antigüedad y los mayores deudores, que ya
+  // se calculaban bien. Antes, teclear un nombre bajaba el total en pantalla.
+  const totalDeuda = todas.reduce((a, f) => a + f.total, 0)
+  const recibosTotales = todas.reduce((a, f) => a + f.recibos, 0)
   const TRAMOS = [
     { label: '0-30 días', min: 0, max: 30 },
     { label: '31-60', min: 31, max: 60 },

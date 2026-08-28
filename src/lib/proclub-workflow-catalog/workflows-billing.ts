@@ -185,8 +185,17 @@ export const BILLING_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
     description: 'Factura vencida: primer recordatorio WhatsApp.',
     triggerType: 'INVOICE_OVERDUE',
     steps: [
+      // El enlace hay que generarlo ANTES de nombrarlo. Sin este paso,
+      // {paymentUrl} se sustituye por nada y al socio le llega «Paga aquí:»
+      // seguido de vacío — que es peor que no mandarle nada.
       {
         position: 0,
+        stepType: 'ACTION',
+        actionType: 'SEND_PAYMENT_LINK',
+        config: { stepKey: 'wc8_pay', label: 'Enlace de pago' },
+      },
+      {
+        position: 1,
         stepType: 'ACTION',
         actionType: 'SEND_WHATSAPP',
         config: {

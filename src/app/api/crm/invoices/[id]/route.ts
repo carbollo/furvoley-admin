@@ -37,7 +37,12 @@ export async function PATCH(
       dueDate: true,
       paidAmount: true,
       invoiceNumber: true,
-      items: { orderBy: { id: 'asc' }, take: 1, select: { id: true } },
+      subtotal: true,
+      taxAmount: true,
+      totalAmount: true,
+      // TODAS las líneas, no solo la primera: hace falta saber cuántas hay para
+      // no reescribir una sola y dejar el desglose sin sumar el total.
+      items: { orderBy: { id: 'asc' }, select: { id: true } },
     },
   })
   if (!existing) {
@@ -70,14 +75,44 @@ export async function PATCH(
     )
   }
 
-  let nuevoImporte: number | null = null
+  // El importe que llega es la BASE IMPONIBLE, y de ella se recalculan impuesto
+  // y total con los tipos que YA tenía este documento. Antes se escribía el
+  // número recibido en `subtotal` y en `totalAmount` sin tocar `taxAmount`: como
+  // el formulario venía relleno con el TOTAL, corregir una errata del concepto
+  // subía la base de 100 a 121 y dejaba un IVA de 21 que ya no cuadraba con
+  // nada. La lista, que deduce la retención como subtotal+IVA-total, se
+  // inventaba además una retención de 21 € que nunca existió.
+  //
+  // Los tipos se sacan del propio documento y no de la configuración actual del
+  // club: si el club cambia el IVA, una factura vieja no puede reprecificarse
+  // sola al corregirle una palabra.
+  let nuevaBase: number | null = null
+  let nuevoIva = existing.taxAmount
+  let nuevoTotal = existing.totalAmount
   if (cambiaImporte) {
+    if (existing.items.length > 1) {
+      return NextResponse.json(
+        {
+          error:
+            `La factura ${existing.invoiceNumber} tiene varias líneas (por ejemplo matrícula y cuota). ` +
+            'Cambiar el importe dejaría el desglose sin cuadrar: anúlala y emite otra.',
+        },
+        { status: 409 },
+      )
+    }
     const n = Number(body.amount)
     if (!Number.isFinite(n) || n <= 0) {
       return NextResponse.json({ error: 'El importe no es válido.' }, { status: 400 })
     }
-    nuevoImporte = Number(n.toFixed(2))
+    nuevaBase = Number(n.toFixed(2))
+
+    const tipoIva = existing.subtotal > 0 ? existing.taxAmount / existing.subtotal : 0
+    const retencion = Math.max(0, existing.subtotal + existing.taxAmount - existing.totalAmount)
+    const tipoRet = existing.subtotal > 0 ? retencion / existing.subtotal : 0
+    nuevoIva = Number((nuevaBase * tipoIva).toFixed(2))
+    nuevoTotal = Number((nuevaBase + nuevoIva - nuevaBase * tipoRet).toFixed(2))
   }
+  const nuevoImporte = nuevaBase
 
   const concepto = cambiaConcepto ? String(body.concepto).trim().slice(0, 300) : null
   if (cambiaConcepto && !concepto) {
@@ -93,7 +128,9 @@ export async function PATCH(
       where: { id: parsedId },
       data: {
         dueDate,
-        ...(nuevoImporte !== null ? { subtotal: nuevoImporte, totalAmount: nuevoImporte } : {}),
+        ...(nuevoImporte !== null
+          ? { subtotal: nuevoImporte, taxAmount: nuevoIva, totalAmount: nuevoTotal }
+          : {}),
         // Si se reprograma hacia el futuro, deja de estar vencida.
         ...(existing.status === 'OVERDUE' && dueDate >= today ? { status: 'PENDING' } : {}),
         // El enlace de pago cacheado cobraría el importe viejo.

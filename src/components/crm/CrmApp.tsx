@@ -5535,7 +5535,11 @@ function Contabilidad({ setActive }) {
       numero: c.numero,
       socio: c.socio,
       concepto: String(c.concepto || ''),
-      importe: Number(c.monto || 0).toFixed(2),
+      // La base imponible, no el total: es lo que el servidor espera y lo que
+      // hay que enseñar. Prerrellenarlo con el total hacía que corregir el
+      // concepto subiera la base de 100 a 121 sin que nadie tocara el importe.
+      importe: Number(c.subtotal ?? c.monto ?? 0).toFixed(2),
+      llevaImpuestos: Math.abs(Number(c.monto ?? 0) - Number(c.subtotal ?? c.monto ?? 0)) > 0.005,
       vencimiento: String(c.vencimiento || '').slice(0, 10),
       cobrado: Number(c.monto || 0) - Number(c.pendingAmount ?? c.monto ?? 0) > 0.005,
     })
@@ -7486,14 +7490,21 @@ function Contabilidad({ setActive }) {
               style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,boxSizing:'border-box',marginBottom:14,background:editarModal.cobrado?'#f5f5f4':'#fff'}}
             />
 
-            <label style={{display:'block',fontSize:12,fontWeight:700,color:'#57534e',marginBottom:6}}>Importe</label>
+            <label style={{display:'block',fontSize:12,fontWeight:700,color:'#57534e',marginBottom:6}}>
+              {editarModal.llevaImpuestos ? 'Base imponible' : 'Importe'}
+            </label>
             <input
               type="number" step="0.01" min="0.01"
               value={editarModal.importe}
               disabled={editarModal.cobrado}
               onChange={(e) => setEditarModal((m) => ({ ...m, importe: e.target.value }))}
-              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,boxSizing:'border-box',marginBottom:14,background:editarModal.cobrado?'#f5f5f4':'#fff'}}
+              style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid var(--border)',fontFamily:'inherit',fontSize:14,boxSizing:'border-box',marginBottom:editarModal.llevaImpuestos?4:14,background:editarModal.cobrado?'#f5f5f4':'#fff'}}
             />
+            {editarModal.llevaImpuestos ? (
+              <div style={{fontSize:11.5,color:'var(--text-muted)',marginBottom:14}}>
+                Los impuestos se recalculan con los mismos tipos que ya tiene esta factura.
+              </div>
+            ) : null}
 
             <label style={{display:'block',fontSize:12,fontWeight:700,color:'#57534e',marginBottom:6}}>Vencimiento</label>
             <input
