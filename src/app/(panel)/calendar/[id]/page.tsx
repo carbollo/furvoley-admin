@@ -1,3 +1,6 @@
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { normalizeRole } from '@/lib/rbac'
 import { prisma } from '@/lib/prisma'
 import { runWithTenant } from '@/lib/multitenant/request'
 import { ArrowLeft, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react'
@@ -13,6 +16,15 @@ export default async function EventDetailsPage(props: { params: Promise<{ id: st
 
 async function EventDetailsPageImpl({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+
+  // Esta pantalla es el pase de lista: enseña, socio a socio, quién vino y
+  // quién no, con nombre y estado. Es una vista de cuerpo técnico, no del
+  // socio. Sin esta comprobación bastaba con tener sesión —cualquier socio— y
+  // el id de un evento para leer el pase de lista de un equipo ajeno.
+  const session = await getServerSession(authOptions)
+  const rol = normalizeRole((session?.user as { role?: string } | undefined)?.role)
+  if (rol !== 'ADMIN' && rol !== 'COACH') notFound()
+
   const event = await prisma.event.findUnique({
     where: { id },
     include: {
@@ -25,6 +37,20 @@ async function EventDetailsPageImpl({ params }: { params: Promise<{ id: string }
   })
 
   if (!event) notFound()
+
+  // Un entrenador solo pasa lista a sus equipos. Un evento sin equipo es del
+  // club entero, así que ahí solo entra el ADMIN.
+  if (rol === 'COACH') {
+    const memberId = (session?.user as { memberId?: string | null } | undefined)?.memberId || null
+    const suyo =
+      event.groupId && memberId
+        ? await prisma.groupMembership.findFirst({
+            where: { groupId: event.groupId, memberId, role: 'COACH' },
+            select: { id: true },
+          })
+        : null
+    if (!suyo) notFound()
+  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {

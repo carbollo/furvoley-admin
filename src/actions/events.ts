@@ -30,6 +30,12 @@ async function assertEventStaff(
   if (!user) return { ok: false, error: "No autorizado" };
   const role = normalizeRole(user.role);
   if (role !== "ADMIN" && role !== "COACH") return { ok: false, error: "No autorizado" };
+  // Un evento SIN equipo es del club entero, y eso es cosa del ADMIN. Antes la
+  // comprobacion de equipo solo corria `if (groupId)`, asi que un entrenador
+  // pasaba de largo justo en los eventos que no eran suyos.
+  if (role === "COACH" && !groupId) {
+    return { ok: false, error: "Solo el administrador puede tocar los eventos del club" };
+  }
   if (role === "COACH" && groupId) {
     const owns = user.memberId
       ? await prisma.groupMembership.findFirst({
@@ -82,13 +88,20 @@ export async function registerGuestAttendees(
 
     const event = await prisma.event.findUnique({
       where: { id: eventId },
-      select: { id: true, status: true, maxAttendees: true },
+      select: { id: true, status: true, maxAttendees: true, isPublic: true },
     });
     if (!event) {
       return { success: false, error: "Evento no encontrado." };
     }
     if (event.status === "CANCELLED") {
       return { success: false, error: "Este evento está cancelado." };
+    }
+    // Esta funcion se invoca SIN sesion (es el formulario de invitados de un
+    // evento abierto). Sin esta comprobacion, cualquiera con el id de un
+    // entrenamiento interno metia nombres y DNI inventados en su lista y le
+    // llenaba el aforo al club.
+    if (!event.isPublic) {
+      return { success: false, error: "Este evento no admite inscripciones de invitados." };
     }
 
     const memberSlots = await prisma.attendance.count({
@@ -259,17 +272,24 @@ export async function getEventById(id: string) {
   // La página /events/[id] puede servir como enlace público de un evento, así que
   // esta lectura no exige sesión; runWithTenant la limita al club del host (evita
   // lecturas cruzadas entre clubes al invocar el RPC directamente).
+  //
+  // NO se traen los inscritos. Este fichero lleva la directiva de servidor, así
+  // que CADA export suyo es un RPC invocable con un POST a la ruta pública del
+  // evento, sin sesión. Mientras aquí hubo un `attendances: { include: { member } }`,
+  // bastaba el id de un evento —que circula por WhatsApp en los enlaces que el
+  // propio club comparte— para volcar el padrón entero: nombre, DNI, fecha de
+  // nacimiento, teléfono, dirección y datos del tutor de cada menor inscrito.
+  // Ninguna pantalla usaba esa lista; solo salía por la invocación directa.
+  //
+  // Si algún día hace falta la lista de inscritos, que la sirva una función
+  // aparte con su comprobación de rol y un `select` explícito, nunca ampliando
+  // este `include`.
   return runWithTenant(async () => {
   try {
     const event = await prisma.event.findUnique({
       where: { id },
       include: {
         group: true,
-        attendances: {
-          include: {
-            member: true,
-          },
-        },
       },
     });
     if (!event) return { success: false, error: "Evento no encontrado" };

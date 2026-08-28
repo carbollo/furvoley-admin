@@ -1,3 +1,4 @@
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import type { PrismaClient } from '@/generated/prisma/client'
 import bcrypt from 'bcryptjs'
 
@@ -13,14 +14,31 @@ export function getEnvAdminCredentials(): { email: string; password: string } | 
   return { email, password }
 }
 
-/** Credenciales para bootstrap al arrancar (env fijo o valores por defecto). */
+/**
+ * Credenciales para bootstrap al arrancar.
+ *
+ * FUERA de desarrollo no se cae nunca a una contraseña por defecto: `admin123`
+ * está en el código y en el README, así que crear con ella al administrador de
+ * un despliegue nuevo es publicar sus llaves. Si falta `ADMIN_PASSWORD`, se
+ * genera una al azar —el administrador entra por «he olvidado mi contraseña» o
+ * poniendo la variable— y se avisa por consola.
+ */
 export function getBootstrapAdminCredentials(): { email: string; password: string } {
   const env = getEnvAdminCredentials()
   if (env) return env
-  return {
-    email: (process.env.ADMIN_EMAIL || 'admin@furvoley.com').trim().toLowerCase(),
-    password: process.env.ADMIN_PASSWORD || 'admin123',
+
+  const email = (process.env.ADMIN_EMAIL || 'admin@furvoley.com').trim().toLowerCase()
+  const password = process.env.ADMIN_PASSWORD
+  if (password) return { email, password }
+
+  if (process.env.NODE_ENV === 'production') {
+    console.warn(
+      '[env-admin] Falta ADMIN_PASSWORD: se crea el administrador con una contraseña aleatoria. ' +
+        'Define ADMIN_PASSWORD para poder entrar con ella.',
+    )
+    return { email, password: randomBytes(24).toString('base64url') }
   }
+  return { email, password: 'admin123' }
 }
 
 export function isEnvAdminConfigured(): boolean {
@@ -41,7 +59,12 @@ export function credentialsMatchEnvAdmin(
   const env = getEnvAdminCredentials()
   if (!env) return false
   const normalized = rawEmail.trim().toLowerCase()
-  return normalized === env.email && password === env.password
+  if (normalized !== env.email) return false
+  // Comparación en tiempo constante, como el resto de secretos del proyecto: es
+  // la única contraseña que se comparaba con === y no cuesta nada igualarla.
+  const a = Buffer.from(password)
+  const b = Buffer.from(env.password)
+  return a.length === b.length && timingSafeEqual(a, b)
 }
 
 /** Crea o actualiza el usuario ADMIN con la contraseña de las variables de entorno. */

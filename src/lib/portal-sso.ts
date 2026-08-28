@@ -206,7 +206,12 @@ export function parsePortalSsoToken(token: string, secret = getPortalSsoSecret()
  * va firmado (HMAC), así que cualquier token real que alguien tenga va ligado.
  */
 export function ssoTokenMatchesTenant(payload: PortalSsoPayload, slug: string | null | undefined): boolean {
-  if (!payload.tenant) return true // token antiguo sin binding: compatibilidad breve
+  // Un token sin club NO vale. Antes se aceptaba «por compatibilidad», y esa
+  // puerta era justo el agujero: bastaba con conseguir un token de cualquier
+  // emisor que no lo atara para canjearlo en el subdominio de otro club. Todos
+  // los emisores lo atan ya; los tokens duran 60 s, así que cerrarlo no deja a
+  // nadie fuera más allá de un reintento de login.
+  if (!payload.tenant) return false
   return payload.tenant === String(slug || '')
 }
 

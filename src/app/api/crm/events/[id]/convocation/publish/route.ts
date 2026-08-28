@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { parseCuid } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
-import { requireRoles } from '@/lib/rbac-api'
+import { assertTeamAccess, requireRoles } from '@/lib/rbac-api'
 import { getEffectiveGroupMembers } from '@/lib/groups'
 import { runConvocationPublishedWorkflows } from '@/lib/workflow-proclub-runners'
 
@@ -25,6 +25,12 @@ export async function POST(request: Request, { params }: Params) {
   if (!event?.groupId) {
     return NextResponse.json({ error: 'Evento sin equipo' }, { status: 400 })
   }
+
+  // El rol no basta: un entrenador lo es DE SUS EQUIPOS, y el equipo sale del
+  // evento, no de quien llama. Sin esto, cualquier entrenador podia convocar (y
+  // avisar por WhatsApp a los tutores de) la plantilla de un equipo ajeno.
+  const denied = await assertTeamAccess(auth, event.groupId)
+  if (denied) return denied
 
   // Jugadores EFECTIVOS del grupo (directos + los de sus subgrupos, por contención).
   const effectivePlayerIds = (await getEffectiveGroupMembers(event.groupId))

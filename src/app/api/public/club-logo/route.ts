@@ -47,8 +47,20 @@ export async function GET(request: Request) {
     })
   }
 
-  // Si algún club guardó el logo como URL, redirigimos a ella.
-  if (/^https?:\/\//i.test(raw)) return NextResponse.redirect(raw)
+  // Si algún club guardó el logo como URL, redirigimos a ella. Solo https y solo
+  // a un host de verdad: esta ruta es pública y sin sesión, así que su
+  // redirección es un sitio cómodo desde el que mandar a alguien a otra parte
+  // con la dirección del club por delante.
+  if (/^https:\/\//i.test(raw)) {
+    try {
+      const destino = new URL(raw)
+      if (destino.protocol === 'https:' && destino.hostname.includes('.')) {
+        return NextResponse.redirect(destino.toString())
+      }
+    } catch {
+      /* URL ilegible: cae al 422 de abajo */
+    }
+  }
 
   return NextResponse.json({ error: 'Formato de escudo no reconocido.' }, { status: 422 })
 }

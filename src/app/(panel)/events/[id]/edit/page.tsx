@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { runWithTenant } from '@/lib/multitenant/request'
 import EventForm from "@/components/admin/events/EventForm";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
@@ -7,7 +8,16 @@ import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditEventPage({
+/**
+ * Sin runWithTenant, estas consultas salen sin club activo: en multi-tenant
+ * eso o falla o —peor— cae a la base de datos por defecto. El resto de
+ * paginas del panel ya lo envolvian; estas tres se habian quedado fuera.
+ */
+export default async function EditEventPage(props: { params: Promise<{ id: string }> }) {
+  return runWithTenant(() => EditEventPageImpl(props))
+}
+
+async function EditEventPageImpl({
   params,
 }: {
   params: Promise<{ id: string }>;

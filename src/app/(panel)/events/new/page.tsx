@@ -1,11 +1,21 @@
 import { prisma } from "@/lib/prisma";
+import { runWithTenant } from '@/lib/multitenant/request'
 import EventForm from "@/components/admin/events/EventForm";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Sin runWithTenant, estas consultas salen sin club activo: en multi-tenant
+ * eso o falla o —peor— cae a la base de datos por defecto. El resto de
+ * paginas del panel ya lo envolvian; estas tres se habian quedado fuera.
+ */
 export default async function NewEventPage() {
+  return runWithTenant(() => NewEventPageImpl())
+}
+
+async function NewEventPageImpl() {
   const teams = await prisma.group.findMany({
     orderBy: { name: "asc" },
   });

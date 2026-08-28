@@ -1,4 +1,5 @@
 import { getEventById } from "@/actions/events";
+import { runWithTenant } from '@/lib/multitenant/request'
 import { notFound } from "next/navigation";
 import { Calendar, MapPin, Users, Clock } from "lucide-react";
 import { getServerSession } from "next-auth";
@@ -8,7 +9,16 @@ import { EventRegistrationPanel } from "@/components/events/EventRegistrationPan
 
 export const dynamic = "force-dynamic";
 
-export default async function PublicEventPage({
+/**
+ * Sin runWithTenant, estas consultas salen sin club activo: en multi-tenant
+ * eso o falla o —peor— cae a la base de datos por defecto. El resto de
+ * paginas del panel ya lo envolvian; estas tres se habian quedado fuera.
+ */
+export default async function PublicEventPage(props: { params: Promise<{ id: string }> }) {
+  return runWithTenant(() => PublicEventPageImpl(props))
+}
+
+async function PublicEventPageImpl({
   params,
 }: {
   params: Promise<{ id: string }>;

@@ -1,9 +1,30 @@
 import { createPortalSsoToken, getPortalSsoSecret } from '@/lib/portal-sso'
+import { sanitizeSlug } from '@/lib/multitenant/registry'
 import {
   tenantPublicBaseUrl,
   tenantVerifyBaseUrl,
   type PortalTenant,
 } from '@/lib/portal-central/tenants-store'
+
+/**
+ * Club al que hay que atar el token, deducido de su propia URL pública.
+ *
+ * Esta lista de clubes viene de variables de entorno y no trae slug, pero el
+ * CRM que recibe el token resuelve el club por el subdominio del host — así que
+ * es exactamente eso con lo que hay que atarlo. Sin atar, un token emitido para
+ * el club A se podía canjear en el subdominio del club B con la identidad de A.
+ *
+ * (En producción manda `PORTAL_TENANT_MODE=true`, que usa el registro en base de
+ * datos y ya ataba el slug; esto cubre el resto de despliegues.)
+ */
+function slugDelTenant(tenant: PortalTenant): string | null {
+  try {
+    const host = new URL(tenantPublicBaseUrl(tenant)).hostname
+    return sanitizeSlug(host.split('.')[0])
+  } catch {
+    return null
+  }
+}
 
 export async function verifyOnTenant(
   tenant: PortalTenant,
@@ -67,6 +88,7 @@ export function buildSsoRedirectUrl(
       mustChangePassword: user.mustChangePassword,
     },
     secret,
+    slugDelTenant(tenant),
   )
   return `${tenantPublicBaseUrl(tenant)}/api/portal/sso?token=${encodeURIComponent(token)}`
 }
@@ -94,6 +116,7 @@ export function buildMobileLoginPayload(
       mustChangePassword: user.mustChangePassword,
     },
     secret,
+    slugDelTenant(tenant),
   )
   return {
     ok: true as const,
