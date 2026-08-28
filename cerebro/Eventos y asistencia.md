@@ -22,7 +22,13 @@ Existen **dos ficheros distintos** de acciones de eventos, ambos `'use server'` 
 - **`src/app/actions/events.ts`** — wrappers finos y autorizados sobre la lógica interna. Expone `createEvent(CreateEventData)`, `deleteEvent(id)`, `updateAttendance(id, status, reason)`. Autoriza con `assertEventWriter` (**lanza** `Error`) y envuelve todo en `runWithTenant`. Delega en `events-service.ts`.
 - **`src/actions/events.ts`** — CRUD más amplio para la UI del cliente: `getEvents`, `getEventById`, `createEvent` (otra firma: `title/type/date/endDate/isPublic/price/...`), `updateEvent`, `deleteEvent`, **`registerForEvent`** e **`registerGuestAttendees`**. Autoriza con `assertEventStaff` (**devuelve** `{ok:false,error}` en vez de lanzar) y también envuelve en `runWithTenant`. Aquí sí hace `prisma.event.create` directo (no pasa por el servicio).
 
-**Por qué autorizan aquí y no en la UI:** un `'use server'` se expone como **endpoint RPC** invocable por cualquier cliente sin pasar por el gating visual. Por eso cada acción comprueba rol y acceso al equipo. Detalle transversal en [[Server actions y seguridad]]. La regla en ambos: solo **ADMIN**, o **COACH pero únicamente en los equipos que entrena** (se verifica con `groupMembership … role:'COACH'`). Ver [[RBAC y módulos]] y [[Autenticación y sesiones]].
+**Por qué autorizan aquí y no en la UI:** un `'use server'` se expone como **endpoint RPC** invocable por cualquier cliente sin pasar por el gating visual. Por eso cada acción comprueba rol y acceso al equipo. Detalle transversal en [[Server actions y seguridad]]. La regla general: solo **ADMIN**, o **COACH pero únicamente en los equipos que entrena** (se verifica con `groupMembership … role:'COACH'`). Ver [[RBAC y módulos]] y [[Autenticación y sesiones]].
+
+**Tres excepciones a esa regla, que conviene tener presentes** (las tres fueron fallos reales, corregidos en agosto de 2026):
+
+- **`getEventById` NO autoriza**: es lectura pública a propósito, porque la ficha del evento sirve de enlace compartible. Por eso su `include` se limita a `group` y **nunca** debe volver a traer `attendances`: mientras lo hizo, bastaba el id de un evento para volcar el padrón del club con los DNI de los menores y los teléfonos de sus tutores.
+- **`registerGuestAttendees` tampoco exige sesión** —es el formulario de invitados— pero sí exige que el evento sea **público** (`isPublic`). Sin esa comprobación, cualquiera inscribía gente inventada en un entrenamiento interno y le llenaba el aforo.
+- **`assertEventStaff` deniega al COACH los eventos sin equipo.** Un evento con `groupId` nulo es del club entero, así que es cosa del ADMIN. Antes la comprobación de equipo solo corría `if (groupId)`, de modo que el entrenador pasaba de largo justo en los eventos que no eran suyos.
 
 ## events-service.ts (lógica SIN auth)
 

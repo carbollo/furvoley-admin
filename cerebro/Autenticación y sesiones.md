@@ -69,3 +69,15 @@ Sistema **independiente de NextAuth**, cookie `portal-admin-session`:
 - [[Panel de administración del portal]]
 - [[Arquitectura Modelo C]]
 - [[Auditoría de seguridad]]
+
+## El token SSO va atado a un club, y sin atar no vale
+
+`createPortalSsoToken(user, secret, tenantSlug)` mete el slug en el claim `tenant`, y `/api/portal/sso` rechaza el token si el subdominio no coincide (`ssoTokenMatchesTenant`).
+
+**Los cuatro emisores tienen que pasar el slug.** Durante un tiempo dos de ellos —los del login heredado por lista de entorno— no lo pasaban, y `ssoTokenMatchesTenant` devolvía `true` para los tokens sin claim «por compatibilidad»: un token emitido para el club A se canjeaba en el subdominio del club B con la identidad de A. Hoy un token sin atar **no vale**, y la lista de entorno deduce el slug del subdominio de su propia URL pública.
+
+En producción manda `PORTAL_TENANT_MODE=true`, que usa el registro en base de datos y siempre ató el slug; el agujero estaba en los demás despliegues.
+
+## Impersonación: la sesión va marcada
+
+El token de impersonación lleva `imp: true`, `jitTenantUserSession` lo arrastra y acaba en `session.user.impersonated`. Sin esa marca, dentro del CRM una impersonación es **indistinguible** de la sesión real del admin del club. Se usa para no registrar en el club las consultas del proveedor (ver [[Pasarela de cobro (Whop)]]); si la marca se pierde en cualquier eslabón, esas consultas se registran como si fueran del club.
