@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { effectiveGroupMemberIds } from '@/lib/groups'
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -327,7 +328,24 @@ export async function createEvent(data: {
     const event = await prisma.event.create({
       data,
     });
+
+    // El pase de lista. Sin esto, un torneo creado desde «Eventos → Nuevo»
+    // aparecia en el calendario con la lista de asistencia VACIA, y el
+    // entrenador no tenia a quien marcar. El mismo evento creado desde la otra
+    // pantalla si la traia: eran dos caminos con distinto comportamiento.
+    const memberIds = data.groupId ? await effectiveGroupMemberIds(data.groupId) : [];
+    if (memberIds.length > 0) {
+      await prisma.attendance.createMany({
+        data: memberIds.map((memberId) => ({
+          eventId: event.id,
+          memberId,
+          status: "PENDING",
+        })),
+      });
+    }
+
     revalidatePath("/events");
+    revalidatePath("/calendar");
     return { success: true, data: event };
   } catch (error) {
     console.error("Error creating event:", error);
