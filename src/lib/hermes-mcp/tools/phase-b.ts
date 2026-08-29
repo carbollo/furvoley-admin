@@ -9,6 +9,7 @@ import { ROLE_LABEL, normalizeRole } from '@/lib/rbac'
 import { runWorkflowTest } from '@/lib/workflow-test'
 import { withHermesAudit } from '@/lib/hermes-mcp/audit'
 import { jsonToolResult, toolError } from '@/lib/hermes-mcp/tools/helpers'
+import { isHermesDestructiveAllowed } from '@/lib/hermes-mcp/config'
 import { SUBSCRIPTION_ACTIVE_LIKE, SUBSCRIPTION_VISIBLE } from '@/lib/subscription-statuses'
 
 function periodLabel(p: string) {
@@ -78,6 +79,15 @@ export function registerPhaseBTools(server: McpServer) {
         const plan = await prisma.membershipPlan.findUnique({ where: { id: args.planId } })
         if (!plan || !plan.isActive) toolError('Plan no encontrado o inactivo')
 
+        // El descuento del socio va en la SUSCRIPCIÓN, y se lee en cada
+        // factura, no solo en la primera. Cancelar la vieja y crear una limpia
+        // se lo quitaba para siempre: a partir del mes siguiente se le cobraba
+        // la cuota completa sin que nadie lo hubiera decidido.
+        const anterior = await prisma.subscription.findFirst({
+          where: { memberId: args.memberId, status: { in: SUBSCRIPTION_ACTIVE_LIKE } },
+          select: { discountCodeId: true, discountCode: { select: { code: true } } },
+        })
+
         await prisma.subscription.updateMany({
           where: { memberId: args.memberId, status: { in: SUBSCRIPTION_ACTIVE_LIKE } },
           data: { status: 'CANCELED', endDate: new Date() },
@@ -89,8 +99,13 @@ export function registerPhaseBTools(server: McpServer) {
           startDate: args.startDate ? new Date(args.startDate) : undefined,
           autoPay: args.autoPay === true,
           paymentRequiredOnEnrollment: plan.paymentRequiredOnEnrollment,
+          discountCodeId: anterior?.discountCodeId ?? null,
         })
-        return jsonToolResult({ ok: true, subscriptionId: subscription.id })
+        return jsonToolResult({
+          ok: true,
+          subscriptionId: subscription.id,
+          descuentoHeredado: anterior?.discountCode?.code ?? null,
+        })
       }, args.memberId),
   )
 
@@ -182,48 +197,76 @@ export function registerPhaseBTools(server: McpServer) {
           },
         })
 
-        await createJournalEntry({
-          concept: args.concept,
-          entryDate,
-          source: 'MANUAL',
-          sourceId: movement.id,
-          lines:
-            args.movementType === 'INCOME'
-              ? [
-                  {
-                    accountCode: args.paymentAccountCode,
-                    side: 'DEBIT',
-                    amount: totalAmount,
-                    lineConcept: 'Entrada de tesorería',
-                    memberId: args.memberId,
-                  },
-                  {
-                    accountCode: args.categoryAccountCode,
-                    side: 'CREDIT',
-                    amount: args.amount,
-                    lineConcept: 'Reconocimiento de ingreso',
-                    memberId: args.memberId,
-                  },
-                ]
-              : [
-                  {
-                    accountCode: args.categoryAccountCode,
-                    side: 'DEBIT',
-                    amount: args.amount,
-                    lineConcept: 'Reconocimiento de gasto',
-                    memberId: args.memberId,
-                  },
-                  {
-                    accountCode: args.paymentAccountCode,
-                    side: 'CREDIT',
-                    amount: totalAmount,
-                    lineConcept: 'Salida de tesorería',
-                    memberId: args.memberId,
-                  },
-                ],
-        })
+        // El IVA necesita su propia línea o el asiento no cuadra: en un ingreso
+        // con IVA entran 121 en tesorería, pero el ingreso son 100 y los otros
+        // 21 son IVA repercutido, que se le debe a Hacienda. Sin esa línea,
+        // `createJournalEntry` rechazaba el asiento entero.
+        const lineasIva =
+          taxAmount > 0
+            ? [
+                {
+                  accountCode: args.movementType === 'INCOME' ? '4770000' : '4720000',
+                  side: (args.movementType === 'INCOME' ? 'CREDIT' : 'DEBIT') as 'CREDIT' | 'DEBIT',
+                  amount: taxAmount,
+                  lineConcept:
+                    args.movementType === 'INCOME' ? 'IVA repercutido' : 'IVA soportado',
+                  memberId: args.memberId,
+                },
+              ]
+            : []
 
-        return jsonToolResult({ ok: true, movementId: movement.id })
+        try {
+          await createJournalEntry({
+            concept: args.concept,
+            entryDate,
+            source: 'MANUAL',
+            sourceId: movement.id,
+            lines:
+              args.movementType === 'INCOME'
+                ? [
+                    {
+                      accountCode: args.paymentAccountCode,
+                      side: 'DEBIT',
+                      amount: totalAmount,
+                      lineConcept: 'Entrada de tesorería',
+                      memberId: args.memberId,
+                    },
+                    {
+                      accountCode: args.categoryAccountCode,
+                      side: 'CREDIT',
+                      amount: args.amount,
+                      lineConcept: 'Reconocimiento de ingreso',
+                      memberId: args.memberId,
+                    },
+                    ...lineasIva,
+                  ]
+                : [
+                    {
+                      accountCode: args.categoryAccountCode,
+                      side: 'DEBIT',
+                      amount: args.amount,
+                      lineConcept: 'Reconocimiento de gasto',
+                      memberId: args.memberId,
+                    },
+                    ...lineasIva,
+                    {
+                      accountCode: args.paymentAccountCode,
+                      side: 'CREDIT',
+                      amount: totalAmount,
+                      lineConcept: 'Salida de tesorería',
+                      memberId: args.memberId,
+                    },
+                  ],
+          })
+        } catch (e) {
+          // Si el asiento no sale, el movimiento tampoco se queda: dejar uno sin
+          // el otro descuadra el libro contra el sumario, y nadie lo ve hasta el
+          // cierre.
+          await prisma.transaction.delete({ where: { id: movement.id } }).catch(() => {})
+          throw e
+        }
+
+        return jsonToolResult({ ok: true, movementId: movement.id, iva: taxAmount })
       }, args.memberId),
   )
 
@@ -255,7 +298,15 @@ export function registerPhaseBTools(server: McpServer) {
   server.registerTool(
     'crm_test_workflow',
     {
-      description: 'Ejecuta un flujo en modo prueba (dry-run parcial).',
+      // La descripción anterior decía «modo prueba (dry-run parcial)». No lo es:
+      // usa el MISMO ejecutor que producción, sin ningún parámetro de
+      // simulación, así que los pasos de enviar y de cobrar se ejecutan de
+      // verdad. Un modelo que lee «dry-run» lo invoca sin pedir permiso, porque
+      // cree que no tiene efectos.
+      description:
+        'Ejecuta un flujo DE VERDAD sobre un socio real: envía WhatsApps, crea cobros y apuntes ' +
+        'contables. NO es una simulación. Hay que indicar el socio o el lead concreto, y pedirle ' +
+        'confirmación explícita al administrador antes de llamar.',
       inputSchema: {
         workflowId: z.string(),
         memberId: z.string().optional(),
@@ -264,6 +315,21 @@ export function registerPhaseBTools(server: McpServer) {
     },
     async (args) =>
       withHermesAudit('crm_test_workflow', args, async () => {
+        // Sin destinatario explícito, `runWorkflowTest` elige «el primer socio
+        // activo por nombre» y le ejecuta el flujo encima. El agente no puede
+        // disparar eso a ciegas.
+        if (!args.memberId && !args.leadId) {
+          toolError(
+            'Indica sobre qué socio o lead quieres ejecutar el flujo: si no, se ejecutaría de verdad ' +
+              'sobre el primer socio de la lista.',
+          )
+        }
+        if (!(await isHermesDestructiveAllowed())) {
+          toolError(
+            'Ejecutar flujos está desactivado para el agente: manda mensajes y crea cobros reales. ' +
+              'Actívalo en Ajustes del club o pruébalo desde el CRM.',
+          )
+        }
         const result = await runWorkflowTest(args.workflowId, {
           memberId: args.memberId,
           leadId: args.leadId,

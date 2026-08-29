@@ -1161,14 +1161,19 @@ model RateLimitBucket {
 }
 
 model HermesMcpAuditLog {
-  id           String   @id @default(cuid())
-  toolName     String
-  argsSummary  String   @db.Text
-  memberId     String?
-  success      Boolean
-  errorMessage String?  @db.Text
-  source       String   @default("hermes-mcp")
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  toolName       String
+  argsSummary    String   @db.Text
+  memberId       String?
+  /// Quién le pidió la acción al agente (teléfono de WhatsApp, normalmente).
+  /// Sin esto el registro decía QUÉ se hizo pero no DE PARTE DE QUIÉN.
+  actor          String?
+  /// Conversación MCP, para reconstruir la secuencia completa.
+  conversationId String?
+  success        Boolean
+  errorMessage   String?  @db.Text
+  source         String   @default("hermes-mcp")
+  createdAt      DateTime @default(now())
 
   @@index([createdAt])
   @@index([toolName])

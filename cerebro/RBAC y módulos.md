@@ -63,7 +63,8 @@ Funciones:
 
 Detalles críticos:
 - **Solo se gatean módulos aislados.** Se **excluyen a propósito** `/api/crm/invoices`, `/products` y `/discounts`: aunque pertenecen al módulo `contabilidad`, el **flujo CORE** de cuotas/socios los comparte (p.ej. marcar una cuota pagada vía `/api/crm/invoices/:id/mark-paid`), y no debe acoplarse al plan. Ver [[Facturación y cuotas]] y [[Contabilidad]].
-- **`requireRoles` ya lo invoca**, así que la mayoría de rutas heredan el gate gratis. Las rutas que **autentican por su cuenta** (workflows, whatsapp, hermes — que usan `getServerSession` directo en vez de `requireRoles`) deben llamar a `assertModuleForRequest(request)` **manualmente** tras validar el rol. Ejemplo en `src/app/api/crm/workflows/route.ts`. Ver [[Motor de workflows]].
+- **`workflows` y `whatsapp` autentican por su cuenta** (`getServerSession` directo en vez de `requireRoles`), así que llaman a `assertModuleForRequest` a mano. **Las nueve rutas `/api/hermes/*` de la interfaz NO**: usan `requireRoles(['ADMIN'], request)` y heredan el gate de módulo como el resto.
+- **La excepción real es `/api/hermes/mcp`**, que se autentica con su propio Bearer y no pasa por `assertModuleForRequest`. Durante un tiempo tampoco activaba el club, así que en multi-tenant estaba sencillamente muerta: la primera consulta reventaba. Hoy resuelve el club por el subdominio o por la cabecera `x-hermes-club` que pone el gateway.
 - **Fail-open**: si no se pueden leer los flags, **no se bloquea nada** (disponibilidad > restricción).
 
 ## De dónde salen los flags (`src/lib/tenant-features.ts`)

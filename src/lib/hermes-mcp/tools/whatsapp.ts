@@ -21,14 +21,24 @@ export function registerWhatsAppTools(server: McpServer) {
     async (args) =>
       withHermesAudit('crm_send_whatsapp_member', args, async () => {
         let phone = args.phone?.trim() || ''
+        // Se devuelve al modelo para que no tutee a un menor en el móvil de su
+        // madre, igual que hacen los otros dos caminos de aviso del CRM.
+        let esTelefonoTutor = false
         if (args.memberId) {
           const member = await prisma.member.findUnique({
             where: { id: args.memberId },
-            select: { phone: true, name: true },
+            select: { phone: true, name: true, guardianPhone: true },
           })
           if (!member) toolError('Socio no encontrado')
-          phone = member.phone?.trim() || phone
-          if (!phone) toolError('El socio no tiene teléfono')
+          // Su móvil y, si no tiene, el del tutor: la mayoría de los socios son
+          // menores sin teléfono propio, y esta era la única vía de aviso del
+          // producto que no lo contemplaba, así que a los menores no se les
+          // avisaba nunca.
+          const propio = member.phone?.trim() || ''
+          const tutor = member.guardianPhone?.trim() || ''
+          phone = propio || tutor || phone
+          esTelefonoTutor = !propio && Boolean(tutor)
+          if (!phone) toolError('Ni el socio ni su tutor tienen teléfono registrado')
         }
         if (!phone) toolError('Indica memberId o phone')
         const message = args.message.trim()
@@ -39,7 +49,14 @@ export function registerWhatsAppTools(server: McpServer) {
           phone,
           message,
         })
-        return jsonToolResult({ ok: true, phone })
+        return jsonToolResult({
+          ok: true,
+          phone,
+          esTelefonoTutor,
+          ...(esTelefonoTutor
+            ? { aviso: 'El número es el del tutor: dirígete a él, no al socio menor.' }
+            : {}),
+        })
       }, args.memberId),
   )
 }

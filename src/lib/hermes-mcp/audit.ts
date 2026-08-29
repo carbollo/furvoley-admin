@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { currentHermesActor } from '@/lib/hermes-mcp/actor'
 
 export function summarizeArgs(args: unknown, maxLen = 500) {
   try {
@@ -17,6 +18,7 @@ export async function logHermesMcpAction(input: {
   errorMessage?: string | null
 }) {
   const argsSummary = summarizeArgs(input.args)
+  const quien = currentHermesActor()
   try {
     await prisma.hermesMcpAuditLog.create({
       data: {
@@ -26,6 +28,11 @@ export async function logHermesMcpAction(input: {
         success: input.success,
         errorMessage: input.errorMessage || null,
         source: 'hermes-mcp',
+        // De parte de quién. Sin esto, el registro decía qué se hizo pero no
+        // permitía saber quién lo pidió, que es justo lo que hace falta cuando
+        // aparece un cobro que nadie recuerda.
+        actor: quien.actor,
+        conversationId: quien.sessionId,
       },
     })
   } catch (e) {

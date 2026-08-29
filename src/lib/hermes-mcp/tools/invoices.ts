@@ -96,7 +96,10 @@ export function registerInvoiceTools(server: McpServer) {
   server.registerTool(
     'crm_mark_invoice_paid',
     {
-      description: 'Marca un cobro como pagado manualmente (efectivo).',
+      description:
+        'Marca un cobro como pagado EN EFECTIVO. Mueve dinero de verdad: el socio deja de ' +
+        'figurar como moroso y se genera su asiento de caja. Pide confirmación explícita al ' +
+        'administrador, con el número de factura y el importe, antes de llamar.',
       inputSchema: {
         invoiceId: z.string(),
       },
@@ -107,6 +110,14 @@ export function registerInvoiceTools(server: McpServer) {
         select: { memberId: true, totalAmount: true, paidAmount: true },
       })
       return withHermesAudit('crm_mark_invoice_paid', { invoiceId }, async () => {
+        // Bajo el mismo interruptor que borrar: da un cobro por bueno sin que
+        // haya entrado un euro, y eso no lo decide un agente por su cuenta.
+        if (!(await isHermesDestructiveAllowed())) {
+          toolError(
+            'Marcar cobros como pagados está desactivado para el agente. Actívalo en Ajustes del club si ' +
+              'de verdad quieres que pueda hacerlo, o regístralo desde el CRM.',
+          )
+        }
         if (!found) toolError('Cobro no encontrado')
         const pending = Math.max(0, found.totalAmount - found.paidAmount)
         if (pending <= 0) toolError('Ya pagada')
@@ -130,7 +141,7 @@ export function registerInvoiceTools(server: McpServer) {
     async ({ invoiceId }) => {
       const invoice = await prisma.invoice.findUnique({
         where: { id: invoiceId },
-        select: { id: true, memberId: true, status: true },
+        select: { id: true, memberId: true, status: true, paidAmount: true, invoiceNumber: true },
       })
       return withHermesAudit(
         'crm_delete_invoice',
@@ -140,6 +151,17 @@ export function registerInvoiceTools(server: McpServer) {
             toolError('Operación destructiva deshabilitada (HERMES_ALLOW_DESTRUCTIVE=false)')
           }
           if (!invoice) toolError('Cobro no encontrado')
+          // La misma regla que la ruta del CRM, que aquí faltaba: anular una
+          // factura cobrada deja su ingreso y su asiento en el libro sin
+          // documento que los respalde, y la pantalla la sigue enseñando como
+          // «pago parcial» sumando a lo pendiente.
+          if (invoice.status === 'VOID') toolError('Esa factura ya está anulada.')
+          if (invoice.paidAmount > 0) {
+            toolError(
+              `La factura ${invoice.invoiceNumber} ya tiene cobros registrados: corrige primero el cobro ` +
+                'desde el CRM. Anularla dejaría ese ingreso en la contabilidad sin factura.',
+            )
+          }
           await prisma.invoice.update({
             where: { id: invoiceId },
             data: { status: 'VOID' },
