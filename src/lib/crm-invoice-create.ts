@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { postInvoiceAccrualSafe } from '@/lib/accounting/invoice-accrual'
 import { getTaxConfig } from '@/lib/tax-config'
 import { runInvoiceCreatedWorkflows } from '@/lib/workflow-engine'
 
@@ -156,6 +157,9 @@ export async function createMemberInvoice(memberId: string, input: InvoiceCreate
       dueDate: payload.dueDate,
       subtotal: payload.amount,
       taxAmount: payload.taxAmount,
+      // Guardada, no deducida por resta: hace falta para asentar el devengo y
+      // evita que cualquier descuadre se convierta en una «retención» fantasma.
+      withholdingAmount: payload.withholdingAmount,
       totalAmount: payload.totalAmount,
       paidAmount: 0,
       currency: 'EUR',
@@ -178,6 +182,11 @@ export async function createMemberInvoice(memberId: string, input: InvoiceCreate
   void runInvoiceCreatedWorkflows(invoice.id).catch((e) =>
     console.warn('[crm-invoices] workflow', e),
   )
+
+  // El asiento de emisión (devengo). Sin él la cuenta de Clientes solo se
+  // abonaba al cobrar y nunca se cargaba, así que el balance la dejaba en
+  // negativo y las cuotas no aparecían en el resultado del año.
+  await postInvoiceAccrualSafe(invoice.id)
 
   return invoice
 }

@@ -360,11 +360,18 @@ model DiscountCode {
 model Invoice {
   id                    String    @id @default(cuid())
   invoiceNumber         String    @unique
-  kind                  String    @default("MEMBERSHIP") // MEMBERSHIP, OTHER
+  kind                  String    @default("MEMBERSHIP") // MEMBERSHIP, OTHER, CREDIT_NOTE
+  /// Nota interna: por qué se anuló, o a qué factura rectifica. Queda en el
+  /// libro, que es donde tiene que quedar.
+  notes                 String?   @db.Text
   issueDate             DateTime  @default(now())
   dueDate               DateTime
   subtotal              Float
   taxAmount             Float     @default(0)
+  /// Retención practicada. Antes se deducía restando (subtotal + IVA − total),
+  /// y cualquier incoherencia se convertía en una «retención» que nadie había
+  /// aplicado. Además hace falta guardada para poder asentar el devengo.
+  withholdingAmount     Float     @default(0)
   totalAmount           Float
   paidAmount            Float     @default(0)
   currency              String    @default("EUR")

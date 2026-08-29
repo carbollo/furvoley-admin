@@ -160,5 +160,40 @@ export async function reverseJournalEntry(entryId: string, reason = 'Reversión'
     where: { id: entry.id },
     data: { status: 'REVERSED', reversalOfId: rev.id },
   })
+
+  // Un asiento manual nace junto a un movimiento de tesorería, y anular solo el
+  // asiento dejaba el movimiento vivo: el Libro volvía a cuadrar, pero el
+  // Sumario, los Informes y el CSV seguían contando ese dinero. El tesorero
+  // anulaba un gasto de 800 € y lo seguía viendo en «Gastos totales».
+  //
+  // Se compensa con un movimiento inverso en vez de borrar el original: un
+  // libro no se corrige borrando, y además borrarlo dejaría líneas del extracto
+  // conciliadas contra un movimiento que ya no existe.
+  if (entry.source === 'MANUAL' && entry.sourceId) {
+    const original = await prisma.transaction.findUnique({
+      where: { id: entry.sourceId },
+      select: { id: true, type: true, amount: true, description: true, date: true },
+    })
+    if (original) {
+      const yaCompensado = await prisma.transaction.findFirst({
+        where: { source: 'MANUAL_REVERSAL', description: { contains: original.id } },
+        select: { id: true },
+      })
+      if (!yaCompensado) {
+        await prisma.transaction.create({
+          data: {
+            type: original.type === 'INCOME' ? 'EXPENSE' : 'INCOME',
+            amount: original.amount,
+            // El id del original va en la descripción a propósito: es lo que
+            // permite no compensar dos veces si se revierte otra vez.
+            description: `REVERSIÓN: ${original.description} [${original.id}]`,
+            date: new Date(),
+            source: 'MANUAL_REVERSAL',
+          },
+        })
+      }
+    }
+  }
+
   return rev
 }

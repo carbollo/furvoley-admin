@@ -5,6 +5,7 @@
 // exponía cada función (cobros, planes, suscripciones, facturas) como endpoint RPC
 // invocable por cualquier cliente autenticado sin comprobación de rol.
 import { prisma } from '@/lib/prisma'
+import { postInvoiceAccrualSafe } from '@/lib/accounting/invoice-accrual'
 import { revalidatePath } from 'next/cache'
 import { createJournalEntry, ensureFiscalPeriod } from '@/lib/accounting/engine'
 import { ensureBasePgcAccounts } from '@/lib/accounting/pgc'
@@ -400,6 +401,10 @@ export async function createInvoiceForSubscription(
   }
   if (!invoice) throw lastErr
 
+  // El asiento de emisión, antes de los avisos: la contabilidad no depende de
+  // que el WhatsApp salga.
+  await postInvoiceAccrualSafe(invoice.id)
+
   if (invoiceStatus === 'OVERDUE') {
     await runInvoiceOverdueWorkflows(invoice.id)
   }
@@ -483,6 +488,7 @@ export async function createManualInvoice(data: {
     },
   }))
 
+  await postInvoiceAccrualSafe(invoice.id)
   await runInvoiceCreatedWorkflows(invoice.id)
   revalidatePath('/')
   return invoice

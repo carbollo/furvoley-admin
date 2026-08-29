@@ -86,3 +86,38 @@ La contabilidad también se alimenta automáticamente desde facturas y cobros (`
 - [[Resolución de tenant]]
 - [[Aislamiento entre clubes]]
 - [[Auditoría de seguridad]]
+
+## Criterio: DEVENGO (decidido en agosto de 2026)
+
+El apunte nace al **emitir** la factura, no al cobrarla:
+
+```
+Emisión   DEBE 4300000 Clientes (total)      HABER 7050000 base + 4770000 IVA
+          DEBE 4730000 retención (si la hay)
+Cobro     DEBE 5700000/5720000 tesorería     HABER 4300000 Clientes
+```
+
+Antes solo existía el segundo. Consecuencia: «Resultado del año: 0 €» habiendo facturado treinta mil, las cuotas fuera de la cuenta de resultados, y **Clientes con saldo negativo** en el balance porque solo se abonaba y jamás se cargaba.
+
+El asiento de emisión lo pone `src/lib/accounting/invoice-accrual.ts`, es **idempotente** (por `source: 'INVOICE_ISSUED'` + `sourceId`) y lo llaman los **tres** sitios que crean facturas. Si falla —periodo cerrado, por ejemplo— la factura se emite igual y el fallo se registra: un mes cerrado no puede impedirle facturar al club.
+
+`Invoice.withholdingAmount` es columna desde este cambio. Antes se deducía restando (`subtotal + IVA − total`), y cualquier descuadre se convertía en una «retención» que nadie había aplicado; además, sin guardarla no se podía asentar el devengo cuando la había.
+
+## Anular una factura
+
+Dos caminos, y el que toca depende de si el documento salió del club:
+
+- **Anulación simple** — solo si no tiene cobros. Marca `VOID` y revierte el asiento de emisión.
+- **Rectificativa** — emite una factura de abono con su propio número e importes en negativo, y su asiento invertido. La original **no se toca**, que es lo que exige Hacienda.
+
+`POST /api/crm/invoices/[id]/void` con `{ modo, motivo }`. El motivo es obligatorio y se guarda en `Invoice.notes`.
+
+Antes esto no existía y varios mensajes de error del propio CRM mandaban a hacerlo.
+
+## Anular un asiento manual
+
+`reverseJournalEntry` crea el contra-asiento **y** un movimiento de tesorería compensatorio cuando el asiento nació de uno manual. Sin eso, el Libro volvía a cuadrar pero el Sumario, los Informes y el CSV seguían contando el dinero: se anulaba un gasto de 800 € y se seguía viendo en «Gastos totales». Se compensa, no se borra: un libro no se corrige borrando, y además borrar el movimiento dejaría líneas del extracto conciliadas contra algo que ya no existe.
+
+## El recálculo contable no duplica
+
+`backfillLedgerFromTransactions` se salta movimiento a movimiento, por la **referencia** `TX:<id>` y por si su factura ya tiene asiento de cobro. La guarda anterior era «¿hay algún asiento de cobro o ajuste?», y un club que registra sus ingresos a mano no tenía ninguno: el recorrido volvía a pasar por todo y **duplicaba los gastos** en el libro.

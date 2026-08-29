@@ -95,7 +95,7 @@ export async function PATCH(
         {
           error:
             `La factura ${existing.invoiceNumber} tiene varias líneas (por ejemplo matrícula y cuota). ` +
-            'Cambiar el importe dejaría el desglose sin cuadrar: anúlala y emite otra.',
+            'Cambiar el importe dejaría el desglose sin cuadrar. Anúlala desde la propia factura y emite otra.',
         },
         { status: 409 },
       )
