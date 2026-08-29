@@ -37,6 +37,24 @@ export async function POST(request: Request, { params }: Params) {
     .filter((m) => m.role === 'PLAYER')
     .map((m) => m.memberId)
 
+  // Los socios que llegan en la petición tienen que ser DEL EQUIPO DEL EVENTO.
+  // La ruta comprobaba que el evento fuera del entrenador, pero no los socios:
+  // podía convocar a un jugador de otro equipo y al tutor le llegaba el WhatsApp
+  // de una convocatoria que no le correspondía. Se rechaza en vez de filtrarlo
+  // en silencio, para que el entrenador vea que ha pedido algo que no es suyo.
+  const permitidos = new Set(effectivePlayerIds)
+  if (body.memberIds !== undefined) {
+    if (!Array.isArray(body.memberIds)) {
+      return NextResponse.json({ error: 'La lista de convocados no es válida.' }, { status: 400 })
+    }
+    const ajeno = body.memberIds.find((id) => typeof id !== 'string' || !permitidos.has(id))
+    if (ajeno !== undefined) {
+      return NextResponse.json(
+        { error: 'Has incluido a alguien que no es de este equipo. Revisa la convocatoria.' },
+        { status: 400 },
+      )
+    }
+  }
   const memberIds = body.memberIds ?? effectivePlayerIds
 
   const audience = body.audience === 'NOT_CALLED' ? 'NOT_CALLED' : 'INVITED'

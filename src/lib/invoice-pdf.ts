@@ -288,6 +288,36 @@ function totalsBlock(
   return yy
 }
 
+/**
+ * Deja el texto en lo que las fuentes base del PDF saben dibujar.
+ *
+ * `StandardFonts.Helvetica` solo cubre WinAnsi: un apellido como «Nikolić» o un
+ * emoji en el concepto hacían lanzar a la librería, y el socio que pulsaba el
+ * enlace de su recibo se encontraba un error crudo. Se transliteran los
+ * acentos y se sustituye lo que quede fuera, que es preferible a no poder
+ * descargar la factura.
+ */
+export function winAnsiSeguro(texto: string): string {
+  return texto
+    .normalize('NFD')
+    // Acentos combinables: «ć» pasa a «c», «ș» a «s».
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[ĐđŁłŒœŠšŽžŸƒ]/g, (c) =>
+      ({ 'Đ': 'D', 'đ': 'd', 'Ł': 'L', 'ł': 'l', 'Œ': 'OE', 'œ': 'oe', 'Š': 'S', 'š': 's', 'Ž': 'Z', 'ž': 'z', 'Ÿ': 'Y', 'ƒ': 'f' })[c] || c,
+    )
+    .normalize('NFC')
+    // Puntuación tipográfica que sí aparece en un concepto normal y que, sin
+    // esto, salía como interrogantes en mitad de la factura.
+    .replace(/[\u2010-\u2015]/g, '-')
+    .replace(/[\u2018\u2019\u201a\u201b]/g, "'")
+    .replace(/[\u201c\u201d\u201e\u201f]/g, '\"')
+    .replace(/\u2026/g, '...')
+    .replace(/[\u00a0\u2007\u202f]/g, ' ')
+    // Lo que siga sin caber (emoji, alfabetos no latinos) se marca en vez de
+    // hacer estallar el documento entero.
+    .replace(/[^\u0000-\u00ff\u20ac]/g, '?')
+}
+
 async function layoutClassic(data: InvoicePdfInput, draft: FiscalDraft): Promise<Uint8Array> {
   const pdf = await PDFDocument.create()
   const page = pdf.addPage([595.28, 841.89])
@@ -631,7 +661,31 @@ async function layoutCompact(data: InvoicePdfInput, draft: FiscalDraft): Promise
   return pdf.save()
 }
 
-export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Array> {
+/**
+ * Recorre el objeto y deja todos sus textos en lo que la fuente sabe dibujar.
+ *
+ * Se hace UNA vez a la entrada y no en cada `drawText`: son sesenta y una
+ * llamadas, y bastaría olvidarse de una para que la factura de ese socio
+ * volviera a fallar.
+ */
+function sanearTextos<T>(valor: T): T {
+  if (typeof valor === 'string') return winAnsiSeguro(valor) as unknown as T
+  if (Array.isArray(valor)) return valor.map(sanearTextos) as unknown as T
+  if (valor && typeof valor === 'object' && !(valor instanceof Date)) {
+    const salida: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(valor as Record<string, unknown>)) {
+      salida[k] = sanearTextos(v)
+    }
+    return salida as T
+  }
+  return valor
+}
+
+export async function buildInvoicePdf(entrada: InvoicePdfInput): Promise<Uint8Array> {
+  // Un apellido como «Nikolić» o un emoji en el concepto hacían lanzar a la
+  // librería, y el socio que pulsaba el enlace de su recibo —el que le llegó
+  // por WhatsApp— se encontraba un error crudo, sin saber si tenía que pagar.
+  const input = sanearTextos(entrada)
   const draft = fiscalDraft(input.issuer)
   const tmpl = normalizeInvoicePdfTemplate(
     typeof input.template === 'string' ? input.template : '',

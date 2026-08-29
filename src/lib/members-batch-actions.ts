@@ -107,6 +107,19 @@ async function resetPortalAccess(memberId: string) {
     if (existing.role !== 'MEMBER' && existing.memberId !== member.id) {
       throw new Error('Email ya usado por otra cuenta')
     }
+    // NUNCA se degrada a alguien del personal del club.
+    //
+    // La tesorera suele tener su cuenta vinculada a su ficha de socia. Al
+    // seleccionar a todos los socios en Contactos y usar «Resetear acceso al
+    // portal» —que es para repartir accesos de familia— su cuenta pasaba a rol
+    // socio y con la contraseña por defecto: perdía el acceso a la contabilidad
+    // y su clave quedaba puesta a una que se conoce.
+    if (existing.role !== 'MEMBER') {
+      throw new Error(
+        `${existing.email} es una cuenta de personal del club (${existing.role}). ` +
+          'No se toca desde aquí: si esa persona necesita además acceso de familia, créale una cuenta aparte.',
+      )
+    }
     await tx.user.update({
       where: { id: existing.id },
       data: {

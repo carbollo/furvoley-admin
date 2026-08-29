@@ -144,8 +144,12 @@ export function serializeEvent(event: {
     status: event.status,
     date: event.date.toISOString(),
     endDate: event.endDate?.toISOString() ?? null,
-    location: event.location,
-    description: event.isPublic || sportType ? event.description : null,
+    // El lugar y la descripción solo si el club marcó el evento como público.
+    // Un entrenamiento interno se publicaba con su hora, su pabellón y sus
+    // notas: cualquiera podía saber dónde y cuándo encontrar al equipo de
+    // menores del club sin más que pedir la agenda.
+    location: event.isPublic ? event.location : null,
+    description: event.isPublic ? event.description : null,
     isPublic: event.isPublic,
     source: event.source,
     maxAttendees: event.isPublic ? event.maxAttendees : null,

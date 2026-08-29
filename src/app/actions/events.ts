@@ -29,6 +29,14 @@ async function assertEventWriter(groupId: string | null | undefined) {
   if (!user || !(role === 'ADMIN' || role === 'COACH')) {
     throw new Error('No autorizado')
   }
+  // Un evento SIN equipo es del club entero: eso es del ADMIN. Es el mismo hueco
+  // que tenía su gemelo `assertEventStaff`: la comprobación de equipo solo
+  // corría `if (groupId)`, así que un entrenador podía borrar la asamblea del
+  // club —y disparar el WhatsApp de «evento cancelado» a todo el mundo— con una
+  // sola llamada, sin que la pantalla se lo ofreciera siquiera.
+  if (role === 'COACH' && !groupId) {
+    throw new Error('Solo el administrador puede tocar los eventos del club')
+  }
   if (role === 'COACH' && groupId) {
     const owns = user.memberId
       ? await prisma.groupMembership.findFirst({
