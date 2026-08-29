@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { reservarDifusion } from '@/lib/workflow-broadcast-guard'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { createInvoicePaymentLink, createInvoiceForSubscription, createSubscription } from '@/app/actions/billing'
@@ -144,6 +145,13 @@ export async function runExtendedWorkflowAction(
       return true
     }
     const message = interpolate(messageTpl, member, runContext)
+    // Si este mismo mensaje ya se abanicó a este grupo en este disparo, no se
+    // repite: el flujo se ejecuta una vez por socio, pero el envío al equipo es
+    // uno solo.
+    if (!reservarDifusion(`TEAM:${groupId}:${message}`)) {
+      setStepApplied()
+      return true
+    }
     const sessionId = await resolveWorkflowWhatsAppSessionId(
       readString(step.config, 'waSessionId') || undefined,
     )

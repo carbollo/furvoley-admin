@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { conAmbitoDeDifusion } from '@/lib/workflow-broadcast-guard'
 import { prisma } from '@/lib/prisma'
 import { getClubIssuer } from '@/lib/club-settings'
 import { effectiveGroupMemberIds } from '@/lib/groups'
@@ -265,15 +266,22 @@ export async function runWaitlistSlotWorkflows() {
 }
 
 export async function runBulkMessageWorkflows(groupId: string, message: string) {
-  // Socios EFECTIVOS del grupo (directos + los de sus subgrupos, por contención).
-  const memberIds = await effectiveGroupMemberIds(groupId)
-  for (const memberId of memberIds) {
-    const m = await loadMemberPayload(memberId)
-    if (!m) continue
-    await runWorkflowsForTrigger('BULK_MESSAGE_REQUESTED', m, {
-      bulkMessage: message,
-      rosterTeamId: groupId,
-    })
-  }
+  // Un solo ámbito para toda la difusión: los pasos POR SOCIO siguen
+  // ejecutándose uno por cabeza, pero un paso colectivo («mandar a todo el
+  // equipo») abanica UNA vez. Sin esto eran veinte socios × veinte
+  // destinatarios: cuatrocientos mensajes y cada familia recibiendo el mismo
+  // texto veinte veces.
+  return conAmbitoDeDifusion(async () => {
+    // Socios EFECTIVOS del grupo (directos + los de sus subgrupos, por contención).
+    const memberIds = await effectiveGroupMemberIds(groupId)
+    for (const memberId of memberIds) {
+      const m = await loadMemberPayload(memberId)
+      if (!m) continue
+      await runWorkflowsForTrigger('BULK_MESSAGE_REQUESTED', m, {
+        bulkMessage: message,
+        rosterTeamId: groupId,
+      })
+    }
+  })
 }
 

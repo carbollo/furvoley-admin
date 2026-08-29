@@ -742,6 +742,21 @@ export async function runReminderJob() {
   let sent = 0
   let failed = 0
   let skipped = 0
+  // Se agrupa POR SOCIO, no por factura.
+  //
+  // Una familia con dos recibos del mismo vencimiento —la cuota del mes y la
+  // equipación, que es justo como se emiten— recibía dos WhatsApps casi
+  // idénticos con dos enlaces distintos. Y se repetía en los cuatro hitos: ocho
+  // mensajes por un mismo vencimiento. Los dos caminos manuales ya agrupaban;
+  // este era el único que no.
+  type Aviso = {
+    member: (typeof invoices)[number]['member']
+    recibos: { invoiceNumber: string; pending: number; dueDate: Date; currency: string }[]
+    /** La más antigua con saldo: es la que gobierna el hito y lleva el enlace. */
+    principal: (typeof invoices)[number]
+  }
+  const porSocioYHito = new Map<string, Aviso>()
+
   for (const invoice of invoices) {
     const diffDays = Math.floor((startOfDay(invoice.dueDate).getTime() - today.getTime()) / 86400000)
     let reminderType: string | null = null
@@ -749,29 +764,43 @@ export async function runReminderJob() {
     else if (diffDays === 2) reminderType = 'D_MINUS_2'
     else if (diffDays === -1) reminderType = 'D_PLUS_1'
     else if (diffDays === -7) reminderType = 'D_PLUS_7'
-
     if (!reminderType) continue
 
     // Una factura sin nada que cobrar no se reclama. Una beca o un descuento del
-    // 100 % deja recibos de 0,00 € en estado PENDIENTE para siempre, y a esa
-    // familia le llegaba un WhatsApp reclamándole cero euros cuatro veces por
-    // cada recibo, indefinidamente.
-    if (invoice.totalAmount - invoice.paidAmount <= 0.005) continue
+    // 100 % deja recibos de 0,00 € pendientes para siempre, y a esa familia le
+    // llegaba un WhatsApp reclamándole cero euros.
+    const pendiente = invoice.totalAmount - invoice.paidAmount
+    if (pendiente <= 0.005) continue
 
-    // Solo un envío CONSEGUIDO bloquea el reintento. Antes bastaba con que
-    // existiera cualquier registro, así que un aviso que nunca llegó a salir
-    // quedaba marcado y no se volvía a intentar jamás.
-    // Basta con no repetirlo HOY.
-    //
-    // Cada hito (7 días antes, 2 antes, 1 después, 7 después) cae en UN solo día
-    // natural para un vencimiento dado, así que «ya enviado hoy» impide el
-    // duplicado si el cron corre dos veces, y a la vez deja que el aviso vuelva
-    // a salir si el vencimiento se aplaza —que es justo lo que hay que hacer—.
-    // Antes bastaba con que existiera el registro de aquel envío para que la
-    // factura se quedara sin avisos para siempre tras un aplazamiento.
+    const clave = `${invoice.memberId}:${reminderType}`
+    const previo = porSocioYHito.get(clave)
+    const recibo = {
+      invoiceNumber: invoice.invoiceNumber,
+      pending: pendiente,
+      dueDate: invoice.dueDate,
+      currency: invoice.currency,
+    }
+    if (!previo) {
+      porSocioYHito.set(clave, { member: invoice.member, recibos: [recibo], principal: invoice })
+      continue
+    }
+    previo.recibos.push(recibo)
+    if (invoice.dueDate < previo.principal.dueDate) previo.principal = invoice
+  }
+
+  const clubName = (await getClubIssuer()).name || 'el club'
+
+  for (const [clave, aviso] of porSocioYHito) {
+    const reminderType = clave.split(':')[1]
+    const invoice = aviso.principal
+
+    // Basta con no repetirlo HOY: cada hito cae en un solo día natural para un
+    // vencimiento dado, así que esto impide el duplicado si el cron corre dos
+    // veces y a la vez deja que el aviso vuelva a salir si el vencimiento se
+    // aplaza. Antes, cualquier registro antiguo lo bloqueaba para siempre.
     const alreadySent = await prisma.reminderLog.findFirst({
       where: {
-        invoiceId: invoice.id,
+        memberId: aviso.member.id,
         reminderType,
         status: 'SENT',
         createdAt: { gte: today },
@@ -779,11 +808,10 @@ export async function runReminderJob() {
     })
     if (alreadySent) continue
 
-    const pendiente = invoice.totalAmount - invoice.paidAmount
     // El teléfono del socio, y si no lo tiene, el del tutor: la mayoría de los
-    // socios son menores sin móvil propio y sus avisos no salían de aquí.
-    const ownPhone = (invoice.member.phone || '').replace(/[^\d+]/g, '')
-    const guardianPhone = (invoice.member.guardianPhone || '').replace(/[^\d+]/g, '')
+    // socios son menores sin móvil propio.
+    const ownPhone = (aviso.member.phone || '').replace(/[^\d+]/g, '')
+    const guardianPhone = (aviso.member.guardianPhone || '').replace(/[^\d+]/g, '')
     const phone = ownPhone || guardianPhone
     const paraTutor = !ownPhone && Boolean(guardianPhone)
 
@@ -797,21 +825,15 @@ export async function runReminderJob() {
       console.warn(`[recordatorios] sin enlace de pago para ${invoice.invoiceNumber}`, e)
     }
 
-    // Mismo texto que el aviso manual: antes había dos redacciones distintas y
-    // ninguna se dirigía al tutor cuando el mensaje acababa en su móvil.
+    // El generador dice que el enlace cubre UN recibo cuando hay varios, para
+    // que la familia no pague uno y crea haber terminado.
     const message = buildReminderMessage({
       payUrl,
-      memberName: invoice.member.name,
-      clubName: (await getClubIssuer()).name || 'el club',
+      memberName: aviso.member.name,
+      clubName,
       toGuardian: paraTutor,
-      invoices: [
-        {
-          invoiceNumber: invoice.invoiceNumber,
-          pending: pendiente,
-          dueDate: invoice.dueDate,
-          currency: invoice.currency,
-        },
-      ],
+      invoices: aviso.recibos,
+      linkCoversInvoiceNumber: invoice.invoiceNumber,
     })
 
     // SKIPPED = no había por dónde enviarlo. Es distinto de enviado y distinto
@@ -830,8 +852,8 @@ export async function runReminderJob() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            memberEmail: invoice.member.email,
-            memberName: invoice.member.name,
+            memberEmail: aviso.member.email,
+            memberName: aviso.member.name,
             message,
           }),
         })
@@ -849,7 +871,7 @@ export async function runReminderJob() {
         channel,
         status,
         message,
-        memberId: invoice.memberId,
+        memberId: aviso.member.id,
         invoiceId: invoice.id,
       },
     })
@@ -857,6 +879,7 @@ export async function runReminderJob() {
     else if (status === 'FAILED') failed++
     else skipped++
   }
+
   return { sent, failed, skipped }
 }
 
