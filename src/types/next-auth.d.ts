@@ -12,6 +12,8 @@ declare module "next-auth" {
       tenant?: string | null
       /** Sesión abierta por el proveedor del CRM con la identidad de un admin del club. */
       impersonated?: boolean
+      /** Cuándo se autenticó, en milisegundos. Se compara con el corte de sesiones. */
+      authTime?: number
     } & DefaultSession["user"]
   }
 
@@ -32,5 +34,6 @@ declare module "next-auth/jwt" {
     /** Club (slug) al que se emitió el token; se compara con el tenant activo. */
     tenant?: string | null
     impersonated?: boolean
+    authTime?: number
   }
 }

@@ -42,6 +42,13 @@ export async function PATCH(
     return NextResponse.json({ error: 'No hay cambios para guardar' }, { status: 400 })
   }
 
+  // Cambiarle el rol o la contraseña a alguien tiene que expulsar sus sesiones
+  // abiertas. Si no, quitarle los permisos al tesorero que se va no surtía
+  // efecto hasta un mes después: seguía entrando con los de antes.
+  if (data.role !== undefined || data.password !== undefined) {
+    data.sessionsInvalidBefore = new Date()
+  }
+
   try {
     await prisma.user.update({
       where: { id: parsedId },

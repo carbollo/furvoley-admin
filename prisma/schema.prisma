@@ -37,16 +37,21 @@ model Session {
 }
 
 model User {
-  id                 String    @id @default(cuid())
-  name               String?
-  email              String?   @unique
-  emailVerified      DateTime?
-  image              String?
-  password           String?
-  mustChangePassword Boolean   @default(false) // Si true, fuerza al usuario a cambiar la contraseña en el próximo login
-  role               String    @default("MEMBER") // ADMIN, COACH, TREASURER, MEMBER (PLAYER legacy)
-  accounts           Account[]
-  sessions           Session[]
+  id                    String    @id @default(cuid())
+  name                  String?
+  email                 String?   @unique
+  emailVerified         DateTime?
+  image                 String?
+  password              String?
+  mustChangePassword    Boolean   @default(false) // Si true, fuerza al usuario a cambiar la contraseña en el próximo login
+  /// Corte de sesiones: cualquier sesión emitida ANTES de este instante deja
+  /// de valer. Se avanza al cambiar la contraseña, al cambiar el rol y al
+  /// desactivar. Sin esto, las sesiones duran 30 días y quitarle el acceso a
+  /// alguien no lo echaba: seguía dentro casi un mes.
+  sessionsInvalidBefore DateTime?
+  role                  String    @default("MEMBER") // ADMIN, COACH, TREASURER, MEMBER (PLAYER legacy)
+  accounts              Account[]
+  sessions              Session[]
 
   // Link to the club member profile
   memberId  String?    @unique

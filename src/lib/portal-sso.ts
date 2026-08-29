@@ -268,6 +268,7 @@ export async function buildPortalSessionCookie(payload: PortalSsoPayload) {
       // Liga la cookie de sesión al club (anti reuso cross-tenant en requireRoles).
       tenant: payload.tenant ?? null,
       impersonated: payload.imp === true,
+      authTime: Date.now(),
     },
     secret,
     maxAge,

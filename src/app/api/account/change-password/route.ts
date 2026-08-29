@@ -106,6 +106,10 @@ export async function POST(request: Request) {
     data: {
       password: hashed,
       mustChangePassword: false,
+      // Cambiar la contraseña es el gesto de «me han robado el portátil»: tiene
+      // que echar de todas partes. Sin este corte, la sesión abierta en el
+      // portátil robado seguía valiendo 30 días.
+      sessionsInvalidBefore: new Date(),
     },
   })
 

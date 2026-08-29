@@ -147,6 +147,10 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.role = normalizeRole(user.role)
         token.id = user.id
+        // Cuándo se autenticó. Es lo que se compara con el corte de sesiones:
+        // sin esta marca no hay forma de saber si una sesión es anterior a un
+        // cambio de contraseña o a una retirada de permisos.
+        token.authTime = Date.now()
         token.memberId = user.memberId ?? null
         token.mustChangePassword = (user as { mustChangePassword?: boolean }).mustChangePassword === true
         token.tenant = (user as { tenant?: string | null }).tenant ?? null
@@ -176,6 +180,7 @@ export const authOptions: NextAuthOptions = {
           mustChangePassword?: boolean
           tenant?: string | null
           impersonated?: boolean
+          authTime?: number
         }
         u.role = normalizeRole(token.role)
         u.id = token.id as string
@@ -183,6 +188,7 @@ export const authOptions: NextAuthOptions = {
         u.mustChangePassword = token.mustChangePassword === true
         u.tenant = (token.tenant as string | null | undefined) ?? null
         u.impersonated = token.impersonated === true
+        u.authTime = typeof token.authTime === 'number' ? token.authTime : 0
         // SEGURIDAD cross-tenant: si la sesión no pertenece al club activo (p.ej. un
         // token de otro club reenviado a este host), se invalida el usuario para que
         // TODA ruta que use getServerSession la trate como no autenticada. Es el

@@ -1,7 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import { currentTenant } from '@/lib/multitenant/context'
 
-type TenantBoundUser = { id?: string; tenant?: string | null } | null | undefined
+type TenantBoundUser =
+  | { id?: string; tenant?: string | null; authTime?: number }
+  | null
+  | undefined
 
 /**
  * SEGURIDAD cross-tenant: ¿esta sesión pertenece al club (tenant) ACTIVO?
@@ -26,11 +29,31 @@ export async function sessionMatchesActiveTenant(user: TenantBoundUser): Promise
   if (!activeSlug) return true
   if (!user) return false
   const claim = (user.tenant ?? null) as string | null
-  if (claim) return claim === activeSlug
+  if (claim && claim !== activeSlug) return false
   if (!user.id) return false
+
+  // Y además: ¿sigue viva esta sesión?
+  //
+  // Las sesiones son JWT y duran 30 días. Sin este corte, cambiar la contraseña
+  // —el gesto de «me han robado el portátil»— no echaba a nadie, y quitarle el
+  // rol a alguien o desactivarlo tampoco: seguía dentro casi un mes con los
+  // permisos viejos. Ahora toda acción de contención avanza
+  // `sessionsInvalidBefore` y cualquier sesión anterior deja de valer aquí, que
+  // es el punto por el que pasan TODAS (incluidas las rutas que se autentican
+  // por su cuenta).
   try {
-    const found = await prisma.user.findUnique({ where: { id: String(user.id) }, select: { id: true } })
-    return Boolean(found)
+    const found = await prisma.user.findUnique({
+      where: { id: String(user.id) },
+      select: { id: true, sessionsInvalidBefore: true },
+    })
+    if (!found) return false
+    const corte = found.sessionsInvalidBefore
+    if (corte) {
+      const emitida = Number(user.authTime || 0)
+      // Sin marca de emisión, la sesión es anterior a este cambio: se corta.
+      if (!emitida || emitida < corte.getTime()) return false
+    }
+    return true
   } catch {
     return false
   }
