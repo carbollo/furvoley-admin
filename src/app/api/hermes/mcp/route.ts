@@ -5,8 +5,6 @@ import { checkHermesMcpRateLimit } from '@/lib/hermes-mcp/rate-limit'
 import { handleHermesMcpRequest } from '@/lib/hermes-mcp/session-store'
 import { withTenant } from '@/lib/multitenant/context'
 import { isMultiTenant, sanitizeSlug, tenantDbUrl } from '@/lib/multitenant/registry'
-import { currentTenant } from '@/lib/multitenant/context'
-import { enterTenantFromRequest } from '@/lib/multitenant/request'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,44 +14,46 @@ export const dynamic = 'force-dynamic'
  *
  * Aquí hay que resolver el club ANTES de nada, y esa es la diferencia con el
  * resto de rutas. Las demás llegan por el subdominio del club y `requireRoles`
- * activa la base de datos por el camino; esta la llama el gateway de WhatsApp
+ * activa la base de datos por el camino; a esta la llama el gateway de WhatsApp
  * por `127.0.0.1`, donde no hay subdominio del que deducir nada.
  *
  * Mientras no se resolvía, la ruta estaba MUERTA en multi-tenant: la primera
  * consulta —la que comprueba si Hermes está activado, antes incluso de validar
- * la clave— se ejecutaba sin club y reventaba. Ni siquiera daba un error
- * legible: daba «operación de BD sin tenant en contexto».
+ * la clave— se ejecutaba sin club y reventaba con «operación de BD sin tenant en
+ * contexto».
  *
- * Ahora el club llega por el subdominio si lo hay, y si no por la cabecera
- * `x-hermes-club` que pone el gateway. Que esa cabecera la controle quien llama
- * no abre nada: solo elige CONTRA QUÉ CLUB se comprueba la clave, y la clave
- * sigue siendo la de ese club.
+ * Dos detalles que costaron un despliegue:
+ *
+ * 1. Se usa `withTenant` (que por dentro es `als.run`) y NO `enterTenantFromRequest`
+ *    (que usa `enterWith`). `enterWith` no sobrevive a un `await`, así que el
+ *    contexto se perdía entre activar el club y ejecutar la herramienta. Es la
+ *    trampa que el propio cerebro del proyecto tiene documentada.
+ * 2. El slug se lee de `x-tenant-slug` —que pone el middleware a partir del
+ *    host, nunca el cliente— o de `x-hermes-club`, que es como llega desde
+ *    127.0.0.1. Que esa segunda cabecera la ponga quien llama no abre nada:
+ *    solo elige CONTRA QUÉ CLUB se comprueba la clave, y la clave sigue siendo
+ *    la de ese club.
  */
-async function conClub<T>(
-  request: Request,
-  fn: () => Promise<T>,
-): Promise<T | NextResponse> {
-  if (!isMultiTenant()) return fn()
-
-  // 1) Por subdominio, que es como llega si el gateway usa la URL pública.
-  await enterTenantFromRequest(request)
-  const porHost = currentTenant()?.slug
-  if (porHost) return fn()
-
-  // 2) Por cabecera, que es como llega desde 127.0.0.1.
-  const slug = sanitizeSlug(request.headers.get('x-hermes-club'))
+function clubDeLaPeticion(request: Request): { slug: string; dbUrl: string } | null {
+  const slug =
+    sanitizeSlug(request.headers.get('x-tenant-slug')) ||
+    sanitizeSlug(request.headers.get('x-hermes-club'))
   const dbUrl = slug ? tenantDbUrl(slug) : null
-  if (!slug || !dbUrl) {
-    // Mismo 401 que una clave inválida, a propósito: si un club inexistente
-    // diera un error distinto, se podría averiguar qué clubes existen probando.
-    console.warn('[hermes-mcp] petición sin club resoluble')
-    return NextResponse.json({ error: 'API key MCP inválida' }, { status: 401 })
-  }
-  return withTenant({ slug, dbUrl }, fn)
+  return slug && dbUrl ? { slug, dbUrl } : null
 }
 
 async function guard(request: Request) {
-  const auth = await verifyHermesMcpAuth(request)
+  let auth
+  try {
+    auth = await verifyHermesMcpAuth(request)
+  } catch (e) {
+    // Comprobar la clave es lo primero que toca la base de datos del club. Si
+    // eso falla, el club no existe o no se puede alcanzar: se responde igual
+    // que ante una clave mala, para que no se pueda averiguar qué clubes hay
+    // probando nombres. El motivo queda en el log del servidor.
+    console.warn('[hermes-mcp] no se pudo comprobar la clave', e instanceof Error ? e.name : 'error')
+    return NextResponse.json({ error: 'API key MCP inválida' }, { status: 401 })
+  }
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: auth.status })
   }
@@ -67,16 +67,30 @@ async function guard(request: Request) {
   return null
 }
 
+/** Resuelve el club, fija quién pide la acción, y ejecuta. */
+function enContexto<T>(request: Request, fn: () => Promise<T>): Promise<T | NextResponse> {
+  const conActor = () => withHermesActor(hermesActorFromRequest(request), fn)
+
+  if (!isMultiTenant()) return conActor()
+
+  const club = clubDeLaPeticion(request)
+  if (!club) {
+    console.warn('[hermes-mcp] petición sin club resoluble')
+    return Promise.resolve(NextResponse.json({ error: 'API key MCP inválida' }, { status: 401 }))
+  }
+  return withTenant(club, conActor)
+}
+
 export async function GET(request: Request) {
-  return conClub(request, () => withHermesActor(hermesActorFromRequest(request), async () => {
+  return enContexto(request, async () => {
     const denied = await guard(request)
     if (denied) return denied
     return handleHermesMcpRequest(request)
-  }))
+  })
 }
 
 export async function POST(request: Request) {
-  return conClub(request, () => withHermesActor(hermesActorFromRequest(request), async () => {
+  return enContexto(request, async () => {
     const denied = await guard(request)
     if (denied) return denied
     let parsedBody: unknown
@@ -86,13 +100,13 @@ export async function POST(request: Request) {
       parsedBody = undefined
     }
     return handleHermesMcpRequest(request, parsedBody)
-  }))
+  })
 }
 
 export async function DELETE(request: Request) {
-  return conClub(request, () => withHermesActor(hermesActorFromRequest(request), async () => {
+  return enContexto(request, async () => {
     const denied = await guard(request)
     if (denied) return denied
     return handleHermesMcpRequest(request)
-  }))
+  })
 }
