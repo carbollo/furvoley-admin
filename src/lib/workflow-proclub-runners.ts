@@ -92,6 +92,15 @@ async function runWorkflowsForTrigger(
   triggerType: WorkflowTriggerType,
   member: WorkflowMemberPayload,
   context: Record<string, unknown> = {},
+  /**
+   * Para qué mitad de la convocatoria es esta ejecución.
+   *
+   * El aviso «estás convocado» y el «no estás convocado» escuchan el MISMO
+   * disparador y solo se distinguen por este campo de su configuración. Al no
+   * filtrarlo aquí, cada socio recibía los dos: al tutor de un chaval convocado
+   * le llegaba también el mensaje de que no lo estaba.
+   */
+  audiencia?: 'INVITED' | 'NOT_CALLED',
 ) {
   const workflows = (await prisma.workflow.findMany({
     where: { isActive: true },
@@ -99,6 +108,13 @@ async function runWorkflowsForTrigger(
   })).filter((w) => workflowMatchesTrigger(w, triggerType))
 
   for (const wf of workflows) {
+    if (audiencia) {
+      const cfg = (wf.triggerConfig ?? {}) as { audience?: unknown }
+      // Sin audiencia declarada se entiende «a los convocados», que es lo que
+      // hace el flujo de convocatoria de toda la vida.
+      const suya = String(cfg.audience || 'INVITED').toUpperCase()
+      if (suya !== audiencia) continue
+    }
     await runWorkflowStepsForMember(wf.steps, member, triggerType, context)
   }
 }
@@ -225,7 +241,7 @@ export async function runConvocationPublishedWorkflows(eventId: string, audience
         date: event.date,
       },
       eventLocation: event.location || '',
-    })
+    }, audience)
   }
 }
 

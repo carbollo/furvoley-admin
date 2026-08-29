@@ -11,7 +11,12 @@ export const WD1_WORKFLOW = {
     catalogId: WD1_CATALOG_ID,
     eventKinds: ['MEMBER_CREATED', 'TEAM_ROSTER_CONFIRMED'],
   },
-  isActive: true,
+  // Nace APAGADO, como su hermano WD-3. Sus pasos vienen con los huecos vacíos
+  // (grupo, edad mínima y máxima sin rellenar), así que el paso de asignar
+  // equipo nunca asignaba nada y el WhatsApp salía igual, con los huecos a la
+  // vista, a cada alta de socio. El admin abría la pestaña Flujos por primera
+  // vez y con eso ya estaba mandando mensajes a los tutores.
+  isActive: false,
   steps: [
     {
       position: 0,

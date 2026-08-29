@@ -28,7 +28,16 @@ function wd2Entry(): ProclubCatalogEntry {
 export const SPORT_PROCLUB_WORKFLOWS: ProclubCatalogEntry[] = [
   wd1Entry(),
   wd2Entry(),
-  defineProclubWorkflow('WD-3', {
+  // OJO: este era 'WD-3' y chocaba con el flujo de cobro al alta, que usa ese
+  // mismo identificador (src/lib/default-workflows/wd-3.ts). Instalar el
+  // catálogo deportivo encontraba aquel por su identificador, le borraba los
+  // pasos y lo reescribía como este: el club se quedaba sin enviar el enlace de
+  // pago al dar de alta a nadie, y sin ninguna señal de que hubiera pasado.
+  //
+  // Se renumera ESTE, no el de cobro: bajar el de cobro a otro identificador
+  // haría que los clubes que hoy tienen uno sano se crearan un SEGUNDO flujo de
+  // cobro, y el socio recibiría dos mensajes.
+  defineProclubWorkflow('WD-3S', {
     area: 'sport',
     automation: 'auto',
     phase: 1,

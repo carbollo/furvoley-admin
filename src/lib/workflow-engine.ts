@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { clubTimeZone, formatEventInstant } from '@/lib/event-time'
 import { sendApiWassText } from '@/lib/apiwass'
 import { getWhatsAppConfig } from '@/lib/whatsapp-config'
 import { buildInvoiceVariables, runExtendedWorkflowAction } from '@/lib/workflow-engine-more'
@@ -258,6 +259,16 @@ function defaultWorkflowVariables() {
     eventTitle: '',
     groupId: '',
     rosterTeamId: '',
+    // Plantillas del catálogo que nombran variables que el motor no rellena.
+    // Sin declararlas, `interpolate` devolvía el token TAL CUAL y al tutor le
+    // llegaba «te sustituye {substituteCoachName}» con las llaves puestas.
+    substituteCoachName: '',
+    substituteCoachPhone: '',
+    creditAmount: '',
+    trialDate: '',
+    evaluationSummary: '',
+    incidentTitle: '',
+    incidentResolution: '',
   } satisfies Record<string, string>
 }
 
@@ -265,6 +276,8 @@ function buildTriggerVariables(
   triggerType: WorkflowTriggerType,
   member: WorkflowMemberPayload,
   context: WorkflowTriggerContext,
+  /** Zona del club: las horas que se le mandan a una familia van en la suya. */
+  zonaClub: string,
 ) {
   const payment = context.payment
   const memberAge = member.birthDate ? String(calculateAge(member.birthDate)) : ''
@@ -298,12 +311,10 @@ function buildTriggerVariables(
     ...buildMemberExtraVariables(member.registrationExtra),
     eventId: String(context.event?.id || ''),
     eventTitle: String(context.event?.title || ''),
-    eventDate: context.event?.date
-      ? new Date(context.event.date).toLocaleString('es-ES', {
-          dateStyle: 'short',
-          timeStyle: 'short',
-        })
-      : '',
+    // En la zona del CLUB, no en la del servidor. El servidor corre en UTC, así
+    // que un partido de las 19:30 en Madrid se anunciaba como las 17:30 y la
+    // familia se presentaba dos horas antes.
+    eventDate: context.event?.date ? formatEventInstant(new Date(context.event.date), zonaClub) : '',
     eventLocation: String(context.eventLocation || ''),
     groupId: String(
       context.event?.groupId || context.scheduleTeamId || context.rosterTeamId || '',
@@ -1024,10 +1035,13 @@ export async function runWorkflowStepsForMember(
   triggerContext: WorkflowTriggerContext,
   options?: { onStepComplete?: (report: WorkflowStepRunReport) => void },
 ) {
+  // La zona del club, para que las horas que se le mandan a una familia sean
+  // las suyas y no las del servidor.
+  const zonaClub = await clubTimeZone()
   const runContext: WorkflowRunContext = {
     variables: {
       ...defaultWorkflowVariables(),
-      ...buildTriggerVariables(triggerType, member, triggerContext),
+      ...buildTriggerVariables(triggerType, member, triggerContext, zonaClub),
     },
     teamNameCache: new Map<string, string>(),
   }

@@ -32,7 +32,12 @@ async function upsertWorkflow(wf: ImportableWorkflow): Promise<{ id: string; cre
         description: wf.description,
         triggerType: wf.triggerType,
         triggerConfig: (wf.triggerConfig ?? undefined) as object | undefined,
-        isActive: wf.isActive,
+        // `isActive` NO se toca al reinstalar. Encender o apagar un flujo es
+        // decisión del club: un admin que había apagado el aviso que bombardeaba
+        // a los tutores se lo encontraba encendido otra vez por pulsar
+        // «instalar», y los mensajes volvían a salir sin que nadie lo pidiera.
+        // Lo demás sí se actualiza, para que las correcciones del catálogo
+        // lleguen a quien ya lo instaló.
       },
     })
     await prisma.workflowStep.createMany({

@@ -86,11 +86,25 @@ export async function deleteEventInternal(id: string) {
 }
 
 export async function updateAttendanceInternal(id: string, status: string, reason?: string) {
+  // El estado ANTERIOR, para disparar solo en la transición.
+  //
+  // El enlace que se le manda al tutor es multiuso durante horas: cada vez que
+  // volvía a abrirlo y tocaba «no asiste», se disparaba otra vez el aviso de
+  // falta injustificada. Es decir, el propio formulario de confirmación
+  // generaba el reproche, y lo repetía en cada toque.
+  const previo = await prisma.attendance.findUnique({
+    where: { id },
+    select: { status: true, reason: true },
+  })
   const attendance = await prisma.attendance.update({
     where: { id },
     data: { status, reason },
   })
-  if (status === 'ABSENT' && !String(reason || '').trim()) {
+  const pasaAFaltaInjustificada =
+    status === 'ABSENT' &&
+    !String(reason || '').trim() &&
+    !(previo?.status === 'ABSENT' && !String(previo?.reason || '').trim())
+  if (pasaAFaltaInjustificada) {
     await runAttendanceAbsentUnexcusedWorkflows(attendance.id)
   }
   revalidatePath(`/calendar/${attendance.eventId}`)

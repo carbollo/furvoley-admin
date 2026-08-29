@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { clubTimeZone, formatEventTime } from '@/lib/event-time'
 import { prisma } from '@/lib/prisma'
 import { getTaxConfig } from '@/lib/tax-config'
 import { requireRoles } from '@/lib/rbac-api'
@@ -328,11 +329,15 @@ export async function GET(request: Request) {
     esTelefonoTutor: !inv.member.phone?.trim() && Boolean(inv.member.guardianPhone?.trim()),
   }))
 
+  // Las horas se pintan en la zona del club, no en la del servidor (que es UTC).
+  const zonaClub = await clubTimeZone()
   const eventos = eventsRaw.map((e) => ({
     id: e.id,
     titulo: e.title,
     fecha: e.date.toISOString().slice(0, 10),
-    hora: `${String(e.date.getHours()).padStart(2, '0')}:${String(e.date.getMinutes()).padStart(2, '0')}`,
+    // `getHours()` es la hora del SERVIDOR, que corre en UTC: el entrenamiento
+    // de las 19:30 se enseñaba como las 17:30 en todo el CRM.
+    hora: formatEventTime(e.date, zonaClub),
     // Instante completo (UTC) para reconstruir el datetime en la ZONA DEL CLIENTE al
     // editar, evitando el desfase de mezclar fecha-UTC con hora-del-servidor.
     dateIso: e.date.toISOString(),

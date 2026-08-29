@@ -1092,6 +1092,11 @@ model ClubSettings {
   /// El tesorero puede lanzar transferencias del saldo al banco. El ADMIN puede
   /// revocárselo. Se comprueba en el SERVIDOR, no solo ocultando el botón: si
   /// solo se ocultara, seguiría bastando una llamada desde la consola.
+  /// Zona horaria del club. Las fechas se guardan como instantes (UTC) y hay
+  /// que formatearlas SIEMPRE con esta zona: sin ella, un partido de las 19:30
+  /// en Madrid se le anunciaba al tutor como las 17:30 y la familia se
+  /// presentaba dos horas antes.
+  timezone               String    @default("Europe/Madrid")
   treasurerCanTransfer   Boolean   @default(true)
   /// Tope de gasto que se aplica a una tarjeta nueva cuando el ADMIN no indica
   /// otro, y cada cuánto. En dólares, que es la divisa en la que liquida la

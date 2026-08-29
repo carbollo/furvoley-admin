@@ -128,10 +128,16 @@ export async function runExtendedWorkflowAction(
   }
 
   if (step.actionType === 'SEND_WHATSAPP_TO_TEAM') {
+    // `assignedTeamId` y `teamAssignedId` solo se rellenan en contexto de
+    // plantilla, no de evento. Sin el equipo DEL EVENTO al final de la cadena,
+    // el aviso de «se cancela el entrenamiento» salía por «groupId vacío» y no
+    // le llegaba a nadie, nunca, sin más señal que una línea de error.
     const groupId =
       readString(step.config, 'groupId') ||
       runContext.variables.assignedTeamId ||
-      runContext.variables.teamAssignedId
+      runContext.variables.teamAssignedId ||
+      runContext.variables.groupId ||
+      runContext.variables.scheduleTeamId
     const messageTpl = readString(step.config, 'waMessage') || ''
     if (!groupId || !messageTpl.trim()) {
       setStepError('groupId o mensaje vacío')
@@ -171,7 +177,9 @@ export async function runExtendedWorkflowAction(
       readString(step.config, 'groupId') ||
       runContext.variables.rosterTeamId ||
       runContext.variables.assignedTeamId ||
-      runContext.variables.teamAssignedId
+      runContext.variables.teamAssignedId ||
+      runContext.variables.groupId ||
+      runContext.variables.scheduleTeamId
     const messageTpl = readString(step.config, 'waMessage') || ''
     if (!groupId || !messageTpl.trim()) {
       setStepError('groupId o mensaje vacío')
