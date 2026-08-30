@@ -232,6 +232,10 @@ export async function issueMobileAccessToken(payload: PortalSsoPayload) {
       mustChangePassword: payload.mustChangePassword,
       // Liga el token al club (anti reuso cross-tenant en requireRoles).
       tenant: payload.tenant ?? null,
+      // Cuándo se autenticó. Sin esta marca el corte de sesiones lee 0 y da por
+      // caducado el token en cuanto alguien cambia una contraseña: la app móvil
+      // se quedaba en 401 para siempre, incluso volviendo a iniciar sesión.
+      authTime: Date.now(),
     },
     secret,
     maxAge: MOBILE_ACCESS_TOKEN_MAX_AGE,

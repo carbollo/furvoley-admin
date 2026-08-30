@@ -50,6 +50,10 @@ export async function getSessionFromRequest(request?: Request): Promise<Session 
             memberId: (payload.memberId as string | null | undefined) ?? null,
             mustChangePassword: payload.mustChangePassword === true,
             tenant: (payload.tenant as string | null | undefined) ?? null,
+            // La marca de emisión tiene que sobrevivir al desempaquetado: si se
+            // pierde aquí, el corte de sesiones la lee como 0 y corta el acceso
+            // móvil de forma permanente.
+            authTime: typeof payload.authTime === 'number' ? payload.authTime : 0,
           },
           expires: payload.exp
             ? new Date(Number(payload.exp) * 1000).toISOString()
