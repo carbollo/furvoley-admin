@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { currentTenant } from '@/lib/multitenant/context'
 import { prisma } from '@/lib/prisma'
 import { whopRequest, WhopError } from '@/lib/whop/client'
 import { getWhopClubConfig, getWhopClubCredential } from '@/lib/whop/club-config'
@@ -67,6 +68,12 @@ type Ctx = { companyId: string; credential: { apiKey: string } }
 async function ctx(): Promise<{ ok: true; ctx: Ctx } | { ok: false; error: string }> {
   const config = await getWhopClubConfig()
   if (!config.hasCompany) {
+    // Si esta línea sale con la clave guardada en la base de datos, lo que falta
+    // no es la pasarela: es el club activo en el contexto de la petición.
+    console.error('[whop/payouts] sin cuenta conectada', {
+      club: currentTenant()?.slug ?? 'un-solo-club',
+      onboarding: config.onboardingStatus,
+    })
     return { ok: false, error: 'La pasarela de cobro no está conectada. Configúrala en Ajustes del club.' }
   }
   const credential = await getWhopClubCredential()

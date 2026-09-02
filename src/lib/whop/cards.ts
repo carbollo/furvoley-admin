@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { currentTenant } from '@/lib/multitenant/context'
 import { cache } from 'react'
 import { whopRequest, WhopError } from '@/lib/whop/client'
 import { getWhopClubConfig, getWhopClubCredential } from '@/lib/whop/club-config'
@@ -76,6 +77,10 @@ type Ctx = { companyId: string; credential: { apiKey: string } }
 const ctx = cache(async function ctx(): Promise<{ ok: true; ctx: Ctx } | { ok: false; error: string }> {
   const config = await getWhopClubConfig()
   if (!config.hasCompany) {
+    console.error('[whop/cards] sin cuenta conectada', {
+      club: currentTenant()?.slug ?? 'un-solo-club',
+      onboarding: config.onboardingStatus,
+    })
     return { ok: false, error: 'La pasarela de cobro no está conectada. Configúrala en Ajustes del club.' }
   }
   const credential = await getWhopClubCredential()
@@ -196,7 +201,15 @@ function mapCard(raw: Record<string, unknown>): ClubCard {
  */
 export async function checkCardScopes(): Promise<{ action: string; label: string; granted: boolean }[]> {
   const c = await ctx()
-  if (!c.ok) return WHOP_CARD_SCOPES.map((s) => ({ ...s, granted: false }))
+  // Sin contexto no se ha llegado a preguntar nada, así que no se puede
+  // afirmar que falten permisos: hacerlo culpaba a la clave del club de un
+  // fallo nuestro, y le pedía generar otra que no habría arreglado nada.
+  if (!c.ok) {
+    console.error('[whop/cards] checkCardScopes sin contexto', {
+      club: currentTenant()?.slug ?? 'un-solo-club',
+    })
+    return WHOP_CARD_SCOPES.map((s) => ({ ...s, granted: true }))
+  }
   try {
     const res = await whopRequest<{ data?: { action?: unknown; granted?: unknown }[] }>({
       path: '/permissions',

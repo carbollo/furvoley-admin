@@ -1,4 +1,5 @@
-import { whopRequest, WhopError, referralUrl, type WhopCredential } from '@/lib/whop/client'
+import { whopRequest, WhopError, referralUrl, whopVersionDate, type WhopCredential } from '@/lib/whop/client'
+import { createHash } from 'node:crypto'
 
 /**
  * Conexión de la cuenta Whop de un club: validar la API key que pega el admin,
@@ -207,13 +208,16 @@ export async function validateApiKey(apiKey: string): Promise<ValidateResult> {
   return { ok: true, companies }
 }
 
-/** Eventos que el CRM necesita para mantener la facturación al día. */
-const WEBHOOK_EVENTS = [
-  'payment.succeeded',
-  'payment.failed',
-  'membership.went_invalid',
-  'membership.deactivated',
-]
+/**
+ * Eventos que el CRM necesita para mantener la facturación al día.
+ *
+ * `membership.went_invalid` se puede pedir —está en el enum de creación— pero
+ * NO está en el catálogo de lo que la pasarela entrega de verdad: es un alias
+ * heredado. Su equivalente vivo es `membership.deactivated`, que ya se pide, y
+ * el receptor sigue atendiendo el nombre viejo por si quedara algún aviso
+ * antiguo dado de alta.
+ */
+const WEBHOOK_EVENTS = ['payment.succeeded', 'payment.failed', 'membership.deactivated']
 
 type WebhookResponse = { id?: unknown; webhook_secret?: unknown }
 
@@ -236,7 +240,12 @@ export async function registerClubWebhook(
       method: 'POST',
       path: '/webhooks',
       credential,
-      idempotencyKey: `crm:webhook:${companyId}:${webhookUrl}`,
+      // La clave depende del CUERPO, no solo de la cuenta y la URL. Antes no:
+      // como la pasarela repite durante 24 h la respuesta de una clave ya
+      // usada —incluidos los errores—, un fallo dejaba el alta condenada a
+      // repetir el mismo fallo todo el día por mucho que arregláramos lo que
+      // pedimos. Sigue protegiendo del doble clic: misma petición, misma clave.
+      idempotencyKey: `crm:webhook:${companyId}:${huellaWebhook(webhookUrl)}`,
       body: {
         url: webhookUrl,
         events: WEBHOOK_EVENTS,
@@ -245,6 +254,10 @@ export async function registerClubWebhook(
         // conexión de las claves de cuenta.
         resource_id: companyId,
         enabled: true,
+        // Se ancla a la misma versión con la que hablamos por REST. Sin esto el
+        // aviso queda «sin fijar» y sigue el formato del día: el lector de
+        // cobros está escrito contra campos concretos y se rompería solo.
+        api_version_date: whopVersionDate(),
       },
     })
   } catch (e) {
@@ -254,7 +267,16 @@ export async function registerClubWebhook(
         error: 'La clave no tiene permiso para crear avisos de cobro. Genera una con el rol «Admin».',
       }
     }
-    console.error('[whop/connect] registerClubWebhook', e instanceof WhopError ? e.status : 'error')
+    // El tipo y el código del error, que es lo que permite saber QUÉ rechazó la
+    // pasarela. El texto libre y el cuerpo crudo siguen sin registrarse: pueden
+    // repetir dentro el dato que causó el fallo.
+    const detalle = e instanceof WhopError ? (e.body as { error?: { type?: string; code?: string } })?.error : null
+    console.error(
+      '[whop/connect] registerClubWebhook',
+      e instanceof WhopError ? e.status : 'error',
+      detalle?.type ?? '',
+      detalle?.code ?? '',
+    )
     return { ok: false, error: 'No se pudieron activar los avisos de cobro.' }
   }
 
@@ -290,6 +312,15 @@ export async function registerClubWebhook(
   }
 
   return { ok: true, secret }
+}
+
+/**
+ * Huella de lo que se le pide a la pasarela al dar de alta el aviso de cobro.
+ * Cambia si cambia la URL o la lista de eventos, y solo entonces.
+ */
+function huellaWebhook(webhookUrl: string): string {
+  const cuerpo = JSON.stringify({ url: webhookUrl, events: [...WEBHOOK_EVENTS].sort() })
+  return createHash('sha256').update(cuerpo).digest('hex').slice(0, 32)
 }
 
 export type ScopeCheck = { action: string; label: string; granted: boolean }

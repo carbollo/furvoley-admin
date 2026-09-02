@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getWhopClubConfig } from '@/lib/whop/club-config'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
 import { consumeRateLimit } from '@/lib/rate-limit'
@@ -98,7 +99,9 @@ export async function GET(request: Request) {
     : []
 
   return NextResponse.json({
-    connected: cards.ok || !/no está conectada/.test(cards.error),
+    // Antes esto se deducía comparando el mensaje de error contra una frase en
+    // castellano: cambiar el texto de la pantalla habría cambiado el estado.
+    connected: (await getWhopClubConfig()).hasCompany,
     cards: cards.ok ? cards.cards : [],
     cardsError: cards.ok ? null : cards.error,
     movements: movements.ok ? movements.movements : [],

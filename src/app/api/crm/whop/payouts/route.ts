@@ -16,7 +16,26 @@ export async function GET(request: Request) {
 
   const config = await getWhopClubConfig()
   if (!config.hasCompany) {
-    return NextResponse.json({ ok: true, connected: false })
+    // Con el contrato mudo de antes la pantalla no pintaba nada y el club veía
+    // una sección en blanco sin saber por qué.
+    return NextResponse.json({
+      ok: true,
+      connected: false,
+      balances: [],
+      balancesError: 'Aún no has conectado la pasarela de cobro. Hazlo en Ajustes del club.',
+      methods: [],
+      methodsError: null,
+      payouts: [],
+      payoutsError: null,
+      pending: [],
+      sweep: {
+        frequency: config.sweepFrequency,
+        minAmount: config.sweepMinAmount,
+        lastSweepAt: config.lastSweepAt,
+        hasPayoutMethod: false,
+        currency: config.payoutCurrency,
+      },
+    })
   }
 
   const [balances, methods, payouts, pending] = await Promise.all([

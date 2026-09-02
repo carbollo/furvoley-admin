@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { currentTenant } from '@/lib/multitenant/context'
 import type { WhopCredential } from '@/lib/whop/client'
 import { openSecret } from '@/lib/whop/secret-box'
 
@@ -79,7 +80,17 @@ export async function getWhopClubConfig(): Promise<WhopClubConfig> {
         whopAccountStatusAt: true,
       },
     })
-  } catch {
+  } catch (e) {
+    // Este catch convertía CUALQUIER fallo de lectura —club no activo en el
+    // AsyncLocalStorage, conexión caída, columna ausente— en «este club no
+    // tiene pasarela», que es indistinguible de un club que nunca la conectó.
+    // Costó una tarde: la pantalla decía «no está conectada» con la clave
+    // guardada en la base de datos. El club en el log es la prueba: si sale
+    // vacío, lo que se perdió fue el contexto del club, no la configuración.
+    console.error('[whop/config] no se pudo leer la pasarela del club', {
+      club: currentTenant()?.slug ?? 'un-solo-club',
+      code: (e as { code?: string })?.code ?? (e instanceof Error ? e.name : 'error'),
+    })
     s = null
   }
 
@@ -115,9 +126,23 @@ export async function getWhopClubCredential(): Promise<WhopCredential | null> {
       where: { isDefault: true },
       select: { whopApiKey: true },
     })
-    const key = openSecret((s?.whopApiKey || '').trim())
+    const guardada = (s?.whopApiKey || '').trim()
+    const key = openSecret(guardada)
+    // `openSecret` no lanza: devuelve cadena vacía si no hay clave de cifrado o
+    // si esta cambió desde que se guardó. Sin esta traza, una credencial
+    // ilegible se veía igual que no tener ninguna.
+    if (!key && guardada) {
+      console.error('[whop/config] credencial guardada ilegible: revisa WHOP_KEY_ENCRYPTION_KEY', {
+        club: currentTenant()?.slug ?? 'un-solo-club',
+        cifrada: guardada.startsWith('encv1:'),
+      })
+    }
     return key ? { apiKey: key } : null
-  } catch {
+  } catch (e) {
+    console.error('[whop/config] no se pudo leer la credencial', {
+      club: currentTenant()?.slug ?? 'un-solo-club',
+      code: (e as { code?: string })?.code ?? (e instanceof Error ? e.name : 'error'),
+    })
     return null
   }
 }

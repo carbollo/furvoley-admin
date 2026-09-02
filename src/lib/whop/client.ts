@@ -22,6 +22,11 @@ const DEFAULT_BASE = 'https://api.whop.com/api/v1'
  */
 const DEFAULT_VERSION_DATE = '2026-08-25-2'
 
+/** La versión con la que se habla con la pasarela, ya resuelta. */
+export function whopVersionDate(): string {
+  return (process.env.WHOP_API_VERSION_DATE || '').trim() || DEFAULT_VERSION_DATE
+}
+
 export type WhopCredential = { apiKey: string }
 
 export class WhopError extends Error {

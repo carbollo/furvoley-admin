@@ -263,6 +263,16 @@ export function ClubSettingsModal({
       // y sin permisos»: enseñar la lista vacía haría cundir el pánico.
       setWhopScopes(j.keyValid === true && Array.isArray(j.scopes) ? j.scopes : null)
       await load()
+      // Sin avisos de cobro el CRM no se entera de los pagos y seguirá
+      // reclamando facturas ya pagadas. La ruta lo devolvía y aquí se tiraba:
+      // el club leía «conectada correctamente» con los avisos caídos.
+      if (j.webhookReady === false) {
+        setError(
+          `${j.webhookError || 'No se pudieron activar los avisos de cobro'}. La cuenta está conectada, pero ` +
+            'el CRM no se enterará de los pagos hasta arreglarlo: vuelve a pegar la clave para reintentarlo.',
+        )
+        return
+      }
       const missing = Array.isArray(j.missingScopes) ? j.missingScopes.length : 0
       setInfo(
         j.keyValid === false
