@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { etiquetaOpcion } from '@/lib/whop/traducciones'
 import { formatMoney } from '@/lib/format-money'
 
 export type PayoutsState = {
@@ -464,8 +465,10 @@ export function PayoutsPanel({
                               style={{ ...inputStyle, cursor: 'pointer' }}
                             >
                               <option value="">Selecciona…</option>
+                              {/* El valor viaja a la pasarela sin tocar; solo se
+                                  traduce lo que se lee. */}
                               {f.options.map((o) => (
-                                <option key={o} value={o}>{o}</option>
+                                <option key={o} value={o}>{etiquetaOpcion(o)}</option>
                               ))}
                             </select>
                           ) : (

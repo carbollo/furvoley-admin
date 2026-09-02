@@ -304,8 +304,12 @@ export function BancoSection({
       setBankMethods(methods)
       // Se preselecciona la transferencia bancaria si la hay: es lo que quiere un
       // club, no una tarjeta ni un envío instantáneo con más comisión.
+      // Se mira el tipo de entrega, no el nombre: el nombre ya viene traducido y
+      // cambiar una palabra del castellano no puede alterar qué se preselecciona.
       const preferida =
-        methods.find((m) => /bank|sepa|transfer|ach/i.test(`${m.name} ${m.deliveryType}`)) || methods[0]
+        methods.find((m) => m.deliveryType === 'bank_deposit') ||
+        methods.find((m) => /bank|sepa|transfer|ach/i.test(`${m.name} ${m.deliveryType}`)) ||
+        methods[0]
       if (preferida) await elegirMetodo(country, preferida.id, methods)
     } finally {
       setBusy(false)

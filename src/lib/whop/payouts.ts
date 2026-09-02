@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { ejemploCampo, esCripto, etiquetaCampo, nombreMetodo } from '@/lib/whop/traducciones'
 import { currentTenant } from '@/lib/multitenant/context'
 import { prisma } from '@/lib/prisma'
 import { whopRequest, WhopError } from '@/lib/whop/client'
@@ -190,11 +191,15 @@ function mapFields(raw: unknown): PayoutField[] {
       const input = String(o.input_type || 'text')
       const inputType: PayoutField['inputType'] =
         input === 'options' ? 'options' : input === 'date' ? 'date' : 'text'
+      // La pasarela contesta en ingles: se traduce aqui, una vez, y no en cada
+      // pantalla que pinte estos campos.
+      const id = String(o.id || '')
+      const label = String(o.label || '')
       return {
-        id: String(o.id || ''),
-        label: String(o.label || ''),
+        id,
+        label: etiquetaCampo(id, label),
         inputType,
-        placeholder: String(o.placeholder || ''),
+        placeholder: ejemploCampo(id, label, String(o.placeholder || '')),
         options: Array.isArray(o.options) ? o.options.map((x) => String(x)) : [],
         required: o.required !== false,
         sensitive: Boolean(o.sensitive),
@@ -231,13 +236,18 @@ export async function listSupportedMethods(
         first: 25,
       },
     })
-    const methods = (res?.data || []).map((m) => ({
-      id: String(m.id || ''),
-      name: String(m.name || 'Transferencia bancaria'),
-      deliveryType: String(m.delivery_type || ''),
-      supportsInstant: Boolean(m.supports_instant_delivery),
-      requiredFields: mapFields(m.required_fields),
-    }))
+    const methods = (res?.data || [])
+      .map((m) => ({
+        id: String(m.id || ''),
+        name: nombreMetodo(String(m.name || 'Transferencia bancaria')),
+        deliveryType: String(m.delivery_type || ''),
+        supportsInstant: Boolean(m.supports_instant_delivery),
+        requiredFields: mapFields(m.required_fields),
+      }))
+      // Las criptomonedas se descartan AQUI, no en la pantalla: asi tampoco se
+      // puede guardar una saltandose la interfaz, porque el alta valida el
+      // metodo contra esta misma lista.
+      .filter((m) => !esCripto(m.deliveryType, m.name))
     return { ok: true, methods }
   } catch (e) {
     // Qué se le pidió, sin ningún dato del club: el país y si se acotó a un
