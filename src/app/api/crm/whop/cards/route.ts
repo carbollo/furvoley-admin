@@ -77,7 +77,7 @@ export async function GET(request: Request) {
   // Quien ha visto los numeros de tarjeta. Es informacion de control interno del
   // club, asi que solo la ve quien puede tomar medidas.
   const ajustes = await prisma.clubSettings
-    .findUnique({
+    .findFirst({
       where: { isDefault: true },
       select: { cardDefaultLimit: true, cardDefaultLimitPeriod: true },
     })
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
   // resuelve AQUI y no en la pantalla: un cliente que no mandara el campo se
   // llevaria una tarjeta sin limite.
   const porDefecto = await prisma.clubSettings
-    .findUnique({
+    .findFirst({
       where: { isDefault: true },
       select: { cardDefaultLimit: true, cardDefaultLimitPeriod: true },
     })

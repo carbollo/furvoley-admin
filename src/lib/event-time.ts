@@ -19,7 +19,7 @@ const ZONA_POR_DEFECTO = 'Europe/Madrid'
 /** Zona del club activo. Si no se puede leer, la de casa. */
 export async function clubTimeZone(): Promise<string> {
   try {
-    const s = await prisma.clubSettings.findUnique({
+    const s = await prisma.clubSettings.findFirst({
       where: { isDefault: true },
       select: { timezone: true },
     })

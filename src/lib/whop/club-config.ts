@@ -65,7 +65,14 @@ export async function getWhopClubConfig(): Promise<WhopClubConfig> {
     whopAccountStatusAt: Date | null
   } | null = null
   try {
-    s = await prisma.clubSettings.findUnique({
+    // `findFirst`, no `findUnique`. En producción la variante única fallaba con
+    // un error de validación de Prisma («Unknown argument `in`») que dejaba al
+    // club sin pasarela: la pantalla decía «no está conectada» con la clave
+    // guardada en la base de datos. La misma consulta funciona contra la misma
+    // base de datos fuera del bundle, así que el problema no es el esquema. El
+    // resto del CRM lee esta fila con `findFirst` desde siempre y nunca falló;
+    // hay una sola fila (`@@unique([isDefault])`), así que es equivalente.
+    s = await prisma.clubSettings.findFirst({
       where: { isDefault: true },
       select: {
         whopCompanyId: true,
@@ -96,7 +103,7 @@ export async function getWhopClubConfig(): Promise<WhopClubConfig> {
       // Cualquier otro error sí puede llevar valores dentro, y se calla.
       detalle:
         nombre === 'PrismaClientValidationError'
-          ? String((e as Error).message).replace(/\s+/g, ' ').slice(0, 400)
+          ? String((e as Error).message).replace(/\s+/g, ' ').slice(0, 1600)
           : undefined,
     })
     s = null
@@ -130,7 +137,7 @@ export async function getWhopClubConfig(): Promise<WhopClubConfig> {
  */
 export async function getWhopClubCredential(): Promise<WhopCredential | null> {
   try {
-    const s = await prisma.clubSettings.findUnique({
+    const s = await prisma.clubSettings.findFirst({
       where: { isDefault: true },
       select: { whopApiKey: true },
     })
@@ -164,7 +171,7 @@ export async function readWhopClubCompanyId(): Promise<
   { status: 'ok'; value: string } | { status: 'unavailable' }
 > {
   try {
-    const s = await prisma.clubSettings.findUnique({
+    const s = await prisma.clubSettings.findFirst({
       where: { isDefault: true },
       select: { whopCompanyId: true },
     })
@@ -190,7 +197,7 @@ export async function readWhopClubWebhookSecret(): Promise<
   { status: 'ok'; value: string } | { status: 'unavailable' }
 > {
   try {
-    const s = await prisma.clubSettings.findUnique({
+    const s = await prisma.clubSettings.findFirst({
       where: { isDefault: true },
       select: { whopWebhookSecret: true },
     })

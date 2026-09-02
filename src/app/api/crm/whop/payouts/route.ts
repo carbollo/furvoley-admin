@@ -55,7 +55,7 @@ export async function GET(request: Request) {
   ])
 
   const ajustes = await prisma.clubSettings
-    .findUnique({
+    .findFirst({
       where: { isDefault: true },
       select: { treasurerCanTransfer: true, cardDefaultLimit: true, cardDefaultLimitPeriod: true },
     })
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
   // a una llamada desde la consola del navegador.
   if (auth.role === 'TREASURER') {
     const permiso = await prisma.clubSettings
-      .findUnique({ where: { isDefault: true }, select: { treasurerCanTransfer: true } })
+      .findFirst({ where: { isDefault: true }, select: { treasurerCanTransfer: true } })
       // Si no se puede comprobar el permiso, no se transfiere: es dinero, y
       // negar de mas cuesta una espera; permitir de mas, un descubierto.
       .catch(() => ({ treasurerCanTransfer: false }))

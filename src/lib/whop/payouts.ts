@@ -226,7 +226,13 @@ export async function listSupportedMethods(
     }))
     return { ok: true, methods }
   } catch (e) {
+    // Qué se le pidió, sin ningún dato del club: el país y si se acotó a un
+    // método concreto es lo único que puede hacer que la pasarela lo rechace.
     logSafe('listSupportedMethods', e)
+    console.error('[whop/payouts] listSupportedMethods parámetros', {
+      country: country || '(ninguno)',
+      conMetodo: Boolean(methodId),
+    })
     return { ok: false, error: friendly(e, 'No se pudieron consultar las formas de cobro disponibles.') }
   }
 }
