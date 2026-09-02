@@ -39,20 +39,29 @@ export async function POST(request: Request) {
   }
 
   const validation = await validateApiKey(apiKey)
-  if (!validation.ok) {
+  // `choose_company` no es un error: la clave vale, pero abre varias cuentas y
+  // hace falta que el admin diga cuál. Se responde con la lista, no con un 400.
+  if (!validation.ok && validation.reason !== 'choose_company') {
     return NextResponse.json({ error: validation.message, reason: validation.reason }, { status: 400 })
   }
 
-  // Con varias cuentas, el club elige cuál usar; con una sola, se toma esa. El
-  // id del body SIEMPRE se comprueba contra la lista que devolvió la pasarela.
+  // Cuentas que la pasarela devolvió para ESTA clave. El id del body se comprueba
+  // siempre contra esta lista: nunca se acepta un identificador escrito a mano.
+  const candidatas = 'companies' in validation ? validation.companies : []
   const chosen = String(body.companyId || '').trim()
   const company = chosen
-    ? validation.companies.find((c) => c.id === chosen)
-    : validation.companies[0]
+    ? candidatas.find((c) => c.id === chosen)
+    : validation.ok
+      ? candidatas[0]
+      : undefined
 
   if (!company) {
     return NextResponse.json(
-      { error: 'Elige cuál de tus cuentas quieres usar.', companies: validation.companies },
+      {
+        error: validation.ok ? 'Elige cuál de tus cuentas quieres usar.' : validation.message,
+        reason: 'choose_company',
+        companies: candidatas,
+      },
       { status: 409 },
     )
   }
@@ -132,6 +141,10 @@ export async function POST(request: Request) {
     company: { id: company.id, title: company.title },
     scopes,
     missingScopes: missing.map((s) => s.action),
+    // Tres estados, no dos: true = la clave responde, false = revocada o rotada,
+    // null = no se pudo comprobar ahora mismo. Aplanarlo a un booleano hacía
+    // que «no lo sé» se enseñara como «no tienes ningún permiso».
+    keyValid: scopeCheck.status === 'ok' ? true : scopeCheck.status === 'invalid_key' ? false : null,
     // Sin avisos de cobro la pasarela funciona, pero el CRM no se enteraría de
     // los pagos: se avisa para que el admin lo resuelva antes de cobrar.
     webhookReady: webhook.ok,

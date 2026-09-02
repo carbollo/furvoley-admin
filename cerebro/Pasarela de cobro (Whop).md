@@ -15,6 +15,25 @@ La cabecera `Api-Version-Date` decide cuál se sirve. Este proyecto está fijado
 > [!warning] No copiar rutas de la doc sin comprobar la versión
 > `GET /ledger_accounts/{id}` sale en la documentación pero **solo existe en «stable»**. En «native» el saldo está en **`GET /accounts/{id}` → `balances[]`** (`payouts.ts:355`). Se llegó a escribir código contra la ruta equivocada: habría fallado en cada consulta de saldo, dejando el barrido muerto sin ruido.
 
+## Conectar la cuenta de un club: qué credencial es y qué no
+
+El club pega su **Account API key** (hoy con prefijo `apik_`; el prefijo lo cambian, así que **la pantalla no debe prometer ninguno** — lo prometía y confundió a un admin cuya clave empezaba distinto). La valida `validateApiKey` (`connect.ts`), que resuelve la cuenta `biz_…` con la que se cobrará.
+
+> [!danger] `GET /companies` es de USUARIO, y una API key de cuenta no es un usuario
+> Su descripción dice literalmente «lists companies **the current user** has access to». Con una `apik_` responde **200 con la lista vacía** — la pasarela devuelve menos resultados, no un error, cuando la credencial no alcanza. El CRM lo leía como «este club no tiene cuenta» y contestaba *«termina el alta en Whop»* a claves perfectamente válidas. Sin excepción, no dejaba ni una línea en los logs.
+>
+> La superficie correcta es **`GET /accounts`**, la única que la spec documenta para ambas credenciales: «los tokens de usuario devuelven sus negocios; **las API keys de cuenta devuelven la cuenta solicitante y sus conectadas**». Además admite autenticación sin exigir ningún permiso concreto.
+>
+> **`/accounts/me` no sirve como sustituto**: exige `company:balance:read` (403 si falta) y no cubre los tokens de usuario.
+
+`validateApiKey` prueba `/accounts` y, si no resuelve, cae a `/companies`. Un **401 corta** (la clave no vale); un 403 o una lista vacía **no descalifican**: se prueba la otra superficie. Si la clave abre **varias** cuentas se devuelve `choose_company` (409 + lista) y **elige el admin**: acertar por él es conectar el CRM a una cuenta ajena y, de paso, borrar los planes y enlaces de pago del club.
+
+Las cuentas conectadas de una plataforma se distinguen por `parent_account` (`null` = cuenta propia).
+
+## Avisos de cobro: el parámetro se llama `account_id`
+
+`GET /webhooks` exige **`account_id`** — `company_id` no existe en este modelo. La limpieza de webhooks previos lo pasaba mal y un `catch` mudo se lo tragaba: **nunca borró nada**. Y se limpiaba ANTES de crear el nuevo, así que un fallo del alta dejaba al club sin ningún aviso. Ahora **se crea primero y se limpia después**, y el fallo de listado deja traza.
+
 ## Saldo: `available`, no el total
 
 `balances[]` trae `symbol` y un `breakdown` con **`available`** (transferible ya), `pending` (cobros liquidando), `reserve` (retenido como garantía) e `in_transit`. Los importes llegan como **cadenas decimales**, no como números.

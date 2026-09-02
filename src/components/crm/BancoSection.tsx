@@ -58,6 +58,7 @@ export function BancoSection({
               : 'No se pudo consultar tu saldo. Vuelve a intentarlo en un momento.',
           methods: [],
           payouts: [],
+          payoutsError: null,
           pending: [],
           sweep: { frequency: 'OFF', minAmount: 10, lastSweepAt: null, hasPayoutMethod: false, currency: 'EUR' },
         })
@@ -71,6 +72,7 @@ export function BancoSection({
         balancesError: 'No hay conexión con el servidor. Comprueba tu red y vuelve a intentarlo.',
         methods: [],
         payouts: [],
+        payoutsError: null,
         pending: [],
         sweep: { frequency: 'OFF', minAmount: 10, lastSweepAt: null, hasPayoutMethod: false, currency: 'EUR' },
       })

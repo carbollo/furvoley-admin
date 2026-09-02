@@ -93,6 +93,10 @@ export function ClubSettingsModal({
   // Pasarela Whop: asistente de conexión (API key + permisos concedidos).
   const [whopBusy, setWhopBusy] = useState(false)
   const [whopScopes, setWhopScopes] = useState<WhopScope[] | null>(null)
+  // Cuando la clave abre varias cuentas hay que preguntar cuál. La clave se
+  // guarda en una ref y no en el estado: no tiene por qué pasar por un render.
+  const [whopChoices, setWhopChoices] = useState<{ id: string; title: string }[] | null>(null)
+  const claveWhopPendiente = useRef('')
   // Dinero del club: saldo, cuenta bancaria y transferencias.
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -228,7 +232,7 @@ export function ClubSettingsModal({
   }
 
   /** Guarda la API key que el club ha pegado y valida permisos contra Whop. */
-  async function connectWhop(apiKey: string) {
+  async function connectWhop(apiKey: string, companyId?: string) {
     if (whopBusy) return
     setWhopBusy(true)
     setError(null)
@@ -238,25 +242,52 @@ export function ClubSettingsModal({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apiKey }),
+        body: JSON.stringify(companyId ? { apiKey, companyId } : { apiKey }),
       })
       const j = await r.json().catch(() => ({}))
+      // La clave vale, pero abre varias cuentas: se pregunta cuál en vez de
+      // elegir por el admin, que es como se acaba cobrando en la cuenta ajena.
+      if (r.status === 409 && Array.isArray(j.companies) && j.companies.length > 0) {
+        claveWhopPendiente.current = apiKey
+        setWhopChoices(j.companies)
+        setError(j.error || 'Elige cuál de tus cuentas quieres usar.')
+        return
+      }
       if (!r.ok) {
         setError(j.error || 'No se pudo conectar la cuenta de Whop')
         return
       }
-      setWhopScopes(Array.isArray(j.scopes) ? j.scopes : null)
+      claveWhopPendiente.current = ''
+      setWhopChoices(null)
+      // null = «no se ha podido comprobar», que no es lo mismo que «comprobado
+      // y sin permisos»: enseñar la lista vacía haría cundir el pánico.
+      setWhopScopes(j.keyValid === true && Array.isArray(j.scopes) ? j.scopes : null)
       await load()
       const missing = Array.isArray(j.missingScopes) ? j.missingScopes.length : 0
       setInfo(
-        missing > 0
-          ? `Cuenta conectada, pero faltan ${missing} permiso(s) en la key. Revisa la lista de abajo.`
-          : 'Cuenta de Whop conectada correctamente.',
+        j.keyValid === false
+          ? 'Cuenta conectada, pero la clave ha dejado de responder. Vuelve a pegarla.'
+          : j.keyValid === null
+            ? 'Cuenta conectada. No se han podido comprobar los permisos ahora mismo: pulsa «Comprobar estado» en un minuto.'
+            : missing > 0
+              ? `Cuenta conectada, pero faltan ${missing} permiso(s) en la key. Revisa la lista de abajo.`
+              : 'Cuenta de Whop conectada correctamente.',
       )
       window.setTimeout(() => setInfo(null), 4000)
     } finally {
       setWhopBusy(false)
     }
+  }
+
+  /** El admin ha elegido con qué cuenta cobrar: se reintenta con la misma clave. */
+  function chooseWhopCompany(companyId: string) {
+    const clave = claveWhopPendiente.current
+    if (!clave) {
+      setWhopChoices(null)
+      setError('La clave ya no está en memoria: vuelve a pegarla y elige la cuenta.')
+      return
+    }
+    void connectWhop(clave, companyId)
   }
 
   /** Relee el estado de la pasarela y vuelve a comprobar los permisos de la key. */
@@ -297,6 +328,8 @@ export function ClubSettingsModal({
         setError(j.error || 'No se pudo desconectar la pasarela')
         return
       }
+      claveWhopPendiente.current = ''
+      setWhopChoices(null)
       setWhopScopes(null)
       await load()
       setInfo('Pasarela desconectada.')
@@ -470,6 +503,8 @@ export function ClubSettingsModal({
                     whop={form.whop}
                     scopes={whopScopes}
                     busy={whopBusy}
+                    choices={whopChoices}
+                    onChooseCompany={chooseWhopCompany}
                     onConnect={connectWhop}
                     onRefresh={refreshWhopStatus}
                     onDisconnect={disconnectWhop}
@@ -830,6 +865,8 @@ function WhopTab({
   whop,
   scopes,
   busy,
+  choices,
+  onChooseCompany,
   onConnect,
   onRefresh,
   onDisconnect,
@@ -837,6 +874,9 @@ function WhopTab({
   whop: WhopConfig
   scopes: WhopScope[] | null
   busy: boolean
+  /** Cuentas entre las que elegir cuando la clave abre más de una. */
+  choices: { id: string; title: string }[] | null
+  onChooseCompany: (companyId: string) => void
   onConnect: (apiKey: string) => void
   onRefresh: () => void
   onDisconnect: () => void
@@ -941,7 +981,7 @@ function WhopTab({
                 <li>Busca la sección <strong>Account API Keys</strong> y pulsa <strong>Create</strong>.</li>
                 <li>Ponle un nombre, por ejemplo <em>ProClubCRM</em>.</li>
                 <li>Elige el rol <strong>Admin</strong> (así tendrá todos los permisos necesarios).</li>
-                <li>Copia la clave que aparece: <strong>solo se muestra una vez</strong>. Empieza por <code>whop_</code>.</li>
+                <li>Copia la clave que aparece: <strong>solo se muestra una vez</strong>. Pégala entera, tal cual, sea cual sea su prefijo.</li>
               </ol>
               <div>
                 <a
@@ -968,11 +1008,29 @@ function WhopTab({
                 aquí otra vez. Al desconectar, el CRM la borra: recuerda revocarla también en tu
                 panel de la pasarela.
               </p>
+              {choices && choices.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <p style={helpText}>
+                    Esa clave da acceso a varias cuentas. Elige con cuál quieres cobrar:
+                  </p>
+                  {choices.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onChooseCompany(c.id)}
+                      style={secondaryBtnStyle(busy)}
+                    >
+                      {c.title || c.id}
+                    </button>
+                  ))}
+                </div>
+              )}
               <input
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="whop_…"
+                placeholder="Pega aquí la clave completa"
                 autoComplete="off"
                 spellCheck={false}
                 style={{ ...inputStyle, fontFamily: 'ui-monospace, monospace' }}

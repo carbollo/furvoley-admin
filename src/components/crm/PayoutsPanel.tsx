@@ -27,6 +27,7 @@ export type PayoutsState = {
     unavailableReason: string | null
   }[]
   payouts: { id: string; amount: number; currency: string; net: number; status: string; createdAt: string }[]
+  payoutsError: string | null
   pending: { amount: number; currency: string; createdAt: string }[]
   sweep: {
     frequency: string
@@ -596,6 +597,10 @@ export function PayoutsPanel({
               <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
                 Última transferencia: {new Date(data.sweep.lastSweepAt).toLocaleDateString('es-ES')}
               </div>
+            ) : null}
+
+            {data?.payoutsError ? (
+              <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>{data.payoutsError}</div>
             ) : null}
 
             {data?.payouts?.length ? (

@@ -50,6 +50,10 @@ export async function GET(request: Request) {
     methods: methods.ok ? methods.methods : [],
     methodsError: methods.ok ? null : methods.error,
     payouts: payouts.ok ? payouts.payouts : [],
+    // Si la pasarela no deja leer el historial, el club tiene que enterarse. Sin
+    // esto, «no hay transferencias» y «no puedo consultarlas» se veían igual: en
+    // blanco.
+    payoutsError: payouts.ok ? null : payouts.error,
     pending: pending.map((p) => ({
       amount: p.amount,
       currency: p.currency,
