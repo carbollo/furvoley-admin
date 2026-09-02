@@ -63,7 +63,12 @@ export type Balance = {
   reserve: number
 }
 
-type Ctx = { companyId: string; credential: { apiKey: string } }
+type Ctx = {
+  companyId: string
+  credential: { apiKey: string }
+  /** Divisa en la que el club cobra. Decide qué datos bancarios se piden. */
+  payoutCurrency: string
+}
 
 async function ctx(): Promise<{ ok: true; ctx: Ctx } | { ok: false; error: string }> {
   const config = await getWhopClubConfig()
@@ -80,7 +85,10 @@ async function ctx(): Promise<{ ok: true; ctx: Ctx } | { ok: false; error: strin
   if (!credential) {
     return { ok: false, error: 'Falta la clave de la pasarela. Vuelve a conectarla en Ajustes del club.' }
   }
-  return { ok: true, ctx: { companyId: config.companyId, credential } }
+  return {
+    ok: true,
+    ctx: { companyId: config.companyId, credential, payoutCurrency: config.payoutCurrency },
+  }
 }
 
 /**
@@ -214,6 +222,12 @@ export async function listSupportedMethods(
         account_id: c.ctx.companyId,
         country: country || undefined,
         supported_payout_method_id: methodId || undefined,
+        // La divisa en la que el club quiere recibir. Solo cuenta al pedir un
+        // método concreto, y ahí es obligatoria en la práctica: la pasarela
+        // asume dólares si no se dice, y preguntarle por los datos de una
+        // transferencia SEPA que entregue dólares es una contradicción que
+        // rechaza con un 400. Los campos que pide el banco cambian con ella.
+        destination_currency: methodId ? (c.ctx.payoutCurrency || 'EUR').toLowerCase() : undefined,
         first: 25,
       },
     })
