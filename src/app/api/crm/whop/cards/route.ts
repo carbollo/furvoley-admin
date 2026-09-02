@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { HISTORIAL_MAXIMO } from '@/lib/whop/historial'
 import { getWhopClubConfig } from '@/lib/whop/club-config'
 import { prisma } from '@/lib/prisma'
 import { requireRoles } from '@/lib/rbac-api'
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
 
   const [cards, movements, scopes] = await Promise.all([
     listCards(),
-    listCardMovements({ limit: 25 }),
+    listCardMovements({ limit: HISTORIAL_MAXIMO }),
     checkCardScopes(),
   ])
 

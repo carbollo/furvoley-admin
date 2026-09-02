@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { HISTORIAL_MAXIMO, HISTORIAL_POR_PAGINA } from '@/lib/whop/historial'
 import { etiquetaOpcion } from '@/lib/whop/traducciones'
 import { formatMoney } from '@/lib/format-money'
 
@@ -29,6 +30,8 @@ export type PayoutsState = {
   }[]
   payouts: { id: string; amount: number; currency: string; net: number; status: string; createdAt: string }[]
   payoutsError: string | null
+  /** La pasarela guarda más transferencias de las que se piden. */
+  hayMasTransferencias?: boolean
   pending: { amount: number; currency: string; createdAt: string }[]
   sweep: {
     frequency: string
@@ -115,6 +118,69 @@ function ReadonlyValue({ value, mono, tone = 'default' }: { value: string; mono?
       }}
     >
       {value}
+    </div>
+  )
+}
+
+/**
+ * Pie de un historial paginado. Lo usan las transferencias y los gastos de las
+ * tarjetas, que se leen igual: de arriba abajo y sin querer llegar al final.
+ *
+ * No enseña números de página. Con cinco páginas como mucho, «Más recientes» y
+ * «Más antiguas» dicen a dónde llevan; un «3» no dice nada.
+ */
+export function Paginacion({
+  total,
+  pagina,
+  onPagina,
+  hayMas,
+}: {
+  total: number
+  pagina: number
+  onPagina: (p: number) => void
+  /** La pasarela guarda más historial del que el CRM llega a pedir. */
+  hayMas?: boolean
+}) {
+  const paginas = Math.ceil(total / HISTORIAL_POR_PAGINA)
+  const desde = pagina * HISTORIAL_POR_PAGINA + 1
+  const hasta = Math.min((pagina + 1) * HISTORIAL_POR_PAGINA, total)
+  if (total === 0) return null
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        flexWrap: 'wrap',
+        paddingTop: 4,
+      }}
+    >
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+        {desde}–{hasta} de {total}
+        {hayMas ? ` · hay más histórico en la pasarela, aquí se ven los ${HISTORIAL_MAXIMO} últimos` : ''}
+      </div>
+      {paginas > 1 ? (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => onPagina(pagina - 1)}
+            disabled={pagina === 0}
+            style={secondaryBtnStyle(pagina === 0)}
+          >
+            Más recientes
+          </button>
+          <button
+            type="button"
+            onClick={() => onPagina(pagina + 1)}
+            disabled={pagina >= paginas - 1}
+            style={secondaryBtnStyle(pagina >= paginas - 1)}
+          >
+            Más antiguas
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -282,6 +348,15 @@ export function PayoutsPanel({
   const puedeTransferir = esAdmin || data?.permisos?.treasurerCanTransfer !== false
   const bank = data?.methods?.find((m) => m.isDefault) || data?.methods?.[0] || null
   const method = bankMethods?.find((m) => m.id === bankMethodId) || bankMethods?.[0] || null
+  // Página visible del historial de transferencias. Se acota al pintar en vez
+  // de con un efecto: si al recargar vienen menos transferencias que antes, una
+  // página guardada apuntaría más allá del final y el historial saldría en
+  // blanco justo cuando el club fue a mirar si le habían pagado.
+  const [paginaPagos, setPaginaPagos] = useState(0)
+  const paginaPagosVisible = Math.min(
+    paginaPagos,
+    Math.max(0, Math.ceil((data?.payouts?.length || 0) / HISTORIAL_POR_PAGINA) - 1),
+  )
 
   // Nunca se suman divisas distintas: cada una es una fila con su propio saldo y
   // su propio botón. La del banco va primero, que es la que se transfiere sola.
@@ -611,7 +686,12 @@ export function PayoutsPanel({
                 <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700 }}>
                   Últimas transferencias
                 </div>
-                {data.payouts.slice(0, 5).map((p) => (
+                {data.payouts
+                  .slice(
+                    paginaPagosVisible * HISTORIAL_POR_PAGINA,
+                    (paginaPagosVisible + 1) * HISTORIAL_POR_PAGINA,
+                  )
+                  .map((p) => (
                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, gap: 10 }}>
                     <span style={{ color: 'var(--text-secondary)' }}>
                       {p.createdAt ? new Date(p.createdAt).toLocaleDateString('es-ES') : '—'}
@@ -621,10 +701,16 @@ export function PayoutsPanel({
                     </span>
                     <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{payoutStatusLabel(p.status)}</span>
                   </div>
-                ))}
+                  ))}
                 <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
                   Importes ya con la comisión descontada: es lo que entra en tu cuenta.
                 </div>
+                <Paginacion
+                  total={data.payouts.length}
+                  pagina={paginaPagosVisible}
+                  onPagina={setPaginaPagos}
+                  hayMas={data.hayMasTransferencias}
+                />
               </div>
             ) : null}
           </div>

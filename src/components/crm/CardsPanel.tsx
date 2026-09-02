@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { HISTORIAL_POR_PAGINA } from '@/lib/whop/historial'
 import { formatMoney } from '@/lib/format-money'
-import { Field, Section, inputStyle, primaryBtnStyle, secondaryBtnStyle } from './PayoutsPanel'
+import { Field, Paginacion, Section, inputStyle, primaryBtnStyle, secondaryBtnStyle } from './PayoutsPanel'
 
 /**
  * Las tarjetas del club dentro de Contabilidad → Banco.
@@ -166,6 +167,14 @@ export function CardsPanel({
   onTopeChange: (patch: { cardDefaultLimit: number | null; cardDefaultLimitPeriod?: string }) => Promise<boolean>
 }) {
   const [nueva, setNueva] = useState(false)
+  /** Página visible del historial de gastos. */
+  const [paginaGastos, setPaginaGastos] = useState(0)
+  // Se acota al pintar: si al recargar vienen menos movimientos que antes, una
+  // página guardada apuntaría más allá del final y la lista saldría en blanco.
+  const paginaGastosVisible = Math.min(
+    paginaGastos,
+    Math.max(0, Math.ceil((data?.movements?.length || 0) / HISTORIAL_POR_PAGINA) - 1),
+  )
   const [nombre, setNombre] = useState('')
   const [limite, setLimite] = useState('')
   const [periodo, setPeriodo] = useState('monthly')
@@ -756,18 +765,18 @@ export function CardsPanel({
       {cards.length > 0 ? (
         <div style={cardStyle}>
           <div style={etiqueta}>En qué se ha gastado</div>
-          {data?.hayMasMovimientos ? (
-            <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
-              Se muestran los movimientos más recientes; hay más histórico en la pasarela.
-            </div>
-          ) : null}
           {data?.movementsError ? (
             <div style={{ fontSize: 12.5, color: 'var(--amber)' }}>{data.movementsError}</div>
           ) : (data?.movements || []).length === 0 ? (
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Todavía no se ha pagado nada con ellas.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {(data?.movements || []).map((m) => {
+              {(data?.movements || [])
+                .slice(
+                  paginaGastosVisible * HISTORIAL_POR_PAGINA,
+                  (paginaGastosVisible + 1) * HISTORIAL_POR_PAGINA,
+                )
+                .map((m) => {
                 const devuelto = m.status === 'reversed' || (m.usdAmount != null && m.usdAmount < 0)
                 const deQueTarjeta = cards.length > 1 ? nombreTarjeta(m.cardId) : null
                 return (
@@ -814,6 +823,12 @@ export function CardsPanel({
                   </div>
                 )
               })}
+              <Paginacion
+                total={(data?.movements || []).length}
+                pagina={paginaGastosVisible}
+                onPagina={setPaginaGastos}
+                hayMas={data?.hayMasMovimientos}
+              />
             </div>
           )}
         </div>

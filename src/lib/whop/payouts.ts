@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { HISTORIAL_MAXIMO } from '@/lib/whop/historial'
 import { ejemploCampo, esCripto, etiquetaCampo, nombreMetodo } from '@/lib/whop/traducciones'
 import { currentTenant } from '@/lib/multitenant/context'
 import { prisma } from '@/lib/prisma'
@@ -544,16 +545,22 @@ export type PayoutRow = {
 
 /** Historial de transferencias al banco del club. */
 export async function listPayouts(
-  limit = 20,
-): Promise<{ ok: true; payouts: PayoutRow[] } | { ok: false; error: string }> {
+  limit = HISTORIAL_MAXIMO,
+): Promise<{ ok: true; payouts: PayoutRow[]; hayMas: boolean } | { ok: false; error: string }> {
   const c = await ctx()
   if (!c.ok) return c
   try {
-    const res = await whopRequest<{ data?: Record<string, unknown>[] }>({
+    const res = await whopRequest<{ data?: Record<string, unknown>[]; page_info?: unknown }>({
       path: '/payouts',
       credential: c.ctx.credential,
-      query: { account_id: c.ctx.companyId, first: Math.min(Math.max(limit, 1), 50) },
+      query: {
+        account_id: c.ctx.companyId,
+        first: Math.min(Math.max(limit, 1), HISTORIAL_MAXIMO),
+      },
     })
+    // Si la pasarela dice que hay mas, se avisa en pantalla: el club tiene que
+    // saber que lo que ve es un trozo y no todo su historial.
+    const hayMas = Boolean((res?.page_info as { has_next_page?: unknown } | undefined)?.has_next_page)
     const payouts = (res?.data || []).map((p) => {
       const metadata = (p.metadata || {}) as Record<string, unknown>
       return {
@@ -566,7 +573,7 @@ export async function listPayouts(
         reference: metadata.crm_payout_ref ? String(metadata.crm_payout_ref) : null,
       }
     })
-    return { ok: true, payouts }
+    return { ok: true, payouts, hayMas }
   } catch (e) {
     logSafe('listPayouts', e)
     return { ok: false, error: friendly(e, 'No se pudo consultar el historial de transferencias.') }

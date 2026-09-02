@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { HISTORIAL_MAXIMO } from '@/lib/whop/historial'
 import { currentTenant } from '@/lib/multitenant/context'
 import { cache } from 'react'
 import { whopRequest, WhopError } from '@/lib/whop/client'
@@ -541,7 +542,7 @@ export async function listCardMovements(opts?: {
         card_id: opts?.cardId || undefined,
         order: 'created_at',
         direction: 'desc',
-        first: Math.min(Math.max(opts?.limit || 25, 1), 100),
+        first: Math.min(Math.max(opts?.limit || HISTORIAL_MAXIMO, 1), HISTORIAL_MAXIMO),
       },
     })
     // `page_info` dice si hay mas paginas. No se recorren: la pantalla ensena los
