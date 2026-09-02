@@ -145,12 +145,28 @@ function friendly(e: unknown, fallback: string, op?: 'listar' | 'emitir' | 'tarj
  * módulo ese cuerpo puede contener el número completo de la tarjeta. Solo se
  * registra el status.
  */
+/**
+ * Tipo y código del error que devuelve la pasarela. Es lo que dice QUÉ ha
+ * rechazado; sin ello un 400 no se distingue de otro. Deliberadamente NO se
+ * registra el texto libre ni el cuerpo entero: pueden repetir dentro el propio
+ * dato que causó el fallo (un IBAN, un número de tarjeta).
+ */
+function motivo(e: unknown): string {
+  const err = e instanceof WhopError ? (e.body as { error?: { type?: string; code?: string } })?.error : null
+  return [err?.type, err?.code].filter(Boolean).join('/')
+}
+
 function logSafe(op: string, e: unknown): void {
   if (e instanceof WhopError) {
-    console.error(`[whop/cards] ${op} status=${e.status}`)
+    console.error(`[whop/cards] ${op} status=${e.status}`, motivo(e))
     return
   }
-  console.error(`[whop/cards] ${op}`, e instanceof Error ? e.name : 'error')
+  // Para lo que no viene de la pasarela, el `code` es lo que separa un fallo
+  // de red de una tabla o una columna que faltan.
+  console.error(`[whop/cards] ${op}`, {
+    name: e instanceof Error ? e.name : 'error',
+    code: (e as { code?: string })?.code ?? '',
+  })
 }
 
 function num(v: unknown): number {

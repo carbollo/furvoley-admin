@@ -87,9 +87,17 @@ export async function getWhopClubConfig(): Promise<WhopClubConfig> {
     // Costó una tarde: la pantalla decía «no está conectada» con la clave
     // guardada en la base de datos. El club en el log es la prueba: si sale
     // vacío, lo que se perdió fue el contexto del club, no la configuración.
+    const nombre = e instanceof Error ? e.name : 'error'
     console.error('[whop/config] no se pudo leer la pasarela del club', {
       club: currentTenant()?.slug ?? 'un-solo-club',
-      code: (e as { code?: string })?.code ?? (e instanceof Error ? e.name : 'error'),
+      code: (e as { code?: string })?.code ?? nombre,
+      // Un error de VALIDACIÓN describe la forma de la consulta (qué campo no
+      // reconoce), no las filas: se puede registrar sin exponer datos del club.
+      // Cualquier otro error sí puede llevar valores dentro, y se calla.
+      detalle:
+        nombre === 'PrismaClientValidationError'
+          ? String((e as Error).message).replace(/\s+/g, ' ').slice(0, 400)
+          : undefined,
     })
     s = null
   }
