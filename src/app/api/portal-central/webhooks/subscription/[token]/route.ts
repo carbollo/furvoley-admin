@@ -70,13 +70,30 @@ function classifyEvent(body: unknown): WebhookEvent {
   return 'create'
 }
 
-/** URL de acceso para el nuevo club: portal /portal, o el subdominio del club. */
+/**
+ * URL de acceso para el club recién dado de alta.
+ *
+ * Va dentro del correo de bienvenida, así que tiene que ser ABSOLUTA: antes,
+ * cuando no había nada configurado, se devolvía `/portal` y el botón «Entrar al
+ * CRM» no llevaba a ninguna parte. Devuelve cadena vacía si de verdad no se
+ * puede saber, y el correo se envía sin botón en vez de con uno roto.
+ */
 function clubLoginUrl(slug: string): string {
-  const portal = getPortalPublicUrl().replace(/\/+$/, '')
+  const portal = getPortalPublicUrl()
   if (portal) return `${portal}/portal`
   const base = getTenantBaseDomain()
   if (base) return `https://${slug}.${base}/login`
-  return '/portal'
+  // NO hay respaldo a `${MT_APP_URL}/login?tenant=<slug>`: sería otro enlace
+  // muerto un paso más tarde. El matcher del middleware excluye `login` y
+  // `api/auth`, así que en esa URL nadie lee el `?tenant=`; el club se resolvería
+  // por el HOST, que en el dominio de la plataforma da un slug inventado y una
+  // base de datos que no existe. El admin vería «credenciales inválidas» con la
+  // contraseña correcta.
+  console.warn(
+    '[webhook subscription] Sin URL pública del portal (NEXT_PUBLIC_APP_URL / NEXTAUTH_URL / ' +
+      'RAILWAY_PUBLIC_DOMAIN) ni TENANT_BASE_DOMAIN: el correo de bienvenida sale sin enlace.',
+  )
+  return ''
 }
 
 /**
@@ -222,13 +239,14 @@ async function run(request: Request, token: string) {
     return NextResponse.json({ ok: true, idempotent: true, message: 'Ese email ya tenía un club; no se ha duplicado.' })
   }
 
+  const loginUrl = clubLoginUrl(result.tenantSlug)
   let emailed = false
   let emailError: string | undefined
   try {
     await sendWelcomeEmail({
       to: email,
       clubName: result.tenantName,
-      loginUrl: clubLoginUrl(result.tenantSlug),
+      loginUrl,
       email,
       password: result.password,
       planName: plan.name,
@@ -246,7 +264,9 @@ async function run(request: Request, token: string) {
     tenantName: result.tenantName,
     targetType: 'TENANT',
     targetId: result.tenantId,
-    detail: { email, plan: plan.name, emailed },
+    // `loginUrl` en el detalle: un alta entregada SIN enlace de acceso es una
+    // venta a medio entregar, y sin esta marca es indistinguible de una correcta.
+    detail: { email, plan: plan.name, emailed, loginUrl: Boolean(loginUrl) },
     ip,
   })
 

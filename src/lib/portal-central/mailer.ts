@@ -81,11 +81,17 @@ export async function sendWelcomeEmail(opts: {
   }
   const { transport, from } = getTransport()
 
+  // Sin enlace el correo no puede quedarse mudo: el cliente se quedaría con una
+  // contraseña y sin sitio donde usarla. Responder a este mismo correo es el
+  // único camino de vuelta que existe siempre, sin configurar nada más.
+  const sinEnlace =
+    'No hemos podido incluir el enlace de acceso: responde a este correo y te lo enviamos.'
+
   const subject = `Bienvenido a ${opts.clubName} — tu acceso al CRM`
   const text =
     `¡Hola!\n\n` +
     `Tu club «${opts.clubName}» ya está activo en el plan «${opts.planName}».\n\n` +
-    `Accede aquí: ${opts.loginUrl}\n` +
+    (opts.loginUrl ? `Accede aquí: ${opts.loginUrl}\n` : `${sinEnlace}\n`) +
     `Usuario (email): ${opts.email}\n` +
     `Contraseña: ${opts.password}\n\n` +
     `Por seguridad, cámbiala tras el primer acceso.\n`
@@ -97,7 +103,12 @@ export async function sendWelcomeEmail(opts: {
     `<div>Usuario: <strong>${esc(opts.email)}</strong></div>` +
     `<div>Contraseña: <strong>${esc(opts.password)}</strong></div>` +
     `</div>` +
-    `<p style="margin:0 0 20px"><a href="${esc(opts.loginUrl)}" style="display:inline-block;background:#e11d48;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600">Entrar al CRM</a></p>` +
+    // Sin enlace no se pinta el botón: uno que no lleva a ninguna parte es peor
+    // que no ponerlo, porque el cliente lo pulsa y cree que el alta ha fallado.
+    // Pero se sustituye por texto útil, no por un hueco.
+    (opts.loginUrl
+      ? `<p style="margin:0 0 20px"><a href="${esc(opts.loginUrl)}" style="display:inline-block;background:#e11d48;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600">Entrar al CRM</a></p>`
+      : `<p style="margin:0 0 20px;line-height:1.5">${esc(sinEnlace)}</p>`) +
     `<p style="margin:0;color:#6b7280;font-size:13px">Por seguridad, cambia la contraseña tras el primer acceso.</p>` +
     `</div>`
 

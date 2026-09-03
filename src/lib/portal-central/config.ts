@@ -12,7 +12,35 @@ export function getPortalDataDir() {
 }
 
 export function getPortalPublicUrl() {
-  return String(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || '').trim()
+  const explicito = String(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || '').trim()
+  // Sin variable puesta, el dominio público que inyecta la plataforma. Importa
+  // de dónde sale: NO es la cabecera `Host`, que la manda quien llama y podría
+  // colar el dominio de un tercero en un correo con la contraseña de un cliente.
+  // Esta la pone el proveedor de infraestructura y no se puede falsificar.
+  //
+  // Sin este respaldo, el enlace del correo de bienvenida salía como `/portal`
+  // —una ruta relativa— y en un cliente de correo no lleva a ninguna parte: era
+  // lo primero que veía cada club recién dado de alta.
+  const plataforma = String(process.env.RAILWAY_PUBLIC_DOMAIN || '').trim()
+  const bruto = explicito || plataforma
+  if (!bruto) return ''
+
+  // La normalización va aquí, para TODAS las ramas, y no solo para la de la
+  // plataforma: la que se teclea a mano es justo la que llega mal. Railway
+  // enseña los dominios pelados, así que un `NEXT_PUBLIC_APP_URL=portal.club.com`
+  // se devolvía tal cual y en el correo `<a href="portal.club.com/portal">` es
+  // otra vez una ruta RELATIVA — el mismo enlace muerto que esto venía a matar,
+  // y encima con botón, porque el correo solo mira que la cadena no esté vacía.
+  const conEsquema = /^https?:\/\//i.test(bruto) ? bruto : `https://${bruto}`
+  try {
+    const u = new URL(conEsquema)
+    // Un `http://localhost:3000` heredado de las pruebas no lo puede abrir quien
+    // acaba de pagar: mejor sin enlace que con uno que no lleva a ninguna parte.
+    if (/^(localhost|0\.0\.0\.0|\[::1\])$/i.test(u.hostname) || /^127\./.test(u.hostname)) return ''
+    return `${u.origin}${u.pathname}`.replace(/\/+$/, '')
+  } catch {
+    return ''
+  }
 }
 
 /**

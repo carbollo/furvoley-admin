@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { isPortalAdminConfigured, isPortalAdminRequest, getPortalAdminIdentity } from '@/lib/portal-central/admin-auth'
-import { isPortalCentralHost } from '@/lib/portal-central/config'
+import { isPortalCentralHost, getPortalPublicUrl } from '@/lib/portal-central/config'
 import { listPlans, createPlan, updatePlan, deletePlan, logPortalAudit, ensurePlanWebhookToken, regeneratePlanWebhookToken, ensurePlanWebhookSecret, regeneratePlanWebhookSecret } from '@/lib/portal-central/portal-store'
 import { clientIpFromHeaders } from '@/lib/login-rate-limit'
 
@@ -16,10 +16,15 @@ async function requireAdmin() {
 export async function GET() {
   const denied = await requireAdmin()
   if (denied) return denied
+  // `publicUrl` sale del SERVIDOR: `RAILWAY_PUBLIC_DOMAIN` no lleva el prefijo
+  // NEXT_PUBLIC_, así que el navegador no la ve. El panel la necesita para
+  // construir las URLs de webhook con el host canónico del portal y no con aquel
+  // por el que casualmente haya entrado el super-admin.
+  const publicUrl = getPortalPublicUrl()
   try {
-    return NextResponse.json({ ok: true, plans: await listPlans() })
+    return NextResponse.json({ ok: true, plans: await listPlans(), publicUrl })
   } catch {
-    return NextResponse.json({ ok: true, plans: [] })
+    return NextResponse.json({ ok: true, plans: [], publicUrl })
   }
 }
 

@@ -355,6 +355,8 @@ export function PortalAdminPanel() {
   const [identity, setIdentity] = useState(null)   // quién es la sesión ('master' o email)
   const [view, setView] = useState('dashboard')    // pestaña activa
   const [plans, setPlans] = useState([])           // planes comerciales
+  /** Dirección pública canónica del portal, según el servidor. */
+  const [portalPublicUrl, setPortalPublicUrl] = useState('')
   const [admins, setAdmins] = useState([])         // super-admins
   const [auditAction, setAuditAction] = useState('') // filtro de auditoría
   const [editClient, setEditClient] = useState(null) // club en edición (modal)
@@ -428,7 +430,10 @@ export function PortalAdminPanel() {
   }, [])
   const loadPlans = useCallback(async () => {
     const r = await fetch('/api/portal-central/admin/plans', { credentials: 'include' })
-    if (r.ok) setPlans((await r.json()).plans || [])
+    if (!r.ok) return
+    const data = await r.json()
+    setPlans(data.plans || [])
+    setPortalPublicUrl(String(data.publicUrl || ''))
   }, [])
   const loadAdmins = useCallback(async () => {
     const r = await fetch('/api/portal-central/admin/admins', { credentials: 'include' })
@@ -700,6 +705,46 @@ export function PortalAdminPanel() {
       await Promise.all([loadPlans(), loadClients()])
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo eliminar el plan.') } finally { setBusy(false) }
   }
+  /**
+   * El JSON que la tienda espera en `CRM_PLANES`, generado a partir de los
+   * planes que ya existen aquí.
+   *
+   * Se hace así para que el precio y el nombre no haya que teclearlos dos
+   * veces: el plan se define en un único sitio —este panel— y la tienda recibe
+   * una copia. Escribirlos a mano en las dos puntas es cómo se acaba cobrando
+   * un precio distinto del que anuncia el panel.
+   *
+   * `periodo` va en días (30 = mensual). Solo se incluyen los planes que ya
+   * tienen URL de webhook: sin ella la tienda no sabría a dónde avisar.
+   */
+  const crmPlanesJson = () => {
+    const conWebhook = plans.filter((p) => p.webhookToken)
+    return JSON.stringify(
+      conWebhook.map((p) => ({
+        // La clave es la IDENTIDAD del plan para la tienda: viaja en la metadata
+        // de cada suscripción y es por la que se busca al renovar o al cancelar.
+        // Tiene que ser ESTABLE y ÚNICA, y un texto sacado del nombre no es
+        // ninguna de las dos cosas: renombrar «Básico» a «Esencial» la cambiaría
+        // y las suscripciones ya vendidas dejarían de encontrar su plan; y «Pro»
+        // y «Pro+» caerían las dos en `pro`, con lo que un comprador acabaría en
+        // el plan del otro. El identificador interno no cambia nunca. Lo legible
+        // va en `nombre`.
+        clave: p.id,
+        nombre: p.name,
+        precio: p.priceMonthly,
+        // En DÍAS. El panel solo maneja cuota mensual, así que aquí siempre 30:
+        // no crees un plan llamado «anual» hasta que el plan guarde su propia
+        // periodicidad, porque se cobraría cada 30 días igualmente.
+        periodo: 30,
+        webhook: `${webhookBase}/api/portal-central/webhooks/subscription/${p.webhookToken}`,
+        ...(p.webhookSecret ? { secreto: p.webhookSecret } : {}),
+        ventajas: CRM_MODULES.filter((m) => p.modules.includes(m.id)).map((m) => m.label),
+      })),
+      null,
+      2,
+    )
+  }
+
   const ensureWebhook = async (id: string) => {
     setBusy(true)
     try {
@@ -811,7 +856,14 @@ export function PortalAdminPanel() {
   )
 
   const now = Date.now()
-  const webhookBase = typeof window !== 'undefined' ? window.location.origin : ''
+  // La URL pública la manda el SERVIDOR. `window.location.origin` es el host por
+  // el que navega el super-admin —localhost, un entorno de pruebas, el dominio
+  // de la plataforma aunque ya haya uno propio— y acaba dentro del JSON que se
+  // pega en la tienda: cada compra pagada avisaría al sitio equivocado, sin
+  // ningún error visible. Solo se usa como último recurso.
+  const panelOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+  const webhookBase = portalPublicUrl || panelOrigin
+  const baseDesajustada = Boolean(portalPublicUrl && panelOrigin && portalPublicUrl !== panelOrigin)
   const perClubBySlug: Record<string, { slug: string; name: string; ok: boolean; membersTotal: number; membersActive: number }> = {}
   ;(metrics?.latest?.perClub || []).forEach((c: { slug: string; name: string; ok: boolean; membersTotal: number; membersActive: number }) => { perClubBySlug[c.slug] = c })
 
@@ -1051,6 +1103,61 @@ export function PortalAdminPanel() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {plans.some((p) => p.webhookToken) && (
+                    <div style={{ marginTop: 18, padding: 14, border: `1px solid ${PC.border}`, borderRadius: 10 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>Configuración para la tienda</div>
+                      <div style={{ fontSize: 12, color: PC.muted, marginBottom: 10, lineHeight: 1.5 }}>
+                        Pega esto en la variable <code>CRM_PLANES</code> de la tienda. Sale de los planes
+                        de arriba, así que el precio y el nombre se definen en un solo sitio. Vuelve a
+                        copiarlo cada vez que cambies un plan, un precio o los módulos incluidos.
+                        Todo lo que salga de aquí se cobra <strong>cada 30 días</strong>: el panel
+                        solo maneja cuota mensual.
+                        {plans.some((p) => p.webhookToken && !p.webhookSecret) && (
+                          <> Los planes sin secreto HMAC viajan sin firmar: genéralo antes de vender.</>
+                        )}
+                      </div>
+                      {!portalPublicUrl && (
+                        <div style={{ fontSize: 12, color: PC.danger, marginBottom: 10, lineHeight: 1.5 }}>
+                          El servidor no sabe cuál es la URL pública del portal, así que las direcciones
+                          de webhook llevan el host por el que has entrado tú. No pegues esto sin revisarlas.
+                        </div>
+                      )}
+                      {baseDesajustada && (
+                        <div style={{ fontSize: 12, color: PC.amber, marginBottom: 10, lineHeight: 1.5 }}>
+                          Estás viendo el panel en <code>{panelOrigin}</code>, pero la dirección pública del
+                          portal es <code>{portalPublicUrl}</code>. Se usa la pública: es la que tiene que
+                          llamar la tienda.
+                        </div>
+                      )}
+                      {plans.some((p) => !p.webhookToken) && (
+                        <div style={{ fontSize: 12, color: PC.amber, marginBottom: 10, lineHeight: 1.5 }}>
+                          Quedan fuera por no tener URL de webhook:{' '}
+                          {plans.filter((p) => !p.webhookToken).map((p) => p.name).join(', ')}. Si quieres
+                          venderlos, pulsa «Generar URL de webhook» en cada uno y vuelve a copiar.
+                        </div>
+                      )}
+                      <textarea
+                        readOnly
+                        value={crmPlanesJson()}
+                        onFocus={(e) => e.currentTarget.select()}
+                        rows={8}
+                        style={{ ...darkInput, marginBottom: 10, width: '100%', fontFamily: 'ui-monospace, monospace', fontSize: 11.5, resize: 'vertical' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard
+                            ?.writeText(crmPlanesJson())
+                            .then(() => setOkMsg('CRM_PLANES copiado. Pégalo en la tienda.'))
+                            .catch(() => {})
+                        }}
+                        style={aBtn}
+                      >
+                        Copiar CRM_PLANES
+                      </button>
                     </div>
                   )}
                 </section>
