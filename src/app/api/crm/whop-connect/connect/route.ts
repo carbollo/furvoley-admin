@@ -66,6 +66,39 @@ export async function POST(request: Request) {
     )
   }
 
+  // Qué cuenta tenía ya el club, leído ANTES de tocar nada: ni la reserva en el
+  // portal, ni el alta del aviso de cobro.
+  //
+  // Aquí y no más abajo por una razón concreta: si esta lectura falla hay que
+  // abortar, y abortar después de dar de alta el aviso dejaría uno vivo en la
+  // pasarela firmando con un secreto que el CRM nunca llegó a guardar. Es el
+  // mismo 401 en bucle que este bloque existe para evitar.
+  //
+  // Y se falla CERRADO. Un fallo de lectura no es «no hay fila»: `findFirst`
+  // devuelve null cuando el club nunca conectó, y lanza cuando la base no
+  // responde. Confundirlos hacía que un corte de un segundo se tomara por
+  // «cuenta distinta» y arrasara el estado de cobro de un club que no había
+  // cambiado de cuenta. Es dinero: si no se sabe qué había, no se toca.
+  let anterior: { whopCompanyId: string | null } | null
+  try {
+    anterior = await prisma.clubSettings.findFirst({
+      where: { isDefault: true },
+      select: { whopCompanyId: true },
+    })
+  } catch (e) {
+    console.error('[whop/connect] no se pudo leer la configuración anterior', {
+      code: (e as { code?: string })?.code ?? (e instanceof Error ? e.name : 'error'),
+    })
+    return NextResponse.json(
+      {
+        error:
+          'No se pudo leer la configuración actual de la pasarela, así que no se ha tocado nada. Vuelve a intentarlo en unos segundos.',
+      },
+      { status: 503 },
+    )
+  }
+  const mismaCuenta = Boolean(anterior?.whopCompanyId) && anterior?.whopCompanyId === company.id
+
   // Reserva la cuenta para este club antes de guardar nada: si otro club ya la
   // tiene, sus cobros se conciliarían en el club equivocado.
   const claim = await claimWhopCompany(company.id)
@@ -96,25 +129,50 @@ export async function POST(request: Request) {
   }
   const webhook = await registerClubWebhook({ apiKey }, company.id, webhookUrl)
 
-  // Al (re)conectar se reinicia TODO el estado de cobro: si la cuenta cambia,
-  // arrastrar el banco o el flag de cobros de la anterior emitiría cobros contra
-  // una cuenta sin verificar o transferiría a un banco ajeno.
+  // Lo ÚNICO que sobrevive a una reconexión sobre la misma cuenta es el secreto
+  // del aviso de cobro, y solo cuando el alta del nuevo ha fallado.
+  //
+  // Ese secreto sigue valiendo porque el aviso viejo continúa vivo en la
+  // pasarela y firma con él. Antes se borraba siempre, y eso convertía en
+  // desastre el gesto que la propia pantalla pide («vuelve a pegar la clave para
+  // reintentarlo»): si el alta fallaba —un 403 pasajero basta— el CRM se quedaba
+  // sin secreto, las familias pagaban, el CRM contestaba 401 y les reclamaba
+  // igualmente. Y cada reintento repetía el borrado.
+  //
+  // El banco NO se conserva, ni siquiera sobre la misma cuenta, y es
+  // deliberado: borrarlo es lo único que vuelve a comprobar a dónde va el
+  // dinero. Mientras el CRM tenga un método anotado, el barrido lo usa tal cual
+  // y `syncDefaultPayoutMethod` sale de inmediato — es el único punto que
+  // descarta destinos rotos o retirados y reelige el predeterminado. Si el club
+  // cambia de banco en la pasarela, el destino viejo se retira y volver a
+  // añadirlo genera otro identificador: conservar el antiguo deja al club
+  // transfiriendo a una cuenta que ya no usa, o fallando para siempre mientras
+  // el CRM le dice «vuelve a conectarla en Ajustes». Borrarlo no cuesta nada: el
+  // siguiente barrido lo reelige solo.
   const moneyStateReset = {
     whopChargesEnabled: false,
     whopPayoutsEnabled: false,
     whopPayoutMethodId: null,
-    whopWebhookSecret: webhook.ok ? sealSecret(webhook.secret) : null,
-    whopLastSweepAt: null,
+    // La divisa describe esa cuenta bancaria concreta, no al club: viaja con
+    // ella y se vuelve a anotar al reelegir destino.
+    whopPayoutCurrency: null,
+    whopWebhookSecret: webhook.ok ? sealSecret(webhook.secret) : mismaCuenta ? undefined : null,
+    whopLastSweepAt: mismaCuenta ? undefined : null,
   }
 
-  // Los planes espejados y los enlaces de pago cacheados pertenecen a la cuenta
-  // ANTERIOR: si se reutilizaran, el dinero entraría en una cuenta que el club ya
-  // no controla. Se descartan y se vuelven a crear cuando hagan falta.
+  // Los planes espejados pertenecen a la cuenta ANTERIOR: reutilizarlos metería
+  // el dinero en una cuenta que el club ya no controla. El filtro por cuenta
+  // hace que esto no borre nada cuando la cuenta no ha cambiado.
   await prisma.whopPlanMapping.deleteMany({ where: { whopCompanyId: { not: company.id } } })
-  await prisma.invoice.updateMany({
-    where: { whopCheckoutUrl: { not: null } },
-    data: { whopCheckoutUrl: null, whopCheckoutId: null, whopCheckoutAmount: null },
-  })
+  // Los enlaces de pago cacheados, igual, pero solo si la cuenta cambia de
+  // verdad: sobre la misma cuenta siguen siendo válidos, y tirarlos en cada
+  // re-pegado obliga a recrear un enlace por factura sin ninguna ganancia.
+  if (!mismaCuenta) {
+    await prisma.invoice.updateMany({
+      where: { whopCheckoutUrl: { not: null } },
+      data: { whopCheckoutUrl: null, whopCheckoutId: null, whopCheckoutAmount: null },
+    })
+  }
 
   await prisma.clubSettings.upsert({
     where: { isDefault: true },

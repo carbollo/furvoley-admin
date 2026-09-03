@@ -68,8 +68,43 @@ export type Balance = {
 type Ctx = {
   companyId: string
   credential: { apiKey: string }
-  /** Divisa en la que el club cobra. Decide qué datos bancarios se piden. */
-  payoutCurrency: string
+}
+
+/** Divisas de tres letras en minúsculas, como las quiere la pasarela. */
+const DIVISA_RE = /^[a-z]{3}$/
+
+/**
+ * Divisa en la que el club COBRA sus cuotas.
+ *
+ * Es la que hay que pedirle a la pasarela por dos motivos: los datos bancarios
+ * obligatorios cambian con ella, y el barrido solo transfiere el saldo que
+ * coincide con la divisa de la cuenta. Pedir la cuenta en otra divisa deja el
+ * dinero parado sin que nadie lo note.
+ *
+ * Sale de las cuotas del club y NO de `whopPayoutCurrency`. Esa columna guarda
+ * lo que la pasarela ASIGNÓ al dar de alta la cuenta, y mientras el alta se hacía
+ * sin divisa la pasarela asignaba dólares. Leerla aquí cerraba el círculo: al
+ * club al que le crearon la cuenta en dólares se la volvería a pedir en dólares
+ * cada vez que intentara arreglarlo. Así, en cambio, se cura solo volviendo a
+ * guardar su cuenta.
+ */
+async function divisaDeCobro(): Promise<string> {
+  try {
+    const plan = await prisma.membershipPlan.findFirst({
+      where: { isActive: true },
+      select: { currency: true },
+      orderBy: { createdAt: 'asc' },
+    })
+    const divisa = String(plan?.currency || '').trim().toLowerCase()
+    if (DIVISA_RE.test(divisa)) return divisa
+  } catch (e) {
+    // Sin cuotas legibles no se adivina: se cae a euros y se deja rastro, que es
+    // mejor que dar de alta la cuenta en la divisa de nadie.
+    console.error('[whop/payouts] no se pudo leer la divisa de las cuotas', {
+      code: (e as { code?: string })?.code ?? (e instanceof Error ? e.name : 'error'),
+    })
+  }
+  return 'eur'
 }
 
 async function ctx(): Promise<{ ok: true; ctx: Ctx } | { ok: false; error: string }> {
@@ -87,10 +122,7 @@ async function ctx(): Promise<{ ok: true; ctx: Ctx } | { ok: false; error: strin
   if (!credential) {
     return { ok: false, error: 'Falta la clave de la pasarela. Vuelve a conectarla en Ajustes del club.' }
   }
-  return {
-    ok: true,
-    ctx: { companyId: config.companyId, credential, payoutCurrency: config.payoutCurrency },
-  }
+  return { ok: true, ctx: { companyId: config.companyId, credential } }
 }
 
 /**
@@ -228,12 +260,12 @@ export async function listSupportedMethods(
         account_id: c.ctx.companyId,
         country: country || undefined,
         supported_payout_method_id: methodId || undefined,
-        // La divisa en la que el club quiere recibir. Solo cuenta al pedir un
-        // método concreto, y ahí es obligatoria en la práctica: la pasarela
-        // asume dólares si no se dice, y preguntarle por los datos de una
-        // transferencia SEPA que entregue dólares es una contradicción que
-        // rechaza con un 400. Los campos que pide el banco cambian con ella.
-        destination_currency: methodId ? (c.ctx.payoutCurrency || 'EUR').toLowerCase() : undefined,
+        // La divisa en la que el club quiere recibir, la MISMA con la que luego
+        // se dará de alta la cuenta. Solo cuenta al pedir un método concreto, y
+        // ahí es obligatoria en la práctica: la pasarela asume dólares si no se
+        // dice, y preguntarle por los datos de una transferencia SEPA que
+        // entregue dólares es una contradicción que rechaza con un 400.
+        destination_currency: methodId ? await divisaDeCobro() : undefined,
         first: 25,
       },
     })
@@ -267,10 +299,17 @@ export async function createPayoutMethod(input: {
   supportedMethodId: string
   fields: Record<string, string>
   nickname?: string
-  currency?: string
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const c = await ctx()
   if (!c.ok) return c
+  // La misma divisa con la que se pidieron los campos bancarios: preguntar en
+  // euros y dar de alta en dólares pide un IBAN para una cuenta que luego no
+  // puede recibir euros.
+  //
+  // No se acepta por parámetro. Nadie la mandaba desde la pantalla, y admitirla
+  // dejaba abierta la misma contradicción por la puerta de atrás: campos
+  // validados en una divisa y cuenta creada en otra.
+  const divisa = await divisaDeCobro()
   try {
     const created = await whopRequest<{ id?: unknown }>({
       method: 'POST',
@@ -280,6 +319,9 @@ export async function createPayoutMethod(input: {
       // la pasarela ejecuta de nuevo en vez de repetir el resultado anterior.
       idempotencyKey: contentKey(`crm:payoutmethod:${c.ctx.companyId}`, {
         method: input.supportedMethodId,
+        // La divisa entra en la clave: si no, un alta hecha en la divisa
+        // equivocada se repetiria igual de mal durante 24 h al corregirla.
+        currency: divisa,
         fields: JSON.stringify(
           Object.keys(input.fields)
             .sort()
@@ -291,9 +333,15 @@ export async function createPayoutMethod(input: {
         supported_payout_method_id: input.supportedMethodId,
         fields: input.fields,
         nickname: (input.nickname || 'Cuenta del club').slice(0, 60),
-        // Sin divisa forzada: la marca el propio método según el país. Imponer
-        // «eur» a una cuenta mexicana la dejaría inservible.
-        ...(input.currency ? { destination_currency: input.currency.toLowerCase() } : {}),
+        // La divisa SIEMPRE, y la misma con la que se preguntaron los campos.
+        //
+        // Aquí decía que la marcaba el propio método según el país. No es
+        // cierto: la pasarela documenta `destination_currency` con «default:
+        // usd», así que callarla daba de alta la cuenta del club en dólares.
+        // El club cobra en euros, el barrido solo mira el saldo en su divisa, y
+        // el dinero se quedaba parado en la pasarela sin que nadie lo notara,
+        // con la pantalla diciendo «cuenta guardada».
+        destination_currency: divisa,
         is_default: true,
       },
     })
@@ -304,6 +352,15 @@ export async function createPayoutMethod(input: {
     // pidió: es la que decide qué saldo barre la transferencia automática.
     const saved = await listPayoutMethods()
     const currency = saved.ok ? saved.methods.find((m) => m.id === id)?.currency || '' : ''
+    if (currency && currency !== divisa.toUpperCase()) {
+      // Que la pasarela conteste otra divisa significa que el saldo del club no
+      // va a ser elegible para el barrido: el dinero se quedará parado. Antes
+      // esto no dejaba ni rastro.
+      console.error('[whop/payouts] la pasarela asignó a la cuenta una divisa distinta de la pedida', {
+        pedida: divisa.toUpperCase(),
+        asignada: currency,
+      })
+    }
 
     // Si esto no se persiste, el barrido creería que el club no tiene cuenta y
     // el dinero se quedaría acumulado con la cuenta visible en pantalla. Es un

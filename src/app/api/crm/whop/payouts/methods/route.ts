@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const auth = await requireRoles(['ADMIN'], request)
   if (!auth.ok) return auth.response
 
-  let body: { supportedMethodId?: unknown; fields?: unknown; nickname?: unknown; currency?: unknown }
+  let body: { supportedMethodId?: unknown; fields?: unknown; nickname?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -87,7 +87,6 @@ export async function POST(request: Request) {
     supportedMethodId,
     fields,
     nickname: typeof body.nickname === 'string' ? body.nickname : undefined,
-    currency: typeof body.currency === 'string' ? body.currency : undefined,
   })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
 
