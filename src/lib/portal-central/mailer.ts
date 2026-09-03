@@ -2,16 +2,33 @@ import nodemailer from 'nodemailer'
 import { isSingleEmail } from '@/lib/db-input-validation'
 
 /**
- * Envío de correo por SMTP para el portal (correo de bienvenida al dar de alta un
- * club automáticamente desde una tienda externa). Configuración por variables de
- * entorno en el servicio PORTAL (no se guardan credenciales en la BD):
- *   SMTP_HOST      host del servidor SMTP (obligatorio)
- *   SMTP_PORT      puerto (por defecto 587)
- *   SMTP_SECURE    'true' para TLS directo (465); por defecto true si el puerto es 465
- *   SMTP_USER      usuario (opcional si el relay no autentica)
- *   SMTP_PASS      contraseña
- *   SMTP_FROM      remitente "Nombre <correo@dominio>" (por defecto = SMTP_USER)
+ * Envío de correo del portal: el mensaje de bienvenida con la contraseña que
+ * recibe un club recién dado de alta desde la tienda.
+ *
+ * Dos transportes, y el orden importa:
+ *
+ *  1. RESEND (preferido). Es una llamada HTTPS a su API, no una conexión SMTP:
+ *     no hay puertos que negociar ni handshake que se quede colgado, que es lo
+ *     que peor se lleva con un contenedor que puede tardar en arrancar. La
+ *     tienda ya manda sus correos por aquí, así que el remitente y el dominio
+ *     verificado son los mismos.
+ *       RESEND_API_KEY   clave de la API
+ *       RESEND_FROM      remitente «Nombre <correo@dominio>»
+ *
+ *  2. SMTP (respaldo). Se conserva para no dejar tirado a un despliegue que ya
+ *     lo tuviera configurado; si hay clave de Resend, no se usa.
+ *       SMTP_HOST · SMTP_PORT · SMTP_SECURE · SMTP_USER · SMTP_PASS · SMTP_FROM
+ *
+ * Las credenciales viven SOLO en variables de entorno del servicio portal:
+ * nunca en la base de datos.
  */
+function resendConfig() {
+  return {
+    apiKey: (process.env.RESEND_API_KEY || '').trim(),
+    from: (process.env.RESEND_FROM || '').trim(),
+  }
+}
+
 function smtpConfig() {
   const host = (process.env.SMTP_HOST || '').trim()
   const port = Number(process.env.SMTP_PORT || 587)
@@ -23,9 +40,78 @@ function smtpConfig() {
   return { host, port, user, pass, from, secure }
 }
 
-export function isSmtpConfigured(): boolean {
+/** Qué transporte se va a usar de verdad, o null si no hay ninguno listo. */
+export function mailTransport(): 'resend' | 'smtp' | null {
+  const r = resendConfig()
+  if (r.apiKey && r.from) return 'resend'
   const c = smtpConfig()
-  return Boolean(c.host && c.from)
+  if (c.host && c.from) return 'smtp'
+  return null
+}
+
+export function isMailConfigured(): boolean {
+  return mailTransport() !== null
+}
+
+/**
+ * Manda un correo por el transporte que esté configurado.
+ *
+ * Un fallo aquí NO se devuelve crudo a quien llama: el mensaje de Resend o del
+ * relay puede llevar dentro el host interno o parte de la credencial. Se
+ * registra lo justo para diagnosticar —el estado— y se lanza un error limpio.
+ */
+async function enviar(msg: { to: string; subject: string; text: string; html: string }): Promise<void> {
+  const transporte = mailTransport()
+
+  if (transporte === 'resend') {
+    const { apiKey, from } = resendConfig()
+    // Tope explícito: sin él, una API que no contesta deja colgada el alta
+    // entera, que corre dentro de la petición del webhook de la tienda.
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 15000)
+    let res: Response
+    try {
+      res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
+        signal: ctrl.signal,
+      })
+    } catch (e) {
+      console.error('[portal/mailer] Resend no respondió', e instanceof Error ? e.name : 'error')
+      throw new Error('No se pudo contactar con el servicio de correo.')
+    } finally {
+      clearTimeout(timer)
+    }
+    if (!res.ok) {
+      // Solo el estado y el tipo: el cuerpo puede repetir el remitente o el
+      // destinatario, y en un 401 hasta pistas de la clave.
+      let tipo = ''
+      try {
+        const cuerpo = (await res.json()) as { name?: unknown }
+        tipo = String(cuerpo?.name ?? '')
+      } catch {
+        /* respuesta sin JSON: basta con el estado */
+      }
+      console.error('[portal/mailer] Resend rechazó el envío', { status: res.status, tipo })
+      throw new Error(
+        res.status === 401 || res.status === 403
+          ? 'El servicio de correo rechazó la clave (RESEND_API_KEY).'
+          : 'El servicio de correo rechazó el envío. Revisa el remitente (RESEND_FROM) y su dominio verificado.',
+      )
+    }
+    return
+  }
+
+  if (transporte === 'smtp') {
+    const { transport, from } = getTransport()
+    await transport.sendMail({ from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html })
+    return
+  }
+
+  throw new Error(
+    'Correo no configurado: define RESEND_API_KEY y RESEND_FROM en el servicio portal (o, en su defecto, SMTP_HOST y SMTP_FROM).',
+  )
 }
 
 function getTransport() {
@@ -52,13 +138,12 @@ function getTransport() {
 export async function sendTestEmail(to: string): Promise<void> {
   const dest = String(to || '').trim()
   if (!isSingleEmail(dest)) throw new Error('Indica UN email de destino válido (sin comas ni varios destinatarios).')
-  const { transport, from } = getTransport()
-  await transport.sendMail({
-    from,
+  const via = mailTransport() === 'resend' ? 'Resend' : 'SMTP'
+  await enviar({
     to: dest,
-    subject: 'Prueba de SMTP — Panel del portal',
-    text: 'Si recibes este correo, el SMTP del portal (Mailgun) está bien configurado. Ya puedes recibir los correos de bienvenida de las altas automáticas.',
-    html: '<p>Si recibes este correo, el <strong>SMTP del portal</strong> (Mailgun) está bien configurado.</p><p>Ya puedes recibir los correos de bienvenida de las altas automáticas.</p>',
+    subject: 'Prueba de correo — Panel del portal',
+    text: `Si recibes este correo, el envío del portal (${via}) está bien configurado. Ya puedes recibir los correos de bienvenida de las altas automáticas.`,
+    html: `<p>Si recibes este correo, el <strong>envío de correo del portal</strong> (${via}) está bien configurado.</p><p>Ya puedes recibir los correos de bienvenida de las altas automáticas.</p>`,
   })
 }
 
@@ -79,8 +164,6 @@ export async function sendWelcomeEmail(opts: {
   if (!isSingleEmail(opts.to)) {
     throw new Error('Destinatario inválido: debe ser una sola dirección de email.')
   }
-  const { transport, from } = getTransport()
-
   // Sin enlace el correo no puede quedarse mudo: el cliente se quedaría con una
   // contraseña y sin sitio donde usarla. Responder a este mismo correo es el
   // único camino de vuelta que existe siempre, sin configurar nada más.
@@ -112,5 +195,5 @@ export async function sendWelcomeEmail(opts: {
     `<p style="margin:0;color:#6b7280;font-size:13px">Por seguridad, cambia la contraseña tras el primer acceso.</p>` +
     `</div>`
 
-  await transport.sendMail({ from, to: opts.to, subject, text, html })
+  await enviar({ to: opts.to, subject, text, html })
 }

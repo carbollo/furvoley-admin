@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isPortalAdminConfigured, isPortalAdminRequest } from '@/lib/portal-central/admin-auth'
 import { isPortalCentralHost } from '@/lib/portal-central/config'
-import { isSmtpConfigured, sendTestEmail } from '@/lib/portal-central/mailer'
+import { isMailConfigured, mailTransport, sendTestEmail } from '@/lib/portal-central/mailer'
 import { checkWebhookRate } from '@/lib/portal-central/webhook-limit'
 import { clientIpFromHeaders } from '@/lib/login-rate-limit'
 
@@ -14,14 +14,16 @@ async function requireAdmin() {
   return null
 }
 
-/** ¿Está configurado el SMTP? (para mostrar el estado en el panel). */
+/** ¿Se puede mandar correo, y por dónde? (para el estado del panel). */
 export async function GET() {
   const denied = await requireAdmin()
   if (denied) return denied
-  return NextResponse.json({ ok: true, configured: isSmtpConfigured() })
+  // `transporte` para que el panel diga por dónde sale el correo: con dos vías
+  // posibles, «configurado» a secas no basta para saber cuál está actuando.
+  return NextResponse.json({ ok: true, configured: isMailConfigured(), transporte: mailTransport() })
 }
 
-/** Envía un correo de prueba a la dirección indicada, para verificar Mailgun. */
+/** Envía un correo de prueba, para verificar el envío antes de vender. */
 export async function POST(request: Request) {
   const denied = await requireAdmin()
   if (denied) return denied

@@ -365,7 +365,8 @@ export function PortalAdminPanel() {
   const [naEmail, setNaEmail] = useState('')         // nuevo super-admin
   const [naPassword, setNaPassword] = useState('')
   const [naName, setNaName] = useState('')
-  const [smtpConfigured, setSmtpConfigured] = useState<boolean | null>(null) // estado SMTP
+  const [smtpConfigured, setSmtpConfigured] = useState<boolean | null>(null) // ¿se puede mandar correo?
+  const [mailTransporte, setMailTransporte] = useState<string | null>(null) // 'resend' | 'smtp'
   const [smtpTestTo, setSmtpTestTo] = useState('')   // destino del correo de prueba
   const [split, setSplit] = useState(null)           // reparto de beneficios { selfPct, otherPct, selfLabel, otherLabel }
   const [impModal, setImpModal] = useState(null)     // { id, name } al "entrar como" (pide motivo)
@@ -441,7 +442,10 @@ export function PortalAdminPanel() {
   }, [])
   const loadSmtp = useCallback(async () => {
     const r = await fetch('/api/portal-central/admin/smtp-test', { credentials: 'include' })
-    if (r.ok) setSmtpConfigured(Boolean((await r.json()).configured))
+    if (!r.ok) return
+    const j = await r.json().catch(() => ({}))
+    setSmtpConfigured(Boolean(j.configured))
+    setMailTransporte(j.transporte || null)
   }, [])
 
   /** Suspender / reactivar un club. */
@@ -1031,7 +1035,9 @@ export function PortalAdminPanel() {
                   {/* Estado del correo (SMTP) — necesario para el email de bienvenida de las altas por webhook */}
                   <div style={{ background: PC.card2, border: `1px solid ${PC.border}`, borderRadius: 14, padding: 16, margin: '16px 0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: PC.text }}>Correo (SMTP)</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: PC.text }}>
+                        Correo{mailTransporte ? ` (${mailTransporte === 'resend' ? 'Resend' : 'SMTP'})` : ''}
+                      </span>
                       {smtpConfigured === null
                         ? null
                         : badge(smtpConfigured, smtpConfigured ? 'Configurado' : 'Sin configurar')}
@@ -1040,7 +1046,7 @@ export function PortalAdminPanel() {
                       <button type="button" disabled={busy || !smtpTestTo.trim()} onClick={() => void testSmtp()} style={{ ...aBtnGhost, opacity: busy || !smtpTestTo.trim() ? 0.5 : 1 }}>Enviar prueba</button>
                     </div>
                     <div style={{ fontSize: 11.5, color: PC.muted, marginTop: 8, lineHeight: 1.45 }}>
-                      Define en el servicio <strong style={{ color: PC.sub }}>portal</strong> (Railway) las variables <span style={{ fontFamily: 'ui-monospace, monospace' }}>SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, SMTP_FROM</span> (Mailgun) y envíate una prueba para confirmar antes de recibir clientes reales.
+                      Define en el servicio <strong style={{ color: PC.sub }}>portal</strong> (Railway) las variables <span style={{ fontFamily: 'ui-monospace, monospace' }}>RESEND_API_KEY</span> y <span style={{ fontFamily: 'ui-monospace, monospace' }}>RESEND_FROM</span> (el remitente tiene que ser de un dominio verificado en Resend), y envíate una prueba antes de recibir clientes reales. Sin esto el club se crea, pero el comprador nunca recibe su contraseña. Se admite también SMTP como respaldo (<span style={{ fontFamily: 'ui-monospace, monospace' }}>SMTP_HOST, SMTP_FROM</span>…), que solo se usa si no hay clave de Resend.
                     </div>
                   </div>
 
