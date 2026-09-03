@@ -6,6 +6,7 @@ import { CuotasSection } from './CuotasSection'
 import { BancoSection } from './BancoSection'
 import { EntrenamientoSection } from './EntrenamientoSection'
 import { ClubSettingsModal } from './ClubSettingsModal'
+import { MiCuentaModal } from './MiCuentaModal'
 import { HermesAgentSection } from './HermesAgentSection'
 import { PaymentReminderButton } from './PaymentReminderButton'
 import { InviteLinkButton } from './InviteLinkButton'
@@ -659,7 +660,7 @@ const NAV = [
   },
 ];
 
-function Sidebar({ active, setActive, onOpenClubSettings, abierto = false }) {
+function Sidebar({ active, setActive, onOpenClubSettings, onOpenMiCuenta, abierto = false }) {
   const { bundle } = useCrm();
   const role = normalizeRole(bundle?.user?.role)
   const features = bundle?.features
@@ -892,6 +893,25 @@ function Sidebar({ active, setActive, onOpenClubSettings, abierto = false }) {
               }}>{ROLE_LABEL[role] || 'Socio'}</div>
             </div>
           </div>
+        )}
+
+        {onOpenMiCuenta && (
+          <button
+            type="button"
+            onClick={onOpenMiCuenta}
+            style={{
+              display:'flex',alignItems:'center',gap:12,width:'100%',
+              padding:'12px 24px',border:'none',cursor:'pointer',
+              background:'transparent',color:'var(--sidebar-text)',
+              fontFamily:'inherit',fontSize:14,fontWeight:500,textAlign:'left',
+              transition:'all 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#ffffff' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--sidebar-text)' }}
+          >
+            <Icon name="users" size={18}/>
+            <span>Mi cuenta</span>
+          </button>
         )}
 
         <button
@@ -9726,6 +9746,7 @@ function CrmInner() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>([])
   const [showClubSettings, setShowClubSettings] = useState(false)
+  const [showMiCuenta, setShowMiCuenta] = useState(false)
   /** Cajón del menú en móvil. En escritorio el CSS lo ignora. */
   const [menuAbierto, setMenuAbierto] = useState(false)
 
@@ -10005,6 +10026,7 @@ function CrmInner() {
         setActive={(id) => { setActive(id); setMenuAbierto(false) }}
         abierto={menuAbierto}
         onOpenClubSettings={role === 'ADMIN' ? () => setShowClubSettings(true) : undefined}
+        onOpenMiCuenta={() => { setShowMiCuenta(true); setMenuAbierto(false) }}
       />
       <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column',minWidth:0,background:'var(--surface)'}}>
         <div className="crm-topbar" style={{
@@ -10192,6 +10214,13 @@ function CrmInner() {
           <Screen setActive={setActive}/>
         </div>
       </div>
+      {/* En la raíz a propósito: la barra lateral lleva `transform` en móvil, y un
+          ancestro con transform recorta cualquier hijo `position: fixed`. */}
+      <MiCuentaModal
+        open={showMiCuenta}
+        emailActual={bundle?.user?.email || ''}
+        onClose={() => setShowMiCuenta(false)}
+      />
       {role === 'ADMIN' && (
         <ClubSettingsModal
           open={showClubSettings}
