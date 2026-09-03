@@ -2,7 +2,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CRM_MODULES } from '@/lib/crm-modules'
+import { CRM_SECTIONS } from '@/lib/crm-modules'
 import { track } from '@/lib/analytics/umami'
 
 /* ── Sistema de diseño del panel admin (calcado de Stitch · "Velocity Carbon") ──
@@ -685,7 +685,7 @@ export function PortalAdminPanel() {
       const payload = {
         name: planModal.name,
         priceMonthly: Number(planModal.priceMonthly) || 0,
-        modules: planModal.modules,
+        sections: planModal.sections,
         memberLimit: planModal.memberLimit === '' || planModal.memberLimit == null ? null : Number(planModal.memberLimit),
       }
       const r = await fetch('/api/portal-central/admin/plans', {
@@ -738,7 +738,7 @@ export function PortalAdminPanel() {
         periodo: 30,
         webhook: `${webhookBase}/api/portal-central/webhooks/subscription/${p.webhookToken}`,
         ...(p.webhookSecret ? { secreto: p.webhookSecret } : {}),
-        ventajas: CRM_MODULES.filter((m) => p.modules.includes(m.id)).map((m) => m.label),
+        ventajas: CRM_SECTIONS.filter((s) => p.sections.includes(s.id)).map((s) => s.label),
       })),
       null,
       2,
@@ -998,8 +998,10 @@ export function PortalAdminPanel() {
                               </div>
 
                               <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                                <span style={{ fontSize: 11, color: PC.muted, marginRight: 2, textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 600 }}>Módulos</span>
-                                {CRM_MODULES.map((m) => {
+                                <span style={{ fontSize: 11, color: PC.muted, marginRight: 2, textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 600 }}>Secciones</span>
+                                {CRM_SECTIONS.map((m) => {
+                                  // Por SECCIÓN y no por módulo: el plan apaga secciones sueltas, y
+                                  // un interruptor de módulo no podría volver a encender una de ellas.
                                   const on = c.features?.[m.id] !== false
                                   return (
                                     <button key={m.id} type="button" disabled={busy} onClick={() => void toggleClientModule(c.id, m.id, c.features)} title={on ? `Desactivar ${m.label}` : `Activar ${m.label}`}
@@ -1023,7 +1025,7 @@ export function PortalAdminPanel() {
                 <section style={aCard}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                     {sectionTitle(`Planes (${plans.length})`, 'Módulos incluidos, precio y límite de socios. Asignar un plan a un club fija sus módulos.')}
-                    <button type="button" onClick={() => setPlanModal({ name: '', priceMonthly: '', modules: [], memberLimit: '' })} style={aBtn}>＋ Nuevo plan</button>
+                    <button type="button" onClick={() => setPlanModal({ name: '', priceMonthly: '', sections: [], memberLimit: '' })} style={aBtn}>＋ Nuevo plan</button>
                   </div>
 
                   {/* Estado del correo (SMTP) — necesario para el email de bienvenida de las altas por webhook */}
@@ -1053,12 +1055,12 @@ export function PortalAdminPanel() {
                               <div style={{ fontWeight: 700, fontSize: 15, color: PC.text }}>{p.name} <span style={{ color: PC.green, marginLeft: 4 }}>{fmtEur(p.priceMonthly)}/mes</span></div>
                               <div style={{ color: PC.muted, fontSize: 12.5, marginTop: 2 }}>{p.memberLimit ? `Hasta ${p.memberLimit} socios` : 'Socios ilimitados'} · {p.tenantCount} club{p.tenantCount === 1 ? '' : 'es'}</div>
                             </div>
-                            <button type="button" onClick={() => setPlanModal({ id: p.id, name: p.name, priceMonthly: String(p.priceMonthly), modules: [...p.modules], memberLimit: p.memberLimit ?? '' })} style={aBtnGhost}>Editar</button>
+                            <button type="button" onClick={() => setPlanModal({ id: p.id, name: p.name, priceMonthly: String(p.priceMonthly), sections: [...p.sections], memberLimit: p.memberLimit ?? '' })} style={aBtnGhost}>Editar</button>
                             <button type="button" disabled={busy} onClick={() => void removePlan(p.id)} style={{ ...aBtnGhost, borderColor: 'rgba(251,113,133,.5)', color: PC.danger }}>Eliminar</button>
                           </div>
                           <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-                            {CRM_MODULES.map((m) => {
-                              const inc = p.modules.includes(m.id)
+                            {CRM_SECTIONS.map((m) => {
+                              const inc = p.sections.includes(m.id)
                               return <span key={m.id} style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999, background: inc ? PC.greenBg : 'transparent', border: `1px solid ${inc ? 'rgba(16,185,129,.5)' : PC.border2}`, color: inc ? PC.green : PC.muted }}>{inc ? '✓ ' : '· '}{m.label}</span>
                             })}
                           </div>
@@ -1336,18 +1338,25 @@ export function PortalAdminPanel() {
                       <div><label style={labelStyle}>Precio mensual (€)</label><input type="number" min={0} value={planModal.priceMonthly} onChange={(e) => setPlanModal({ ...planModal, priceMonthly: e.target.value })} placeholder="0" style={darkInput} /></div>
                       <div><label style={labelStyle}>Límite de socios</label><input type="number" min={0} value={planModal.memberLimit} onChange={(e) => setPlanModal({ ...planModal, memberLimit: e.target.value })} placeholder="ilimitado" style={darkInput} /></div>
                     </div>
-                    <label style={labelStyle}>Módulos incluidos</label>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-                      {CRM_MODULES.map((m) => {
-                        const inc = planModal.modules.includes(m.id)
-                        return (
-                          <button key={m.id} type="button" onClick={() => setPlanModal({ ...planModal, modules: inc ? planModal.modules.filter((x: string) => x !== m.id) : [...planModal.modules, m.id] })}
-                            style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 999, cursor: 'pointer', font: 'inherit', background: inc ? PC.greenBg : 'transparent', border: `1px solid ${inc ? 'rgba(16,185,129,.5)' : PC.border2}`, color: inc ? PC.green : PC.muted }}>
-                            {inc ? '✓ ' : '＋ '}{m.label}
-                          </button>
-                        )
-                      })}
-                    </div>
+                    <label style={labelStyle}>Qué incluye el plan</label>
+                    {/* Agrupado como la tabla comercial: se decide sección a sección,
+                        que es como se venden los planes de verdad. */}
+                    {[...new Set(CRM_SECTIONS.map((s) => s.grupo))].map((grupo) => (
+                      <div key={grupo} style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, color: PC.muted, textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 600, marginBottom: 5 }}>{grupo}</div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {CRM_SECTIONS.filter((s) => s.grupo === grupo).map((m) => {
+                            const inc = planModal.sections.includes(m.id)
+                            return (
+                              <button key={m.id} type="button" onClick={() => setPlanModal({ ...planModal, sections: inc ? planModal.sections.filter((x: string) => x !== m.id) : [...planModal.sections, m.id] })}
+                                style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 999, cursor: 'pointer', font: 'inherit', background: inc ? PC.greenBg : 'transparent', border: `1px solid ${inc ? 'rgba(16,185,129,.5)' : PC.border2}`, color: inc ? PC.green : PC.muted }}>
+                                {inc ? '✓ ' : '＋ '}{m.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
                       <button type="button" onClick={() => setPlanModal(null)} style={aBtnGhost}>Cancelar</button>
                       <button type="button" disabled={busy} onClick={() => void savePlan()} style={{ ...aBtn, opacity: busy ? 0.6 : 1 }}>Guardar plan</button>

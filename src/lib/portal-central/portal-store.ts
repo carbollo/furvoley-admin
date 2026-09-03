@@ -3,7 +3,8 @@ import { randomBytes } from 'node:crypto'
 import { isSingleEmail } from '@/lib/db-input-validation'
 import { prisma } from '@/lib/prisma'
 import { sanitizeSlug } from '@/lib/multitenant/registry'
-import { sanitizeFeatures, CRM_MODULES, type CrmModuleId, type TenantFeatures } from '@/lib/crm-modules'
+import { sanitizeFeatures, CRM_SECTIONS, type TenantFeatures } from '@/lib/crm-modules'
+import type { CrmSectionId } from '@/lib/rbac'
 
 /**
  * Directorio del portal (Modelo C) sobre la BD del propio portal:
@@ -272,7 +273,7 @@ export type PlanRow = {
   id: string
   name: string
   priceMonthly: number
-  modules: CrmModuleId[]
+  sections: CrmSectionId[]
   memberLimit: number | null
   tenantCount: number
   webhookToken: string | null
@@ -289,13 +290,14 @@ function newWebhookSecret(): string {
   return randomBytes(32).toString('hex')
 }
 
-function normalizePlanModules(input: unknown): CrmModuleId[] {
-  const valid = new Set(CRM_MODULES.map((m) => m.id))
+/** Deja solo secciones que existen, sin repetir. Lo demás se descarta. */
+function normalizePlanSections(input: unknown): CrmSectionId[] {
+  const valid = new Set(CRM_SECTIONS.map((s) => s.id))
   if (!Array.isArray(input)) return []
-  const out: CrmModuleId[] = []
+  const out: CrmSectionId[] = []
   for (const raw of input) {
-    const id = String(raw)
-    if (valid.has(id as CrmModuleId) && !out.includes(id as CrmModuleId)) out.push(id as CrmModuleId)
+    const id = String(raw) as CrmSectionId
+    if (valid.has(id) && !out.includes(id)) out.push(id)
   }
   return out
 }
@@ -315,7 +317,7 @@ export async function listPlans(): Promise<PlanRow[]> {
     id: p.id,
     name: p.name,
     priceMonthly: p.priceMonthly,
-    modules: normalizePlanModules(p.modules),
+    sections: normalizePlanSections(p.sections),
     memberLimit: p.memberLimit ?? null,
     tenantCount: p._count.tenants,
     webhookToken: p.webhookToken ?? null,
@@ -323,7 +325,7 @@ export async function listPlans(): Promise<PlanRow[]> {
   }))
 }
 
-export async function createPlan(input: { name: string; priceMonthly?: number; modules?: unknown; memberLimit?: unknown }) {
+export async function createPlan(input: { name: string; priceMonthly?: number; sections?: unknown; memberLimit?: unknown }) {
   const name = String(input.name || '').trim()
   if (!name) throw new Error('El nombre del plan es obligatorio.')
   const price = Number(input.priceMonthly)
@@ -331,7 +333,7 @@ export async function createPlan(input: { name: string; priceMonthly?: number; m
     data: {
       name: name.slice(0, 80),
       priceMonthly: Number.isFinite(price) && price >= 0 ? price : 0,
-      modules: normalizePlanModules(input.modules) as never,
+      sections: normalizePlanSections(input.sections) as never,
       memberLimit: normalizeLimit(input.memberLimit),
       // Cada plan nace con su token de webhook de alta automática.
       webhookToken: newWebhookToken(),
@@ -340,14 +342,14 @@ export async function createPlan(input: { name: string; priceMonthly?: number; m
   })
 }
 
-export async function updatePlan(id: string, patch: { name?: string; priceMonthly?: number; modules?: unknown; memberLimit?: unknown }) {
+export async function updatePlan(id: string, patch: { name?: string; priceMonthly?: number; sections?: unknown; memberLimit?: unknown }) {
   const data: Record<string, unknown> = {}
   if (typeof patch.name === 'string' && patch.name.trim()) data.name = patch.name.trim().slice(0, 80)
   if (patch.priceMonthly !== undefined) {
     const price = Number(patch.priceMonthly)
     data.priceMonthly = Number.isFinite(price) && price >= 0 ? price : 0
   }
-  if (patch.modules !== undefined) data.modules = normalizePlanModules(patch.modules) as never
+  if (patch.sections !== undefined) data.sections = normalizePlanSections(patch.sections) as never
   if (patch.memberLimit !== undefined) data.memberLimit = normalizeLimit(patch.memberLimit)
   if (Object.keys(data).length === 0) return null
   return prisma.plan.update({ where: { id }, data })
@@ -408,11 +410,13 @@ export async function assignPlanToTenant(tenantId: string, planId: string | null
   }
   const plan = await prisma.plan.findUnique({ where: { id: planId } })
   if (!plan) throw new Error('Plan no encontrado.')
-  const included = new Set(normalizePlanModules(plan.modules))
-  // features: solo se guardan desactivaciones (ausente = activado).
+  const incluidas = new Set(normalizePlanSections(plan.sections))
+  // Solo se guardan las DESACTIVACIONES: ausente = activado. Se apaga sección a
+  // sección y no por módulo, porque un plan puede llevar «Contabilidad» entera
+  // menos «Descuentos», y apagar el módulo dejaría al club sin facturar.
   const features: TenantFeatures = {}
-  for (const m of CRM_MODULES) {
-    if (!included.has(m.id)) features[m.id] = false
+  for (const s of CRM_SECTIONS) {
+    if (!incluidas.has(s.id)) features[s.id] = false
   }
   return prisma.tenant.update({
     where: { id: tenantId },

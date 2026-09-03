@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const created = await createPlan({
       name: String(body.name || ''),
       priceMonthly: Number(body.priceMonthly),
-      modules: body.modules,
+      sections: body.sections,
       memberLimit: body.memberLimit,
     })
     await logPortalAudit({ actor: (await getPortalAdminIdentity()) ?? 'super-admin', action: 'CREATE_PLAN', targetType: 'PLAN', targetId: created.id, detail: { name: body.name }, ip: clientIpFromHeaders(request.headers) })
@@ -99,7 +99,7 @@ export async function PATCH(request: Request) {
     await updatePlan(id, {
       ...(typeof body.name === 'string' ? { name: body.name } : {}),
       ...('priceMonthly' in body ? { priceMonthly: Number(body.priceMonthly) } : {}),
-      ...('modules' in body ? { modules: body.modules } : {}),
+      ...('sections' in body ? { sections: body.sections } : {}),
       ...('memberLimit' in body ? { memberLimit: body.memberLimit } : {}),
     })
     await logPortalAudit({ actor: (await getPortalAdminIdentity()) ?? 'super-admin', action: 'UPDATE_PLAN', targetType: 'PLAN', targetId: id, ip: clientIpFromHeaders(request.headers) })

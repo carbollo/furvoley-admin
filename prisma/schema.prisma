@@ -1377,8 +1377,13 @@ model Plan {
   id            String   @id @default(cuid())
   name          String
   priceMonthly  Float    @default(0)
-  /// Lista de moduleId incluidos (CrmModuleId[]). Vacío = ningún módulo opcional.
-  modules       Json     @default("[]")
+  /// Secciones del CRM incluidas en el plan (CrmSectionId[]). Vacío = ninguna.
+  ///
+  /// Antes guardaba módulos, pero un módulo agrupa varias secciones y los planes
+  /// reales los parten: se vende «Administración» sin Asistencia y «Contabilidad»
+  /// sin Descuentos. Con granularidad de módulo había que regalar lo no pagado o
+  /// quitar de más. La columna conserva su nombre antiguo para no migrar nada.
+  sections      Json     @default("[]") @map("modules")
   memberLimit   Int? // null = ilimitado
   /// Token del webhook de alta automática desde una tienda externa. La URL
   /// `/api/portal-central/webhooks/subscription/<token>` da de alta un club nuevo

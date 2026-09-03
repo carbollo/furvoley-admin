@@ -8,7 +8,8 @@ import { getSessionFromRequest } from '@/lib/session'
 import { enterTenantFromRequest } from '@/lib/multitenant/request'
 import { currentTenant } from '@/lib/multitenant/context'
 import { getTenantFeatures } from '@/lib/tenant-features'
-import { isModuleEnabled, type CrmModuleId } from '@/lib/crm-modules'
+import { isSectionEnabled } from '@/lib/crm-modules'
+import type { CrmSectionId } from '@/lib/rbac'
 
 export type SessionRole = AppRole
 
@@ -24,18 +25,43 @@ export type SessionRole = AppRole
  * vía /api/crm/invoices/:id/mark-paid) los comparte y no debe acoplarse al plan.
  * Fail-open: si no se pueden leer los flags, no se bloquea nada.
  */
-const MODULE_ROUTE_PREFIXES: { prefix: string; module: CrmModuleId }[] = [
-  { prefix: '/api/crm/training', module: 'entrenamiento' },
-  { prefix: '/api/crm/workflows', module: 'workflows' },
-  { prefix: '/api/crm/whatsapp', module: 'whatsapp' },
-  { prefix: '/api/crm/chat', module: 'whatsapp' },
-  { prefix: '/api/crm/accounting', module: 'contabilidad' },
-  // Las tarjetas son parte de Contabilidad -> Banco. El resto de /api/crm/whop
-  // (payouts, assign-plan, subscription-link) queda FUERA a proposito: las cuotas
-  // se cobran aunque el modulo este apagado, y gatear payouts dejaria al club sin
-  // poder configurar donde recibe ese dinero.
-  { prefix: '/api/crm/whop/cards', module: 'contabilidad' },
-  { prefix: '/api/hermes', module: 'hermes' },
+/**
+ * Qué SECCIÓN protege cada ruta.
+ *
+ * Antes esto iba por módulo, y era mentira a medias: un módulo agrupa varias
+ * secciones, y los planes las venden por separado. Peor, «calendario», «socios»
+ * y «admin» no estaban aquí, así que solo se ocultaban del menú: un club del
+ * plan más barato podía llegar a esos datos por la API y llevarse gratis lo que
+ * no había pagado. El menú es presentación; esto es la puerta.
+ *
+ * Lo que NO se cierra, a propósito:
+ *  - `/api/crm/data`, que alimenta el bundle inicial: ya filtra por rol y por
+ *    features dentro, y cerrarlo entero dejaría el CRM en blanco.
+ *  - El resto de `/api/crm/whop` (transferencias, alta de cuotas): el club tiene
+ *    que poder configurar dónde recibe su dinero aunque no compre Contabilidad.
+ *  - `/api/crm/groups` y `/api/crm/admin-summary`. Los grupos son una pieza
+ *    compartida —socios, eventos, convocatorias y el chat cuelgan de ellos—, así
+ *    que atarlos a «Organigrama» dejaría media aplicación muerta para un plan que
+ *    sí paga esas otras partes. Si algún día se vende un plan sin Organigrama,
+ *    hay que cerrar la PANTALLA, no la pieza de la que depende todo.
+ */
+const SECTION_ROUTE_PREFIXES: { prefix: string; section: CrmSectionId }[] = [
+  { prefix: '/api/crm/training', section: 'entrenamiento' },
+  { prefix: '/api/crm/workflows', section: 'workflows' },
+  { prefix: '/api/crm/whatsapp', section: 'whatsapp' },
+  { prefix: '/api/crm/chat', section: 'whatsapp' },
+  { prefix: '/api/crm/bulk-message', section: 'whatsapp' },
+  { prefix: '/api/crm/events', section: 'calendario' },
+  { prefix: '/api/crm/club-holidays', section: 'calendario' },
+  { prefix: '/api/crm/attendance', section: 'asistencia' },
+  { prefix: '/api/crm/accounting', section: 'contabilidad' },
+  { prefix: '/api/crm/invoices', section: 'facturas' },
+  { prefix: '/api/crm/impagos', section: 'impagos' },
+  { prefix: '/api/crm/products', section: 'productos' },
+  { prefix: '/api/crm/discounts', section: 'descuentos' },
+  // Las tarjetas son parte de Contabilidad -> Banco.
+  { prefix: '/api/crm/whop/cards', section: 'banco' },
+  { prefix: '/api/hermes', section: 'hermes' },
 ]
 
 /**
@@ -51,12 +77,14 @@ export async function assertModuleForRequest(request?: Request): Promise<NextRes
   } catch {
     return null
   }
-  const match = MODULE_ROUTE_PREFIXES.find(
+  const match = SECTION_ROUTE_PREFIXES.find(
     (m) => pathname === m.prefix || pathname.startsWith(`${m.prefix}/`),
   )
   if (!match) return null
   const features = await getTenantFeatures(currentTenant()?.slug)
-  if (isModuleEnabled(match.module, features)) return null
+  // `isSectionEnabled` mira primero la sección y luego su módulo, así que sigue
+  // respetando una desactivación de módulo entero hecha desde el panel.
+  if (isSectionEnabled(match.section, features)) return null
   return NextResponse.json(
     { error: 'Este módulo no está disponible en tu plan.' },
     { status: 403 },
