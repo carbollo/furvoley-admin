@@ -328,7 +328,7 @@ export function Sidebar({ branding }: { branding?: SidebarBranding } = {}) {
             <div
               style={{
                 display: 'inline-block',
-                background: 'rgba(37,99,235,0.28)',
+                background: 'rgba(230,65,62,0.28)',
                 color: '#bcd2fb',
                 fontSize: 9,
                 fontWeight: 700,

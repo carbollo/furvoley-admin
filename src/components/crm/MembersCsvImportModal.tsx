@@ -308,7 +308,7 @@ export function MembersCsvImportModal({
               padding: '10px 18px',
               borderRadius: 8,
               border: 'none',
-              background: '#2563eb',
+              background: 'var(--accent)',
               color: '#fff',
               fontFamily: 'inherit',
               fontWeight: 700,

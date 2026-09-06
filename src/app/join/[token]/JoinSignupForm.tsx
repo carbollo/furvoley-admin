@@ -19,7 +19,7 @@ export function JoinSignupForm({
       <button
         type="submit"
         className="mt-4 w-full rounded-xl py-3.5 text-[15px] font-semibold text-white transition-opacity hover:opacity-95 active:opacity-90"
-        style={{ background: 'oklch(0.52 0.18 240)', boxShadow: '0 1px 2px rgba(37,99,235,0.22)' }}
+        style={{ background: 'oklch(0.52 0.18 240)', boxShadow: '0 1px 2px rgba(230,65,62,0.22)' }}
       >
         Enviar inscripción
       </button>

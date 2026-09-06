@@ -1,55 +1,61 @@
-/* Sistema de diseño ProClubCRM — "Cálido y cercano".
-   Un único set de tokens para TODO el panel (CRM, portal del socio, sidebar):
-   neutros cálidos (stone), un azul de marca amable, esquinas redondeadas y
-   sombras suaves. Sustituye la mezcla anterior de slates fríos + morado. */
+/* Sistema de diseño ProClubCRM — la marca de proclub.es.
+   Un único set de tokens para TODO el panel (CRM, portal del socio, sidebar).
+   Los valores salen de las variables que declara el propio sitio:
+   --pc-red #e6413e, --pcb-red-dark #c8302d, --pc-text #111111,
+   --pc-muted #65707d, y sus avisos #459647 (bien) y #E0B252 (atención).
+   Sustituye la paleta anterior de azul y cremas cálidas. */
 :root {
-  /* Sidebar — charcoal cálido (no slate frío) */
-  --sidebar-bg: #1c1917;
+  /* Sidebar — el negro de la marca */
+  --sidebar-bg: #111111;
   --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-text: #b3aaa1;
+  --sidebar-text: #9aa3ad;
   --sidebar-text-hover: #ffffff;
   --sidebar-active: #ffffff;
-  --sidebar-active-bg: rgba(37, 99, 235, 0.22);
+  --sidebar-active-bg: rgba(230, 65, 62, 0.22);
 
-  /* Marca / acento — azul amable */
-  --accent: #2563eb;
-  --accent-strong: #1d4ed8;
-  --accent-soft: #3b82f6;
-  --accent-light: #eef4ff;
-  --accent-pill: rgba(37, 99, 235, 0.1);
+  /* Marca / acento — el rojo de proclub.es */
+  --accent: #e6413e;
+  --accent-strong: #c8302d;
+  --accent-soft: #ef6b68;
+  --accent-light: #fdeceb;
+  --accent-pill: rgba(230, 65, 62, 0.1);
 
-  /* Superficies — blanco roto cálido */
-  --surface: #faf7f2;
+  /* Superficies — los blancos del sitio, sin la crema de antes */
+  --surface: #fcfcfc;
   --surface-card: #ffffff;
-  --surface-low: #f4efe8;
-  --surface-mid: #ece4d9;
-  --surface-high: #e3d9cb;
-  --surface-tint: #2563eb;
+  --surface-low: #f5f6f7;
+  --surface-mid: #eceef1;
+  --surface-high: #e1e5e9;
+  --surface-tint: #e6413e;
 
-  /* Texto — casi negro cálido / stone */
-  --text-primary: #1c1917;
-  --text-secondary: #57534e;
-  --text-muted: #8c857d;
+  /* Texto */
+  --text-primary: #111111;
+  --text-secondary: #4a5560;
+  --text-muted: #65707d;
 
-  /* Estado */
-  --green: #15803d;
-  --green-light: #f0fdf4;
-  --green-soft: rgba(21, 128, 61, 0.1);
+  /* Estado. El verde y el ámbar del sitio se usan tal cual como RELLENO, y
+     oscurecidos como TEXTO: el #E0B252 original sobre blanco no se lee. */
+  --green: #2f7d32;
+  --green-light: #f1f8f1;
+  --green-soft: rgba(69, 150, 71, 0.12);
 
-  --amber: #b45309;
-  --amber-light: #fffbeb;
-  --amber-soft: rgba(245, 158, 11, 0.14);
+  --amber: #9a6b12;
+  --amber-light: #fdf6e7;
+  --amber-soft: rgba(224, 178, 82, 0.22);
 
-  --red: #be123c;
-  --red-light: #fff1f2;
-  --red-soft: rgba(190, 18, 60, 0.1);
+  /* Peligro. Deliberadamente MÁS OSCURO que el rojo de marca: si borrar algo
+     saliera del mismo rojo que el botón de guardar, el color dejaría de
+     avisar de nada. Misma familia, más grave. */
+  --red: #a31d1a;
+  --red-light: #fdeceb;
+  --red-soft: rgba(163, 29, 26, 0.1);
 
-  /* Líneas / sombras cálidas */
-  --border: #ebe3d8;
-  --border-strong: #d8cdbd;
-  --card-shadow: 0 1px 2px rgba(28, 25, 23, 0.04);
-  --card-shadow-hover: 0 6px 16px -6px rgba(28, 25, 23, 0.12);
-  --card-shadow-lg: 0 14px 34px rgba(28, 25, 23, 0.1);
+  /* Líneas / sombras neutras */
+  --border: #e6e8eb;
+  --border-strong: #cfd4d9;
+  --card-shadow: 0 1px 2px rgba(17, 17, 17, 0.05);
+  --card-shadow-hover: 0 6px 16px -6px rgba(17, 17, 17, 0.14);
+  --card-shadow-lg: 0 14px 34px rgba(17, 17, 17, 0.12);
 
   /* Radios (cálido = más redondeado) */
   --radius-sm: 10px;

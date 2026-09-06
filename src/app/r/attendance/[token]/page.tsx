@@ -83,7 +83,7 @@ export default function AttendanceResponsePage() {
         <button
           type="button"
           onClick={() => setDone(false)}
-          style={{ marginTop: 8, padding: '9px 16px', background: 'transparent', color: '#2563eb', border: '1px solid #d8cdbd', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+          style={{ marginTop: 8, padding: '9px 16px', background: 'transparent', color: 'var(--accent)', border: '1px solid #d8cdbd', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
         >
           Volver a la lista
         </button>
@@ -116,7 +116,7 @@ export default function AttendanceResponsePage() {
         <button
           type="button"
           onClick={() => void submitReason()}
-          style={{ padding: '10px 16px', background: '#004ac6', color: '#fff', border: 'none', borderRadius: 8 }}
+          style={{ padding: '10px 16px', background: 'var(--accent-strong)', color: '#fff', border: 'none', borderRadius: 8 }}
         >
           Enviar
         </button>
@@ -171,7 +171,7 @@ export default function AttendanceResponsePage() {
           width: '100%',
           marginTop: 20,
           padding: '13px 16px',
-          background: '#2563eb',
+          background: 'var(--accent)',
           color: '#fff',
           border: 'none',
           borderRadius: 10,

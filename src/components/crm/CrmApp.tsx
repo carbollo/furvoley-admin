@@ -397,7 +397,7 @@ function BarChart({ data, secondaryData = [], labels, color = "#3B82F6", seconda
 }
 
 /** Evolución en el tiempo (línea + área). Para series mensuales tipo "altas del año". */
-function LineAreaChart({ data, labels, color = '#2563eb', height = 200 }) {
+function LineAreaChart({ data, labels, color = 'var(--accent)', height = 200 }) {
   const safeData = data && data.length ? data.map((v) => Math.max(0, Number(v) || 0)) : [0]
   const safeLabels = labels && labels.length === safeData.length ? labels : safeData.map(() => '')
   const max = Math.max(1, ...safeData)
@@ -856,7 +856,7 @@ function Sidebar({ active, setActive, onOpenClubSettings, onOpenMiCuenta, abiert
           >
             <div style={{
               width:40,height:40,borderRadius:'50%',
-              background:'linear-gradient(135deg, #2563eb, #004ac6)',
+              background:'linear-gradient(135deg, var(--accent), var(--accent-strong))',
               display:'flex',alignItems:'center',justifyContent:'center',
               fontSize:14,fontWeight:700,color:'#fff',flexShrink:0,
               border:'1px solid rgba(255,255,255,0.08)'
@@ -877,7 +877,7 @@ function Sidebar({ active, setActive, onOpenClubSettings, onOpenMiCuenta, abiert
           <div style={{padding:'8px 24px 12px',display:'flex',alignItems:'center',gap:12}}>
             <div style={{
               width:40,height:40,borderRadius:'50%',
-              background:'linear-gradient(135deg, #2563eb, #004ac6)',
+              background:'linear-gradient(135deg, var(--accent), var(--accent-strong))',
               display:'flex',alignItems:'center',justifyContent:'center',
               fontSize:14,fontWeight:700,color:'#fff',flexShrink:0,
               border:'1px solid rgba(255,255,255,0.08)'
@@ -955,7 +955,7 @@ function Dashboard({ setActive }) {
   const EVENTOS_UI = bundle?.eventos ?? [];
   const COBROS_UI = bundle?.cobros ?? [];
 
-  const ACCENT_SOFT = '#2563eb';
+  const ACCENT_SOFT = 'var(--accent)';
   const AMBER = '#f59e0b';
   const GREEN = '#059669';
   const RED = '#e11d48';
@@ -1258,7 +1258,7 @@ function AdminSumario() {
 
   if (role !== 'ADMIN') return null
 
-  const GENDER_COLORS = { Masculino: '#2563eb', Femenino: '#e11d48', Otro: '#f59e0b', 'Sin datos': '#d8cdbd' }
+  const GENDER_COLORS = { Masculino: 'var(--accent)', Femenino: '#e11d48', Otro: '#f59e0b', 'Sin datos': '#d8cdbd' }
   const MES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
 
   const generoConDato = (data?.gender ?? []).filter((g) => g.label !== 'Sin datos')
@@ -1877,7 +1877,7 @@ function Organigrama() {
                       style={{width:16,height:16,cursor:'pointer',flexShrink:0,marginLeft:4,accentColor:'var(--accent)'}}/>
                     <button type="button" onClick={() => setFicha({ memberId: m.id, name: m.name })}
                     style={{display:'flex',alignItems:'center',gap:12,padding:'10px 4px',border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left',flex:1,minWidth:0}}>
-                    <Avatar initials={(m.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="#2563eb" size={32}/>
+                    <Avatar initials={(m.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="var(--accent)" size={32}/>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</div>
                       <div style={{fontSize:12,color:'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.email || '—'}</div>
@@ -2010,7 +2010,7 @@ function Organigrama() {
                       style={{width:16,height:16,cursor:'pointer',flexShrink:0,accentColor:'var(--accent)'}}/>
                     <button type="button" onClick={() => setFicha({ memberId: m.memberId, name: m.name })}
                       style={{display:'flex',alignItems:'center',gap:12,flex:1,minWidth:0,border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left',padding:0}}>
-                      <Avatar initials={(m.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="#2563eb" size={32}/>
+                      <Avatar initials={(m.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="var(--accent)" size={32}/>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:14,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</div>
                         <div style={{fontSize:12,color:'var(--text-muted)'}}>{m.email || '—'}</div>
@@ -2049,7 +2049,7 @@ function Organigrama() {
               <button type="button" onClick={() => setFicha(null)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)'}}><Icon name="x" size={18}/></button>
             </div>
             <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,paddingBottom:14,borderBottom:'1px solid var(--border)'}}>
-              <Avatar initials={(ficha.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="#2563eb" size={62}/>
+              <Avatar initials={(ficha.name || '?').split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="var(--accent)" size={62}/>
               <div style={{fontWeight:700,fontSize:18,color:'var(--text-primary)',textAlign:'center'}}>{fichaSocio?.nombre || ficha.name}</div>
               {fichaSocio && <Badge status={fichaSocio.estado}/>}
             </div>
@@ -6582,7 +6582,7 @@ function Contabilidad({ setActive }) {
                         borderRadius:999,
                         fontWeight:700,
                         background:l.side==='DEBIT' ? '#eff6ff' : '#fef2f2',
-                        color:l.side==='DEBIT' ? '#1d4ed8' : '#b91c1c',
+                        color:l.side==='DEBIT' ? 'var(--accent-strong)' : '#b91c1c',
                       }}>
                         {l.side === 'DEBIT' ? 'Debe' : 'Haber'}
                       </span>
@@ -9257,7 +9257,7 @@ function ChatSection() {
                   {memberResults.map((s) => (
                     <button key={s.id} type="button" onClick={() => openThread('member', s.id, s.nombre)}
                       style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',textAlign:'left'}}>
-                      <Avatar initials={s.avatar || chatInitials(s.nombre)} color="#2563eb" size={34}/>
+                      <Avatar initials={s.avatar || chatInitials(s.nombre)} color="var(--accent)" size={34}/>
                       <div style={{minWidth:0,flex:1}}>
                         <div style={{fontSize:13,fontWeight:600,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.nombre}</div>
                         <div style={{fontSize:11,color:'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.email || 'Socio'}</div>
@@ -9300,7 +9300,7 @@ function ChatSection() {
                             <Icon name="teams" size={17}/>
                           </div>
                         ) : (
-                          <Avatar initials={chatInitials(t.name)} color="#2563eb" size={38}/>
+                          <Avatar initials={chatInitials(t.name)} color="var(--accent)" size={38}/>
                         )}
                         <div style={{minWidth:0,flex:1}}>
                           <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'baseline'}}>
@@ -9334,7 +9334,7 @@ function ChatSection() {
                       <Icon name="teams" size={16}/>
                     </div>
                   ) : (
-                    <Avatar initials={chatInitials(sel.name)} color="#2563eb" size={36}/>
+                    <Avatar initials={chatInitials(sel.name)} color="var(--accent)" size={36}/>
                   )}
                   <div>
                     <div style={{fontSize:14,fontWeight:700,color:'var(--text-primary)'}}>{sel.name}</div>
@@ -9400,7 +9400,7 @@ function ChatSection() {
                     <Icon name="teams" size={28}/>
                   </div>
                 ) : (
-                  <Avatar initials={chatInitials(sel.name)} color="#2563eb" size={64}/>
+                  <Avatar initials={chatInitials(sel.name)} color="var(--accent)" size={64}/>
                 )}
                 <div style={{fontSize:16,fontWeight:700,color:'var(--text-primary)',textAlign:'center'}}>{sel.name}</div>
                 {sel.kind === 'member' && info?.socio && <Badge status={info.socio.estado}/>}
@@ -9429,7 +9429,7 @@ function ChatSection() {
                   <div style={{display:'flex',flexDirection:'column',gap:6}}>
                     {(info?.members ?? []).slice(0, 12).map((m) => (
                       <div key={m.memberId} style={{display:'flex',alignItems:'center',gap:8}}>
-                        <Avatar initials={chatInitials(m.name)} color="#2563eb" size={26}/>
+                        <Avatar initials={chatInitials(m.name)} color="var(--accent)" size={26}/>
                         <span style={{fontSize:12.5,color:'var(--text-primary)',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.name}</span>
                         {m.inherited && <span style={{fontSize:9,fontWeight:700,color:'var(--text-muted)'}}>SUBGRUPO</span>}
                       </div>
@@ -10201,7 +10201,7 @@ function CrmInner() {
               </div>
               <div style={{
                 width:40,height:40,borderRadius:'50%',
-                background:'linear-gradient(135deg, #2563eb, #004ac6)',
+                background:'linear-gradient(135deg, var(--accent), var(--accent-strong))',
                 display:'flex',alignItems:'center',justifyContent:'center',
                 fontSize:14,fontWeight:700,color:'#fff',
                 boxShadow:'0 2px 8px rgba(0,74,198,0.2)',

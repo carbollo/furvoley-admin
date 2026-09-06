@@ -313,7 +313,7 @@ const buttonStyle: React.CSSProperties = {
   border: 0,
   borderRadius: 10,
   padding: '12px 14px',
-  background: '#2563eb',
+  background: 'var(--accent)',
   color: '#fff',
   fontWeight: 700,
   cursor: 'pointer',
