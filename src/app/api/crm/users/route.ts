@@ -78,6 +78,51 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Rol inválido' }, { status: 400 })
   }
 
+  // Qué está ocupado, y por quién.
+  //
+  // Antes esto se dejaba estallar contra los índices únicos y se devolvía
+  // «Ya existe una cuenta con ese email o socio vinculado»: dos causas
+  // distintas en un solo mensaje, sin decir cuál era ni de quién. Un
+  // administrador que intentaba dar de alta a un socio que YA tenía cuenta
+  // —la suya, normalmente— no tenía forma de saber que el sistema estaba
+  // haciendo lo correcto, y lo reportaba como un fallo que le bloqueaba.
+  const correoOcupado = await prisma.user.findFirst({
+    where: { email },
+    select: { name: true },
+  })
+  if (correoOcupado) {
+    return NextResponse.json(
+      {
+        error: `Ya hay una cuenta con el correo ${email}${correoOcupado.name ? ` (${correoOcupado.name})` : ''}. Usa otro correo o edita esa cuenta.`,
+      },
+      { status: 409 },
+    )
+  }
+
+  if (memberId) {
+    // Un socio solo puede tener UNA cuenta: `User.memberId` es único, y es
+    // deliberado —dos cuentas sobre la misma ficha serían dos personas con el
+    // mismo historial. Así que aquí no hay nada que permitir: hay que decirle
+    // al administrador cuál es la cuenta que ya existe para que la edite.
+    const socioConCuenta = await prisma.user.findFirst({
+      where: { memberId },
+      select: { email: true, role: true },
+    })
+    if (socioConCuenta) {
+      const socio = await prisma.member.findUnique({
+        where: { id: memberId },
+        select: { name: true },
+      })
+      const quien = socio?.name ? `«${socio.name}»` : 'Ese socio'
+      return NextResponse.json(
+        {
+          error: `${quien} ya tiene una cuenta (${socioConCuenta.email || 'sin correo'}). Cambia su rol o su contraseña desde la lista de usuarios en vez de crear otra.`,
+        },
+        { status: 409 },
+      )
+    }
+  }
+
   const password = await bcrypt.hash(passwordRaw, 10)
 
   try {
@@ -94,7 +139,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, id: created.id })
   } catch (e: any) {
     if (e?.code === 'P2002') {
-      return NextResponse.json({ error: 'Ya existe una cuenta con ese email o socio vinculado' }, { status: 409 })
+      // Red de seguridad: si dos altas caen a la vez, las comprobaciones de
+      // arriba pueden pasar las dos y el índice único frena a la segunda. Aquí
+      // sí se puede saber qué campo chocó, así que se dice.
+      const campos = Array.isArray(e?.meta?.target) ? (e.meta.target as string[]) : []
+      if (campos.includes('memberId')) {
+        return NextResponse.json({ error: 'Ese socio ya tiene una cuenta. Recarga la lista de usuarios.' }, { status: 409 })
+      }
+      if (campos.includes('email')) {
+        return NextResponse.json({ error: `Ya hay una cuenta con el correo ${email}.` }, { status: 409 })
+      }
+      return NextResponse.json({ error: 'Ya existe una cuenta con esos datos.' }, { status: 409 })
     }
     return NextResponse.json({ error: 'No se pudo crear la cuenta' }, { status: 400 })
   }

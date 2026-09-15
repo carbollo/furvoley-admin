@@ -1346,6 +1346,15 @@ Pasará a activa aunque no conste el pago. ` +
               padding: 28,
               border: '1px solid var(--border)',
               boxShadow: '0 25px 50px -12px rgba(0,0,0,0.2)',
+              // El diálogo se centra dentro de una capa fija: sin tope de alto,
+              // en un portátil se sale por arriba y por abajo y no hay forma de
+              // llegar a los campos de abajo — ni con la rueda, porque la página
+              // de detrás no se mueve. Se reportó como «el desplegable de
+              // Periodicidad se corta», pero ese `select` es nativo y el sistema
+              // operativo lo dibuja fuera del documento: lo que estaba cortado
+              // era el diálogo entero.
+              maxHeight: 'calc(100vh - 40px)',
+              overflowY: 'auto',
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -1521,7 +1530,7 @@ Pasará a activa aunque no conste el pago. ` +
           onClick={() => { if (!busy) setEditSubModal(null) }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(28,25,23,0.45)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
         >
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 20px 50px rgba(28,25,23,0.25)' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 20px 50px rgba(28,25,23,0.25)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' }}>
             <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700 }}>Modificar suscripción</h2>
             <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-muted)' }}>
               {editSubModal.memberName} · ahora en «{editSubModal.planName}» ({fmtMoney(editSubModal.planAmount)} / {editSubModal.billingPeriodLabel.toLowerCase()})
@@ -1598,6 +1607,15 @@ Pasará a activa aunque no conste el pago. ` +
               padding: 28,
               border: '1px solid var(--border)',
               boxShadow: '0 25px 50px -12px rgba(0,0,0,0.2)',
+              // El diálogo se centra dentro de una capa fija: sin tope de alto,
+              // en un portátil se sale por arriba y por abajo y no hay forma de
+              // llegar a los campos de abajo — ni con la rueda, porque la página
+              // de detrás no se mueve. Se reportó como «el desplegable de
+              // Periodicidad se corta», pero ese `select` es nativo y el sistema
+              // operativo lo dibuja fuera del documento: lo que estaba cortado
+              // era el diálogo entero.
+              maxHeight: 'calc(100vh - 40px)',
+              overflowY: 'auto',
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
