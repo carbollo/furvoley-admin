@@ -765,7 +765,7 @@ Pasará a activa aunque no conste el pago. ` +
                 No hay planes. Crea el primero con «Nuevo plan» (p. ej. Cuota senior, Cuota juvenil).
               </div>
             ) : (
-              <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+              <div className="crm-tabla-scroll" style={{WebkitOverflowScrolling:'touch'}}>
                 <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
@@ -936,7 +936,7 @@ Pasará a activa aunque no conste el pago. ` +
                 Ningún socio tiene cuota asignada. Usa «Asignar cuota a socio».
               </div>
             ) : (
-              <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+              <div className="crm-tabla-scroll" style={{WebkitOverflowScrolling:'touch'}}>
                 <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>
@@ -1219,7 +1219,7 @@ Pasará a activa aunque no conste el pago. ` +
                     </div>
                   </div>
                 )}
-                <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+                <div className="crm-tabla-scroll" style={{WebkitOverflowScrolling:'touch'}}>
                   <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: 'var(--surface-low)', borderBottom: '1px solid var(--border)' }}>

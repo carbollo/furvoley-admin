@@ -164,3 +164,40 @@
   outline-offset: 2px !important;
   border-radius: 6px;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Tablas largas: la barra horizontal tiene que poder alcanzarse.
+
+   Antes cada tabla iba en un `overflow-x: auto` sin más, así que su barra
+   horizontal quedaba al FONDO del contenedor: con 114 socios había que bajar
+   hasta el último para poder mover la tabla a la derecha y ver DNI, cuota o
+   vencimiento. En la práctica, esas columnas eran inalcanzables.
+
+   Acotando la altura, la caja pasa a tener su propio scroll y las dos barras
+   quedan siempre a la vista. Es un tope, no una altura fija: una tabla corta
+   sigue ocupando lo que ocupe y no gana ningún scroll. Y ya que el listado se
+   desplaza por dentro, la cabecera se queda fija para no perder de vista qué
+   columna se está mirando.
+   ───────────────────────────────────────────────────────────────────────── */
+.crm-tabla-scroll {
+  overflow: auto;
+  max-height: 70vh;
+  /* Al llegar al final no se arrastra el scroll de la página de detrás. */
+  overscroll-behavior: contain;
+}
+
+.crm-tabla-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  /* El fondo va en la CELDA: el de la fila no se pinta bajo una cabecera
+     fija, y las filas se verían pasar por debajo del texto. */
+  background: var(--surface-low);
+}
+
+/* En móvil el alto de la pantalla ya es el límite; acotar más deja ver tres
+   filas y obliga a desplazarse dentro de una caja diminuta. */
+@media (max-width: 560px) {
+  .crm-tabla-scroll { max-height: none; }
+  .crm-tabla-scroll thead th { position: static; }
+}

@@ -2449,7 +2449,7 @@ function Impagos() {
               : 'No hay cobros vencidos. Todo al día. 🎉'}
           </div>
         ) : (
-          <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          <div className="crm-tabla-scroll" style={{WebkitOverflowScrolling:'touch'}}>
             <table style={{width:'100%',minWidth:640,borderCollapse:'collapse'}}>
               <thead>
                 <tr style={{background:'var(--surface-low)'}}>
@@ -3205,7 +3205,7 @@ function ProductosSection() {
             Aún no hay productos. Crea el primero arriba.
           </div>
         ) : (
-          <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          <div className="crm-tabla-scroll" style={{WebkitOverflowScrolling:'touch'}}>
             <table style={{width:'100%',minWidth:640,borderCollapse:'collapse'}}>
               <thead>
                 <tr style={{background:'var(--surface-low)'}}>
@@ -3386,7 +3386,7 @@ function DescuentosSection() {
             Aún no hay códigos. Genera el primero arriba.
           </div>
         ) : (
-          <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          <div className="crm-tabla-scroll" style={{WebkitOverflowScrolling:'touch'}}>
             <table style={{width:'100%',minWidth:640,borderCollapse:'collapse'}}>
               <thead>
                 <tr style={{background:'var(--surface-low)'}}>
@@ -4327,7 +4327,7 @@ function Socios({ contactosMode = false }) {
             </button>
           </div>
         ) : null}
-        <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+        <div className="crm-tabla-scroll" style={{WebkitOverflowScrolling:'touch'}}>
           <table style={{width:'100%',minWidth:640,borderCollapse:'collapse'}}>
             <thead>
               <tr style={{background:'var(--surface-low)'}}>
@@ -6848,7 +6848,7 @@ function Contabilidad({ setActive }) {
             }}>{t}</button>
           ))}
         </div>
-        <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+        <div className="crm-tabla-scroll" style={{WebkitOverflowScrolling:'touch'}}>
           {facturasSel.size > 0 && (
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',padding:'12px 32px',background:'var(--accent-pill)',borderTop:'1px solid var(--border)'}}>
               <span style={{fontSize:13,fontWeight:700,color:'var(--accent)'}}>
@@ -8961,7 +8961,7 @@ function Personal() {
             <div style={{ fontWeight: 600, fontSize: 18, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Cuentas de acceso</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>{users.length} {users.length === 1 ? 'cuenta' : 'cuentas'} registradas</div>
           </div>
-          <div style={{ overflowX: 'auto' }}>
+          <div className="crm-tabla-scroll">
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: 'var(--surface-low)' }}>
